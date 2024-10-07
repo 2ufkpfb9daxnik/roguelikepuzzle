@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://prj4b3cxhkvh"
-path="res://.godot/imported/_8058bbee-7e27-42d3-8217-2671f02b4c04.jpg-f9aa7555f27c7081f8c995e358c54e13.ctex"
+uid="uid://c5tjot26sn2w8"
+path="res://.godot/imported/shield.jpg-2e529305f70908734fa12ca579f8ec94.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Texture/_8058bbee-7e27-42d3-8217-2671f02b4c04.jpg"
-dest_files=["res://.godot/imported/_8058bbee-7e27-42d3-8217-2671f02b4c04.jpg-f9aa7555f27c7081f8c995e358c54e13.ctex"]
+source_file="res://Texture/shield.jpg"
+dest_files=["res://.godot/imported/shield.jpg-2e529305f70908734fa12ca579f8ec94.ctex"]
 
 [params]
 

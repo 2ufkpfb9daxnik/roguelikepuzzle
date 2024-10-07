@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c5tjot26sn2w8"
-path="res://.godot/imported/_2ed3976b-c3d7-4a0f-8aed-c3ca44de63b1.jpg-4873811a01ccf2a53d17827baadd1edf.ctex"
+uid="uid://da42kwyevopgs"
+path="res://.godot/imported/potion.jpg-9f68a146e10fff5f3e63a1efa9c85125.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Texture/_2ed3976b-c3d7-4a0f-8aed-c3ca44de63b1.jpg"
-dest_files=["res://.godot/imported/_2ed3976b-c3d7-4a0f-8aed-c3ca44de63b1.jpg-4873811a01ccf2a53d17827baadd1edf.ctex"]
+source_file="res://Texture/potion.jpg"
+dest_files=["res://.godot/imported/potion.jpg-9f68a146e10fff5f3e63a1efa9c85125.ctex"]
 
 [params]
 
