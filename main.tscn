@@ -4,17 +4,9 @@
 
 [node name="PuzzleBoard" type="Node2D" parent="."]
 
-[node name="koma" type="Area2D" parent="PuzzleBoard"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PuzzleBoard/koma"]
-
-[node name="Sprite2D" type="Sprite2D" parent="PuzzleBoard/koma"]
-
-[node name="GridContainer" type="GridContainer" parent="PuzzleBoard"]
-offset_right = 40.0
-offset_bottom = 40.0
-
 [node name="Spawner" type="Node2D" parent="PuzzleBoard"]
+
+[node name="GridContainer" type="Node2D" parent="PuzzleBoard"]
 
 [node name="BuffSelection" type="CanvasLayer" parent="."]
 
