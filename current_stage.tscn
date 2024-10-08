@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://xmeslbtexm7n"]
+
+[ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
+
+[node name="CurrentStage" type="Node2D"]
+
+[node name="PuzzleBoard" parent="." instance=ExtResource("1_46jpj")]
+
+[node name="BuffManager" type="Node" parent="."]
+
+[node name="ScoreManager" type="Node" parent="."]

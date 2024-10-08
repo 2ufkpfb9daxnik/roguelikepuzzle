@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://br3hjjh1sbn2i"]
+
+[node name="StageDisplay" type="Label"]
+offset_right = 40.0
+offset_bottom = 23.0

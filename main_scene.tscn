@@ -1,0 +1,37 @@
+[gd_scene load_steps=8 format=3 uid="uid://ehrdb5wm5hly"]
+
+[ext_resource type="PackedScene" uid="uid://xmeslbtexm7n" path="res://current_stage.tscn" id="1_40tcl"]
+[ext_resource type="PackedScene" uid="uid://cso60v6jc7o8o" path="res://score_display.tscn" id="2_unsrg"]
+[ext_resource type="PackedScene" uid="uid://br3hjjh1sbn2i" path="res://stage_display.tscn" id="3_3v7id"]
+[ext_resource type="PackedScene" uid="uid://c44kkymy1y33v" path="res://buff_display.tscn" id="4_50cum"]
+[ext_resource type="PackedScene" uid="uid://bunphh4lqljfg" path="res://game_over_screen.tscn" id="5_1yw3n"]
+[ext_resource type="PackedScene" uid="uid://wv65svru6k73" path="res://background_music.tscn" id="6_lqxtt"]
+[ext_resource type="PackedScene" uid="uid://j2irglnij16q" path="res://sound_effect.tscn" id="7_m5b1y"]
+
+[node name="MainScene" type="Node2D"]
+
+[node name="GameManager" type="Node" parent="."]
+
+[node name="CurrentStage" parent="GameManager" instance=ExtResource("1_40tcl")]
+
+[node name="LevelManager" type="Node" parent="GameManager"]
+
+[node name="NextStageConditions" type="Node" parent="GameManager/LevelManager"]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="ScoreDisplay" parent="UI" instance=ExtResource("2_unsrg")]
+
+[node name="StageDisplay" parent="UI" instance=ExtResource("3_3v7id")]
+
+[node name="BuffDisplay" parent="UI" instance=ExtResource("4_50cum")]
+
+[node name="GameOverScreen" parent="UI" instance=ExtResource("5_1yw3n")]
+
+[node name="AudioManager" type="Node" parent="."]
+
+[node name="BackgroundMusic" parent="AudioManager" instance=ExtResource("6_lqxtt")]
+
+[node name="SoundEffects" type="Node" parent="AudioManager"]
+
+[node name="SoundEffect" parent="AudioManager/SoundEffects" instance=ExtResource("7_m5b1y")]

@@ -1,0 +1,3 @@
+[gd_scene format=3 uid="uid://6alb0irugq5j"]
+
+[node name="RandomRemovalBuff" type="Node2D"]
