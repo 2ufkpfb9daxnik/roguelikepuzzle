@@ -1,3 +1,6 @@
-[gd_scene format=3 uid="uid://dfx5p1og6gn1d"]
+[gd_scene load_steps=2 format=3 uid="uid://dfx5p1og6gn1d"]
+
+[ext_resource type="Texture2D" uid="uid://fhm3og46purh" path="res://Texture/bread.jpg" id="1_wdqop"]
 
 [node name="Cell" type="Sprite2D"]
+texture = ExtResource("1_wdqop")
