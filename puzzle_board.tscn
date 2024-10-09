@@ -12,14 +12,14 @@
 [ext_resource type="PackedScene" uid="uid://blknlv8b7tsk3" path="res://special_piece_buff.tscn" id="9_7kh2n"]
 [ext_resource type="PackedScene" uid="uid://bbs2ble8mc7w3" path="res://universal_match_buff.tscn" id="10_1nrjj"]
 [ext_resource type="PackedScene" uid="uid://ibjd3vrxkao7" path="res://score_multiplier_buff.tscn" id="11_kkvgh"]
-[ext_resource type="Texture2D" uid="uid://fhm3og46purh" path="res://Texture/bread.jpg" id="13_0b6l3"]
-[ext_resource type="Texture2D" uid="uid://b3uemnyph7w61" path="res://Texture/coin.jpg" id="14_g8rmx"]
-[ext_resource type="Texture2D" uid="uid://da42kwyevopgs" path="res://Texture/potion.jpg" id="15_drg7w"]
-[ext_resource type="Texture2D" uid="uid://c5tjot26sn2w8" path="res://Texture/shield.jpg" id="16_gkakv"]
-[ext_resource type="Texture2D" uid="uid://prj4b3cxhkvh" path="res://Texture/sword.jpg" id="17_2owju"]
+[ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
+[ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
+[ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
+[ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
+[ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
 
 [node name="PuzzleBoard" type="Node2D"]
-scale = Vector2(0.05, 0.05)
+scale = Vector2(0.1, 0.1)
 script = ExtResource("1_2mien")
 
 [node name="Cells" parent="." instance=ExtResource("1_virbo")]
@@ -53,16 +53,16 @@ script = ExtResource("1_2mien")
 [node name="ScoreMultiplierBuff" parent="BuffManager/Buffs" instance=ExtResource("11_kkvgh")]
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("13_0b6l3")
+texture = ExtResource("13_cd54x")
 
 [node name="Sprite2D2" type="Sprite2D" parent="."]
-texture = ExtResource("14_g8rmx")
+texture = ExtResource("14_6a3y7")
 
 [node name="Sprite2D3" type="Sprite2D" parent="."]
-texture = ExtResource("15_drg7w")
+texture = ExtResource("15_kpjd4")
 
 [node name="Sprite2D4" type="Sprite2D" parent="."]
-texture = ExtResource("16_gkakv")
+texture = ExtResource("16_yd1jb")
 
 [node name="Sprite2D5" type="Sprite2D" parent="."]
-texture = ExtResource("17_2owju")
+texture = ExtResource("17_y7rej")
