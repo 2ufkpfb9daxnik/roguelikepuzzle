@@ -12,6 +12,9 @@ var cellsize
 var isclick = false
 var clickedpositionx = -1e9
 var clickedpositiony = -1e9
+var clicknum = -1e9
+var clicki = -1e9
+var column_empty = []
 func _ready() -> void:
 	grid_column = 10
 	grid_row = 15
@@ -75,7 +78,28 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					clickedpositionx = int(i)
 					clickedpositiony = int(j)
 				isclick = true
+				clicki = grid_i[i][j]
+				clicknum = grid_n[i][j]
 			else:
+				var mouse_position = get_global_mouse_position()
+				var i = (mouse_position.x-(430))/50
+				var j = (mouse_position.y-(130))/50
+				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
+					var swapa = grid_i[i][j]
+					var swapb = clicki
+					var swapna = grid_i[i][j]
+					var swapnb = clicknum
+					print("swap(%d,%d)" % [swapa,swapb])
+					grid_i[i][j] = swapb
+					grid_i[clickedpositionx][clickedpositiony] = swapa
+					grid_n[i][j] = swapnb
+					grid_n[clickedpositionx][clickedpositiony] = swapna;
+					var swapaposition = piece[swapa].position
+					var swapacollidposition = piececollid[swapa].position
+					piece[swapa].position = piece[swapb].position
+					piece[swapb].position = swapaposition
+					piececollid[swapa].position = piececollid[swapb].position
+					piececollid[swapb].position = swapacollidposition
 				isclick = false
 	pass # Replace with function body.
 func abs(x: int) -> int:
