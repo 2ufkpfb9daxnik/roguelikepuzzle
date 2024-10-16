@@ -15,12 +15,15 @@ var clickedpositiony = -1e9
 var clicknum = -1e9
 var clicki = -1e9
 var column_empty = []
+var ismatched = []
 func _ready() -> void:
-	grid_column = 10
+	grid_column = 15
 	grid_row = 15
 	var collid
 	var children = get_children()
 	var valid_children = []
+	for i in range(grid_column):
+		column_empty.append(0)
 	for child in children:
 		if child is Sprite2D:
 			child.position.x = -1000000
@@ -31,6 +34,7 @@ func _ready() -> void:
 	for i in range(grid_row):
 		var arr = []
 		var arr1 = []
+		var arr2 = []
 		for j in range(grid_column):
 			var canset = []
 			for k in range(5):
@@ -48,10 +52,11 @@ func _ready() -> void:
 			var nval = rng[randi() % rng.size()]
 			arr.append(nval)
 			arr1.append(i*grid_column+j)
+			arr2.append(false)
 			var adc = valid_children[nval].duplicate();
-			adc.position = Vector2(i*500+500+dx,j*500+500+dy)
+			adc.position = Vector2(j*500+500+dx,i*500+500+dy)
 			var nxtcollid = collid.duplicate();
-			nxtcollid.position = Vector2(i*500+500+dx,j*500+500+dy)
+			nxtcollid.position = Vector2(j*500+500+dx,i*500+500+dy)
 			cellsize = adc.scale
 			piece.append(adc)
 			piececollid.append(nxtcollid)
@@ -61,6 +66,13 @@ func _ready() -> void:
 					child.add_child(nxtcollid)
 		grid_n.append(arr)
 		grid_i.append(arr1)
+		ismatched.append(arr2)
+	for i in range(grid_row):
+		var outcolumn = ""
+		for j in range(grid_column):
+			outcolumn += str(grid_n[i][j])
+			outcolumn += " "
+		print(outcolumn)
 	pass # Replace with function body.
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -69,21 +81,21 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				var mouse_position = get_global_mouse_position()
-				var i = (mouse_position.x-(430))/50
-				var j = (mouse_position.y-(130))/50
+				var i = (mouse_position.y-(130))/50
+				var j = (mouse_position.x-(430))/50
 				print("(%d, %d)" % [i, j])
 				print("(%d, %d)" % [mouse_position.x, mouse_position.y])
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0):
 					piece[grid_i[i][j]].scale *= 2 
-					clickedpositionx = int(i)
-					clickedpositiony = int(j)
+					clickedpositionx = int(j)
+					clickedpositiony = int(i)
 				isclick = true
 				clicki = grid_i[i][j]
 				clicknum = grid_n[i][j]
 			else:
 				var mouse_position = get_global_mouse_position()
-				var i = (mouse_position.x-(430))/50
-				var j = (mouse_position.y-(130))/50
+				var i = (mouse_position.y-(130))/50
+				var j = (mouse_position.x-(430))/50
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
 					var swapa = grid_i[i][j]
 					var swapb = clicki
@@ -91,9 +103,9 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					var swapnb = clicknum
 					print("swap(%d,%d)" % [swapa,swapb])
 					grid_i[i][j] = swapb
-					grid_i[clickedpositionx][clickedpositiony] = swapa
+					grid_i[clickedpositiony][clickedpositionx] = swapa
 					grid_n[i][j] = swapnb
-					grid_n[clickedpositionx][clickedpositiony] = swapna;
+					grid_n[clickedpositiony][clickedpositionx] = swapna;
 					var swapaposition = piece[swapa].position
 					var swapacollidposition = piececollid[swapa].position
 					piece[swapa].position = piece[swapb].position
@@ -106,13 +118,86 @@ func abs(x: int) -> int:
 	if(x<0):
 		x*=-1
 	return x
+func searchmatch() -> void:
+	for i in range(grid_row):
+		for j in range(grid_column):
+			if(ismatched[i][j]||grid_n[i][j]==-1e9):
+				continue
+			var ni = i
+			var nj = j
+			var nnum = grid_n[i][j]
+			while(true):
+				if(ni==grid_row):
+					break
+				if(grid_n[ni][j]!=nnum):
+					break
+				ni+=1
+			if(ni-i>=3):
+				for k in range(ni-i):
+					ismatched[i+k][j] = true
+			while(true):
+				if(nj==grid_column):
+					break
+				if(grid_n[i][nj]!=nnum):
+					break
+				nj+=1
+			if(nj-j>=3):
+				for k in range(nj-j):
+					ismatched[i][j+k] = true
+func breakmatchedcell() -> void:
+	var breakel = []
+	for i in range(grid_row): 
+		for j in range(grid_column):
+			if(ismatched[i][j]):
+				ismatched[i][j] = false
+				breakel.append(grid_i[i][j])
+				grid_i[i][j] = -1e9
+				grid_n[i][j] = -1e9
+	for i in range(breakel.size()):
+		piece[breakel[i]].queue_free()
+		piececollid[breakel[i]].queue_free()
+		piece[breakel[i]] = null
+		piececollid[breakel[i]] = null
+		print("break %d" % [breakel[i]])
+	var fixnum = []
+	var matchnum = []
+	for i in range(grid_row):
+		for j in range(grid_column):
+			matchnum.append(-1e9)
+	for i in range(grid_row):
+		for j in range(grid_column):
+			if(grid_i[i][j]==-1e9):
+				continue
+			fixnum.append(grid_i[i][j])
+	fixnum.sort()
+	for i in range(fixnum.size()):
+		matchnum[fixnum[i]] = i
+	for i in range(grid_row):
+		for j in range(grid_column):
+			if(grid_i[i][j]==-1e9):
+				column_empty[j] += 1
+				continue
+			grid_i[i][j] = matchnum[grid_i[i][j]]
+	var nxpiece = []
+	var nxcollidpiece  = []
+	for i in range(piece.size()):
+		if(piece[i]!=null):
+			nxpiece.append(piece[i])
+		if(piececollid[i]!=null):
+			nxcollidpiece.append(piececollid[i])
+	piece = nxpiece
+	piececollid = nxcollidpiece
 func _process(delta: float) -> void:
+	searchmatch()
+	breakmatchedcell()
 	var mouse_position = get_global_mouse_position()
-	var i = int((mouse_position.x-(430))/50)
-	var j = int((mouse_position.y-(130))/50)
-	if(int(abs(i-clickedpositionx)+abs(j-clickedpositiony))>1) and clickedpositionx!=-1e9:
+	var i = int((mouse_position.y-(130))/50)
+	var j = int((mouse_position.x-(430))/50)
+	if(int(abs(i-clickedpositiony)+abs(j-clickedpositionx))>1) and clickedpositionx!=-1e9:
 		isclick = false
 	if(!isclick):
 		for k in range(piece.size()):
-			piece[k].scale = cellsize
+			if piece[k] != null:
+				piece[k].scale = cellsize
+
 	pass
