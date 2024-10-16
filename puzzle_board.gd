@@ -16,6 +16,9 @@ var clicknum = -1e9
 var clicki = -1e9
 var column_empty = []
 var ismatched = []
+var score = 0
+var time_accumulator = 0.0
+var update_interval = 0.1
 func _ready() -> void:
 	grid_column = 15
 	grid_row = 15
@@ -99,7 +102,7 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
 					var swapa = grid_i[i][j]
 					var swapb = clicki
-					var swapna = grid_i[i][j]
+					var swapna = grid_n[i][j]
 					var swapnb = clicknum
 					print("swap(%d,%d)" % [swapa,swapb])
 					grid_i[i][j] = swapb
@@ -112,6 +115,7 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					piece[swapb].position = swapaposition
 					piececollid[swapa].position = piececollid[swapb].position
 					piececollid[swapb].position = swapacollidposition
+					
 				isclick = false
 	pass # Replace with function body.
 func abs(x: int) -> int:
@@ -144,6 +148,16 @@ func searchmatch() -> void:
 			if(nj-j>=3):
 				for k in range(nj-j):
 					ismatched[i][j+k] = true
+	for i in range(grid_row):
+		var outcolumn = ""
+		for j in range(grid_column):
+			if(ismatched[i][j]):
+				outcolumn += "1 "
+			else:
+				outcolumn += "0 "
+		print(outcolumn)
+	
+	breakmatchedcell()
 func breakmatchedcell() -> void:
 	var breakel = []
 	for i in range(grid_row): 
@@ -153,12 +167,12 @@ func breakmatchedcell() -> void:
 				breakel.append(grid_i[i][j])
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
+	score += breakel.size()
 	for i in range(breakel.size()):
 		piece[breakel[i]].queue_free()
 		piececollid[breakel[i]].queue_free()
 		piece[breakel[i]] = null
 		piececollid[breakel[i]] = null
-		print("break %d" % [breakel[i]])
 	var fixnum = []
 	var matchnum = []
 	for i in range(grid_row):
@@ -188,16 +202,17 @@ func breakmatchedcell() -> void:
 	piece = nxpiece
 	piececollid = nxcollidpiece
 func _process(delta: float) -> void:
-	searchmatch()
-	breakmatchedcell()
+	time_accumulator += delta
+	if time_accumulator >= update_interval:
+		time_accumulator -= update_interval
+		searchmatch()
 	var mouse_position = get_global_mouse_position()
 	var i = int((mouse_position.y-(130))/50)
 	var j = int((mouse_position.x-(430))/50)
-	if(int(abs(i-clickedpositiony)+abs(j-clickedpositionx))>1) and clickedpositionx!=-1e9:
+	if(int(abs(i-clickedpositiony)+abs(j-clickedpositionx))>1e9) and clickedpositionx!=-1e9:
 		isclick = false
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
 				piece[k].scale = cellsize
-
 	pass
