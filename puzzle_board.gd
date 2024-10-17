@@ -18,7 +18,8 @@ var column_empty = []
 var ismatched = []
 var score = 0
 var time_accumulator = 0.0
-var update_interval = 0.1
+var update_interval = 0.2
+var isbreak = false
 func _ready() -> void:
 	grid_column = 15
 	grid_row = 15
@@ -70,14 +71,8 @@ func _ready() -> void:
 		grid_n.append(arr)
 		grid_i.append(arr1)
 		ismatched.append(arr2)
-	for i in range(grid_row):
-		var outcolumn = ""
-		for j in range(grid_column):
-			outcolumn += str(grid_n[i][j])
-			outcolumn += " "
-		print(outcolumn)
 	pass # Replace with function body.
-
+	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
 	if event is InputEventMouseButton:
@@ -115,7 +110,6 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					piece[swapb].position = swapaposition
 					piececollid[swapa].position = piececollid[swapb].position
 					piececollid[swapb].position = swapacollidposition
-					
 				isclick = false
 	pass # Replace with function body.
 func abs(x: int) -> int:
@@ -139,6 +133,16 @@ func searchmatch() -> void:
 			if(ni-i>=3):
 				for k in range(ni-i):
 					ismatched[i+k][j] = true
+			ni = i
+			while(true):
+				if(ni==0):
+					break
+				if(grid_n[ni][j]!=nnum):
+					break
+				ni-=1
+			if(i-ni>=3):
+				for k in range(i-ni):
+					ismatched[ni+k][j] = true
 			while(true):
 				if(nj==grid_column):
 					break
@@ -148,14 +152,21 @@ func searchmatch() -> void:
 			if(nj-j>=3):
 				for k in range(nj-j):
 					ismatched[i][j+k] = true
-	for i in range(grid_row):
-		var outcolumn = ""
-		for j in range(grid_column):
-			if(ismatched[i][j]):
-				outcolumn += "1 "
-			else:
-				outcolumn += "0 "
-		print(outcolumn)
+			nj = j
+			while(true):
+				if(nj==0):
+					break
+				if(grid_n[i][nj]!=nnum):
+					break
+				nj-=1
+			if(j-nj>=3):
+				for k in range(j-nj):
+					ismatched[i][nj+k] = true
+	var outcolumn = ""
+	for i in range(grid_column):
+		outcolumn += str(column_empty[i])
+		outcolumn += " "
+	print(outcolumn)
 	
 	breakmatchedcell()
 func breakmatchedcell() -> void:
@@ -163,6 +174,7 @@ func breakmatchedcell() -> void:
 	for i in range(grid_row): 
 		for j in range(grid_column):
 			if(ismatched[i][j]):
+				column_empty[j] += 1
 				ismatched[i][j] = false
 				breakel.append(grid_i[i][j])
 				grid_i[i][j] = -1e9
@@ -173,6 +185,7 @@ func breakmatchedcell() -> void:
 		piececollid[breakel[i]].queue_free()
 		piece[breakel[i]] = null
 		piececollid[breakel[i]] = null
+		isbreak = true
 	var fixnum = []
 	var matchnum = []
 	for i in range(grid_row):
@@ -189,7 +202,6 @@ func breakmatchedcell() -> void:
 	for i in range(grid_row):
 		for j in range(grid_column):
 			if(grid_i[i][j]==-1e9):
-				column_empty[j] += 1
 				continue
 			grid_i[i][j] = matchnum[grid_i[i][j]]
 	var nxpiece = []
@@ -201,11 +213,76 @@ func breakmatchedcell() -> void:
 			nxcollidpiece.append(piececollid[i])
 	piece = nxpiece
 	piececollid = nxcollidpiece
+func fallcell() -> void:
+	var children = get_children()
+	var valid_children = []
+	var rng = []
+	var collid
+	for child in children:
+		if child is Sprite2D:
+			valid_children.append(child)
+		if child is Area2D:
+			for nxtchild in child.get_children():
+				collid = nxtchild
+	for i in range(5):
+		rng.append(i)
+	for j in range(grid_column):
+		for i in range(grid_row):
+			if(grid_i[grid_row-1-i][j]==-1e9):
+				if(grid_row-1-i==0):
+					var nval = rng[randi() % rng.size()]
+					grid_n[grid_row-1-i][j] = nval
+					grid_i[grid_row-1-i][j] = piece.size()
+					var adc = valid_children[nval].duplicate();
+					adc.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
+					var nxtcollid = collid.duplicate();
+					nxtcollid.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
+					piece.append(adc)
+					piececollid.append(nxtcollid)
+					add_child(adc)
+					for child in children:
+						if child is Area2D:
+							child.add_child(nxtcollid)
+					column_empty[j]-=1
+				else:
+					for k in range(grid_row-1-i,0,-1):
+						if(k==0):
+							var nval = rng[randi() % rng.size()]
+							grid_n[grid_row-1-i][j] = nval
+							grid_i[grid_row-1-i][j] = piece.size()
+							var adc = valid_children[nval].duplicate();
+							adc.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
+							var nxtcollid = collid.duplicate();
+							nxtcollid.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
+							piece.append(adc)
+							piececollid.append(nxtcollid)
+							add_child(adc)
+							for child in children:
+								if child is Area2D:
+									child.add_child(nxtcollid)
+							column_empty[j]-=1
+						else:
+							var gridi = grid_i[k-1][j]
+							var gridn = grid_n[k-1][j]
+							if(gridi!=-1e9):
+								piece[grid_i[k-1][j]].position = Vector2(j*500+500+dx,k*500+500+dy)
+								piececollid[grid_i[k-1][j]].position = Vector2(j*500+500+dx,k*500+500+dy)
+							grid_i[k-1][j] = grid_i[k][j]
+							grid_i[k][j] = gridi
+							grid_n[k-1][j] = grid_n[k][j]
+							grid_n[k][j] = gridn
+	isbreak = false
+	for i in range(grid_column):
+		if(column_empty[i]>0):
+			isbreak = true					
 func _process(delta: float) -> void:
 	time_accumulator += delta
 	if time_accumulator >= update_interval:
 		time_accumulator -= update_interval
-		searchmatch()
+		if(isbreak):
+			fallcell()
+		else:
+			searchmatch()
 	var mouse_position = get_global_mouse_position()
 	var i = int((mouse_position.y-(130))/50)
 	var j = int((mouse_position.x-(430))/50)
