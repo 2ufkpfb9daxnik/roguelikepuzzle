@@ -1,14 +1,14 @@
 extends Node2D
 # Called when the node enters the scene tree for the first time.
-var grid_column
+var grid_column 
 var grid_row
-var dx = 4000
+var dx = 4000 
 var dy = 1000
-var piece = []
-var grid_n = []
-var piececollid = []
-var grid_i = []
-var cellsize
+var piece = [] #駒
+var grid_n = [] #grid_n[i][j] := (i,j)に位置する駒の種類
+var piececollid = [] #駒の判定
+var grid_i = [] #grid_i[i][j] := (i,j)に位置する駒の番号
+var cellsize #駒の大きさ
 var isclick = false
 var clickedpositionx = -1e9
 var clickedpositiony = -1e9
@@ -16,10 +16,10 @@ var clicknum = -1e9
 var clicki = -1e9
 var column_empty = []
 var ismatched = []
-var score = 0
 var time_accumulator = 0.0
 var update_interval = 0.5
 var isbreak = false
+var cellkinds = 5 #駒の種類
 func _ready() -> void:
 	grid_column = 15
 	grid_row = 15
@@ -41,7 +41,7 @@ func _ready() -> void:
 		var arr2 = []
 		for j in range(grid_column):
 			var canset = []
-			for k in range(5):
+			for k in range(cellkinds):
 				canset.append(true)
 			if(i>=2):
 				if(grid_n[i-1][j]==grid_n[i-2][j]):
@@ -50,7 +50,7 @@ func _ready() -> void:
 				if(arr[j-1]==arr[j-2]):
 					canset[arr[j-1]] = false
 			var rng = []
-			for k in range(5):
+			for k in range(cellkinds):
 				if(canset[k]):
 					rng.append(k)
 			var nval = rng[randi() % rng.size()]
@@ -77,7 +77,7 @@ func _ready() -> void:
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
 	if event is InputEventMouseButton and !isbreak:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
+			if event.pressed:#駒がクリックされた時の処理
 				var mouse_position = get_global_mouse_position()
 				var i = (mouse_position.y-(130))/50
 				var j = (mouse_position.x-(430))/50
@@ -95,6 +95,7 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				var i = (mouse_position.y-(130))/50
 				var j = (mouse_position.x-(430))/50
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
+					#駒を交換する処理
 					var swapa = grid_i[i][j]
 					var swapb = clicki
 					var swapna = grid_n[i][j]
@@ -116,7 +117,7 @@ func abs(x: int) -> int:
 	if(x<0):
 		x*=-1
 	return x
-func searchmatch() -> void:
+func searchmatch() -> void: #マッチした駒を調べる
 	for i in range(grid_row):
 		for j in range(grid_column):
 			if(ismatched[i][j]||grid_n[i][j]==-1e9):
@@ -135,13 +136,13 @@ func searchmatch() -> void:
 					ismatched[k][j] = true
 			ni = i
 			while(true):
-				if(ni==0):
+				if(ni==-1):
 					break
 				if(grid_n[ni][j]!=nnum):
 					break
 				ni-=1
 			if(i-ni>=3):
-				for k in range(ni,i):
+				for k in range(ni+1,i+1):
 					ismatched[k][j] = true
 			while(true):
 				if(nj==grid_column):
@@ -154,22 +155,17 @@ func searchmatch() -> void:
 					ismatched[i][k] = true
 			nj = j
 			while(true):
-				if(nj==0):
+				if(nj==-1):
 					break
 				if(grid_n[i][nj]!=nnum):
 					break
 				nj-=1
 			if(j-nj>=3):
-				for k in range(nj,j):
+				for k in range(nj+1,j+1):
 					ismatched[i][k] = true
-	var outcolumn = ""
-	for i in range(grid_column):
-		outcolumn += str(column_empty[i])
-		outcolumn += " "
-	print(outcolumn)
 	
 	breakmatchedcell()
-func breakmatchedcell() -> void:
+func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
 	for i in range(grid_row): 
 		for j in range(grid_column):
@@ -179,7 +175,6 @@ func breakmatchedcell() -> void:
 				breakel.append(grid_i[i][j])
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
-	score += breakel.size()
 	for i in range(breakel.size()):
 		piece[breakel[i]].queue_free()
 		piececollid[breakel[i]].queue_free()
@@ -213,7 +208,7 @@ func breakmatchedcell() -> void:
 			nxcollidpiece.append(piececollid[i])
 	piece = nxpiece
 	piececollid = nxcollidpiece
-func fallcell() -> void:
+func fallcell() -> void: #駒が消された場所を駒で埋める
 	var children = get_children()
 	var valid_children = []
 	var rng = []
@@ -224,7 +219,7 @@ func fallcell() -> void:
 		if child is Area2D:
 			for nxtchild in child.get_children():
 				collid = nxtchild
-	for i in range(5):
+	for i in range(cellkinds):
 		rng.append(i)
 	for j in range(grid_column):
 		for i in range(grid_row):
