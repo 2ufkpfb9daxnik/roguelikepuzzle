@@ -18,7 +18,7 @@ var column_empty = []
 var ismatched = []
 var score = 0
 var time_accumulator = 0.0
-var update_interval = 0.2
+var update_interval = 0.5
 var isbreak = false
 func _ready() -> void:
 	grid_column = 15
@@ -75,7 +75,7 @@ func _ready() -> void:
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
-	if event is InputEventMouseButton:
+	if event is InputEventMouseButton and !isbreak:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				var mouse_position = get_global_mouse_position()
@@ -131,8 +131,8 @@ func searchmatch() -> void:
 					break
 				ni+=1
 			if(ni-i>=3):
-				for k in range(ni-i):
-					ismatched[i+k][j] = true
+				for k in range(i,ni):
+					ismatched[k][j] = true
 			ni = i
 			while(true):
 				if(ni==0):
@@ -141,8 +141,8 @@ func searchmatch() -> void:
 					break
 				ni-=1
 			if(i-ni>=3):
-				for k in range(i-ni):
-					ismatched[ni+k][j] = true
+				for k in range(ni,i):
+					ismatched[k][j] = true
 			while(true):
 				if(nj==grid_column):
 					break
@@ -150,8 +150,8 @@ func searchmatch() -> void:
 					break
 				nj+=1
 			if(nj-j>=3):
-				for k in range(nj-j):
-					ismatched[i][j+k] = true
+				for k in range(j,nj):
+					ismatched[i][k] = true
 			nj = j
 			while(true):
 				if(nj==0):
@@ -160,8 +160,8 @@ func searchmatch() -> void:
 					break
 				nj-=1
 			if(j-nj>=3):
-				for k in range(j-nj):
-					ismatched[i][nj+k] = true
+				for k in range(nj,j):
+					ismatched[i][k] = true
 	var outcolumn = ""
 	for i in range(grid_column):
 		outcolumn += str(column_empty[i])
