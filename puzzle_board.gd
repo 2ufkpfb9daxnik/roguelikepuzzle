@@ -22,12 +22,14 @@ var isbreak = false
 var cellkinds = 5 #駒の種類
 var prevposx = -1
 var prevposy = -1
+var scoremanagerscript
 func _ready() -> void:
 	grid_column = 15
 	grid_row = 15
 	var collid
 	var children = get_children()
 	var valid_children = []
+	scoremanagerscript = load("res://score_manager.gd").new()
 	for i in range(grid_column):
 		column_empty.append(0)
 	for child in children:
@@ -175,7 +177,10 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(j-nj>=3):
 				for k in range(nj+1,j+1):
 					ismatched[i][k] = true
-	
+	print(ismatched[0][0])
+	var copyismatched = ismatched
+	scoremanagerscript.calcscore(copyismatched)
+	print(ismatched[0][0])
 	breakmatchedcell()
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
@@ -304,7 +309,6 @@ func _process(delta: float) -> void:
 			fallcell()
 		else:
 			searchmatch()
-	print(mouse_position.y)
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
