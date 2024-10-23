@@ -19,6 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
+size = Vector2(25, 25)
 
 [node name="PuzzleBoard" type="Node2D"]
 scale = Vector2(0.1, 0.1)
@@ -72,6 +73,7 @@ texture = ExtResource("17_y7rej")
 [node name="Area2D" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+position = Vector2(0, -1.19209e-05)
 scale = Vector2(20, 20)
 shape = SubResource("RectangleShape2D_kwm7l")
 

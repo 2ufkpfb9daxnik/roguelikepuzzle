@@ -17,9 +17,11 @@ var clicki = -1e9
 var column_empty = []
 var ismatched = []
 var time_accumulator = 0.0
-var update_interval = 0.5
+var update_interval = 0.2
 var isbreak = false
 var cellkinds = 5 #駒の種類
+var prevposx = -1
+var prevposy = -1
 func _ready() -> void:
 	grid_column = 15
 	grid_row = 15
@@ -75,6 +77,8 @@ func _ready() -> void:
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
+	if(isbreak):
+		return
 	if event is InputEventMouseButton and !isbreak:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:#駒がクリックされた時の処理
@@ -90,10 +94,18 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				isclick = true
 				clicki = grid_i[i][j]
 				clicknum = grid_n[i][j]
+				prevposx = piece[grid_i[i][j]].position.x
+				prevposy = piece[grid_i[i][j]].position.y
 			else:
 				var mouse_position = get_global_mouse_position()
 				var i = (mouse_position.y-(130))/50
 				var j = (mouse_position.x-(430))/50
+				if(prevposx!=-1e9):
+					piece[clicki].position.x = prevposx
+					piece[clicki].position.y = prevposy
+					prevposx = -1e9
+					prevposy = -1e9
+				print("c")
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
 					#駒を交換する処理
 					var swapa = grid_i[i][j]
@@ -181,6 +193,7 @@ func breakmatchedcell() -> void: #マッチした駒を消す
 		piece[breakel[i]] = null
 		piececollid[breakel[i]] = null
 		isbreak = true
+		
 	var fixnum = []
 	var matchnum = []
 	for i in range(grid_row):
@@ -271,6 +284,19 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 		if(column_empty[i]>0):
 			isbreak = true					
 func _process(delta: float) -> void:
+	var mouse_position = get_global_mouse_position()
+	if(isclick):
+		Input.warp_mouse(Vector2(max(mouse_position.x,430),max(mouse_position.y,130)))
+		mouse_position.x = max(mouse_position.x,430)
+		mouse_position.y = max(mouse_position.y,130)
+		Input.warp_mouse(Vector2(min(mouse_position.x,1165),min(mouse_position.y,865)))
+		mouse_position.x = min(mouse_position.x,1165)
+	mouse_position.y = min(mouse_position.y,865)
+	var i = int((mouse_position.y-(130))/50)
+	var j = int((mouse_position.x-(430))/50)
+	if(isclick):
+		piece[clicki].position.x = (mouse_position.x-430)*10+400+dx
+		piece[clicki].position.y = (mouse_position.y-130)*10+400+dy
 	time_accumulator += delta
 	if time_accumulator >= update_interval:
 		time_accumulator -= update_interval
@@ -278,11 +304,7 @@ func _process(delta: float) -> void:
 			fallcell()
 		else:
 			searchmatch()
-	var mouse_position = get_global_mouse_position()
-	var i = int((mouse_position.y-(130))/50)
-	var j = int((mouse_position.x-(430))/50)
-	if(int(abs(i-clickedpositiony)+abs(j-clickedpositionx))>1e9) and clickedpositionx!=-1e9:
-		isclick = false
+	print(mouse_position.y)
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
