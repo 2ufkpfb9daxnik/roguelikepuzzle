@@ -23,13 +23,15 @@ var cellkinds = 5 #駒の種類
 var prevposx = -1
 var prevposy = -1
 var scoremanagerscript
+var score_manager
+var score_label
 func _ready() -> void:
+	score_manager = get_parent().get_child(2)
 	grid_column = 15
 	grid_row = 15
 	var collid
 	var children = get_children()
 	var valid_children = []
-	scoremanagerscript = load("res://score_manager.gd").new()
 	for i in range(grid_column):
 		column_empty.append(0)
 	for child in children:
@@ -177,10 +179,8 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(j-nj>=3):
 				for k in range(nj+1,j+1):
 					ismatched[i][k] = true
-	print(ismatched[0][0])
 	var copyismatched = ismatched
-	scoremanagerscript.calcscore(copyismatched)
-	print(ismatched[0][0])
+	score_manager.calcscore(copyismatched)
 	breakmatchedcell()
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
@@ -291,12 +291,12 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 func _process(delta: float) -> void:
 	var mouse_position = get_global_mouse_position()
 	if(isclick):
-		Input.warp_mouse(Vector2(max(mouse_position.x,430),max(mouse_position.y,130)))
-		mouse_position.x = max(mouse_position.x,430)
-		mouse_position.y = max(mouse_position.y,130)
-		Input.warp_mouse(Vector2(min(mouse_position.x,1165),min(mouse_position.y,865)))
-		mouse_position.x = min(mouse_position.x,1165)
-	mouse_position.y = min(mouse_position.y,865)
+		Input.warp_mouse(Vector2(max(mouse_position.x,435),max(mouse_position.y,135)))
+		mouse_position.x = max(mouse_position.x,435)
+		mouse_position.y = max(mouse_position.y,135)
+		Input.warp_mouse(Vector2(min(mouse_position.x,1160),min(mouse_position.y,860)))
+		mouse_position.x = min(mouse_position.x,1160)
+	mouse_position.y = min(mouse_position.y,860)
 	var i = int((mouse_position.y-(130))/50)
 	var j = int((mouse_position.x-(430))/50)
 	if(isclick):

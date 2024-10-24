@@ -1,23 +1,24 @@
-extends Node
+extends Node2D
 var match_index = []
 var allFalse
 var count
 var totalScore: int = 0
-var score_label: Label
 var puzzleboardscript
+var label :Label
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	# ScoreLabel ノードを取得
-	score_label = $ScoreLabel
-	puzzleboardscript = load("res://puzzle_board.gd").new()
-	# 初期スコアを表示
-	update_score_label() # Replace with function body.
-	
-# スコアを更新して表示
-func update_score_label() -> void:
-	# totalScore を ScoreLabel に表示
-	score_label.text = str(totalScore)
+	label = get_node("ScoreLabel")  # ScoreLabelの参照を取得
+	if label != null:
+		update_score_label()  # 初期スコア表示
+	else:
+		print("ScoreLabel ノードが見つかりません")
 
+# スコア表示の更新
+func update_score_label() -> void:
+	if label != null:
+		label.text = "合計得点: " + str(totalScore)
+	else:
+		pass
 func lambda(x,y):
 	if(x-1>=0):	
 		if(allFalse[x-1][y]==false&&match_index[x-1][y]==true):
@@ -43,10 +44,12 @@ func lambda(x,y):
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func calcscore(matchi) -> void:
 	match_index = matchi
-	allFalse = match_index
+	allFalse = []
 	for i in range(match_index.size()):
+		var columnFalse = []
 		for j in range(match_index[i].size()):
-				allFalse[i][j] = false
+				columnFalse.append(false)
+		allFalse.append(columnFalse)
 	var connectcell = []
 	for i in range(match_index.size()):
 		for j in range(match_index[i].size()):
@@ -56,4 +59,7 @@ func calcscore(matchi) -> void:
 				connectcell.append(count)
 				print(count)			
 	for i in range(connectcell.size()):
-		totalScore += connectcell[i]*(connectcell[i]-2)*100
+		totalScore += connectcell[i]*(connectcell[i]-2)*100	
+func _process(delta: float) -> void:
+	update_score_label()
+	pass
