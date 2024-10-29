@@ -1,118 +1,118 @@
 extends Node2D
 # Called when the node enters the scene tree for the first time.
-var grid_column 
-var grid_row
-var dx = 4000 
-var dy = 1000
+var grid_column # ボードの列数
+var grid_row # ボードの行数
+var dx = 4000 # ボードの左上の位置
+var dy = 1000 # ボードの左上の位置
 var piece = [] #駒
 var grid_n = [] #grid_n[i][j] := (i,j)に位置する駒の種類
 var piececollid = [] #駒の判定
 var grid_i = [] #grid_i[i][j] := (i,j)に位置する駒の番号
 var cellsize #駒の大きさ
-var isclick = false
-var clickedpositionx = -1e9
-var clickedpositiony = -1e9
-var clicknum = -1e9
-var clicki = -1e9
-var column_empty = []
-var ismatched = []
-var time_accumulator = 0.0
-var update_interval = 0.2
-var isbreak = false
+var isclick = false #クリックされているか
+var clickedpositionx = -1e9 #クリックされた駒の位置
+var clickedpositiony = -1e9	#クリックされた駒の位置
+var clicknum = -1e9	 #クリックされた駒の種類
+var clicki = -1e9	 #クリックされた駒の番号
+var column_empty = []	#列の空き
+var ismatched = []	#マッチした駒
+var time_accumulator = 0.0	#時間
+var update_interval = 0.2	#更新間隔
+var isbreak = false	#消す処理が行われているか
 var cellkinds = 5 #駒の種類
-var prevposx = -1
-var prevposy = -1
-var scoremanagerscript
-var score_manager
-var score_label
-func _ready() -> void:
-	score_manager = get_parent().get_child(2)
-	grid_column = 15
-	grid_row = 15
-	var collid
-	var children = get_children()
-	var valid_children = []
-	for i in range(grid_column):
-		column_empty.append(0)
-	for child in children:
-		if child is Sprite2D:
-			child.position.x = -1000000
-			valid_children.append(child)
-		if child is Area2D:
-			for nxtchild in child.get_children():
-				collid = nxtchild
-	for i in range(grid_row):
-		var arr = []
-		var arr1 = []
-		var arr2 = []
-		for j in range(grid_column):
-			var canset = []
-			for k in range(cellkinds):
-				canset.append(true)
-			if(i>=2):
-				if(grid_n[i-1][j]==grid_n[i-2][j]):
-					canset[grid_n[i-1][j]] = false
-			if(j>=2):
-				if(arr[j-1]==arr[j-2]):
-					canset[arr[j-1]] = false
-			var rng = []
-			for k in range(cellkinds):
-				if(canset[k]):
-					rng.append(k)
-			var nval = rng[randi() % rng.size()]
-			arr.append(nval)
-			arr1.append(i*grid_column+j)
-			arr2.append(false)
-			var adc = valid_children[nval].duplicate();
-			adc.position = Vector2(j*500+500+dx,i*500+500+dy)
-			var nxtcollid = collid.duplicate();
-			nxtcollid.position = Vector2(j*500+500+dx,i*500+500+dy)
-			cellsize = adc.scale
-			piece.append(adc)
-			piececollid.append(nxtcollid)
-			add_child(adc)
-			for child in children:
-				if child is Area2D:
-					child.add_child(nxtcollid)
-		grid_n.append(arr)
-		grid_i.append(arr1)
-		ismatched.append(arr2)
+var prevposx = -1	#前の位置
+var prevposy = -1	#前の位置
+var scoremanagerscript	#スコアマネージャのスクリプト
+var score_manager	#スコアマネージャ
+var score_label	#スコアラベル
+func _ready() -> void:	#初期化
+	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
+	grid_column = 15	#ボードの列数
+	grid_row = 15	#ボードの行数
+	var collid	#駒の判定
+	var children = get_children()	#子ノードの取得
+	var valid_children = []	#有効な子ノード
+	for i in range(grid_column):	#列の空きの初期化
+		column_empty.append(0)	
+	for child in children:	#有効な子ノードの取得
+		if child is Sprite2D:	#Sprite2Dの場合
+			child.position.x = -1000000	#位置の初期化
+			valid_children.append(child)	#有効な子ノードに追加
+		if child is Area2D:	#Area2Dの場合
+			for nxtchild in child.get_children():	#子ノードの取得
+				collid = nxtchild	#駒の判定の取得
+	for i in range(grid_row):	#ボードの初期化
+		var arr = []	#駒の種類
+		var arr1 = []	#駒の番号
+		var arr2 = []	#マッチした駒
+		for j in range(grid_column):	#ボードの初期化
+			var canset = []	#駒の種類
+			for k in range(cellkinds):	#駒の種類の初期化
+				canset.append(true)	#駒の種類の初期化
+			if(i>=2):	#マッチしない駒の種類の初期化
+				if(grid_n[i-1][j]==grid_n[i-2][j]):	#マッチしない駒の種類の初期化
+					canset[grid_n[i-1][j]] = false	#マッチしない駒の種類の初期化
+			if(j>=2):	#マッチしない駒の種類の初期化
+				if(arr[j-1]==arr[j-2]):	#マッチしない駒の種類の初期化
+					canset[arr[j-1]] = false	#マッチしない駒の種類の初期化
+			var rng = []	#駒の種類
+			for k in range(cellkinds):	#駒の種類の初期化
+				if(canset[k]):	#駒の種類の初期化
+					rng.append(k)	#駒の種類の初期化
+			var nval = rng[randi() % rng.size()]	#駒の種類
+			arr.append(nval)	#駒の種類
+			arr1.append(i*grid_column+j)	#駒の番号
+			arr2.append(false)	#マッチした駒
+			var adc = valid_children[nval].duplicate();	#駒の複製
+			adc.position = Vector2(j*500+500+dx,i*500+500+dy)	#駒の位置
+			var nxtcollid = collid.duplicate();	#駒の判定の複製	
+			nxtcollid.position = Vector2(j*500+500+dx,i*500+500+dy)	#駒の判定の位置
+			cellsize = adc.scale	#駒の大きさ
+			piece.append(adc)	#駒の追加	
+			piececollid.append(nxtcollid)	#駒の判定の追加
+			add_child(adc)	#駒の追加
+			for child in children:	#子ノードの取得
+				if child is Area2D:	#Area2Dの場合
+					child.add_child(nxtcollid)	#駒の判定の追加
+		grid_n.append(arr)	#駒の種類
+		grid_i.append(arr1)		#駒の番号
+		ismatched.append(arr2)	#マッチした駒
 	pass # Replace with function body.
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
-	if(isbreak):
-		return
-	if event is InputEventMouseButton and !isbreak:
-		if event.button_index == MOUSE_BUTTON_LEFT:
+func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
+	if(isbreak):	#消す処理が行われている場合
+		return	#処理を終了
+	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
+		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合
 			if event.pressed:#駒がクリックされた時の処理
-				var mouse_position = get_global_mouse_position()
-				var i = (mouse_position.y-(130))/50
-				var j = (mouse_position.x-(430))/50
-				print("(%d, %d)" % [i, j])
-				print("(%d, %d)" % [mouse_position.x, mouse_position.y])
-				if(i<grid_row&&i>=0&&j<grid_column&&j>=0):
-					piece[grid_i[i][j]].scale *= 2 
-					clickedpositionx = int(j)
-					clickedpositiony = int(i)
-				isclick = true
-				clicki = grid_i[i][j]
-				clicknum = grid_n[i][j]
-				prevposx = piece[grid_i[i][j]].position.x
-				prevposy = piece[grid_i[i][j]].position.y
-			else:
-				var mouse_position = get_global_mouse_position()
-				var i = (mouse_position.y-(130))/50
-				var j = (mouse_position.x-(430))/50
-				if(prevposx!=-1e9):
-					piece[clicki].position.x = prevposx
-					piece[clicki].position.y = prevposy
-					prevposx = -1e9
+				var mouse_position = get_global_mouse_position()	#マウスの位置
+				var i = (mouse_position.y-(130))/50	#マスの位置
+				var j = (mouse_position.x-(430))/50	#マスの位置
+				print("(%d, %d)" % [i, j])	#位置の表示
+				print("(%d, %d)" % [mouse_position.x, mouse_position.y])	#位置の表示
+				if(i<grid_row&&i>=0&&j<grid_column&&j>=0):	#範囲内の場合
+					piece[grid_i[i][j]].scale *= 2 		#駒の大きさを2倍にする
+					clickedpositionx = int(j)	#クリックされた駒の位置
+					clickedpositiony = int(i)	#クリックされた駒の位置
+				isclick = true	#クリックされているか
+				clicki = grid_i[i][j]	#クリックされた駒の番号
+				clicknum = grid_n[i][j]	#クリックされた駒の種類
+				prevposx = piece[grid_i[i][j]].position.x	#前の位置
+				prevposy = piece[grid_i[i][j]].position.y	#前の位置
+			else:	#駒がクリックされた時の処理
+				var mouse_position = get_global_mouse_position()	#マウスの位置
+				var i = (mouse_position.y-(130))/50	#マスの位置
+				var j = (mouse_position.x-(430))/50	#マスの位置
+				if(prevposx!=-1e9):	#前の位置が存在する場合
+					piece[clicki].position.x = prevposx	#前の位置に戻す
+					piece[clicki].position.y = prevposy	#前の位置に戻す
+					prevposx = -1e9		
 					prevposy = -1e9
 				print("c")
-				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):
+				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):	#範囲内の場合
 					#駒を交換する処理
-					var swapa = grid_i[i][j]
+					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
 					var swapnb = clicknum
