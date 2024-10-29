@@ -59,6 +59,7 @@ script = ExtResource("1_2mien")
 texture = ExtResource("13_cd54x")
 
 [node name="Sprite2D2" type="Sprite2D" parent="."]
+visibility_layer = 15
 texture = ExtResource("14_6a3y7")
 
 [node name="Sprite2D3" type="Sprite2D" parent="."]
@@ -76,5 +77,15 @@ texture = ExtResource("17_y7rej")
 position = Vector2(0, -1.19209e-05)
 scale = Vector2(20, 20)
 shape = SubResource("RectangleShape2D_kwm7l")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+z_index = -10
+offset_left = 4250.0
+offset_top = 1250.0
+offset_right = 5000.0
+offset_bottom = 2000.0
+scale = Vector2(10, 10)
+mouse_filter = 2
+color = Color(0.454902, 0.862745, 0.0901961, 1)
 
 [connection signal="input_event" from="Area2D" to="." method="_on_area_2d_input_event"]

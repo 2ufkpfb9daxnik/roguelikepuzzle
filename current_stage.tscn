@@ -13,10 +13,11 @@
 script = ExtResource("2_0elqe")
 
 [node name="ScoreLabel" type="Label" parent="ScoreManager"]
-offset_left = 719.0
+offset_left = 1000.0
 offset_top = -12.0
-offset_right = 32480.0
+offset_right = 11000.0
 offset_bottom = 4074.0
+scale = Vector2(0.8, 0.8)
 theme_override_font_sizes/font_size = 100
 text = "合計得点"
 autowrap_mode = 2
