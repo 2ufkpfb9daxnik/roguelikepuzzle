@@ -35,8 +35,8 @@ offset_bottom = 99.0
 theme_override_font_sizes/font_size = 80
 text = "現在のステージ"
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
-position = Vector2(920, 700)
-scale = Vector2(1.8, 1.8)
+position = Vector2(960, 700)
+scale = Vector2(1.875, 1.875)
 texture = ExtResource("4_am0hi")
