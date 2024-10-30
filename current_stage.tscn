@@ -16,16 +16,6 @@
 [node name="ScoreManager" type="Node2D" parent="."]
 script = ExtResource("2_0elqe")
 
-[node name="ScoreLabel" type="Label" parent="ScoreManager"]
-offset_left = 1000.0
-offset_top = -12.0
-offset_right = 11000.0
-offset_bottom = 4074.0
-scale = Vector2(0.8, 0.8)
-theme_override_font_sizes/font_size = 100
-text = "合計得点"
-autowrap_mode = 2
-
 [node name="RichTextLabel" type="RichTextLabel" parent="ScoreManager"]
 offset_right = 2000.0
 offset_bottom = 2000.0
@@ -40,6 +30,34 @@ text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 "
 tab_size = 10
 script = SubResource("GDScript_t23u5")
+
+[node name="RichTextLabel2" type="RichTextLabel" parent="ScoreManager"]
+z_index = -1
+offset_left = -5.0
+offset_top = 5.0
+offset_right = 1995.0
+offset_bottom = 2005.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 95
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="ColorRect" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 4250.0
+offset_top = 1250.0
+offset_right = 5000.0
+offset_bottom = 2000.0
+scale = Vector2(10, 10)
+mouse_filter = 2
+color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
