@@ -4,10 +4,10 @@ var allFalse
 var count
 var totalScore: int = 0
 var puzzleboardscript
-var label :Label
+var label :RichTextLabel
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	label = get_node("ScoreLabel")  # ScoreLabelの参照を取得
+	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
 	if label != null:
 		update_score_label()  # 初期スコア表示
 	else:
@@ -16,7 +16,7 @@ func _ready() -> void:
 # スコア表示の更新
 func update_score_label() -> void:
 	if label != null:
-		label.text = "合計得点: " + str(totalScore)
+		label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius=5 freq=2]"+"得点:"+str(totalScore)+"[/tornado][/rainbow]"
 	else:
 		pass
 func lambda(x,y):
