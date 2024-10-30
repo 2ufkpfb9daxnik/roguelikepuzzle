@@ -23,6 +23,10 @@
 [node name="ScoreDisplay" parent="UI" instance=ExtResource("2_unsrg")]
 
 [node name="StageDisplay" parent="UI" instance=ExtResource("3_3v7id")]
+offset_left = 237.0
+offset_top = -11.0
+offset_right = 859.0
+offset_bottom = 129.0
 
 [node name="BuffDisplay" parent="UI" instance=ExtResource("4_50cum")]
 

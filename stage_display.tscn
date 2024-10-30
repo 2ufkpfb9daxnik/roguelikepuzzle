@@ -1,5 +1,9 @@
 [gd_scene format=3 uid="uid://br3hjjh1sbn2i"]
 
 [node name="StageDisplay" type="Label"]
-offset_right = 40.0
-offset_bottom = 23.0
+offset_left = 164.0
+offset_top = 31.0
+offset_right = 1021.0
+offset_bottom = 175.0
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3
