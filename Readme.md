@@ -39,6 +39,6 @@ MainScene (Node2D)                           # ルートノード（インスタ
 │       ├── RestartButton (Button)            # 再スタートボタン（インスタンス化）
 │       └── QuitButton (Button)               # ゲーム終了ボタン（インスタンス化）
 └── AudioManager (Node)                       # サウンドやBGMを管理するノード（インスタンス化なし）
-    ├── BackgroundMusic (AudioStreamPlayer)   # 背景音楽プレーヤー（インスタンス化）
-    └── SoundEffects (Node)                   # 効果音を管理するノード（インスタンス化なし）
-        ├── SoundEffect (AudioStreamPlayer)   # 効果音プレーヤー（インスタンス化）
+	├── BackgroundMusic (AudioStreamPlayer)   # 背景音楽プレーヤー（インスタンス化）
+	└── SoundEffects (Node)                   # 効果音を管理するノード（インスタンス化なし）
+		├── SoundEffect (AudioStreamPlayer)   # 効果音プレーヤー（インスタンス化）
