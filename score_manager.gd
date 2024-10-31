@@ -122,7 +122,7 @@ func _process(delta: float) -> void:
 			labelarr[i].position.y += 0.6
 			
 		if(labelarr[i].modulate.a!=0):
-			labelarr[i].modulate.a -= 0.005/(labelarr[i].modulate.a*labelarr[i].modulate.a*labelarr[i].modulate.a)
+			labelarr[i].modulate.a -= 0.005/(labelarr[i].modulate.a*labelarr[i].modulate.a*labelarr[i].modulate.a)*0.9
 	var labelarr1 = []
 	for i in range(labelarr.size()):
 		if(labelarr[i].modulate.a<=0):
