@@ -3,7 +3,7 @@ var label :Label
 var stage :int
 var score :int
 var board :Node2D
-const stage_standard = [10000, 20000, 30000, 50000]
+const stage_standard = [10000, 20000, 30000, 50000, 999999999999999]
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
@@ -33,7 +33,7 @@ func add_stage_label() -> void: # ステージを1増やす処理
 	else:
 		pass
 
-func score_check() -> void:
+func score_check() -> void: # スコアがステージを増やす基準を満たしたかチェックする
 	score = get_parent().get_node("ScoreManager").totalScore  # ScoreManagerのスコアの参照を取得
 	if score != null: # ScoreManagerのスコアの参照ができるかどうか
 		if score > stage_standard[stage - 1]: # scoreが基準値を超えたら
