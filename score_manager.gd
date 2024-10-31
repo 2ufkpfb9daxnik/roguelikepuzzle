@@ -39,6 +39,12 @@ func display_score_label()-> void:
 				var label3 = get_node("RichTextLabel3").duplicate()
 				label3.text = "[rainbow freq=0.5 sat=2 val=20]"+str(gridscore[i][j])+"[/rainbow]"
 				label3.position = Vector2(j*50+400, i*50+100)
+				var gs = gridscore[i][j]
+				var gsn = 0
+				while(gs>=10):
+					gs/=10
+					gsn+=1
+				label3.scale = Vector2(2+(gsn-2)*0.5,2+(gsn-2)*0.5)
 				gridscore[i][j] = -1
 				add_child(label3)
 				labelarr.append(label3)
@@ -114,10 +120,10 @@ func _process(delta: float) -> void:
 	for i in range(labelarr.size()):
 		if(labelarr[i]==null):
 			continue
-		if(labelarr[i].modulate.a<=0.9):
+		if(labelarr[i].modulate.a<=0.95):
 			labelarr[i].position.y -= 2
 		else:
-			labelarr[i].scale = Vector2(labelarr[i].scale.x-0.05,labelarr[i].scale.y-0.05)
+			labelarr[i].scale = Vector2(labelarr[i].scale.x-0.1,labelarr[i].scale.y-0.1)
 			labelarr[i].position.x += 0.6
 			labelarr[i].position.y += 0.6
 			
