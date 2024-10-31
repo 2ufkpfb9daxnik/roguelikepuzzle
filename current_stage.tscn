@@ -59,6 +59,19 @@ scale = Vector2(10, 10)
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
+[node name="RichTextLabel3" type="RichTextLabel" parent="ScoreManager"]
+z_index = 2
+offset_right = 10000.0
+offset_bottom = 10000.0
+scale = Vector2(2, 2)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 50
+theme_override_font_sizes/italics_font_size = 50
+theme_override_font_sizes/mono_font_size = 50
+theme_override_font_sizes/normal_font_size = 50
+theme_override_font_sizes/bold_font_size = 50
+bbcode_enabled = true
+
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 
