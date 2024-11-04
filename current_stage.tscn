@@ -73,6 +73,97 @@ theme_override_font_sizes/normal_font_size = 50
 theme_override_font_sizes/bold_font_size = 50
 bbcode_enabled = true
 
+[node name="score0" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 450.0
+offset_right = 3200.0
+offset_bottom = 2450.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score1" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 500.0
+offset_right = 3200.0
+offset_bottom = 2500.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score2" type="RichTextLabel" parent="ScoreManager"]
+z_index = 6
+offset_left = 1200.0
+offset_top = 550.0
+offset_right = 3200.0
+offset_bottom = 2550.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score3" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 600.0
+offset_right = 3200.0
+offset_bottom = 2600.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score4" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 650.0
+offset_right = 3200.0
+offset_bottom = 2650.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 

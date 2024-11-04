@@ -8,12 +8,14 @@ var piece = [] #駒
 var grid_n = [] #grid_n[i][j] := (i,j)に位置する駒の種類
 var piececollid = [] #駒の判定
 var grid_i = [] #grid_i[i][j] := (i,j)に位置する駒の番号
+var grid_att = [] #grid_att[i][j] := (i,j)に位置する駒の属性　盾 = 0,　武器 = 1, コイン = 2, ポーション = 3, 食べ物 = 4
 var cellsize #駒の大きさ
 var isclick = false #クリックされているか
 var clickedpositionx = -1e9 #クリックされた駒の位置
 var clickedpositiony = -1e9	#クリックされた駒の位置
 var clicknum = -1e9	 #クリックされた駒の種類
 var clicki = -1e9	 #クリックされた駒の番号
+var clickatt = -1e9 #クリックされた駒の属性
 var column_empty = []	#列の空き
 var ismatched = []	#マッチした駒
 var time_accumulator = 0.0	#時間
@@ -45,6 +47,7 @@ func _ready() -> void:	#初期化
 		var arr = []	#駒の種類
 		var arr1 = []	#駒の番号
 		var arr2 = []	#マッチした駒
+		var arr3 = []   #駒の属性
 		for j in range(grid_column):	#ボードの初期化
 			var canset = []	#駒の種類
 			for k in range(cellkinds):	#駒の種類の初期化
@@ -63,6 +66,7 @@ func _ready() -> void:	#初期化
 			arr.append(nval)	#駒の種類
 			arr1.append(i*grid_column+j)	#駒の番号
 			arr2.append(false)	#マッチした駒
+			arr3.append(nval%5)
 			var adc = valid_children[nval].duplicate();	#駒の複製
 			adc.position = Vector2(j*500+500+dx,i*500+500+dy)	#駒の位置
 			var nxtcollid = collid.duplicate();	#駒の判定の複製	
@@ -77,6 +81,7 @@ func _ready() -> void:	#初期化
 		grid_n.append(arr)	#駒の種類
 		grid_i.append(arr1)		#駒の番号
 		ismatched.append(arr2)	#マッチした駒
+		grid_att.append(arr3) #駒の属性
 	pass # Replace with function body.
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -98,6 +103,7 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				isclick = true	#クリックされているか
 				clicki = grid_i[i][j]	#クリックされた駒の番号
 				clicknum = grid_n[i][j]	#クリックされた駒の種類
+				clickatt = grid_att[i][j]
 				prevposx = piece[grid_i[i][j]].position.x	#前の位置
 				prevposy = piece[grid_i[i][j]].position.y	#前の位置
 			else:	#駒がクリックされた時の処理
@@ -116,11 +122,15 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					var swapb = clicki
 					var swapna = grid_n[i][j]
 					var swapnb = clicknum
+					var swapatta = grid_att[i][j]
+					var swapattb = clickatt
 					print("swap(%d,%d)" % [swapa,swapb])
 					grid_i[i][j] = swapb
 					grid_i[clickedpositiony][clickedpositionx] = swapa
 					grid_n[i][j] = swapnb
-					grid_n[clickedpositiony][clickedpositionx] = swapna;
+					grid_n[clickedpositiony][clickedpositionx] = swapna
+					grid_att[i][j] = swapattb
+					grid_att[clickedpositiony][clickedpositionx] = swapatta
 					var swapaposition = piece[swapa].position
 					var swapacollidposition = piececollid[swapa].position
 					piece[swapa].position = piece[swapb].position
@@ -180,7 +190,7 @@ func searchmatch() -> void: #マッチした駒を調べる
 				for k in range(nj+1,j+1):
 					ismatched[i][k] = true
 	var copyismatched = ismatched
-	score_manager.calcscore(copyismatched)
+	score_manager.calcscore(copyismatched,grid_att)
 	breakmatchedcell()
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
@@ -246,6 +256,7 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 					var nval = rng[randi() % rng.size()]
 					grid_n[grid_row-1-i][j] = nval
 					grid_i[grid_row-1-i][j] = piece.size()
+					grid_att[grid_row-1-i][j] = nval%5
 					var adc = valid_children[nval].duplicate();
 					adc.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
 					var nxtcollid = collid.duplicate();
@@ -263,6 +274,7 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 							var nval = rng[randi() % rng.size()]
 							grid_n[grid_row-1-i][j] = nval
 							grid_i[grid_row-1-i][j] = piece.size()
+							grid_att[grid_row-1-i][j] = nval%5
 							var adc = valid_children[nval].duplicate();
 							adc.position = Vector2(j*500+500+dx,(grid_row-1-i)*500+500+dy)
 							var nxtcollid = collid.duplicate();
@@ -277,6 +289,7 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 						else:
 							var gridi = grid_i[k-1][j]
 							var gridn = grid_n[k-1][j]
+							var gridatt = grid_att[k-1][j]
 							if(gridi!=-1e9):
 								piece[grid_i[k-1][j]].position = Vector2(j*500+500+dx,k*500+500+dy)
 								piececollid[grid_i[k-1][j]].position = Vector2(j*500+500+dx,k*500+500+dy)
@@ -284,10 +297,12 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 							grid_i[k][j] = gridi
 							grid_n[k-1][j] = grid_n[k][j]
 							grid_n[k][j] = gridn
+							grid_att[k-1][j] = grid_att[k][j]
+							grid_att[k][j] = gridatt
 	isbreak = false
 	for i in range(grid_column):
 		if(column_empty[i]>0):
-			isbreak = true					
+			isbreak = true
 func _process(delta: float) -> void:
 	var mouse_position = get_global_mouse_position()
 	if(isclick):

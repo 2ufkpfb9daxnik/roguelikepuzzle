@@ -7,13 +7,20 @@ var totalScore: int = 0
 var puzzleboardscript
 var label :RichTextLabel
 var label2 :RichTextLabel
+var divscorelabel = []
 var gridscore = []
 var labelarr = []
 var puzzleboard
+var attn = -1e9
+var gridatt = []
+var divscore = [0,0,0,0,0]
+var texturestr = ["shield_cut","sword_cut","coin_cut","potion_cut","bread_cut"]
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
 	label2 = get_node("RichTextLabel2")
+	for i in range(5):
+		divscorelabel.append(get_node("score"+str(i)))
 	puzzleboard = get_parent().get_child(0)
 	for i in range(puzzleboard.grid_row):
 		var columnscore = []
@@ -30,6 +37,8 @@ func update_score_label() -> void:
 	if label != null:
 		label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/rainbow]"
 		label2.text = "[b][color=#FFDF00][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/color][/b]"
+		for i in range(5):
+			divscorelabel[i].text = "[img=100]res://Texture/"+texturestr[i]+".png"+"[/img][rainbow freq=0.5 sat=2 val=20]"+" "+str(divscore[i])+"[/rainbow]"
 	else:
 		pass
 func display_score_label()-> void:
@@ -50,22 +59,22 @@ func display_score_label()-> void:
 				labelarr.append(label3)
 func lambda(x,y):
 	if(x-1>=0):	
-		if(allFalse[x-1][y]==false&&match_index[x-1][y]==true):
+		if(allFalse[x-1][y]==false&&match_index[x-1][y]==true&&gridatt[x-1][y]==attn):
 			allFalse[x-1][y] = true
 			count += 1
 			lambda(x-1,y)
 	if(x+1<match_index.size()):
-		if(allFalse[x+1][y]==false&&match_index[x+1][y]==true):
+		if(allFalse[x+1][y]==false&&match_index[x+1][y]==true&&gridatt[x+1][y]==attn):
 			allFalse[x+1][y] = true
 			count += 1
 			lambda(x+1,y)
 	if(y-1>=0):
-		if(allFalse[x][y-1]==false&&match_index[x][y-1]==true):
+		if(allFalse[x][y-1]==false&&match_index[x][y-1]==true&&gridatt[x][y-1]==attn):
 			allFalse[x][y-1] = true
 			count += 1
 			lambda(x,y-1)
 	if(y+1<match_index.size()):
-		if(allFalse[x][y+1]==false&&match_index[x][y+1]==true):
+		if(allFalse[x][y+1]==false&&match_index[x][y+1]==true&&gridatt[x][y+1]==attn):
 			allFalse[x][y+1] = true
 			count += 1
 			lambda(x,y+1)
@@ -88,8 +97,9 @@ func lambda1(x,y,c):
 			allFalse1[x][y+1] = true
 			lambda1(x,y+1,c)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func calcscore(matchi) -> void:
+func calcscore(matchi,grid_att) -> void:
 	match_index = matchi
+	gridatt = grid_att
 	allFalse = []
 	allFalse1 = []
 	for i in range(match_index.size()):
@@ -100,16 +110,21 @@ func calcscore(matchi) -> void:
 		allFalse.append(columnFalse)
 		allFalse1.append(columnFalse)
 	var connectcell = []
+	var divcntcell = []
 	for i in range(match_index.size()):
 		for j in range(match_index[i].size()):
 			if (match_index[i][j] == true) and (allFalse[i][j] == false):
+				attn = grid_att[i][j]
+				print(attn)
 				count = 0
 				lambda(i,j)
 				lambda1(i,j,count)
 				connectcell.append(count)
+				divcntcell.append(attn)
 				print(count)			
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
+		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
 	for i in range(match_index.size()):
 		for j in range(match_index[i].size()):
 			if(gridscore[i][j]!=-1):
