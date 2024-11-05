@@ -15,6 +15,8 @@ var attn = -1e9
 var gridatt = []
 var divscore = [0,0,0,0,0]
 var texturestr = ["shield_cut","sword_cut","coin_cut","potion_cut","bread_cut"]
+var health = 1.0
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
