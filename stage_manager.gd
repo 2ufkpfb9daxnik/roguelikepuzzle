@@ -4,11 +4,12 @@ var stage :int = 0
 var score :int
 var board :Node2D
 var enemycount :int = 0
-const stage_standard = [10000, 20000, 30000, 50000, 999999999999999]
+const stage_standard = [10000, 20000, 30000, 50000,9223372036854775807]
 var enemy :Sprite2D
 var ehpbar :ColorRect
 var ehpbar1 :ColorRect
-var ehp :float = 1.0
+var ehppar :float = 1.0
+var ehp = 8000*pow(10,stage)
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	label = get_node("StageLabel")  # StageLabelの参照を取得
@@ -28,7 +29,7 @@ func _ready() -> void: # 初期化
 		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
 	else:
 		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
-
+	score_check()
 func add_stage_label() -> void: # ステージを1増やす処理
 	stage+=1 # ステージを1増やす
 	if label != null: # labelがnullでないかどうか
@@ -54,15 +55,32 @@ func make_enemy() -> void:
 		ehpbar1 = get_parent().get_node("ScoreManager").get_node("ehpbar1").duplicate()
 		ehpbar.position = Vector2(1475,145)
 		ehpbar1.position = Vector2(1475,145)
+		ehppar = 1.0
+		ehp = 8000*pow(10,(stage-1))
 		add_child(enemy)
 		add_child(ehpbar)
 		add_child(ehpbar1)
 		enemycount+=1
+func calchp(damage) -> void:
+	ehp -= damage
+	ehppar = ehp/(8000*pow(10,(stage-1)))
+	if(ehp<=0):
+		isdead()
 func displayhp() -> void:
-	ehpbar1.size = Vector2(150*ehp,10)
+	if(ehppar*150!=0):
+		ehpbar1.size = Vector2(ehppar*150,10)
+func isdead() -> void:
+	enemy.queue_free()
+	ehpbar.queue_free()
+	ehpbar1.queue_free()
+	enemy = null
+	ehpbar = null
+	ehpbar1 = null
+	enemycount = 0
+	make_enemy()
+	score_check()
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void: # ずっとする
-	score_check()
 	make_enemy()
 	displayhp()
 	

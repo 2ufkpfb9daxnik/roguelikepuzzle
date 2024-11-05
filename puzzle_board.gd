@@ -19,7 +19,7 @@ var clickatt = -1e9 #クリックされた駒の属性
 var column_empty = []	#列の空き
 var ismatched = []	#マッチした駒
 var time_accumulator = 0.0	#時間
-var update_interval = 0.2	#更新間隔
+var update_interval = 0.1	#更新間隔
 var isbreak = false	#消す処理が行われているか
 var cellkinds = 5 #駒の種類
 var prevposx = -1	#前の位置
@@ -27,6 +27,7 @@ var prevposy = -1	#前の位置
 var scoremanagerscript	#スコアマネージャのスクリプト
 var score_manager	#スコアマネージャ
 var score_label	#スコアラベル
+var interval = -1e18
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -118,6 +119,9 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				print("c")
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):	#範囲内の場合
 					#駒を交換する処理
+					var damage = get_parent().get_node("ScoreManager").damage()
+					get_parent().get_node("StageManager").calchp(damage)
+					interval = 0
 					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
@@ -317,13 +321,18 @@ func _process(delta: float) -> void:
 	if(isclick):
 		piece[clicki].position.x = (mouse_position.x-430)*10+400+dx
 		piece[clicki].position.y = (mouse_position.y-130)*10+400+dy
+	interval += 1
 	time_accumulator += delta
 	if time_accumulator >= update_interval:
 		time_accumulator -= update_interval
 		if(isbreak):
 			fallcell()
 		else:
-			searchmatch()
+			if(interval>=10):
+				searchmatch()
+				interval = 0
+				if(!isbreak):
+					interval = -1e18
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:

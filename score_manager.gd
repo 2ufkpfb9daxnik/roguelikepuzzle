@@ -33,7 +33,9 @@ func _ready() -> void:
 		update_score_label()  # 初期スコア表示
 	else:
 		print("ScoreLabel ノードが見つかりません")
-
+func damage() -> float:
+	return divscore[0]
+	
 # スコア表示の更新
 func update_score_label() -> void:
 	if label != null:
