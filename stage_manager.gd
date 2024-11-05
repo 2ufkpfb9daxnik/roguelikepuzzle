@@ -4,7 +4,7 @@ var stage :int
 var score :int
 var board :Node2D
 const stage_standard = [10000, 20000, 30000, 50000, 999999999999999]
-
+	
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	label = get_node("StageLabel")  # StageLabelの参照を取得
