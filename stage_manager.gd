@@ -1,10 +1,14 @@
 extends Node2D
 var label :Label
-var stage :int
+var stage :int = 0
 var score :int
 var board :Node2D
+var enemycount :int = 0
 const stage_standard = [10000, 20000, 30000, 50000, 999999999999999]
-	
+var enemy :Sprite2D
+var ehpbar :ColorRect
+var ehpbar1 :ColorRect
+var ehp :float = 1.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	label = get_node("StageLabel")  # StageLabelの参照を取得
@@ -42,7 +46,23 @@ func score_check() -> void: # スコアがステージを増やす基準を満�
 			pass
 	else:
 		print("スコアが取得できません") # 見つからなかったことを知らせる
-
+func make_enemy() -> void:
+	if(enemycount==0):
+		enemy = get_parent().get_child(0).get_node("enemy0").duplicate()
+		enemy.position = Vector2(1550,250)
+		ehpbar = get_parent().get_node("ScoreManager").get_node("ehpbar").duplicate()
+		ehpbar1 = get_parent().get_node("ScoreManager").get_node("ehpbar1").duplicate()
+		ehpbar.position = Vector2(1475,145)
+		ehpbar1.position = Vector2(1475,145)
+		add_child(enemy)
+		add_child(ehpbar)
+		add_child(ehpbar1)
+		enemycount+=1
+func displayhp() -> void:
+	ehpbar1.size = Vector2(150*ehp,10)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void: # ずっとする
 	score_check()
+	make_enemy()
+	displayhp()
+	

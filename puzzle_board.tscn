@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=21 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -13,11 +13,12 @@
 [ext_resource type="PackedScene" uid="uid://bbs2ble8mc7w3" path="res://universal_match_buff.tscn" id="10_1nrjj"]
 [ext_resource type="PackedScene" uid="uid://ibjd3vrxkao7" path="res://score_multiplier_buff.tscn" id="11_kkvgh"]
 [ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
-[ext_resource type="PackedScene" uid="uid://lmbt1wwb7woh" path="res://buff_card.tscn" id="13_jsnim"]
+[ext_resource type="PackedScene" path="res://buff_card.tscn" id="13_jsnim"]
 [ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
 [ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
 [ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
+[ext_resource type="Texture2D" uid="uid://cmvpbrw4pyh2v" path="res://Texture/lizard.png" id="19_0q2x6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
 size = Vector2(25, 25)
@@ -73,6 +74,10 @@ texture = ExtResource("15_kpjd4")
 
 [node name="Sprite2D4" type="Sprite2D" parent="."]
 texture = ExtResource("13_cd54x")
+
+[node name="enemy0" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("19_0q2x6")
 
 [node name="Area2D" type="Area2D" parent="."]
 

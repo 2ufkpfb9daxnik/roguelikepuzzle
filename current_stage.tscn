@@ -173,7 +173,7 @@ tab_size = 10
 script = SubResource("GDScript_t23u5")
 
 [node name="screen" type="ColorRect" parent="ScoreManager"]
-z_index = -9
+z_index = -11
 offset_left = 1194.0
 offset_top = 13.0
 offset_right = 1911.0
@@ -182,13 +182,49 @@ mouse_filter = 2
 color = Color(0.000715994, 0.000784107, 4.70027e-11, 1)
 
 [node name="screen2" type="ColorRect" parent="ScoreManager"]
-z_index = -10
+z_index = -12
 offset_left = 1190.0
 offset_top = 10.0
 offset_right = 1915.0
 offset_bottom = 410.0
 mouse_filter = 2
 color = Color(0.881133, 0.917258, 2.31028e-06, 1)
+
+[node name="hpbar" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1915.0
+offset_bottom = 427.0
+mouse_filter = 2
+color = Color(0.960784, 0, 0.0901961, 1)
+
+[node name="hpbar1" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1915.0
+offset_bottom = 427.0
+mouse_filter = 2
+color = Color(0, 0.968627, 0.215686, 1)
+
+[node name="ehpbar" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = -100000.0
+offset_top = -100000.0
+offset_right = -99850.0
+offset_bottom = -99990.0
+mouse_filter = 2
+color = Color(0.960784, 0, 0.0901961, 1)
+
+[node name="ehpbar1" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1340.0
+offset_bottom = 422.0
+mouse_filter = 2
+color = Color(0, 0.968627, 0.215686, 1)
 
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
