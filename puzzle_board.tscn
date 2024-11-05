@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=20 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" uid="uid://bbs2ble8mc7w3" path="res://universal_match_buff.tscn" id="10_1nrjj"]
 [ext_resource type="PackedScene" uid="uid://ibjd3vrxkao7" path="res://score_multiplier_buff.tscn" id="11_kkvgh"]
 [ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
+[ext_resource type="PackedScene" uid="uid://lmbt1wwb7woh" path="res://buff_card.tscn" id="13_jsnim"]
 [ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
 [ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
@@ -54,6 +55,8 @@ script = ExtResource("1_2mien")
 [node name="UniversalMatchBuff" parent="BuffManager/Buffs" instance=ExtResource("10_1nrjj")]
 
 [node name="ScoreMultiplierBuff" parent="BuffManager/Buffs" instance=ExtResource("11_kkvgh")]
+
+[node name="BuffCard" parent="BuffManager" instance=ExtResource("13_jsnim")]
 
 [node name="Sprite2D0" type="Sprite2D" parent="."]
 texture = ExtResource("16_yd1jb")

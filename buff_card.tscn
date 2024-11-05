@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://lmbt1wwb7woh"]
+
+[node name="BuffCard" type="Node2D"]
+
+[node name="BullTitle" type="RichTextLabel" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BuffBackGround" type="TextureRect" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BullText" type="RichTextLabel" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
