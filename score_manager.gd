@@ -39,6 +39,16 @@ func update_score_label() -> void:
 		label2.text = "[b][color=#FFDF00][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/color][/b]"
 		for i in range(5):
 			divscorelabel[i].text = "[img=100]res://Texture/"+texturestr[i]+".png"+"[/img][rainbow freq=0.5 sat=2 val=20]"+" "+str(divscore[i])+"[/rainbow]"
+		var maxdigit = 0
+		for i in range(5):
+			var divdigit = 0
+			var currentdivscore = divscore[i]/10
+			while(currentdivscore>0):
+				divdigit+=1
+				currentdivscore /= 10
+			maxdigit = max(maxdigit,divdigit)
+			get_node("status").size = Vector2(106+30*maxdigit,275)
+			get_node("status2").size = Vector2(101+30*maxdigit,271)
 	else:
 		pass
 func display_score_label()-> void:
