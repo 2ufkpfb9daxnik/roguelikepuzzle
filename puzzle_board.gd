@@ -28,6 +28,9 @@ var scoremanagerscript	#スコアマネージャのスクリプト
 var score_manager	#スコアマネージャ
 var score_label	#スコアラベル
 var interval = -1e18
+var movetoscore = []
+var movetoscoren = []
+var endbreak = false
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -121,7 +124,6 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					#駒を交換する処理
 					var damage = get_parent().get_node("ScoreManager").damage()
 					get_parent().get_node("StageManager").calchp(damage)
-					interval = 0
 					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
@@ -198,15 +200,21 @@ func searchmatch() -> void: #マッチした駒を調べる
 	breakmatchedcell()
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
+	var breakeln = []
 	for i in range(grid_row): 
 		for j in range(grid_column):
 			if(ismatched[i][j]):
 				column_empty[j] += 1
 				ismatched[i][j] = false
 				breakel.append(grid_i[i][j])
+				breakeln.append(grid_n[i][j])
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
 	for i in range(breakel.size()):
+		var adc = piece[breakel[i]].duplicate()
+		movetoscore.append(adc)
+		movetoscoren.append(breakeln[i])
+		add_child(adc)
 		piece[breakel[i]].queue_free()
 		piececollid[breakel[i]].queue_free()
 		piece[breakel[i]] = null
@@ -307,7 +315,84 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 	for i in range(grid_column):
 		if(column_empty[i]>0):
 			isbreak = true
+func movecell() -> void:
+	for i in range(movetoscore.size()):
+		if(movetoscoren[i]==0):
+			if(movetoscore[i].position.y<=4600):
+				movetoscore[i].position.y+=min(80,4600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-4600) 
+		elif(movetoscoren[i]==1):
+			if(movetoscore[i].position.y<=5100):
+				movetoscore[i].position.y+=min(80,5100-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-5100) 
+		elif(movetoscoren[i]==2):
+			if(movetoscore[i].position.y<=5600):
+				movetoscore[i].position.y+=min(80,5600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-5600) 
+		elif(movetoscoren[i]==3):
+			if(movetoscore[i].position.y<=6100):
+				movetoscore[i].position.y+=min(80,6100-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-6100) 
+		else:
+			if(movetoscore[i].position.y<=6600):
+				movetoscore[i].position.y+=min(80,6600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-6600) 
+		movetoscore[i].position.x+=min(200,12100-movetoscore[i].position.x) 
+	for i in range(movetoscore.size()):
+		if(movetoscoren[i]==0):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==4600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==1):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==5100):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==2):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==5600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==3):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==6100):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		else:
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==6600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+	var nmovetoscore = []
+	var nmovetoscoren = []
+	for i in range(movetoscore.size()):
+		if(movetoscore[i]!=null):
+			nmovetoscore.append(movetoscore[i])
+			nmovetoscoren.append(movetoscoren[i])
+	movetoscore = nmovetoscore
+	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
+	if(endbreak&&movetoscore.size()==0):
+		if(interval>108):
+			endbreak = false
+			interval = 0
+		if(interval<=36):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
+		elif(interval<=72):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-36)-18)*((interval-36)-18)/10-33
+		elif(interval<=108):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
+		interval+=1	
+		pass
 	var mouse_position = get_global_mouse_position()
 	if(isclick):
 		Input.warp_mouse(Vector2(max(mouse_position.x,435),max(mouse_position.y,135)))
@@ -321,18 +406,18 @@ func _process(delta: float) -> void:
 	if(isclick):
 		piece[clicki].position.x = (mouse_position.x-430)*10+400+dx
 		piece[clicki].position.y = (mouse_position.y-130)*10+400+dy
-	interval += 1
 	time_accumulator += delta
 	if time_accumulator >= update_interval:
 		time_accumulator -= update_interval
 		if(isbreak):
 			fallcell()
-		else:
-			if(interval>=10):
-				searchmatch()
+			searchmatch()
+			if(!isbreak):
+				endbreak = true
 				interval = 0
-				if(!isbreak):
-					interval = -1e18
+		else:
+			searchmatch()
+	movecell()
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
