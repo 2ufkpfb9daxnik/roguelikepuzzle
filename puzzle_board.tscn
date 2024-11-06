@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=23 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -19,6 +19,8 @@
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
 [ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
 [ext_resource type="Texture2D" uid="uid://cmvpbrw4pyh2v" path="res://Texture/lizard.png" id="19_0q2x6"]
+[ext_resource type="AudioStream" uid="uid://vt1a6imn7otk" path="res://Sound/剣で斬る3.mp3" id="20_de3dv"]
+[ext_resource type="AudioStream" uid="uid://dti640q8rqvvh" path="res://Sound/決定ボタンを押す38.mp3" id="21_xkahe"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
 size = Vector2(25, 25)
@@ -110,5 +112,13 @@ offset_bottom = 2000.0
 scale = Vector2(10, 10)
 mouse_filter = 2
 color = Color(0.454902, 0.862745, 0.0901961, 1)
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("20_de3dv")
+parameters/looping = false
+
+[node name="AudioStreamPlayer2" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("21_xkahe")
+parameters/looping = false
 
 [connection signal="input_event" from="Area2D" to="." method="_on_area_2d_input_event"]

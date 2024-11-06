@@ -4,12 +4,12 @@ var stage :int = 0
 var score :int
 var board :Node2D
 var enemycount :int = 0
-const stage_standard = [10000, 20000, 30000, 50000,9223372036854775807]
+const stage_standard = [50000, 500000, 5000000, 50000000,9223372036854775807]
 var enemy :Sprite2D
 var ehpbar :ColorRect
 var ehpbar1 :ColorRect
 var ehppar :float = 1.0
-var ehp = 8000*pow(10,stage)
+var ehp = 4000*pow(10,stage)
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	label = get_node("StageLabel")  # StageLabelの参照を取得
@@ -56,16 +56,17 @@ func make_enemy() -> void:
 		ehpbar.position = Vector2(1475,145)
 		ehpbar1.position = Vector2(1475,145)
 		ehppar = 1.0
-		ehp = 8000*pow(10,(stage-1))
+		ehp = 4000*pow(10,(stage-1))
 		add_child(enemy)
 		add_child(ehpbar)
 		add_child(ehpbar1)
 		enemycount+=1
 func calchp(damage) -> void:
 	ehp -= damage
-	ehppar = ehp/(8000*pow(10,(stage-1)))
+	ehppar = ehp/(4000*pow(10,(stage-1)))
 	if(ehp<=0):
 		isdead()
+	print(ehp)
 func displayhp() -> void:
 	if(ehppar*150!=0):
 		ehpbar1.size = Vector2(ehppar*150,10)

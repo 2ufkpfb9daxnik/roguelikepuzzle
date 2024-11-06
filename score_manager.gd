@@ -31,8 +31,6 @@ func _ready() -> void:
 		gridscore.append(columnscore)
 	if label != null:
 		update_score_label()  # 初期スコア表示
-	else:
-		print("ScoreLabel ノードが見つかりません")
 func damage() -> float:
 	return divscore[0]
 	
@@ -129,20 +127,14 @@ func calcscore(matchi,grid_att) -> void:
 		for j in range(match_index[i].size()):
 			if (match_index[i][j] == true) and (allFalse[i][j] == false):
 				attn = grid_att[i][j]
-				print(attn)
 				count = 0
 				lambda(i,j)
 				lambda1(i,j,count)
 				connectcell.append(count)
-				divcntcell.append(attn)
-				print(count)			
+				divcntcell.append(attn)		
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
 		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
-	for i in range(match_index.size()):
-		for j in range(match_index[i].size()):
-			if(gridscore[i][j]!=-1):
-				print(gridscore[i][j])
 func _process(delta: float) -> void:
 	update_score_label()
 	display_score_label()

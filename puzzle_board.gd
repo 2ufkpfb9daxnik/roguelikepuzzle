@@ -35,6 +35,8 @@ var movesword = []
 var moveswordt = []
 var moveswordrnd = []
 var moveswordcnt = 0
+var isswap = false
+var msisvalid = false
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -94,7 +96,7 @@ func _ready() -> void:	#初期化
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
-	if(isbreak):	#消す処理が行われている場合
+	if(isbreak||endbreak||isswap):	#消す処理が行われている場合
 		return	#処理を終了
 	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
 		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合
@@ -102,12 +104,11 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				var mouse_position = get_global_mouse_position()	#マウスの位置
 				var i = (mouse_position.y-(130))/50	#マスの位置
 				var j = (mouse_position.x-(430))/50	#マスの位置
-				print("(%d, %d)" % [i, j])	#位置の表示
-				print("(%d, %d)" % [mouse_position.x, mouse_position.y])	#位置の表示
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0):	#範囲内の場合
 					piece[grid_i[i][j]].scale *= 2 		#駒の大きさを2倍にする
 					clickedpositionx = int(j)	#クリックされた駒の位置
 					clickedpositiony = int(i)	#クリックされた駒の位置
+					get_node("AudioStreamPlayer2").play()
 				isclick = true	#クリックされているか
 				clicki = grid_i[i][j]	#クリックされた駒の番号
 				clicknum = grid_n[i][j]	#クリックされた駒の種類
@@ -123,18 +124,18 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					piece[clicki].position.y = prevposy	#前の位置に戻す
 					prevposx = -1e9		
 					prevposy = -1e9
-				print("c")
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):	#範囲内の場合
 					#駒を交換する処理
-					var damage = get_parent().get_node("ScoreManager").damage()
-					get_parent().get_node("StageManager").calchp(damage)
+					get_node("AudioStreamPlayer2").play()
+					isswap = true
+					if(i==clickedpositiony&&j==clickedpositionx):
+						isswap = false				
 					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
 					var swapnb = clicknum
 					var swapatta = grid_att[i][j]
 					var swapattb = clickatt
-					print("swap(%d,%d)" % [swapa,swapb])
 					grid_i[i][j] = swapb
 					grid_i[clickedpositiony][clickedpositionx] = swapa
 					grid_n[i][j] = swapnb
@@ -326,7 +327,14 @@ func moveswords() -> void:
 			movesword[i].position.y = -moveswordt[i]**2+5200
 		moveswordt[i] += 1
 	for i in range(movesword.size()):
-		if(movesword[i].position.y<=-500):
+		if(movesword[i].position.y==2700):
+			get_parent().get_node("StageManager").calchp(100)
+			get_parent().get_node("StageManager").enemy.modulate.r += 50
+			get_node("AudioStreamPlayer").seek(0.1)
+			get_node("AudioStreamPlayer").play()
+			
+	for i in range(movesword.size()):
+		if(movesword[i].position.y<=-300):
 			movesword[i].queue_free()
 			movesword[i] = null
 			moveswordrnd[i] = null
@@ -407,9 +415,10 @@ func movecell() -> void:
 func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
 		if(interval>108):
+			isswap = false 
 			endbreak = false
 			interval = 0
-			var makecnt = min(get_parent().get_node("StageManager").ehp/100,get_parent().get_node("ScoreManager").divscore[1]/100)
+			var makecnt = min(int(get_parent().get_node("StageManager").ehp/100),int(get_parent().get_node("ScoreManager").divscore[1]/100))
 			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
 			for i in range(makecnt):
 				var adc = get_node("Sprite2D1").duplicate();
@@ -417,7 +426,8 @@ func _process(delta: float) -> void:
 				adc.scale *= 2
 				add_child(adc)
 				movesword.append(adc)
-				moveswordt.append(-i*50/makecnt)
+				msisvalid = true
+				moveswordt.append(-i*70/makecnt)
 				moveswordrnd.append(randi()%120)
 		if(interval<=36):
 			for i in range(5):
@@ -454,8 +464,16 @@ func _process(delta: float) -> void:
 				interval = 0
 		else:
 			searchmatch()
+			if(!isbreak&&isswap):
+				endbreak = true
+				isswap = false
 	movecell()
 	moveswords()
+	if(movesword.size()==0):
+		if(get_parent().get_node("StageManager").enemy!=null):
+			if(msisvalid):
+				get_parent().get_node("StageManager").enemy.modulate.r -= 50
+				msisvalid = false
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
