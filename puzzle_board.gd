@@ -31,6 +31,10 @@ var interval = -1e18
 var movetoscore = []
 var movetoscoren = []
 var endbreak = false
+var movesword = []
+var moveswordt = []
+var moveswordrnd = []
+var moveswordcnt = 0
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -315,6 +319,29 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 	for i in range(grid_column):
 		if(column_empty[i]>0):
 			isbreak = true
+func moveswords() -> void:
+	for i in range(movesword.size()):
+		if(moveswordt[i]>=0):
+			movesword[i].position.x+=10+moveswordrnd[i]
+			movesword[i].position.y = -moveswordt[i]**2+5200
+		moveswordt[i] += 1
+	for i in range(movesword.size()):
+		if(movesword[i].position.y<=-500):
+			movesword[i].queue_free()
+			movesword[i] = null
+			moveswordrnd[i] = null
+			moveswordt[i] = null
+	var nmovesword = []
+	var nmoveswordt = []
+	var nmoveswordrnd = []
+	for i in range(movesword.size()):
+		if(movesword[i]!=null):
+			nmovesword.append(movesword[i])
+			nmoveswordt.append(moveswordt[i])
+			nmoveswordrnd.append(moveswordrnd[i])
+	movesword = nmovesword
+	moveswordt = nmoveswordt
+	moveswordrnd = nmoveswordrnd
 func movecell() -> void:
 	for i in range(movetoscore.size()):
 		if(movetoscoren[i]==0):
@@ -382,6 +409,16 @@ func _process(delta: float) -> void:
 		if(interval>108):
 			endbreak = false
 			interval = 0
+			var makecnt = min(get_parent().get_node("StageManager").ehp/100,get_parent().get_node("ScoreManager").divscore[1]/100)
+			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
+			for i in range(makecnt):
+				var adc = get_node("Sprite2D1").duplicate();
+				adc.position = Vector2(12300,5300)
+				adc.scale *= 2
+				add_child(adc)
+				movesword.append(adc)
+				moveswordt.append(-i*50/makecnt)
+				moveswordrnd.append(randi()%120)
 		if(interval<=36):
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
@@ -418,6 +455,7 @@ func _process(delta: float) -> void:
 		else:
 			searchmatch()
 	movecell()
+	moveswords()
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:
