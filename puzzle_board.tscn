@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
-[ext_resource type="PackedScene" uid="uid://fo0u5agc6jj0" path="res://buff_selection.tscn" id="2_k7di8"]
 [ext_resource type="PackedScene" uid="uid://dcharjcbg2ebd" path="res://piece_transformer_buff.tscn" id="3_f866t"]
+[ext_resource type="Script" path="res://buff_manager.gd" id="3_sg06f"]
 [ext_resource type="PackedScene" uid="uid://bg770ntkoy11m" path="res://adjacent_match_buff.tscn" id="4_b2jqo"]
 [ext_resource type="PackedScene" uid="uid://ng4tm02lkeyl" path="res://diagonal_match_buff.tscn" id="5_x62uw"]
 [ext_resource type="PackedScene" uid="uid://6alb0irugq5j" path="res://random_removal_buff.tscn" id="6_7kipb"]
@@ -12,8 +12,8 @@
 [ext_resource type="PackedScene" uid="uid://blknlv8b7tsk3" path="res://special_piece_buff.tscn" id="9_7kh2n"]
 [ext_resource type="PackedScene" uid="uid://bbs2ble8mc7w3" path="res://universal_match_buff.tscn" id="10_1nrjj"]
 [ext_resource type="PackedScene" uid="uid://ibjd3vrxkao7" path="res://score_multiplier_buff.tscn" id="11_kkvgh"]
+[ext_resource type="Script" path="res://buff_selection_screen.gd" id="12_58o64"]
 [ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
-[ext_resource type="PackedScene" path="res://buff_card.tscn" id="13_jsnim"]
 [ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
 [ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
@@ -34,8 +34,7 @@ script = ExtResource("1_2mien")
 [node name="Effects" type="Node" parent="."]
 
 [node name="BuffManager" type="Node" parent="."]
-
-[node name="BuffSelection" parent="BuffManager" instance=ExtResource("2_k7di8")]
+script = ExtResource("3_sg06f")
 
 [node name="Buffs" type="Node" parent="BuffManager"]
 
@@ -57,7 +56,23 @@ script = ExtResource("1_2mien")
 
 [node name="ScoreMultiplierBuff" parent="BuffManager/Buffs" instance=ExtResource("11_kkvgh")]
 
-[node name="BuffCard" parent="BuffManager" instance=ExtResource("13_jsnim")]
+[node name="BuffSelectionScreen" type="Control" parent="BuffManager"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("12_58o64")
+
+[node name="ColorRect" type="ColorRect" parent="BuffManager/BuffSelectionScreen"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0, 0, 0, 0.768627)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BuffManager/BuffSelectionScreen"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
 
 [node name="Sprite2D0" type="Sprite2D" parent="."]
 texture = ExtResource("16_yd1jb")

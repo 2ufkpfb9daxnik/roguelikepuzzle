@@ -1,15 +1,25 @@
-[gd_scene format=3 uid="uid://lmbt1wwb7woh"]
+[gd_scene load_steps=3 format=3 uid="uid://lmbt1wwb7woh"]
 
-[node name="BuffCard" type="Node2D"]
+[ext_resource type="Script" path="res://buff_card.gd" id="1_8yjw8"]
+[ext_resource type="Texture2D" uid="uid://b83kq8gxrmmk" path="res://Texture/parchment.jpg" id="1_u4a5h"]
 
-[node name="BullTitle" type="RichTextLabel" parent="."]
+[node name="Button" type="Button"]
+offset_right = 8.0
+offset_bottom = 8.0
+script = ExtResource("1_8yjw8")
+
+[node name="TextureRect" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = ExtResource("1_u4a5h")
+
+[node name="title" type="RichTextLabel" parent="."]
+layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0
 
-[node name="BuffBackGround" type="TextureRect" parent="."]
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="BullText" type="RichTextLabel" parent="."]
+[node name="description" type="RichTextLabel" parent="."]
+layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0
