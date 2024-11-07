@@ -7,6 +7,12 @@ const stage_standard = [10000, 20000, 30000, 50000, 999999999999999]
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
+	board = get_parent().get_node("PuzzleBoard") # PuzzleBoardの参照を取得
+	if board != null: # PuzzleBoardの参照ができるかどうか
+		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
+	else:
+		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
+	
 	label = get_node("StageLabel")  # StageLabelの参照を取得
 	if label != null: # StageLabelの参照ができるかどうか
 		add_stage_label() # ステージを初期化(実際にはステージを1増やす処理だが、初期値が0なのでステージを1にする処理となる)
@@ -18,12 +24,6 @@ func _ready() -> void: # 初期化
 		print("スコアの取得に成功しました") # 見つかったことを知らせる
 	else:
 		print("スコアが取得できません") # 見つからなかったことを知らせる
-	
-	board = get_parent().get_node("PuzzleBoard") # PuzzleBoardの参照を取得
-	if board != null: # PuzzleBoardの参照ができるかどうか
-		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
-	else:
-		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
 
 func add_stage_label() -> void: # ステージを1増やす処理
 	stage+=1 # ステージを1増やす
