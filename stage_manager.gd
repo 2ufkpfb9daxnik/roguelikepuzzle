@@ -10,6 +10,8 @@ var ehpbar :ColorRect
 var ehpbar1 :ColorRect
 var ehppar :float = 1.0
 var ehp = 4000*pow(10,stage)
+var myhp :float = 5000
+var myhppar :float = 1.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	label = get_node("StageLabel")  # StageLabelの参照を取得
@@ -51,6 +53,7 @@ func make_enemy() -> void:
 	if(enemycount==0):
 		enemy = get_parent().get_child(0).get_node("enemy0").duplicate()
 		enemy.position = Vector2(1550,250)
+		get_parent().get_node("PuzzleBoard").encolor = enemy.modulate.r
 		ehpbar = get_parent().get_node("ScoreManager").get_node("ehpbar").duplicate()
 		ehpbar1 = get_parent().get_node("ScoreManager").get_node("ehpbar1").duplicate()
 		ehpbar.position = Vector2(1475,145)
@@ -63,13 +66,17 @@ func make_enemy() -> void:
 		enemycount+=1
 func calchp(damage) -> void:
 	ehp -= damage
+	myhp -= damage
 	ehppar = ehp/(4000*pow(10,(stage-1)))
+	myhppar = myhp/5000
+	print(myhppar)
 	if(ehp<=0):
 		isdead()
-	print(ehp)
+	
 func displayhp() -> void:
 	if(ehppar*150!=0):
 		ehpbar1.size = Vector2(ehppar*150,10)
+		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(int(myhppar*725),15)
 func isdead() -> void:
 	enemy.queue_free()
 	ehpbar.queue_free()

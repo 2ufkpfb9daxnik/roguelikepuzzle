@@ -35,8 +35,15 @@ var movesword = []
 var moveswordt = []
 var moveswordrnd = []
 var moveswordcnt = 0
+var moveshield = []
+var moveshieldt = []
+var moveshieldp = []
+var moveshieldv = []
 var isswap = false
 var msisvalid = false
+var mshisvalid = false
+var touchsword = 0
+var  encolor
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -329,6 +336,8 @@ func moveswords() -> void:
 	for i in range(movesword.size()):
 		if(movesword[i].position.y==2700):
 			get_parent().get_node("StageManager").calchp(100)
+			if(get_parent().get_node("StageManager").ehp<=0):
+				pass
 			get_parent().get_node("StageManager").enemy.modulate.r += 50
 			get_node("AudioStreamPlayer").seek(0.1)
 			get_node("AudioStreamPlayer").play()
@@ -350,6 +359,39 @@ func moveswords() -> void:
 	movesword = nmovesword
 	moveswordt = nmoveswordt
 	moveswordrnd = nmoveswordrnd
+func moveshields() -> void:
+	for i in range(moveshield.size()):
+		if(moveshieldt[i]>=0):
+			moveshield[i].position.x = 12300+moveshieldv[i].x*moveshieldt[i]*10
+			moveshield[i].position.y = 4800-moveshieldv[i].y*moveshieldt[i]*10
+			moveshield[i].position.x =  min(moveshieldp[i].x,moveshield[i].position.x)
+			moveshield[i].position.y =  max(moveshieldp[i].y,moveshield[i].position.y)
+		moveshieldt[i] += 1
+	for i in range(moveshield.size()):
+		if(moveshield[i].position.x==moveshieldp[i].x&&moveshield[i].position.y==moveshieldp[i].y):
+			get_node("AudioStreamPlayer").seek(0.1)
+			get_node("AudioStreamPlayer").play()
+			
+	for i in range(movesword.size()):
+		if(movesword[i].position.y<=-300):
+			movesword[i].queue_free()
+			movesword[i] = null
+			moveswordrnd[i] = null
+			moveswordt[i] = null
+	var nmoveshield = []
+	var nmoveshieldt = []
+	var nmoveshieldp = []
+	var nmoveshieldv = []
+	for i in range(moveshield.size()):
+		if(moveshield[i]!=null):
+			nmoveshield.append(moveshield[i])
+			nmoveshieldt.append(moveshieldt[i])
+			nmoveshieldp.append(moveshieldp[i])
+			nmoveshieldv.append(moveshieldv[i])
+	moveshield = nmoveshield
+	moveshieldt = nmoveshieldt
+	moveshieldp = nmoveshieldp
+	moveshieldv = nmoveshieldv
 func movecell() -> void:
 	for i in range(movetoscore.size()):
 		if(movetoscoren[i]==0):
@@ -414,11 +456,16 @@ func movecell() -> void:
 	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
-		if(interval>108):
-			isswap = false 
-			endbreak = false
-			isbreak = false
-			interval = 0
+		if(interval<=36):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
+		elif(interval<=72):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-36)-18)*((interval-36)-18)/10-33
+		elif(interval<=108):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
+		elif(interval==109):
 			var makecnt = min(int(get_parent().get_node("StageManager").ehp/100),int(get_parent().get_node("ScoreManager").divscore[1]/100))
 			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
 			for i in range(makecnt):
@@ -430,15 +477,27 @@ func _process(delta: float) -> void:
 				msisvalid = true
 				moveswordt.append(-i*70/makecnt)
 				moveswordrnd.append(randi()%120)
-		if(interval<=36):
-			for i in range(5):
-				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
-		elif(interval<=72):
-			for i in range(5):
-				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-36)-18)*((interval-36)-18)/10-33
-		elif(interval<=108):
-			for i in range(5):
-				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
+		elif(interval<=252):
+			pass
+		elif(interval==253):
+			var makecnt = get_parent().get_node("ScoreManager").divscore[0]/100
+			get_parent().get_node("ScoreManager").divscore[0] -= makecnt*100
+			for i in range(makecnt):
+				var adc = get_node("Sprite2D0").duplicate();
+				adc.position = Vector2(12300,4800)
+				adc.scale *= 2
+				adc.z_index = 1
+				add_child(adc)
+				moveshield.append(adc)
+				mshisvalid = true
+				moveshieldp.append(Vector2(6000/(makecnt*2)*(randi()%(makecnt*2))+12300,-1000/(makecnt*2)*(randi()%(makecnt*2))+3800))
+				moveshieldt.append(-i*70/makecnt)
+				moveshieldv.append(Vector2(abs(adc.position.x-moveshieldp.back().x)/108,abs(adc.position.y-moveshieldp.back().y)/108))
+		else:
+			isswap = false 
+			endbreak = false
+			isbreak = false
+			interval = 0
 		interval+=1	
 		pass
 	var mouse_position = get_global_mouse_position()
@@ -466,16 +525,16 @@ func _process(delta: float) -> void:
 		else:
 			searchmatch()
 			if(!isbreak&&isswap):
-				print("a")
 				endbreak = true
 				isswap = false
 				interval = 0
 	movecell()
 	moveswords()
+	moveshields()
 	if(movesword.size()==0):
 		if(get_parent().get_node("StageManager").enemy!=null):
 			if(msisvalid):
-				get_parent().get_node("StageManager").enemy.modulate.r -= 50
+				get_parent().get_node("StageManager").enemy.modulate.r = encolor
 				msisvalid = false
 	if(!isclick):
 		for k in range(piece.size()):

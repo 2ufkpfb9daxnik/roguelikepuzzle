@@ -191,7 +191,7 @@ mouse_filter = 2
 color = Color(0.881133, 0.917258, 2.31028e-06, 1)
 
 [node name="hpbar" type="ColorRect" parent="ScoreManager"]
-z_index = -10
+z_index = -11
 offset_left = 1190.0
 offset_top = 412.0
 offset_right = 1915.0
