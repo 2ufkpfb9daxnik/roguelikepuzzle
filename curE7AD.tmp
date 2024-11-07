@@ -1,0 +1,282 @@
+[gd_scene load_steps=8 format=3 uid="uid://xmeslbtexm7n"]
+
+[ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
+[ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
+[ext_resource type="Script" path="res://stage_manager.gd" id="3_tkwor"]
+[ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
+[ext_resource type="VideoStream" path="res://Video/plane.ogv" id="5_3prb8"]
+[ext_resource type="VideoStream" path="res://Video/nc107897-10--unscreen.ogv" id="6_ey03y"]
+
+[sub_resource type="GDScript" id="GDScript_t23u5"]
+
+[node name="CurrentStage" type="Node2D"]
+
+[node name="PuzzleBoard" parent="." instance=ExtResource("1_46jpj")]
+
+[node name="BuffManager" type="Node" parent="."]
+
+[node name="ScoreManager" type="Node2D" parent="."]
+script = ExtResource("2_0elqe")
+
+[node name="RichTextLabel" type="RichTextLabel" parent="ScoreManager"]
+offset_right = 2000.0
+offset_bottom = 2000.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="RichTextLabel2" type="RichTextLabel" parent="ScoreManager"]
+z_index = -1
+offset_left = -5.0
+offset_top = 5.0
+offset_right = 1995.0
+offset_bottom = 2005.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 95
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="RichTextLabel3" type="RichTextLabel" parent="ScoreManager"]
+z_index = 2
+offset_right = 10000.0
+offset_bottom = 10000.0
+scale = Vector2(2, 2)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 50
+theme_override_font_sizes/italics_font_size = 50
+theme_override_font_sizes/mono_font_size = 50
+theme_override_font_sizes/normal_font_size = 50
+theme_override_font_sizes/bold_font_size = 50
+bbcode_enabled = true
+
+[node name="status" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 450.0
+offset_right = 1296.0
+offset_bottom = 725.0
+mouse_filter = 2
+color = Color(0.960784, 1, 0.0901961, 1)
+
+[node name="status2" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1192.0
+offset_top = 452.0
+offset_right = 1293.0
+offset_bottom = 723.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="score0" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 450.0
+offset_right = 3200.0
+offset_bottom = 2450.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score1" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 500.0
+offset_right = 3200.0
+offset_bottom = 2500.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score2" type="RichTextLabel" parent="ScoreManager"]
+z_index = 6
+offset_left = 1200.0
+offset_top = 550.0
+offset_right = 3200.0
+offset_bottom = 2550.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score3" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 600.0
+offset_right = 3200.0
+offset_bottom = 2600.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="score4" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 1200.0
+offset_top = 650.0
+offset_right = 3200.0
+offset_bottom = 2650.0
+scale = Vector2(0.5, 0.5)
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 100
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="screen" type="ColorRect" parent="ScoreManager"]
+z_index = -11
+offset_left = 1194.0
+offset_top = 13.0
+offset_right = 1911.0
+offset_bottom = 407.0
+mouse_filter = 2
+color = Color(0.000715994, 0.000784107, 4.70027e-11, 1)
+
+[node name="screen2" type="ColorRect" parent="ScoreManager"]
+z_index = -12
+offset_left = 1190.0
+offset_top = 10.0
+offset_right = 1915.0
+offset_bottom = 410.0
+mouse_filter = 2
+color = Color(0.881133, 0.917258, 2.31028e-06, 1)
+
+[node name="hpbar" type="ColorRect" parent="ScoreManager"]
+z_index = -11
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1915.0
+offset_bottom = 427.0
+mouse_filter = 2
+color = Color(0.960784, 0, 0.0901961, 1)
+
+[node name="hpbar1" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1915.0
+offset_bottom = 427.0
+mouse_filter = 2
+color = Color(0, 0.968627, 0.215686, 1)
+
+[node name="ehpbar" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = -100000.0
+offset_top = -100000.0
+offset_right = -99850.0
+offset_bottom = -99990.0
+mouse_filter = 2
+color = Color(0.960784, 0, 0.0901961, 1)
+
+[node name="ehpbar1" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 1190.0
+offset_top = 412.0
+offset_right = 1340.0
+offset_bottom = 422.0
+mouse_filter = 2
+color = Color(0, 0.968627, 0.215686, 1)
+
+[node name="StageManager" type="Node2D" parent="."]
+script = ExtResource("3_tkwor")
+
+[node name="StageLabel" type="RichTextLabel" parent="StageManager"]
+offset_left = 7.0
+offset_top = 138.0
+offset_right = 411.0
+offset_bottom = 234.0
+theme_override_font_sizes/bold_italics_font_size = 80
+theme_override_font_sizes/italics_font_size = 80
+theme_override_font_sizes/mono_font_size = 80
+theme_override_font_sizes/normal_font_size = 80
+theme_override_font_sizes/bold_font_size = 80
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+
+[node name="StageLabel2" type="RichTextLabel" parent="StageManager"]
+z_index = -1
+offset_left = 7.0
+offset_top = 138.0
+offset_right = 411.0
+offset_bottom = 234.0
+theme_override_font_sizes/bold_italics_font_size = 80
+theme_override_font_sizes/italics_font_size = 80
+theme_override_font_sizes/mono_font_size = 80
+theme_override_font_sizes/normal_font_size = 80
+theme_override_font_sizes/bold_font_size = 80
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+
+[node name="sougen2D" type="Sprite2D" parent="."]
+z_index = -100
+position = Vector2(960, 700)
+scale = Vector2(1.875, 1.875)
+texture = ExtResource("4_am0hi")
+
+[node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
+z_index = -100
+offset_right = 1920.0
+offset_bottom = 1088.0
+mouse_filter = 2
+stream = ExtResource("5_3prb8")
+autoplay = true
+loop = true
+
+[node name="VideoStreamPlayer2" type="VideoStreamPlayer" parent="."]
+offset_left = 1350.0
+offset_top = 100.0
+offset_right = 1750.0
+offset_bottom = 468.0
+stream = ExtResource("6_ey03y")

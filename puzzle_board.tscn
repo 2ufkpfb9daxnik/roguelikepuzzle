@@ -34,6 +34,7 @@ scale = Vector2(0.1, 0.1)
 script = ExtResource("1_2mien")
 
 [node name="Cells" parent="." instance=ExtResource("1_virbo")]
+metadata/_edit_use_anchors_ = true
 
 [node name="DroppingPieces" type="Node" parent="."]
 
@@ -78,13 +79,15 @@ color = Color(0, 0, 0, 0.768627)
 
 [node name="HBoxContainer" type="HBoxContainer" parent="BuffManager/BuffSelectionScreen"]
 layout_mode = 0
-offset_right = 27.0
-offset_bottom = 33.0
+theme_override_constants/separation = 20
+alignment = 1
 
 [node name="Button" parent="BuffManager/BuffSelectionScreen" instance=ExtResource("14_gdhw6")]
 layout_mode = 0
-offset_left = -122.0
-offset_right = -114.0
+offset_left = -232.0
+offset_top = -2.0
+offset_right = -224.0
+offset_bottom = 6.0
 
 [node name="Sprite2D0" type="Sprite2D" parent="."]
 texture = ExtResource("16_yd1jb")
@@ -138,6 +141,7 @@ parameters/looping = false
 [node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
 offset_right = 40.0
 offset_bottom = 40.0
+metadata/_edit_use_anchors_ = true
 
 [node name="block" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("23_fv4ln")

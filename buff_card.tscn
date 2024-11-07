@@ -10,10 +10,9 @@ script = ExtResource("1_8yjw8")
 
 [node name="TextureRect" type="TextureRect" parent="."]
 layout_mode = 0
-offset_left = 2.0
-offset_top = -2.0
-offset_right = 514.0
-offset_bottom = 510.0
+offset_right = 512.0
+offset_bottom = 512.0
+scale = Vector2(0.25, 0.25)
 texture = ExtResource("1_u4a5h")
 
 [node name="title" type="RichTextLabel" parent="."]
