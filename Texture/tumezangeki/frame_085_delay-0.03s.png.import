@@ -2,7 +2,11 @@
 
 importer="texture"
 type="CompressedTexture2D"
+<<<<<<< HEAD
 uid="uid://k5doe1140sul"
+=======
+uid="uid://dcqvui80e1yyi"
+>>>>>>> 2567544b2731854d684f5ebd315542a1797a5554
 path="res://.godot/imported/frame_085_delay-0.03s.png-d424b79c4a82fd5c1e5cd12c2e5d2b00.ctex"
 metadata={
 "vram_texture": false
