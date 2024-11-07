@@ -5,6 +5,7 @@ signal buff_selected
 
 # バフデータを保持する変数
 var buff_data
+var screen
 
 # 初期設定メソッド
 func setup(data):
@@ -14,6 +15,10 @@ func setup(data):
 	$Description.text = buff_data["description"]
 	$Icon.texture = load(buff_data["icon_path"])
 
+func _ready():
+	screen = get_parent()
+	screen.visible = false
+
 # ボタンが押されたときにシグナルを発信
 func _on_button_pressed():
 	emit_signal("buff_selected", buff_data)
@@ -21,3 +26,4 @@ func _on_button_pressed():
 # ステージをクリアしたとき
 func buff_selecter():
 	print("buff_selecterの実行に成功")
+	screen.visible = true

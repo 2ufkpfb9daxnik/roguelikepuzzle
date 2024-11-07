@@ -64,6 +64,7 @@ script = ExtResource("3_sg06f")
 [node name="ScoreMultiplierBuff" parent="BuffManager/Buffs" instance=ExtResource("11_kkvgh")]
 
 [node name="BuffSelectionScreen" type="Control" parent="BuffManager"]
+visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0
@@ -72,14 +73,14 @@ script = ExtResource("12_58o64")
 
 [node name="ColorRect" type="ColorRect" parent="BuffManager/BuffSelectionScreen"]
 layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 1179.0
+offset_bottom = 877.0
 color = Color(0, 0, 0, 0.768627)
 
 [node name="HBoxContainer" type="HBoxContainer" parent="BuffManager/BuffSelectionScreen"]
 layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 27.0
+offset_bottom = 33.0
 
 [node name="Button" parent="BuffManager/BuffSelectionScreen" instance=ExtResource("14_gdhw6")]
 layout_mode = 0
