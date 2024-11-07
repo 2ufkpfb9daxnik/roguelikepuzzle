@@ -17,3 +17,7 @@ func setup(data):
 # ボタンが押されたときにシグナルを発信
 func _on_button_pressed():
 	emit_signal("buff_selected", buff_data)
+
+# ステージをクリアしたとき
+func buff_selecter():
+	print("buff_selecterの実行に成功")

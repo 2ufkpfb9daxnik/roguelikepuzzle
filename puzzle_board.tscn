@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=27 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://buff_selection_screen.gd" id="12_58o64"]
 [ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
 [ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
+[ext_resource type="PackedScene" uid="uid://lmbt1wwb7woh" path="res://buff_card.tscn" id="14_gdhw6"]
 [ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
 [ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
@@ -78,6 +79,11 @@ color = Color(0, 0, 0, 0.768627)
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0
+
+[node name="Button" parent="BuffManager/BuffSelectionScreen" instance=ExtResource("14_gdhw6")]
+layout_mode = 0
+offset_left = -122.0
+offset_right = -114.0
 
 [node name="Sprite2D0" type="Sprite2D" parent="."]
 texture = ExtResource("16_yd1jb")

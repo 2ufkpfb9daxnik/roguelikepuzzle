@@ -14,8 +14,11 @@ var ehppar :float = 1.0
 var ehp = 4000*pow(10,stage)
 var myhp :float = 5000
 var myhppar :float = 1.0
+
+signal stage_clear
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
+	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
 	board = get_parent().get_node("PuzzleBoard")  # StageLabelの参照を取得
 	
 	label2 = get_node("StageLabel2")  # ScoreManagerのスコアの参照を取得
@@ -31,12 +34,16 @@ func _ready() -> void: # 初期化
 		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
 	else:
 		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
+	
+	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
+
 func add_stage_label() -> void: # ステージを1増やす処理
 	if(stage_enemy == 5):
 		stage_enemy = 1
 		stage += 1
 		if(label!=null):
 			label_control()
+			emit_signal("stage_clear")
 	else:
 		stage_enemy += 1
 func score_check() -> void: # スコアがステージを増やす基準を満たしたかチェックする
