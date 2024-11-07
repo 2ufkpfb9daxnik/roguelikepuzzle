@@ -582,6 +582,10 @@ func _process(delta: float) -> void:
 		elif(interval<=380):
 			pass
 		elif(interval==381):
+			get_parent().get_node("StageManager").enemy.scale *= 1.5
+		elif(interval<393):
+			pass
+		elif(interval==393):
 			scratch = get_parent().get_node("scratch").duplicate()
 			scratch.scale *= 8
 			scratch.position = Vector2(15000,2500)
@@ -599,8 +603,10 @@ func _process(delta: float) -> void:
 				moveshieldt.pop_back()
 				moveshieldp.pop_back()
 				moveshieldv.pop_back()
-		elif(interval==400):
-			scratch.stop()
+		elif(interval<410):
+			pass
+		elif(interval==410):
+			get_parent().get_node("StageManager").enemy.scale /= 1.5
 		else:
 			isswap = false 
 			endbreak = false
