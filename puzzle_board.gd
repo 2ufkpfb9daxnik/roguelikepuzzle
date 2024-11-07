@@ -128,8 +128,8 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					#駒を交換する処理
 					get_node("AudioStreamPlayer2").play()
 					isswap = true
-					if(i==clickedpositiony&&j==clickedpositionx):
-						isswap = false				
+					if(int(i)==int(clickedpositiony)&&int(j)==int(clickedpositionx)):
+						isswap = false
 					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
@@ -417,6 +417,7 @@ func _process(delta: float) -> void:
 		if(interval>108):
 			isswap = false 
 			endbreak = false
+			isbreak = false
 			interval = 0
 			var makecnt = min(int(get_parent().get_node("StageManager").ehp/100),int(get_parent().get_node("ScoreManager").divscore[1]/100))
 			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
@@ -465,8 +466,10 @@ func _process(delta: float) -> void:
 		else:
 			searchmatch()
 			if(!isbreak&&isswap):
+				print("a")
 				endbreak = true
 				isswap = false
+				interval = 0
 	movecell()
 	moveswords()
 	if(movesword.size()==0):
