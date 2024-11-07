@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=26 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -22,6 +22,8 @@
 [ext_resource type="AudioStream" uid="uid://vt1a6imn7otk" path="res://Sound/剣で斬る3.mp3" id="20_de3dv"]
 [ext_resource type="AudioStream" uid="uid://dti640q8rqvvh" path="res://Sound/決定ボタンを押す38.mp3" id="21_xkahe"]
 [ext_resource type="AudioStream" uid="uid://cghxxqinhmcdk" path="res://Sound/shieldmove.mp3" id="22_b7g75"]
+[ext_resource type="AudioStream" uid="uid://c5po6aass3tgm" path="res://Sound/block.mp3" id="23_fv4ln"]
+[ext_resource type="AudioStream" uid="uid://bchvymhlfivgo" path="res://Sound/se/kieruoto/break_and_chain_03_1_demo.mp3" id="24_4l87l"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
 size = Vector2(25, 25)
@@ -125,5 +127,17 @@ parameters/looping = false
 [node name="shieldmove" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("22_b7g75")
 parameters/looping = false
+
+[node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="block" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("23_fv4ln")
+volume_db = 24.0
+parameters/looping = false
+
+[node name="1rensa" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("24_4l87l")
 
 [connection signal="input_event" from="Area2D" to="." method="_on_area_2d_input_event"]

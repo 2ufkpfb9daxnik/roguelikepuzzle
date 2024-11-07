@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=8 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
 [ext_resource type="Script" path="res://stage_manager.gd" id="3_tkwor"]
 [ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
 [ext_resource type="VideoStream" path="res://Video/plane.ogv" id="5_3prb8"]
+[ext_resource type="VideoStream" path="res://Video/nc107897-10--unscreen.ogv" id="6_ey03y"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
 
@@ -272,3 +273,10 @@ mouse_filter = 2
 stream = ExtResource("5_3prb8")
 autoplay = true
 loop = true
+
+[node name="VideoStreamPlayer2" type="VideoStreamPlayer" parent="."]
+offset_left = 1350.0
+offset_top = 100.0
+offset_right = 1750.0
+offset_bottom = 468.0
+stream = ExtResource("6_ey03y")

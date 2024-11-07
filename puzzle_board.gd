@@ -45,6 +45,7 @@ var msisvalid = false
 var mshisvalid = false
 var touchsword = 0
 var  encolor
+var breakinterval = 0
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -223,6 +224,8 @@ func breakmatchedcell() -> void: #マッチした駒を消す
 				breakeln.append(grid_n[i][j])
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
+	if(breakel.size()>0):
+		get_node("1rensa").play()
 	for i in range(breakel.size()):
 		var adc = piece[breakel[i]].duplicate()
 		movetoscore.append(adc)
@@ -340,7 +343,6 @@ func moveswords() -> void:
 			if(get_parent().get_node("StageManager").ehp<=0):
 				pass
 			get_parent().get_node("StageManager").enemy.modulate.r += 50
-			get_node("AudioStreamPlayer").seek(0.1)
 			get_node("AudioStreamPlayer").play()
 			
 	for i in range(movesword.size()):
@@ -476,6 +478,12 @@ func _process(delta: float) -> void:
 				moveshieldt.append(-i*70/makecnt)
 				moveshieldv.append(Vector2(abs(adc.position.x-moveshieldp.back().x)/108,abs(adc.position.y-moveshieldp.back().y)/108))
 				shismoved.append(false)
+		elif(interval<=380):
+			pass
+		elif(interval==381):
+			get_parent().get_node("VideoStreamPlayer2").play()
+			get_node("block").play()
+			get_node("block").seek(0.7)
 		else:
 			isswap = false 
 			endbreak = false
