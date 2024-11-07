@@ -39,6 +39,7 @@ var moveshield = []
 var moveshieldt = []
 var moveshieldp = []
 var moveshieldv = []
+var shismoved = []
 var isswap = false
 var msisvalid = false
 var mshisvalid = false
@@ -369,29 +370,10 @@ func moveshields() -> void:
 		moveshieldt[i] += 1
 	for i in range(moveshield.size()):
 		if(moveshield[i].position.x==moveshieldp[i].x&&moveshield[i].position.y==moveshieldp[i].y):
-			get_node("AudioStreamPlayer").seek(0.1)
-			get_node("AudioStreamPlayer").play()
-			
-	for i in range(movesword.size()):
-		if(movesword[i].position.y<=-300):
-			movesword[i].queue_free()
-			movesword[i] = null
-			moveswordrnd[i] = null
-			moveswordt[i] = null
-	var nmoveshield = []
-	var nmoveshieldt = []
-	var nmoveshieldp = []
-	var nmoveshieldv = []
-	for i in range(moveshield.size()):
-		if(moveshield[i]!=null):
-			nmoveshield.append(moveshield[i])
-			nmoveshieldt.append(moveshieldt[i])
-			nmoveshieldp.append(moveshieldp[i])
-			nmoveshieldv.append(moveshieldv[i])
-	moveshield = nmoveshield
-	moveshieldt = nmoveshieldt
-	moveshieldp = nmoveshieldp
-	moveshieldv = nmoveshieldv
+			if(shismoved[i]):
+				continue
+			shismoved[i] = true
+			get_node("shieldmove").play()
 func movecell() -> void:
 	for i in range(movetoscore.size()):
 		if(movetoscoren[i]==0):
@@ -490,9 +472,10 @@ func _process(delta: float) -> void:
 				add_child(adc)
 				moveshield.append(adc)
 				mshisvalid = true
-				moveshieldp.append(Vector2(6000/(makecnt*2)*(randi()%(makecnt*2))+12300,-1000/(makecnt*2)*(randi()%(makecnt*2))+3800))
+				moveshieldp.append(Vector2(7200/makecnt*i+12300,-1000/(makecnt*2)*(randi()%(makecnt*2))+3800))
 				moveshieldt.append(-i*70/makecnt)
 				moveshieldv.append(Vector2(abs(adc.position.x-moveshieldp.back().x)/108,abs(adc.position.y-moveshieldp.back().y)/108))
+				shismoved.append(false)
 		else:
 			isswap = false 
 			endbreak = false
