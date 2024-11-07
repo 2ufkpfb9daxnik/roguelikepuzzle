@@ -1,91 +1,13 @@
-[gd_scene load_steps=28 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=8 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
 [ext_resource type="Script" path="res://stage_manager.gd" id="3_tkwor"]
 [ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
 [ext_resource type="VideoStream" path="res://Video/plane.ogv" id="5_3prb8"]
-[ext_resource type="Texture2D" uid="uid://l760g176aayj" path="res://Texture/tumezangeki/frame_001_delay-0.03s.png" id="7_bxmnf"]
-[ext_resource type="Texture2D" uid="uid://b508rvbasxqa0" path="res://Texture/tumezangeki/frame_002_delay-0.03s.png" id="8_jnynu"]
-[ext_resource type="Texture2D" uid="uid://bvbbekv1ay1d6" path="res://Texture/tumezangeki/frame_003_delay-0.03s.png" id="9_cfe38"]
-[ext_resource type="Texture2D" uid="uid://cqyxakfy6brr8" path="res://Texture/tumezangeki/frame_004_delay-0.03s.png" id="10_ahcqm"]
-[ext_resource type="Texture2D" uid="uid://bkcv5hx3a4rao" path="res://Texture/tumezangeki/frame_005_delay-0.03s.png" id="11_7knln"]
-[ext_resource type="Texture2D" uid="uid://cbxrngyoof4ij" path="res://Texture/tumezangeki/frame_006_delay-0.03s.png" id="12_5u4os"]
-[ext_resource type="Texture2D" uid="uid://b34kh68ikkp6k" path="res://Texture/tumezangeki/frame_007_delay-0.03s.png" id="13_jg0xa"]
-[ext_resource type="Texture2D" uid="uid://dabnhnbpmenxp" path="res://Texture/tumezangeki/frame_008_delay-0.03s.png" id="14_q5by6"]
-[ext_resource type="Texture2D" uid="uid://ctbkp4vmeexe8" path="res://Texture/tumezangeki/frame_009_delay-0.03s.png" id="15_gjsh7"]
-[ext_resource type="Texture2D" uid="uid://ck0p2768qnorw" path="res://Texture/tumezangeki/frame_010_delay-0.03s.png" id="16_rbyc4"]
-[ext_resource type="Texture2D" uid="uid://btp7o8owryc88" path="res://Texture/tumezangeki/frame_011_delay-0.03s.png" id="17_641bm"]
-[ext_resource type="Texture2D" uid="uid://cc4tnpsc7lsur" path="res://Texture/tumezangeki/frame_012_delay-0.03s.png" id="18_mt5lt"]
-[ext_resource type="Texture2D" uid="uid://bxml6dc4d7gik" path="res://Texture/tumezangeki/frame_013_delay-0.03s.png" id="19_svejk"]
-[ext_resource type="Texture2D" uid="uid://dqvbdtgoekfl0" path="res://Texture/tumezangeki/frame_014_delay-0.03s.png" id="20_r5wnq"]
-[ext_resource type="Texture2D" uid="uid://do14g2yf7odgr" path="res://Texture/tumezangeki/frame_015_delay-0.03s.png" id="21_6kyrv"]
-[ext_resource type="Texture2D" uid="uid://ulwtgi463ec4" path="res://Texture/tumezangeki/frame_016_delay-0.03s.png" id="22_pbyts"]
-[ext_resource type="AudioStream" uid="uid://2l5tfasrcci6" path="res://Sound/se/patinko/danger-2.mp3" id="23_4gdkg"]
-[ext_resource type="Texture2D" uid="uid://b28q6mlno75yb" path="res://Texture/tumezangeki/frame_017_delay-0.03s.png" id="23_w7njg"]
-[ext_resource type="AudioStream" uid="uid://x2ecdukqtibx" path="res://Sound/ゲージ回復1.mp3" id="24_jy36a"]
-[ext_resource type="AudioStream" uid="uid://c61ic1sbovbji" path="res://Sound/se/patinko/THROUGHOUT_BOUNS継続音.mp3" id="25_ghswd"]
+[ext_resource type="VideoStream" path="res://Video/nc107897-10--unscreen.ogv" id="6_ey03y"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
-
-[sub_resource type="SpriteFrames" id="SpriteFrames_02pi5"]
-animations = [{
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("7_bxmnf")
-}, {
-"duration": 1.0,
-"texture": ExtResource("8_jnynu")
-}, {
-"duration": 1.0,
-"texture": ExtResource("9_cfe38")
-}, {
-"duration": 1.0,
-"texture": ExtResource("10_ahcqm")
-}, {
-"duration": 1.0,
-"texture": ExtResource("11_7knln")
-}, {
-"duration": 1.0,
-"texture": ExtResource("12_5u4os")
-}, {
-"duration": 1.0,
-"texture": ExtResource("13_jg0xa")
-}, {
-"duration": 1.0,
-"texture": ExtResource("14_q5by6")
-}, {
-"duration": 1.0,
-"texture": ExtResource("15_gjsh7")
-}, {
-"duration": 1.0,
-"texture": ExtResource("16_rbyc4")
-}, {
-"duration": 1.0,
-"texture": ExtResource("17_641bm")
-}, {
-"duration": 1.0,
-"texture": ExtResource("18_mt5lt")
-}, {
-"duration": 1.0,
-"texture": ExtResource("19_svejk")
-}, {
-"duration": 1.0,
-"texture": ExtResource("20_r5wnq")
-}, {
-"duration": 1.0,
-"texture": ExtResource("21_6kyrv")
-}, {
-"duration": 1.0,
-"texture": ExtResource("22_pbyts")
-}, {
-"duration": 1.0,
-"texture": ExtResource("23_w7njg")
-}],
-"loop": false,
-"name": &"new_animation",
-"speed": 30.0
-}]
 
 [node name="CurrentStage" type="Node2D"]
 
@@ -305,26 +227,6 @@ offset_bottom = 422.0
 mouse_filter = 2
 color = Color(0, 0.968627, 0.215686, 1)
 
-[node name="feverbar" type="ColorRect" parent="ScoreManager"]
-modulate = Color(0.93408, 0.93408, 0.93408, 1)
-z_index = -11
-offset_left = 1190.0
-offset_top = 428.0
-offset_right = 1915.0
-offset_bottom = 443.0
-mouse_filter = 2
-color = Color(0.806961, 0.814032, 0.824806, 1)
-
-[node name="feverbar2" type="ColorRect" parent="ScoreManager"]
-modulate = Color(0.93408, 0.93408, 0.93408, 1)
-z_index = -10
-offset_left = 1190.0
-offset_top = 428.0
-offset_right = 1190.0
-offset_bottom = 443.0
-mouse_filter = 2
-color = Color(0.321569, 0, 1, 1)
-
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 
@@ -372,18 +274,9 @@ stream = ExtResource("5_3prb8")
 autoplay = true
 loop = true
 
-[node name="scratch" type="AnimatedSprite2D" parent="."]
-z_index = 10
-position = Vector2(-1e+09, -1e+09)
-sprite_frames = SubResource("SpriteFrames_02pi5")
-animation = &"new_animation"
-
-[node name="gekiha" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("23_4gdkg")
-
-[node name="kaihuku" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("24_jy36a")
-
-[node name="fevertime" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("25_ghswd")
-volume_db = 24.0
+[node name="VideoStreamPlayer2" type="VideoStreamPlayer" parent="."]
+offset_left = 1350.0
+offset_top = 100.0
+offset_right = 1750.0
+offset_bottom = 468.0
+stream = ExtResource("6_ey03y")
