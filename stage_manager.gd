@@ -1,6 +1,7 @@
 extends Node2D
-var label :Label
+var label :RichTextLabel
 var stage :int = 0
+var stage_enemy :int = 5;
 var score :int
 var board :Node2D
 var enemycount :int = 0
@@ -12,6 +13,12 @@ var ehppar :float = 1.0
 var ehp = 4000*pow(10,stage)
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
+	board = get_parent().get_node("PuzzleBoard") # PuzzleBoardの参照を取得
+	if board != null: # PuzzleBoardの参照ができるかどうか
+		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
+	else:
+		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
+	
 	label = get_node("StageLabel")  # StageLabelの参照を取得
 	if label != null: # StageLabelの参照ができるかどうか
 		add_stage_label() # ステージを初期化(実際にはステージを1増やす処理だが、初期値が0なのでステージを1にする処理となる)
@@ -23,20 +30,18 @@ func _ready() -> void: # 初期化
 		print("スコアの取得に成功しました") # 見つかったことを知らせる
 	else:
 		print("スコアが取得できません") # 見つからなかったことを知らせる
-	
-	board = get_parent().get_node("PuzzleBoard") # PuzzleBoardの参照を取得
-	if board != null: # PuzzleBoardの参照ができるかどうか
-		print("PuzzleBoard ノードはあります") # 見つかったことを知らせる
-	else:
-		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
-	score_check()
 func add_stage_label() -> void: # ステージを1増やす処理
-	stage+=1 # ステージを1増やす
-	if label != null: # labelがnullでないかどうか
-		print(stage) # ログに何ステージになったか書き出す
-		label.text = "現在のステージ: " + str(stage) # ステージラベルを更新する
+	if stage_enemy == 5:
+		stage_enemy = 1
+		stage+=1 # ステージを1増やす
+		if label != null: # labelがnullでないかどうか
+			print(stage) # ログに何ステージになったか書き出す
+			label_control()
+			#"[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+score.totalScore/10000)+" freq="+str(1+score.totalScore/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/rainbow]"
+		else:
+			pass
 	else:
-		pass
+		stage_enemy += 1
 
 func score_check() -> void: # スコアがステージを増やす基準を満たしたかチェックする
 	score = get_parent().get_node("ScoreManager").totalScore  # ScoreManagerのスコアの参照を取得
@@ -47,6 +52,11 @@ func score_check() -> void: # スコアがステージを増やす基準を満�
 			pass
 	else:
 		print("スコアが取得できません") # 見つからなかったことを知らせる
+
+func label_control() -> void:
+	score = get_parent().get_node("ScoreManager").totalScore  # ScoreManagerのスコアの参照を取得
+	label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+score/10000)+" freq="+str(1+score/10000)+"]" + "ステージ:"+str(stage)+ "[/tornado][/rainbow]"
+
 func make_enemy() -> void:
 	if(enemycount==0):
 		enemy = get_parent().get_child(0).get_node("enemy0").duplicate()
@@ -79,7 +89,8 @@ func isdead() -> void:
 	ehpbar1 = null
 	enemycount = 0
 	make_enemy()
-	score_check()
+	add_stage_label()
+	#score_check()
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void: # ずっとする
 	make_enemy()
