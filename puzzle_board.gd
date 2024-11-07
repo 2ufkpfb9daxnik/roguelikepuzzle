@@ -19,7 +19,7 @@ var clickatt = -1e9 #クリックされた駒の属性
 var column_empty = []	#列の空き
 var ismatched = []	#マッチした駒
 var time_accumulator = 0.0	#時間
-var update_interval = 0.1	#更新間隔
+var update_interval = 0.05	#更新間隔
 var isbreak = false	#消す処理が行われているか
 var cellkinds = 5 #駒の種類
 var prevposx = -1	#前の位置
@@ -46,10 +46,13 @@ var mshisvalid = false
 var touchsword = 0
 var  encolor
 var breakinterval = 0
+var combocount = 0
+var cancombo = false
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
 	grid_row = 15	#ボードの行数
+	get_node("1rensa").pitch_scale = 0.92
 	var collid	#駒の判定
 	var children = get_children()	#子ノードの取得
 	var valid_children = []	#有効な子ノード
@@ -164,6 +167,7 @@ func abs(x: int) -> int:
 		x*=-1
 	return x
 func searchmatch() -> void: #マッチした駒を調べる
+	var canbreak = false
 	for i in range(grid_row):
 		for j in range(grid_column):
 			if(ismatched[i][j]||grid_n[i][j]==-1e9):
@@ -180,6 +184,7 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(ni-i>=3):
 				for k in range(i,ni):
 					ismatched[k][j] = true
+				canbreak = true
 			ni = i
 			while(true):
 				if(ni==-1):
@@ -190,6 +195,7 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(i-ni>=3):
 				for k in range(ni+1,i+1):
 					ismatched[k][j] = true
+				canbreak = true
 			while(true):
 				if(nj==grid_column):
 					break
@@ -199,6 +205,7 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(nj-j>=3):
 				for k in range(j,nj):
 					ismatched[i][k] = true
+				canbreak = true
 			nj = j
 			while(true):
 				if(nj==-1):
@@ -209,9 +216,15 @@ func searchmatch() -> void: #マッチした駒を調べる
 			if(j-nj>=3):
 				for k in range(nj+1,j+1):
 					ismatched[i][k] = true
+				canbreak = true
 	var copyismatched = ismatched
-	score_manager.calcscore(copyismatched,grid_att)
-	breakmatchedcell()
+	if(canbreak):
+		cancombo = true
+	if(breakinterval>=20&&canbreak):
+		score_manager.calcscore(copyismatched,grid_att)
+		breakmatchedcell()
+		breakinterval = 0
+	breakinterval += 1
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
 	var breakeln = []
@@ -225,7 +238,9 @@ func breakmatchedcell() -> void: #マッチした駒を消す
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
 	if(breakel.size()>0):
+		combocount += 1
 		get_node("1rensa").play()
+		get_node("1rensa").pitch_scale += 0.08
 	for i in range(breakel.size()):
 		var adc = piece[breakel[i]].duplicate()
 		movetoscore.append(adc)
@@ -441,12 +456,18 @@ func movecell() -> void:
 func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
 		if(interval<=36):
+			if(interval==0):
+				get_node("anten").play()
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
 		elif(interval<=72):
+			if(interval==37):
+				get_node("anten").play()
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-36)-18)*((interval-36)-18)/10-33
 		elif(interval<=108):
+			if(interval==73):
+				get_node("anten").play()
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
 		elif(interval==109):
@@ -488,9 +509,11 @@ func _process(delta: float) -> void:
 			isswap = false 
 			endbreak = false
 			isbreak = false
+			cancombo = false
 			interval = 0
+			combocount = 0
+			get_node("1rensa").pitch_scale = 0.92
 		interval+=1	
-		pass
 	var mouse_position = get_global_mouse_position()
 	if(isclick):
 		Input.warp_mouse(Vector2(max(mouse_position.x,435),max(mouse_position.y,135)))
@@ -510,12 +533,14 @@ func _process(delta: float) -> void:
 		if(isbreak):
 			fallcell()
 			searchmatch()
+			print(breakinterval)
 			if(!isbreak):
 				endbreak = true
 				interval = 0
 		else:
 			searchmatch()
-			if(!isbreak&&isswap):
+			print(breakinterval)
+			if(!isbreak&&!cancombo&&isswap):
 				endbreak = true
 				isswap = false
 				interval = 0
