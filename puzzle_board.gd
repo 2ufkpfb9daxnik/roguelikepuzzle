@@ -42,6 +42,9 @@ var moveshieldv = []
 var movefood  = []
 var movefoodt = []
 var movefoodrnd = []
+var movepotion = []
+var movepotiont = []
+var movepotionrnd = []
 var shismoved = []
 var isswap = false
 var msisvalid = false
@@ -403,14 +406,6 @@ func movefoods() -> void:
 			movefood[i].position.y = -movefoodt[i]**2+6800
 		movefoodt[i] += 1
 	for i in range(movefood.size()):
-		if(movefood[i].position.y==2700):
-			get_parent().get_node("StageManager").calchp(100,0)
-			if(get_parent().get_node("StageManager").ehp<=0):
-				pass
-			get_parent().get_node("StageManager").enemy.modulate.r += 50
-			get_node("AudioStreamPlayer").play()
-			
-	for i in range(movefood.size()):
 		if(movefood[i].position.y<=5000):
 			get_parent().get_node("StageManager").calchp(0,-100)
 			get_parent().get_node("kaihuku").play()
@@ -429,6 +424,32 @@ func movefoods() -> void:
 	movefood = nmovefood
 	movefoodt = nmovefoodt
 	movefoodrnd = nmovefoodrnd
+	pass
+func movepotions() -> void:
+	for i in range(movepotion.size()):
+		if(movepotiont[i]>=0):
+			movepotion[i].position.x+=10+movepotionrnd[i]
+			movepotion[i].position.y = -movepotiont[i]**2+6800
+		movepotiont[i] += 1
+	for i in range(movepotion.size()):
+		if(movepotion[i].position.y<=5000):
+			get_parent().get_node("StageManager").calcgage(100)
+			get_parent().get_node("kaihuku").play()
+			movepotion[i].queue_free()
+			movepotion[i] = null
+			movepotionrnd[i] = null
+			movepotiont[i] = null
+	var nmovepotion = []
+	var nmovepotiont = []
+	var nmovepotionrnd = []
+	for i in range(movepotion.size()):
+		if(movepotion[i]!=null):
+			nmovepotion.append(movepotion[i])
+			nmovepotiont.append(movepotiont[i])
+			nmovepotionrnd.append(movepotionrnd[i])
+	movepotion = nmovepotion
+	movepotiont = nmovepotiont
+	movepotionrnd = nmovepotionrnd
 	pass
 func movecell() -> void:
 	for i in range(movetoscore.size()):
@@ -531,6 +552,16 @@ func _process(delta: float) -> void:
 				movefood.append(adc)
 				movefoodt.append(-i*70/makecnt2)
 				movefoodrnd.append(randi()%120)
+			var makecnt3 = min(50-int(get_parent().get_node("StageManager").fevergage/100),int(get_parent().get_node("ScoreManager").divscore[3]/100))
+			get_parent().get_node("ScoreManager").divscore[3] -= makecnt3*100
+			for i in range(makecnt3):
+				var adc = get_node("Sprite2D3").duplicate();
+				adc.position = Vector2(12300,6300)
+				adc.scale *= 2
+				add_child(adc)
+				movepotion.append(adc)
+				movepotiont.append(-i*70/makecnt3)
+				movepotionrnd.append(randi()%120)
 		elif(interval<=252):
 			pass
 		elif(interval==253):
@@ -613,6 +644,7 @@ func _process(delta: float) -> void:
 	moveswords()
 	moveshields()
 	movefoods()
+	movepotions()
 	if(movesword.size()==0):
 		if(get_parent().get_node("StageManager").enemy!=null):
 			if(msisvalid):

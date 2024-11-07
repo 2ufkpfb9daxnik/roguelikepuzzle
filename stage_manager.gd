@@ -14,7 +14,9 @@ var ehppar :float = 1.0
 var ehp = 4000*pow(10,stage)
 var myhp :float = 5000
 var myhppar :float = 1.0
-
+var fevergage :float = 0
+var feverpar :float = 0.0
+var isfevertime = false
 signal stage_clear
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
@@ -80,10 +82,15 @@ func calchp(damage1,damage2) -> void:
 	myhppar = myhp/5000
 	if(ehp<=0):
 		isdead()
+func calcgage(potion) -> void:
+	fevergage += potion
+	feverpar = float(fevergage/5000)
 func displayhp() -> void:
 	if(ehppar*150!=0):
 		ehpbar1.size = Vector2(ehppar*150,10)
 		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(int(myhppar*725),15)
+func displaygage() -> void:
+	get_parent().get_node("ScoreManager/feverbar2").size = Vector2(int(feverpar*725),15)
 func isdead() -> void:
 	get_parent().get_node("gekiha").play()
 	enemy.queue_free()
@@ -95,8 +102,14 @@ func isdead() -> void:
 	enemycount = 0
 	make_enemy()
 	add_stage_label()
+func fevertime() -> void:
+	if(int(fevergage)==5000):
+		fevergage = 0
+		isfevertime = true
+		get_parent().get_node("fevertime").play()
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void: # ずっとする
 	make_enemy()
 	displayhp()
-	
+	displaygage()
+	fevertime()
