@@ -73,12 +73,11 @@ func make_enemy() -> void:
 		add_child(ehpbar)
 		add_child(ehpbar1)
 		enemycount+=1
-func calchp(damage) -> void:
-	ehp -= damage
-	myhp -= damage
+func calchp(damage1,damage2) -> void:
+	ehp -= damage1
+	myhp -= damage2
 	ehppar = ehp/(4000*pow(10,(stage-1)))
 	myhppar = myhp/5000
-	print(myhppar)
 	if(ehp<=0):
 		isdead()
 func displayhp() -> void:
@@ -86,6 +85,7 @@ func displayhp() -> void:
 		ehpbar1.size = Vector2(ehppar*150,10)
 		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(int(myhppar*725),15)
 func isdead() -> void:
+	get_parent().get_node("gekiha").play()
 	enemy.queue_free()
 	ehpbar.queue_free()
 	ehpbar1.queue_free()

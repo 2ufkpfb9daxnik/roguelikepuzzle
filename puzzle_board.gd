@@ -19,7 +19,7 @@ var clickatt = -1e9 #クリックされた駒の属性
 var column_empty = []	#列の空き
 var ismatched = []	#マッチした駒
 var time_accumulator = 0.0	#時間
-var update_interval = 0.05	#更新間隔
+var update_interval = 0.04	#更新間隔
 var isbreak = false	#消す処理が行われているか
 var cellkinds = 5 #駒の種類
 var prevposx = -1	#前の位置
@@ -39,15 +39,19 @@ var moveshield = []
 var moveshieldt = []
 var moveshieldp = []
 var moveshieldv = []
+var movefood  = []
+var movefoodt = []
+var movefoodrnd = []
 var shismoved = []
 var isswap = false
 var msisvalid = false
 var mshisvalid = false
 var touchsword = 0
-var  encolor
+var encolor
 var breakinterval = 0
 var combocount = 0
-var cancombo = false
+var canfall = false
+var scratch :AnimatedSprite2D
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -218,9 +222,7 @@ func searchmatch() -> void: #マッチした駒を調べる
 					ismatched[i][k] = true
 				canbreak = true
 	var copyismatched = ismatched
-	if(canbreak):
-		cancombo = true
-	if(breakinterval>=20&&canbreak):
+	if(breakinterval>=20):
 		score_manager.calcscore(copyismatched,grid_att)
 		breakmatchedcell()
 		breakinterval = 0
@@ -238,6 +240,7 @@ func breakmatchedcell() -> void: #マッチした駒を消す
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
 	if(breakel.size()>0):
+		canfall = true
 		combocount += 1
 		get_node("1rensa").play()
 		get_node("1rensa").pitch_scale += 0.08
@@ -346,6 +349,8 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 	for i in range(grid_column):
 		if(column_empty[i]>0):
 			isbreak = true
+	if(!isbreak):
+		canfall = false
 func moveswords() -> void:
 	for i in range(movesword.size()):
 		if(moveswordt[i]>=0):
@@ -354,7 +359,7 @@ func moveswords() -> void:
 		moveswordt[i] += 1
 	for i in range(movesword.size()):
 		if(movesword[i].position.y==2700):
-			get_parent().get_node("StageManager").calchp(100)
+			get_parent().get_node("StageManager").calchp(100,0)
 			if(get_parent().get_node("StageManager").ehp<=0):
 				pass
 			get_parent().get_node("StageManager").enemy.modulate.r += 50
@@ -391,6 +396,40 @@ func moveshields() -> void:
 				continue
 			shismoved[i] = true
 			get_node("shieldmove").play()
+func movefoods() -> void:
+	for i in range(movefood.size()):
+		if(movefoodt[i]>=0):
+			movefood[i].position.x+=10+movefoodrnd[i]
+			movefood[i].position.y = -movefoodt[i]**2+6800
+		movefoodt[i] += 1
+	for i in range(movefood.size()):
+		if(movefood[i].position.y==2700):
+			get_parent().get_node("StageManager").calchp(100,0)
+			if(get_parent().get_node("StageManager").ehp<=0):
+				pass
+			get_parent().get_node("StageManager").enemy.modulate.r += 50
+			get_node("AudioStreamPlayer").play()
+			
+	for i in range(movefood.size()):
+		if(movefood[i].position.y<=5000):
+			get_parent().get_node("StageManager").calchp(0,-100)
+			get_parent().get_node("kaihuku").play()
+			movefood[i].queue_free()
+			movefood[i] = null
+			movefoodrnd[i] = null
+			movefoodt[i] = null
+	var nmovefood = []
+	var nmovefoodt = []
+	var nmovefoodrnd = []
+	for i in range(movefood.size()):
+		if(movefood[i]!=null):
+			nmovefood.append(movefood[i])
+			nmovefoodt.append(movefoodt[i])
+			nmovefoodrnd.append(movefoodrnd[i])
+	movefood = nmovefood
+	movefoodt = nmovefoodt
+	movefoodrnd = nmovefoodrnd
+	pass
 func movecell() -> void:
 	for i in range(movetoscore.size()):
 		if(movetoscoren[i]==0):
@@ -482,6 +521,16 @@ func _process(delta: float) -> void:
 				msisvalid = true
 				moveswordt.append(-i*70/makecnt)
 				moveswordrnd.append(randi()%120)
+			var makecnt2 = min(50-int(get_parent().get_node("StageManager").myhp/100),int(get_parent().get_node("ScoreManager").divscore[4]/100))
+			get_parent().get_node("ScoreManager").divscore[4] -= makecnt2*100
+			for i in range(makecnt2):
+				var adc = get_node("Sprite2D4").duplicate();
+				adc.position = Vector2(12300,6800)
+				adc.scale *= 2
+				add_child(adc)
+				movefood.append(adc)
+				movefoodt.append(-i*70/makecnt2)
+				movefoodrnd.append(randi()%120)
 		elif(interval<=252):
 			pass
 		elif(interval==253):
@@ -502,14 +551,29 @@ func _process(delta: float) -> void:
 		elif(interval<=380):
 			pass
 		elif(interval==381):
-			get_parent().get_node("VideoStreamPlayer2").play()
+			scratch = get_parent().get_node("scratch").duplicate()
+			scratch.scale *= 8
+			scratch.position = Vector2(15000,2500)
+			scratch.frame = 0
+			scratch.play()
+			add_child(scratch)
 			get_node("block").play()
 			get_node("block").seek(0.7)
+			get_parent().get_node("StageManager").calchp(0,2000/(moveshield.size()+1))
+			for i in range(moveshield.size()):
+				moveshield[i].queue_free()
+				moveshield[i] = null
+			while(moveshield.size()>0):
+				moveshield.pop_back()
+				moveshieldt.pop_back()
+				moveshieldp.pop_back()
+				moveshieldv.pop_back()
+		elif(interval==400):
+			scratch.stop()
 		else:
 			isswap = false 
 			endbreak = false
 			isbreak = false
-			cancombo = false
 			interval = 0
 			combocount = 0
 			get_node("1rensa").pitch_scale = 0.92
@@ -531,22 +595,24 @@ func _process(delta: float) -> void:
 	if time_accumulator >= update_interval:
 		time_accumulator -= update_interval
 		if(isbreak):
-			fallcell()
-			searchmatch()
-			print(breakinterval)
+			if(canfall):
+				fallcell()
+			else:
+				searchmatch()
+			print("combo")
 			if(!isbreak):
 				endbreak = true
 				interval = 0
 		else:
 			searchmatch()
-			print(breakinterval)
-			if(!isbreak&&!cancombo&&isswap):
+			if(!isbreak&&isswap):
 				endbreak = true
 				isswap = false
 				interval = 0
 	movecell()
 	moveswords()
 	moveshields()
+	movefoods()
 	if(movesword.size()==0):
 		if(get_parent().get_node("StageManager").enemy!=null):
 			if(msisvalid):
