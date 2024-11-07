@@ -19,7 +19,7 @@ var clickatt = -1e9 #クリックされた駒の属性
 var column_empty = []	#列の空き
 var ismatched = []	#マッチした駒
 var time_accumulator = 0.0	#時間
-var update_interval = 0.2	#更新間隔
+var update_interval = 0.1	#更新間隔
 var isbreak = false	#消す処理が行われているか
 var cellkinds = 5 #駒の種類
 var prevposx = -1	#前の位置
@@ -27,6 +27,16 @@ var prevposy = -1	#前の位置
 var scoremanagerscript	#スコアマネージャのスクリプト
 var score_manager	#スコアマネージャ
 var score_label	#スコアラベル
+var interval = -1e18
+var movetoscore = []
+var movetoscoren = []
+var endbreak = false
+var movesword = []
+var moveswordt = []
+var moveswordrnd = []
+var moveswordcnt = 0
+var isswap = false
+var msisvalid = false
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -86,7 +96,7 @@ func _ready() -> void:	#初期化
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
-	if(isbreak):	#消す処理が行われている場合
+	if(isbreak||endbreak||isswap):	#消す処理が行われている場合
 		return	#処理を終了
 	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
 		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合
@@ -94,12 +104,11 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 				var mouse_position = get_global_mouse_position()	#マウスの位置
 				var i = (mouse_position.y-(130))/50	#マスの位置
 				var j = (mouse_position.x-(430))/50	#マスの位置
-				print("(%d, %d)" % [i, j])	#位置の表示
-				print("(%d, %d)" % [mouse_position.x, mouse_position.y])	#位置の表示
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0):	#範囲内の場合
 					piece[grid_i[i][j]].scale *= 2 		#駒の大きさを2倍にする
 					clickedpositionx = int(j)	#クリックされた駒の位置
 					clickedpositiony = int(i)	#クリックされた駒の位置
+					get_node("AudioStreamPlayer2").play()
 				isclick = true	#クリックされているか
 				clicki = grid_i[i][j]	#クリックされた駒の番号
 				clicknum = grid_n[i][j]	#クリックされた駒の種類
@@ -115,16 +124,18 @@ func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) 
 					piece[clicki].position.y = prevposy	#前の位置に戻す
 					prevposx = -1e9		
 					prevposy = -1e9
-				print("c")
 				if(i<grid_row&&i>=0&&j<grid_column&&j>=0) and (grid_i[i][j]!=clicknum) and (isclick):	#範囲内の場合
 					#駒を交換する処理
+					get_node("AudioStreamPlayer2").play()
+					isswap = true
+					if(int(i)==int(clickedpositiony)&&int(j)==int(clickedpositionx)):
+						isswap = false
 					var swapa = grid_i[i][j]	
 					var swapb = clicki
 					var swapna = grid_n[i][j]
 					var swapnb = clicknum
 					var swapatta = grid_att[i][j]
 					var swapattb = clickatt
-					print("swap(%d,%d)" % [swapa,swapb])
 					grid_i[i][j] = swapb
 					grid_i[clickedpositiony][clickedpositionx] = swapa
 					grid_n[i][j] = swapnb
@@ -194,15 +205,21 @@ func searchmatch() -> void: #マッチした駒を調べる
 	breakmatchedcell()
 func breakmatchedcell() -> void: #マッチした駒を消す
 	var breakel = []
+	var breakeln = []
 	for i in range(grid_row): 
 		for j in range(grid_column):
 			if(ismatched[i][j]):
 				column_empty[j] += 1
 				ismatched[i][j] = false
 				breakel.append(grid_i[i][j])
+				breakeln.append(grid_n[i][j])
 				grid_i[i][j] = -1e9
 				grid_n[i][j] = -1e9
 	for i in range(breakel.size()):
+		var adc = piece[breakel[i]].duplicate()
+		movetoscore.append(adc)
+		movetoscoren.append(breakeln[i])
+		add_child(adc)
 		piece[breakel[i]].queue_free()
 		piececollid[breakel[i]].queue_free()
 		piece[breakel[i]] = null
@@ -303,7 +320,127 @@ func fallcell() -> void: #駒が消された場所を駒で埋める
 	for i in range(grid_column):
 		if(column_empty[i]>0):
 			isbreak = true
+func moveswords() -> void:
+	for i in range(movesword.size()):
+		if(moveswordt[i]>=0):
+			movesword[i].position.x+=10+moveswordrnd[i]
+			movesword[i].position.y = -moveswordt[i]**2+5200
+		moveswordt[i] += 1
+	for i in range(movesword.size()):
+		if(movesword[i].position.y==2700):
+			get_parent().get_node("StageManager").calchp(100)
+			get_parent().get_node("StageManager").enemy.modulate.r += 50
+			get_node("AudioStreamPlayer").seek(0.1)
+			get_node("AudioStreamPlayer").play()
+			
+	for i in range(movesword.size()):
+		if(movesword[i].position.y<=-300):
+			movesword[i].queue_free()
+			movesword[i] = null
+			moveswordrnd[i] = null
+			moveswordt[i] = null
+	var nmovesword = []
+	var nmoveswordt = []
+	var nmoveswordrnd = []
+	for i in range(movesword.size()):
+		if(movesword[i]!=null):
+			nmovesword.append(movesword[i])
+			nmoveswordt.append(moveswordt[i])
+			nmoveswordrnd.append(moveswordrnd[i])
+	movesword = nmovesword
+	moveswordt = nmoveswordt
+	moveswordrnd = nmoveswordrnd
+func movecell() -> void:
+	for i in range(movetoscore.size()):
+		if(movetoscoren[i]==0):
+			if(movetoscore[i].position.y<=4600):
+				movetoscore[i].position.y+=min(80,4600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-4600) 
+		elif(movetoscoren[i]==1):
+			if(movetoscore[i].position.y<=5100):
+				movetoscore[i].position.y+=min(80,5100-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-5100) 
+		elif(movetoscoren[i]==2):
+			if(movetoscore[i].position.y<=5600):
+				movetoscore[i].position.y+=min(80,5600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-5600) 
+		elif(movetoscoren[i]==3):
+			if(movetoscore[i].position.y<=6100):
+				movetoscore[i].position.y+=min(80,6100-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-6100) 
+		else:
+			if(movetoscore[i].position.y<=6600):
+				movetoscore[i].position.y+=min(80,6600-movetoscore[i].position.y) 
+			else:
+				movetoscore[i].position.y-=min(80,movetoscore[i].position.y-6600) 
+		movetoscore[i].position.x+=min(200,12100-movetoscore[i].position.x) 
+	for i in range(movetoscore.size()):
+		if(movetoscoren[i]==0):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==4600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==1):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==5100):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==2):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==5600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		elif(movetoscoren[i]==3):
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==6100):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+		else:
+			if(movetoscore[i].position.x==12100&&movetoscore[i].position.y==6600):
+				movetoscore[i].queue_free()
+				movetoscore[i] = null
+				movetoscoren[i] = null
+	var nmovetoscore = []
+	var nmovetoscoren = []
+	for i in range(movetoscore.size()):
+		if(movetoscore[i]!=null):
+			nmovetoscore.append(movetoscore[i])
+			nmovetoscoren.append(movetoscoren[i])
+	movetoscore = nmovetoscore
+	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
+	if(endbreak&&movetoscore.size()==0):
+		if(interval>108):
+			isswap = false 
+			endbreak = false
+			isbreak = false
+			interval = 0
+			var makecnt = min(int(get_parent().get_node("StageManager").ehp/100),int(get_parent().get_node("ScoreManager").divscore[1]/100))
+			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
+			for i in range(makecnt):
+				var adc = get_node("Sprite2D1").duplicate();
+				adc.position = Vector2(12300,5300)
+				adc.scale *= 2
+				add_child(adc)
+				movesword.append(adc)
+				msisvalid = true
+				moveswordt.append(-i*70/makecnt)
+				moveswordrnd.append(randi()%120)
+		if(interval<=36):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+(interval-18)*(interval-18)/10-33
+		elif(interval<=72):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-36)-18)*((interval-36)-18)/10-33
+		elif(interval<=108):
+			for i in range(5):
+				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
+		interval+=1	
+		pass
 	var mouse_position = get_global_mouse_position()
 	if(isclick):
 		Input.warp_mouse(Vector2(max(mouse_position.x,435),max(mouse_position.y,135)))
@@ -322,8 +459,24 @@ func _process(delta: float) -> void:
 		time_accumulator -= update_interval
 		if(isbreak):
 			fallcell()
+			searchmatch()
+			if(!isbreak):
+				endbreak = true
+				interval = 0
 		else:
 			searchmatch()
+			if(!isbreak&&isswap):
+				print("a")
+				endbreak = true
+				isswap = false
+				interval = 0
+	movecell()
+	moveswords()
+	if(movesword.size()==0):
+		if(get_parent().get_node("StageManager").enemy!=null):
+			if(msisvalid):
+				get_parent().get_node("StageManager").enemy.modulate.r -= 50
+				msisvalid = false
 	if(!isclick):
 		for k in range(piece.size()):
 			if piece[k] != null:

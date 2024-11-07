@@ -15,6 +15,8 @@ var attn = -1e9
 var gridatt = []
 var divscore = [0,0,0,0,0]
 var texturestr = ["shield_cut","sword_cut","coin_cut","potion_cut","bread_cut"]
+var health = 1.0
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
@@ -29,9 +31,9 @@ func _ready() -> void:
 		gridscore.append(columnscore)
 	if label != null:
 		update_score_label()  # 初期スコア表示
-	else:
-		print("ScoreLabel ノードが見つかりません")
-
+func damage() -> float:
+	return divscore[0]
+	
 # スコア表示の更新
 func update_score_label() -> void:
 	if label != null:
@@ -39,6 +41,16 @@ func update_score_label() -> void:
 		label2.text = "[b][color=#FFDF00][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/color][/b]"
 		for i in range(5):
 			divscorelabel[i].text = "[img=100]res://Texture/"+texturestr[i]+".png"+"[/img][rainbow freq=0.5 sat=2 val=20]"+" "+str(divscore[i])+"[/rainbow]"
+		var maxdigit = 0
+		for i in range(5):
+			var divdigit = 0
+			var currentdivscore = divscore[i]/10
+			while(currentdivscore>0):
+				divdigit+=1
+				currentdivscore /= 10
+			maxdigit = max(maxdigit,divdigit)
+			get_node("status").size = Vector2(106+30*maxdigit,275)
+			get_node("status2").size = Vector2(101+30*maxdigit,271)
 	else:
 		pass
 func display_score_label()-> void:
@@ -115,20 +127,14 @@ func calcscore(matchi,grid_att) -> void:
 		for j in range(match_index[i].size()):
 			if (match_index[i][j] == true) and (allFalse[i][j] == false):
 				attn = grid_att[i][j]
-				print(attn)
 				count = 0
 				lambda(i,j)
 				lambda1(i,j,count)
 				connectcell.append(count)
-				divcntcell.append(attn)
-				print(count)			
+				divcntcell.append(attn)		
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
 		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
-	for i in range(match_index.size()):
-		for j in range(match_index[i].size()):
-			if(gridscore[i][j]!=-1):
-				print(gridscore[i][j])
 func _process(delta: float) -> void:
 	update_score_label()
 	display_score_label()
