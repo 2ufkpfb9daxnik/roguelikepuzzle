@@ -88,7 +88,7 @@ func isdead() -> void:
 	ehpbar1 = null
 	enemycount = 0
 	make_enemy()
-	score_check()
+	add_stage_label()
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void: # ずっとする
 	make_enemy()
