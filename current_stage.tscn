@@ -236,7 +236,21 @@ offset_right = 477.0
 offset_bottom = 262.0
 theme_override_font_sizes/font_size = 80
 
+[node name="StageLabel2" type="RichTextLabel" parent="StageManager"]
+offset_top = 138.0
+offset_right = 413.0
+offset_bottom = 234.0
+theme_override_font_sizes/bold_italics_font_size = 80
+theme_override_font_sizes/italics_font_size = 80
+theme_override_font_sizes/mono_font_size = 80
+theme_override_font_sizes/normal_font_size = 80
+theme_override_font_sizes/bold_font_size = 80
+bbcode_enabled = true
+text = "[tornado radius=5 freq=2]こんにちは[/tornado]
+"
+
 [node name="StageLabel" type="RichTextLabel" parent="StageManager"]
+offset_left = 7.0
 offset_top = 138.0
 offset_right = 411.0
 offset_bottom = 234.0

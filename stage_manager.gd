@@ -1,5 +1,6 @@
 extends Node2D
 var label :RichTextLabel
+var label2 :RichTextLabel
 var stage :int = 0
 var stage_enemy :int = 5;
 var score :int
@@ -19,8 +20,9 @@ func _ready() -> void: # 初期化
 	else:
 		print("PuzzleBoard ノードが見つかりません") # 見つからなかったことを知らせる
 	
+	label2 = get_node("StageLabel2") # StageLabel2の参照を取得
 	label = get_node("StageLabel")  # StageLabelの参照を取得
-	if label != null: # StageLabelの参照ができるかどうか
+	if label != null && label2 != null: # StageLabelの参照ができるかどうか
 		add_stage_label() # ステージを初期化(実際にはステージを1増やす処理だが、初期値が0なのでステージを1にする処理となる)
 	else:
 		print("StageLabel ノードが見つかりません") # 見つからなかったことを知らせる
@@ -56,6 +58,7 @@ func score_check() -> void: # スコアがステージを増やす基準を満�
 func label_control() -> void:
 	score = get_parent().get_node("ScoreManager").totalScore  # ScoreManagerのスコアの参照を取得
 	label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+score/10000)+" freq="+str(1+score/10000)+"]" + "ステージ:"+str(stage)+ "[/tornado][/rainbow]"
+	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+" freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
 
 func make_enemy() -> void:
 	if(enemycount==0):
