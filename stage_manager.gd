@@ -200,6 +200,8 @@ func isdead() -> void:
 	ehpbar1 = null
 	enemycount = 0
 	isdeadf = true
+	if(stage_enemy==5):
+		isstageclear = true
 func fevertime() -> void:
 	if(int(fevergage)>=700):
 		fevercount = 5
@@ -222,12 +224,12 @@ func notfevertime() -> void:
 	get_parent().get_node("ScoreManager").get_node("fevertime").visible = false
 	get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = false
 func _process(delta: float) -> void: # ずっとする	
-	if(isdanger):
+	if(isdanger&&stage_enemy!=5):
 		if(dangerinterval==0):
 			get_node("fieldbgm").stop()
 			get_node("feverbgm").stop()
 			get_node("danger").play()
-			
+			get_node("movefront").visible = false
 			get_node("dangerlabel").visible = true
 			get_node("dangerrect").visible = true
 		elif(dangerinterval<42):
@@ -267,18 +269,17 @@ func _process(delta: float) -> void: # ずっとする
 			isdeadf = false
 			clicked = true
 			deadinterval = 0
-			get_node("movefront").visible = false
 			isdanger = false
 		dangerinterval += 1
 		return
 	if(isstageclear):
-		if(clearinterval<=20):
+		if(clearinterval<=100):
 			pass
-		elif(clearinterval==21):
+		elif(clearinterval==101):
 			get_parent().get_node("ScoreManager/stageclear").visible = true
 			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
 			get_parent().get_node("stagekirikae").play()
-		elif(clearinterval<=80):
+		elif(clearinterval<=160):
 			pass
 		else:
 			get_parent().get_node("ScoreManager/stagechangeb").visible = true
@@ -286,7 +287,8 @@ func _process(delta: float) -> void: # ずっとする
 		return
 	if(isdeadf):
 		if(deadinterval==100):
-			get_node("movefront").visible = true
+			if(stage_enemy!=5):
+				get_node("movefront").visible = true
 			clicked = false
 		deadinterval += 1
 		return
@@ -344,6 +346,12 @@ func _on_stagechangeb_pressed() -> void:
 	get_parent().get_node("ScoreManager/stageclear").visible = false
 	get_parent().get_node("ScoreManager/stagechangeb").visible = false
 	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
+	make_enemy()
+	add_stage_label()
+	isdeadf = false
+	clicked = true
+	deadinterval = 0
+	get_node("movefront").visible = false
 	pass # Replace with function body.
 
 
