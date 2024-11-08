@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=29 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
@@ -25,6 +25,7 @@
 [ext_resource type="Texture2D" uid="uid://hlxfhsb4e25s" path="res://Texture/tumezangeki/frame_017_delay-0.03s.png" id="23_w7njg"]
 [ext_resource type="AudioStream" uid="uid://x2ecdukqtibx" path="res://Sound/ゲージ回復1.mp3" id="24_jy36a"]
 [ext_resource type="AudioStream" uid="uid://c61ic1sbovbji" path="res://Sound/se/patinko/THROUGHOUT_BOUNS継続音.mp3" id="25_ghswd"]
+[ext_resource type="AudioStream" uid="uid://dpgbx6itopcq0" path="res://Sound/se/haiboku/game_over_05_demo.mp3" id="26_l0f10"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
 
@@ -427,6 +428,31 @@ bbcode_enabled = true
 text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 "
 
+[node name="GameOver" type="RichTextLabel" parent="StageManager"]
+z_index = 10
+offset_left = 200.0
+offset_top = -1e+09
+offset_right = 2200.0
+offset_bottom = -9.99998e+08
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 300
+theme_override_font_sizes/italics_font_size = 300
+theme_override_font_sizes/mono_font_size = 300
+theme_override_font_sizes/normal_font_size = 300
+theme_override_font_sizes/bold_font_size = 300
+bbcode_enabled = true
+text = "[color=black]ゲームオーバー[/color]
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="gameover" type="ColorRect" parent="StageManager"]
+offset_left = -1e+09
+offset_top = -1e+09
+offset_right = -9.99998e+08
+offset_bottom = -9.99998e+08
+color = Color(1, 0.0509804, 0.0666667, 0.67451)
+
 [node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
 position = Vector2(960, 700)
@@ -457,3 +483,7 @@ stream = ExtResource("24_jy36a")
 [node name="fevertime" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("25_ghswd")
 volume_db = 24.0
+
+[node name="haiboku" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("26_l0f10")
+volume_db = 15.0
