@@ -368,7 +368,8 @@ func moveswords() -> void:
 			get_parent().get_node("StageManager").calchp(10000*pow(10,max(0,get_parent().get_node("StageManager").stage-1)),0)
 			if(get_parent().get_node("StageManager").ehp<=0):
 				pass
-			get_parent().get_node("StageManager").enemy.modulate.r += 50
+			if(get_parent().get_node("StageManager").enemy!=null):
+				get_parent().get_node("StageManager").enemy.modulate.r += 50
 			get_node("AudioStreamPlayer").play()
 			
 	for i in range(movesword.size()):
@@ -517,6 +518,21 @@ func movecell() -> void:
 	movetoscore = nmovetoscore
 	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
+	if(get_parent().get_node("StageManager").isstageclear||get_parent().get_node("StageManager").isdeadf):
+		isattack = false
+		isblock = false
+		isswap = false 
+		endbreak = false
+		isbreak = false
+		interval = 0
+		get_parent().get_node("ScoreManager").combocount = 0
+		get_node("1rensa").pitch_scale = 0.92
+		movecell()
+		moveswords()
+		moveshields()
+		movefoods()
+		movepotions()
+		return 
 	if(endbreak&&movetoscore.size()==0):
 		if(isgameover):
 			if(interval<=1):

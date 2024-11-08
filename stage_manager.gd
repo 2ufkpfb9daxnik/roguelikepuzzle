@@ -42,6 +42,8 @@ var enemyat = 0
 var ehpmax = 0
 var isstageclear = false
 var clearinterval = 0
+var isdeadf = false
+var deadinterval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
@@ -167,7 +169,7 @@ func calchp(damage1,damage2) -> void:
 	myhp -= damage2
 	ehppar = ehp/ehpmax
 	myhppar = myhp/5000
-	if(ehp<=0):
+	if(ehp<=0&&!isdeadf):
 		isdead()
 func calcgage(potion) -> void:
 	fevergage += potion
@@ -180,7 +182,6 @@ func displaygage() -> void:
 	get_parent().get_node("ScoreManager/feverbar2").size = Vector2(int(feverpar*725),15)
 	get_parent().get_node("ScoreManager/fevertimecount").text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]"+str(fevercount)+"[/wave][/rainbow][/center]"
 func isdead() -> void:
-	
 	get_parent().get_node("gekiha").play()
 	enemy.queue_free()
 	ehpbar.queue_free()
@@ -189,8 +190,7 @@ func isdead() -> void:
 	ehpbar = null
 	ehpbar1 = null
 	enemycount = 0
-	make_enemy()
-	add_stage_label()
+	isdeadf = true
 func fevertime() -> void:
 	if(int(fevergage)>=7000):
 		fevercount = 5
@@ -212,7 +212,7 @@ func notfevertime() -> void:
 	get_parent().get_node("ScoreManager").get_node("feverlabel3").visible = false
 	get_parent().get_node("ScoreManager").get_node("fevertime").visible = false
 	get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = false
-func _process(delta: float) -> void: # ずっとする
+func _process(delta: float) -> void: # ずっとする	
 	if(isstageclear):
 		if(clearinterval<=20):
 			pass
@@ -225,6 +225,14 @@ func _process(delta: float) -> void: # ずっとする
 		else:
 			get_parent().get_node("ScoreManager/stagechangeb").visible = true
 		clearinterval += 1
+		return
+	if(isdeadf):
+		if(deadinterval>=100):
+			make_enemy()
+			add_stage_label()
+			isdeadf = false
+			deadinterval = 0
+		deadinterval += 1
 		return
 	make_enemy()
 	displayhp()
@@ -264,7 +272,7 @@ func _process(delta: float) -> void: # ずっとする
 		facearr.append(adc)
 	for i in range(5):
 		get_node(stagehaikei[i]).visible = false
-	get_node(stagehaikei[stage-1]).visible = true	
+	get_node(stagehaikei[stage-1]).visible = true
 
 
 func _on_stagechangeb_pressed() -> void:
@@ -278,5 +286,5 @@ func _on_stagechangeb_pressed() -> void:
 		emit_signal("stage_clear")
 	get_parent().get_node("ScoreManager/stageclear").visible = false
 	get_parent().get_node("ScoreManager/stagechangeb").visible = false
-	get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
+	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
 	pass # Replace with function body.
