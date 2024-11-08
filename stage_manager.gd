@@ -25,6 +25,7 @@ var stage2enemy = []
 var stage3enemy = []
 var stage4enemy = []
 var stage5enemy = []
+var interval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
@@ -69,6 +70,9 @@ func label_control() -> void:
 	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
 func make_enemy() -> void:
 	if(enemycount==0):
+		interval = 0
+		get_parent().get_node("kemuri").position = Vector2(1552.375,210.125)
+		get_parent().get_node("kemuri").play()
 		enemy = get_parent().get_child(0).get_node("enemy0").duplicate()
 		enemy.position = Vector2(1550,250)
 		get_parent().get_node("PuzzleBoard").encolor = enemy.modulate.r
@@ -123,6 +127,9 @@ func _process(delta: float) -> void: # ずっとする
 	make_enemy()
 	displayhp()
 	displaygage()
+	interval += 1
+	if(interval>=105):
+		get_parent().get_node("kemuri").position = Vector2(-1e9,-1e9)
 	appeartime += 1
 	if(appeartime>=220):
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(-1e9,-1e9)

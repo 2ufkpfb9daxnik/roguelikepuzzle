@@ -117,7 +117,7 @@ func _ready() -> void:	#初期化
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
-	if(isbreak||endbreak||isswap):	#消す処理が行われている場合
+	if(isbreak||endbreak||isswap||get_parent().get_node("StageManager").interval<105):	#消す処理が行われている場合
 		return	#処理を終了
 	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
 		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合
@@ -526,7 +526,7 @@ func _process(delta: float) -> void:
 			if(interval<100):
 				get_parent().get_node("StageManager").get_node("GameOver").position.y = (interval-50)*6
 			if(interval==100):
-				get_parent().get_node("StageManager").get_node("GameOver").text = "[tornado radius=20 freq=2]ゲームオーバー[/tornado]"
+				get_parent().get_node("StageManager").get_node("GameOver").text = "[color=black][tornado radius=20 freq=2]ゲームオーバー[/tornado][/color]"
 			interval += 1
 			return
 		if(get_parent().get_node("ScoreManager").divscore[1]>0||(get_parent().get_node("ScoreManager").divscore[4]>0&&get_parent().get_node("StageManager").myhp<5000)||(get_parent().get_node("ScoreManager").divscore[3]>0&&get_parent().get_node("StageManager").fevergage<5000)):
