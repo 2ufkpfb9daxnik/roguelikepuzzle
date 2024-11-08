@@ -15,6 +15,7 @@ script = ExtResource("1_q70fj")
 z_index = 10
 offset_right = 2000.0
 offset_bottom = 1000.0
+mouse_filter = 2
 color = Color(0, 0, 0, 0)
 
 [node name="RichTextLabel" type="RichTextLabel" parent="."]

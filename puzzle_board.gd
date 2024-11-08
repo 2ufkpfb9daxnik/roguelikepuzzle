@@ -437,7 +437,7 @@ func movepotions() -> void:
 	for i in range(movepotion.size()):
 		if(movepotion[i].position.y<=5000):
 			get_parent().get_node("StageManager").calcgage(100)
-			get_parent().get_node("kaihuku").play()
+			get_parent().get_node("potion").play()
 			movepotion[i].queue_free()
 			movepotion[i] = null
 			movepotionrnd[i] = null
@@ -527,6 +527,7 @@ func _process(delta: float) -> void:
 				get_parent().get_node("StageManager").get_node("GameOver").position.y = (interval-50)*6
 			if(interval==100):
 				get_parent().get_node("StageManager").get_node("GameOver").text = "[color=black][tornado radius=20 freq=2]ゲームオーバー[/tornado][/color]"
+				get_parent().get_node("returntitle").visible = !get_parent().get_node("returntitle").visible
 			interval += 1
 			return
 		if(get_parent().get_node("ScoreManager").divscore[1]>0||(get_parent().get_node("ScoreManager").divscore[4]>0&&get_parent().get_node("StageManager").myhp<5000)||(get_parent().get_node("ScoreManager").divscore[3]>0&&get_parent().get_node("StageManager").fevergage<5000)):
