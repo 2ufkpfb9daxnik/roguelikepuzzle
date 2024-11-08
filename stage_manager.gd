@@ -6,7 +6,7 @@ var stage_enemy :int = 5
 var score :int
 var board :Node2D
 var enemycount :int = 0
-const stage_standard = [50000, 500000, 5000000, 50000000,9223372036854775807]
+const stage_standard = [1000, 2000, 30000, 50000,9223372036854775807]
 var enemy :Sprite2D
 var ehpbar :ColorRect
 var ehpbar1 :ColorRect
@@ -25,6 +25,7 @@ var stage2enemy = []
 var stage3enemy = []
 var stage4enemy = []
 var stage5enemy = []
+var stagehaikei = ["plane","cave","desert","snow field","castle"]
 var interval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
@@ -70,6 +71,7 @@ func label_control() -> void:
 	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
 func make_enemy() -> void:
 	if(enemycount==0):
+		get_node("fieldbgm").play()
 		interval = 0
 		get_parent().get_node("kemuri").position = Vector2(1552.375,210.125)
 		get_parent().get_node("kemuri").play()
@@ -115,7 +117,7 @@ func isdead() -> void:
 	add_stage_label()
 func fevertime() -> void:
 	if(int(fevergage)>=500):
-		fevercount = 0
+		fevercount = 5
 		fevergage = 0
 		appeartime = 0
 		isfevertime = true
@@ -133,5 +135,13 @@ func _process(delta: float) -> void: # ずっとする
 	elif(interval==105):
 		get_parent().get_node("kemuri").position = Vector2(-1e9,-1e9)
 	appeartime += 1
-	if(appeartime>=220):
+	if(appeartime>=220&&isfevertime):
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(-1e9,-1e9)
+		get_parent().get_node("ScoreManager").get_node("feverrect").visible = true
+		get_parent().get_node("ScoreManager").get_node("feverrect2").visible = true
+		get_parent().get_node("ScoreManager").get_node("feverlabel2").visible = true
+		get_parent().get_node("ScoreManager").get_node("fevertime").visible = true
+		get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = true
+	for i in range(5):
+		get_node(stagehaikei[i]).visible = false
+	get_node(stagehaikei[stage-1]).visible = true	

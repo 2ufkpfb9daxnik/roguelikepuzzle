@@ -63,6 +63,8 @@ func display_score_label()-> void:
 			if(gridscore[i][j]!=-1):
 				var label3 = get_node("RichTextLabel3").duplicate()
 				label3.text = "[rainbow freq=0.5 sat=2 val=20]"+str(gridscore[i][j])+"[/rainbow]"
+				if(get_parent().get_node("StageManager").isfevertime):
+					label3.text = "[rainbow freq=0.5 sat=2 val=20]"+str(gridscore[i][j]*2)+"[/rainbow]"
 				label3.position = Vector2(j*50+400, i*50+100)
 				var gs = gridscore[i][j]
 				var gsn = 0
@@ -138,7 +140,10 @@ func calcscore(matchi,grid_att) -> void:
 				divcntcell.append(attn)		
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
+		if(get_parent().get_node("StageManager").isfevertime):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
 		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
+			
 func combo() -> void:
 	if(iscombo):
 		if(interval<=36):
