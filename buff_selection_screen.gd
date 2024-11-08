@@ -1,4 +1,4 @@
-extends Node2D
+extends Control
 # 表示/非表示を切り替えたいノードを取得します
 @onready var color_rect = get_node("ColorRect")
 @onready var hbox_container = get_node("HBoxContainer")

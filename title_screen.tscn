@@ -1,0 +1,51 @@
+[gd_scene load_steps=2 format=3 uid="uid://b706qb43gc6d8"]
+
+[ext_resource type="Texture2D" uid="uid://1ydv0h8bii7m" path="res://Texture/title.jpg" id="1_qwbl7"]
+
+[node name="TitleScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 114.0
+offset_right = 985.0
+offset_bottom = 269.0
+theme_override_font_sizes/bold_italics_font_size = 500
+theme_override_font_sizes/italics_font_size = 500
+theme_override_font_sizes/mono_font_size = 500
+theme_override_font_sizes/normal_font_size = 100
+bbcode_enabled = true
+text = "[color=DC143C]roguelikepuzzle[/color]"
+
+[node name="Button" type="Button" parent="."]
+layout_mode = 0
+offset_left = 400.0
+offset_top = 300.0
+offset_right = 700.0
+offset_bottom = 450.0
+theme_override_font_sizes/font_size = 120
+text = "start"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+z_index = -1
+position = Vector2(570, 322)
+scale = Vector2(2.25195, 1.26563)
+texture = ExtResource("1_qwbl7")
+
+[node name="RichTextLabel2" type="RichTextLabel" parent="."]
+z_index = -1
+offset_left = 195.0
+offset_top = 114.0
+offset_right = 980.0
+offset_bottom = 269.0
+theme_override_font_sizes/bold_italics_font_size = 500
+theme_override_font_sizes/italics_font_size = 500
+theme_override_font_sizes/mono_font_size = 500
+theme_override_font_sizes/normal_font_size = 102
+bbcode_enabled = true
+text = "[color=E6E6Fa
+]roguelikepuzzle[/color]"
