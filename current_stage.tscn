@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
 [ext_resource type="Script" path="res://stage_manager.gd" id="3_tkwor"]
 [ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
-[ext_resource type="FontFile" uid="uid://b6b7f6b1157t3" path="res://font/g_comickoin_freeR.ttf" id="4_nq3x5"]
+[ext_resource type="FontFile" uid="uid://8yfsfkm2infg" path="res://font/g_comickoin_freeR.ttf" id="4_nq3x5"]
 [ext_resource type="VideoStream" path="res://Video/plane.ogv" id="5_3prb8"]
 [ext_resource type="Texture2D" uid="uid://dnhturq3m67d8" path="res://Texture/kemuri/frame_104_delay-0.03s.png" id="7_5vppl"]
 [ext_resource type="Texture2D" uid="uid://c3j1ek2sm8w8c" path="res://Texture/tumezangeki/frame_001_delay-0.03s.png" id="7_bxmnf"]

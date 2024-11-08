@@ -83,9 +83,7 @@ offset_right = 27.0
 offset_bottom = 33.0
 
 [node name="Button" parent="BuffManager/BuffSelectionScreen" instance=ExtResource("14_gdhw6")]
-layout_mode = 0
-offset_left = -122.0
-offset_right = -114.0
+layout_mode = 2
 
 [node name="Sprite2D0" type="Sprite2D" parent="."]
 texture = ExtResource("16_yd1jb")

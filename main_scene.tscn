@@ -1,6 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://ehrdb5wm5hly"]
+[gd_scene load_steps=9 format=3 uid="uid://ehrdb5wm5hly"]
 
 [ext_resource type="PackedScene" uid="uid://xmeslbtexm7n" path="res://current_stage.tscn" id="1_40tcl"]
+[ext_resource type="PackedScene" uid="uid://b706qb43gc6d8" path="res://title_screen.tscn" id="2_0qq57"]
 [ext_resource type="PackedScene" uid="uid://cso60v6jc7o8o" path="res://score_display.tscn" id="2_unsrg"]
 [ext_resource type="PackedScene" uid="uid://br3hjjh1sbn2i" path="res://stage_display.tscn" id="3_3v7id"]
 [ext_resource type="PackedScene" uid="uid://c44kkymy1y33v" path="res://buff_display.tscn" id="4_50cum"]
@@ -17,6 +18,8 @@
 [node name="LevelManager" type="Node" parent="GameManager"]
 
 [node name="NextStageConditions" type="Node" parent="GameManager/LevelManager"]
+
+[node name="TitleScreen" parent="GameManager" instance=ExtResource("2_0qq57")]
 
 [node name="UI" type="CanvasLayer" parent="."]
 
