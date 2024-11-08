@@ -217,19 +217,13 @@ func _process(delta: float) -> void: # ずっとする
 		if(clearinterval<=20):
 			pass
 		elif(clearinterval==21):
-			get_parent().get_node("ScoreManager/GameClear2").visible = true
-			get_parent().get_node("ScoreManager/GameClear").visible = true
-			get_parent().get_node("ScoreManager/GameClearWhite").visible = true
+			get_parent().get_node("ScoreManager/stageclear").visible = true
+			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=80):
 			pass
 		else:
-			isstageclear = false
-			stage_enemy = 1
-			stage += 1
-			if(label!=null):
-				label_control()
-				emit_signal("stage_clear")
+			get_parent().get_node("ScoreManager/stagechangeb").visible = true
 		clearinterval += 1
 		return
 	make_enemy()
@@ -271,3 +265,18 @@ func _process(delta: float) -> void: # ずっとする
 	for i in range(5):
 		get_node(stagehaikei[i]).visible = false
 	get_node(stagehaikei[stage-1]).visible = true	
+
+
+func _on_stagechangeb_pressed() -> void:
+	if(!isstageclear):
+		return
+	isstageclear = false
+	stage_enemy = 1
+	stage += 1
+	if(label!=null):
+		label_control()
+		emit_signal("stage_clear")
+	get_parent().get_node("ScoreManager/stageclear").visible = false
+	get_parent().get_node("ScoreManager/stagechangeb").visible = false
+	get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
+	pass # Replace with function body.
