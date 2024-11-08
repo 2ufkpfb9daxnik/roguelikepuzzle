@@ -133,7 +133,7 @@ script = SubResource("GDScript_t23u5")
 [node name="RichTextLabel3" type="RichTextLabel" parent="ScoreManager"]
 z_index = 2
 offset_right = 10000.0
-offset_bottom = 10000.0
+offset_bottom = 100000.0
 scale = Vector2(2, 2)
 mouse_filter = 2
 theme_override_font_sizes/bold_italics_font_size = 50
@@ -395,6 +395,31 @@ offset_right = 368.0
 offset_bottom = 474.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
+
+[node name="GameClear" type="RichTextLabel" parent="ScoreManager"]
+offset_left = 100.0
+offset_top = 250.0
+offset_right = 2000.0
+offset_bottom = 650.0
+theme_override_font_sizes/normal_font_size = 300
+bbcode_enabled = true
+text = "[color=FFD700]ゲームクリアー!![/color]"
+
+[node name="GameClear2" type="RichTextLabel" parent="ScoreManager"]
+z_index = -1
+offset_left = 120.0
+offset_top = 260.0
+offset_right = 2025.0
+offset_bottom = 665.0
+theme_override_font_sizes/normal_font_size = 300
+bbcode_enabled = true
+text = "[color=191970]ゲームクリアー!![/color]"
+
+[node name="GameClearWhite" type="ColorRect" parent="ScoreManager"]
+z_index = -2
+offset_right = 2000.0
+offset_bottom = 1500.0
+color = Color(1, 1, 1, 0.768627)
 
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
