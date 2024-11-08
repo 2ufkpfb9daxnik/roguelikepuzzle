@@ -520,6 +520,8 @@ func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
 		if(isgameover):
 			if(interval<=1):
+				get_parent().get_node("StageManager").get_node("feverbgm").stop()
+				get_parent().get_node("StageManager").get_node("fieldbgm").stop()
 				get_parent().get_node("haiboku").play()
 			if(interval<50):
 				pass
@@ -642,6 +644,9 @@ func _process(delta: float) -> void:
 			endbreak = false
 			isbreak = false
 			interval = 0
+			get_parent().get_node("StageManager").fevercount -= 1
+			if(get_parent().get_node("StageManager").fevercount==0):
+				get_parent().get_node("StageManager").notfevertime()
 			get_parent().get_node("ScoreManager").combocount = 0
 			get_node("1rensa").pitch_scale = 0.92
 		interval+=1	

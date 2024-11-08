@@ -23,7 +23,7 @@
 [ext_resource type="Texture2D" uid="uid://bn0cdsaviqvep" path="res://Texture/tumezangeki/frame_005_delay-0.03s.png" id="11_7knln"]
 [ext_resource type="AudioStream" uid="uid://d0u1utx7argao" path="res://Sound/bgm/gameppoi/RPG_Battle_demo_bpm192.mp3" id="11_k7rkw"]
 [ext_resource type="Texture2D" uid="uid://bi4egjl2bvwja" path="res://Texture/tumezangeki/frame_006_delay-0.03s.png" id="12_5u4os"]
-[ext_resource type="AudioStream" uid="uid://cclg1met7xj37" path="res://Sound/パーティーはハチャメチャ大騒ぎ.mp3" id="12_qv3gu"]
+[ext_resource type="AudioStream" uid="uid://qsm3v6hpnoxh" path="res://Sound/パーティーはハチャメチャ大騒ぎ.ogg" id="12_wavme"]
 [ext_resource type="Texture2D" uid="uid://cvjkmjd3ttmho" path="res://Texture/kemuri/frame_099_delay-0.04s.png" id="12_yr03s"]
 [ext_resource type="Texture2D" uid="uid://d21gqpv5b1sjb" path="res://Texture/tumezangeki/frame_007_delay-0.03s.png" id="13_jg0xa"]
 [ext_resource type="Texture2D" uid="uid://cn4mt6mc61ttm" path="res://Texture/kemuri/frame_098_delay-0.03s.png" id="13_o8yf3"]
@@ -958,6 +958,24 @@ text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]0[/wave][/ra
 tab_size = 10
 script = SubResource("GDScript_t23u5")
 
+[node name="feverlabel3" type="RichTextLabel" parent="ScoreManager"]
+visible = false
+z_index = -1
+offset_left = 20.0
+offset_top = 730.0
+offset_right = 2020.0
+offset_bottom = 2730.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 95
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]スコア2倍[/wave][/rainbow]"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 
@@ -1062,8 +1080,9 @@ volume_db = 15.0
 parameters/looping = true
 
 [node name="feverbgm" type="AudioStreamPlayer2D" parent="StageManager"]
-stream = ExtResource("12_qv3gu")
-volume_db = 15.0
+process_priority = 100
+stream = ExtResource("12_wavme")
+volume_db = 10.0
 parameters/looping = true
 
 [node name="sougen2D" type="Sprite2D" parent="."]

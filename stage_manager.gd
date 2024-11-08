@@ -97,13 +97,14 @@ func calchp(damage1,damage2) -> void:
 		isdead()
 func calcgage(potion) -> void:
 	fevergage += potion
-	feverpar = float(fevergage/500)
+	feverpar = float(fevergage/7000)
 func displayhp() -> void:
 	if(ehppar*150!=0):
 		ehpbar1.size = Vector2(ehppar*150,10)
 		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(int(myhppar*725),15)
 func displaygage() -> void:
 	get_parent().get_node("ScoreManager/feverbar2").size = Vector2(int(feverpar*725),15)
+	get_parent().get_node("ScoreManager/fevertimecount").text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]"+str(fevercount)+"[/wave][/rainbow][/center]"
 func isdead() -> void:
 	get_parent().get_node("gekiha").play()
 	enemy.queue_free()
@@ -116,7 +117,7 @@ func isdead() -> void:
 	make_enemy()
 	add_stage_label()
 func fevertime() -> void:
-	if(int(fevergage)>=500):
+	if(int(fevergage)>=7000):
 		fevercount = 5
 		fevergage = 0
 		appeartime = 0
@@ -126,6 +127,16 @@ func fevertime() -> void:
 		get_parent().get_node("ScoreManager/feverlabel").text = "[rainbow freq=0.5 sat=2 val=20][tornado radius=50 freq=50]フィーバー[/tornado][/rainbow]"
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(400,300)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
+func notfevertime() -> void:
+	isfevertime = false
+	get_node("feverbgm").stop()
+	get_node("fieldbgm").play()
+	get_parent().get_node("ScoreManager").get_node("feverrect").visible = false
+	get_parent().get_node("ScoreManager").get_node("feverrect2").visible = false
+	get_parent().get_node("ScoreManager").get_node("feverlabel2").visible = false
+	get_parent().get_node("ScoreManager").get_node("feverlabel3").visible = false
+	get_parent().get_node("ScoreManager").get_node("fevertime").visible = false
+	get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = false
 func _process(delta: float) -> void: # ずっとする
 	make_enemy()
 	displayhp()
@@ -138,12 +149,14 @@ func _process(delta: float) -> void: # ずっとする
 	appeartime += 1
 	if(appeartime>=220&&appeartime<230&&isfevertime):
 		get_parent().get_node("fevertime").stop()
-	elif(appeartime>=230&&isfevertime):
 		get_node("feverbgm").play()
+	elif(appeartime>=230&&isfevertime):
+		get_node("fieldbgm").stop()
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(-1e9,-1e9)
 		get_parent().get_node("ScoreManager").get_node("feverrect").visible = true
 		get_parent().get_node("ScoreManager").get_node("feverrect2").visible = true
 		get_parent().get_node("ScoreManager").get_node("feverlabel2").visible = true
+		get_parent().get_node("ScoreManager").get_node("feverlabel3").visible = true
 		get_parent().get_node("ScoreManager").get_node("fevertime").visible = true
 		get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = true
 	for i in range(5):
