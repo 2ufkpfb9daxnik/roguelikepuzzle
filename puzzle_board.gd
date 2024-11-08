@@ -117,7 +117,7 @@ func _ready() -> void:	#初期化
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
-	if(isbreak||endbreak||isswap||get_parent().get_node("StageManager").interval<105||get_parent().get_node("StageManager").isstageclear):	#消す処理が行われている場合
+	if(isbreak||endbreak||isswap||get_parent().get_node("StageManager").interval<105||get_parent().get_node("StageManager").isstageclear||get_parent().get_node("StageManager").isdeadf):	#消す処理が行われている場合
 		return	#処理を終了
 	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
 		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合

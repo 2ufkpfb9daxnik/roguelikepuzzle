@@ -1,4 +1,4 @@
-[gd_scene load_steps=105 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=108 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -28,11 +28,14 @@
 [ext_resource type="Texture2D" uid="uid://d21gqpv5b1sjb" path="res://Texture/tumezangeki/frame_007_delay-0.03s.png" id="13_jg0xa"]
 [ext_resource type="Texture2D" uid="uid://dnixn22xxse6o" path="res://Texture/スクリーンショット 2024-11-08 172543_preview_rev_1.png" id="13_kqb64"]
 [ext_resource type="Texture2D" uid="uid://cn4mt6mc61ttm" path="res://Texture/kemuri/frame_098_delay-0.03s.png" id="13_o8yf3"]
+[ext_resource type="AudioStream" uid="uid://dqmy46di7o7w3" path="res://Sound/se/stagekirikae/keikoku-2.mp3" id="14_cj15f"]
 [ext_resource type="Texture2D" uid="uid://cg2ro3lwo5o83" path="res://Texture/kemuri/frame_097_delay-0.03s.png" id="14_jrks0"]
 [ext_resource type="Texture2D" uid="uid://bjxhci6hwp52r" path="res://Texture/tumezangeki/frame_008_delay-0.03s.png" id="14_q5by6"]
+[ext_resource type="AudioStream" uid="uid://b8pq73yq4cli" path="res://Sound/bgm/bossppoi/maou_bgm_fantasy15.mp3" id="15_e12nd"]
 [ext_resource type="Texture2D" uid="uid://h2lw4uhlmg6t" path="res://Texture/tumezangeki/frame_009_delay-0.03s.png" id="15_gjsh7"]
 [ext_resource type="Texture2D" uid="uid://m5ou7vdp7mc7" path="res://Texture/kemuri/frame_096_delay-0.04s.png" id="15_ks040"]
 [ext_resource type="Texture2D" uid="uid://bmgov1gc2657f" path="res://Texture/kemuri/frame_095_delay-0.03s.png" id="16_1qq5v"]
+[ext_resource type="AudioStream" uid="uid://qxpg8fx3pr7p" path="res://Sound/bgm/gameppoi/maou_bgm_fantasy06.mp3" id="16_hyc0a"]
 [ext_resource type="Texture2D" uid="uid://cyrpmkjrifqxc" path="res://Texture/tumezangeki/frame_010_delay-0.03s.png" id="16_rbyc4"]
 [ext_resource type="Texture2D" uid="uid://0sp8boqjt8jc" path="res://Texture/tumezangeki/frame_011_delay-0.03s.png" id="17_641bm"]
 [ext_resource type="Texture2D" uid="uid://cmtgdp2jn8pfl" path="res://Texture/kemuri/frame_094_delay-0.03s.png" id="17_y0i7j"]
@@ -988,7 +991,7 @@ offset_bottom = 650.0
 mouse_filter = 2
 theme_override_font_sizes/normal_font_size = 300
 bbcode_enabled = true
-text = "[color=FFD700]ゲームクリアー!![/color]"
+text = "[color=FFD700]ステージクリアー!![/color]"
 
 [node name="stagechangeb" type="Button" parent="ScoreManager"]
 visible = false
@@ -1114,13 +1117,58 @@ parameters/looping = true
 [node name="feverbgm" type="AudioStreamPlayer2D" parent="StageManager"]
 process_priority = 100
 stream = ExtResource("12_wavme")
-volume_db = 10.0
+volume_db = 15.0
 parameters/looping = true
 
 [node name="feverface" type="Sprite2D" parent="StageManager"]
 z_index = -50
 position = Vector2(-1e+09, -1e+09)
 texture = ExtResource("13_kqb64")
+
+[node name="movefront" type="Button" parent="StageManager"]
+visible = false
+offset_left = 1760.0
+offset_top = 770.0
+offset_right = 1913.0
+offset_bottom = 847.0
+theme_override_font_sizes/font_size = 40
+text = "前に進む"
+
+[node name="danger" type="AudioStreamPlayer2D" parent="StageManager"]
+position = Vector2(1760, 770)
+stream = ExtResource("14_cj15f")
+
+[node name="dangerlabel" type="RichTextLabel" parent="StageManager"]
+visible = false
+z_index = 1
+offset_left = 1300.0
+offset_top = 230.0
+offset_right = 1800.0
+offset_bottom = 350.0
+theme_override_font_sizes/bold_italics_font_size = 80
+theme_override_font_sizes/italics_font_size = 80
+theme_override_font_sizes/mono_font_size = 80
+theme_override_font_sizes/normal_font_size = 80
+theme_override_font_sizes/bold_font_size = 80
+bbcode_enabled = true
+text = "[color=black]⚠danger⚠[/color]
+"
+
+[node name="dangerrect" type="ColorRect" parent="StageManager"]
+visible = false
+offset_left = 1196.0
+offset_top = 240.0
+offset_right = 1911.0
+offset_bottom = 340.0
+color = Color(1, 0.0509804, 0.0666667, 0.745098)
+
+[node name="bossbgm" type="AudioStreamPlayer2D" parent="StageManager"]
+stream = ExtResource("15_e12nd")
+volume_db = 15.0
+
+[node name="maoubgm" type="AudioStreamPlayer2D" parent="StageManager"]
+stream = ExtResource("16_hyc0a")
+volume_db = 15.0
 
 [node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
@@ -1206,4 +1254,5 @@ stream = ExtResource("102_jkr3u")
 volume_db = 20.0
 
 [connection signal="pressed" from="ScoreManager/stagechangeb" to="StageManager" method="_on_stagechangeb_pressed"]
+[connection signal="pressed" from="StageManager/movefront" to="StageManager" method="_on_movefront_pressed"]
 [connection signal="pressed" from="returntitle" to="." method="_on_returntitle_pressed"]

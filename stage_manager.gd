@@ -44,11 +44,14 @@ var isstageclear = false
 var clearinterval = 0
 var isdeadf = false
 var deadinterval = 0
+var clicked = false
+var isdanger = false
+var dangerinterval = 0
+var islastboss = false
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
 	board = get_parent().get_node("PuzzleBoard")  # StageLabelの参照を取得
-	
 	label2 = get_node("StageLabel2")  # ScoreManagerのスコアの参照を取得
 	label = get_node("StageLabel")
 	if label != null&&label2!=null: # ScoreManagerのスコアの参照ができるかどうか
@@ -89,7 +92,13 @@ func label_control() -> void:
 	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
 func make_enemy() -> void:
 	if(enemycount==0):
-		get_node("fieldbgm").play()
+		if(stage_enemy==4&&stage==5):
+			islastboss = true
+			get_node("maoubgm").play()
+		elif(stage_enemy==4):
+			get_node("bossbgm").play()
+		else:
+			get_node("fieldbgm").play()
 		interval = 0
 		get_parent().get_node("kemuri").position = Vector2(1552.375,210.125)
 		get_parent().get_node("kemuri").play()
@@ -192,7 +201,7 @@ func isdead() -> void:
 	enemycount = 0
 	isdeadf = true
 func fevertime() -> void:
-	if(int(fevergage)>=7000):
+	if(int(fevergage)>=700):
 		fevercount = 5
 		fevergage = 0
 		appeartime = 0
@@ -213,6 +222,55 @@ func notfevertime() -> void:
 	get_parent().get_node("ScoreManager").get_node("fevertime").visible = false
 	get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = false
 func _process(delta: float) -> void: # ずっとする	
+	if(isdanger):
+		if(dangerinterval==0):
+			get_node("fieldbgm").stop()
+			get_node("feverbgm").stop()
+			get_node("danger").play()
+			
+			get_node("dangerlabel").visible = true
+			get_node("dangerrect").visible = true
+		elif(dangerinterval<42):
+			pass
+		elif(dangerinterval==42):
+			get_node("dangerlabel").visible = false
+		elif(dangerinterval<68):
+			pass
+		elif(dangerinterval==68):
+			get_node("dangerlabel").visible = true
+		elif(dangerinterval<110):
+			pass
+		elif(dangerinterval==110):
+			get_node("dangerlabel").visible = false
+		elif(dangerinterval<136):
+			pass
+		elif(dangerinterval==136):
+			get_node("dangerlabel").visible = true
+		elif(dangerinterval<178):
+			pass
+		elif(dangerinterval==178):
+			get_node("dangerlabel").visible = false	
+		elif(dangerinterval<204):
+			pass
+		elif(dangerinterval==204):
+			get_node("dangerlabel").visible = true
+		elif(dangerinterval<246):
+			pass
+		elif(dangerinterval==246):
+			get_node("dangerlabel").visible = false	
+		elif(dangerinterval<260):
+			pass
+		elif(dangerinterval==260):
+			get_node("dangerrect").visible = false
+			make_enemy()
+			add_stage_label()
+			isdeadf = false
+			clicked = true
+			deadinterval = 0
+			get_node("movefront").visible = false
+			isdanger = false
+		dangerinterval += 1
+		return
 	if(isstageclear):
 		if(clearinterval<=20):
 			pass
@@ -227,11 +285,9 @@ func _process(delta: float) -> void: # ずっとする
 		clearinterval += 1
 		return
 	if(isdeadf):
-		if(deadinterval>=100):
-			make_enemy()
-			add_stage_label()
-			isdeadf = false
-			deadinterval = 0
+		if(deadinterval==100):
+			get_node("movefront").visible = true
+			clicked = false
 		deadinterval += 1
 		return
 	make_enemy()
@@ -284,7 +340,23 @@ func _on_stagechangeb_pressed() -> void:
 	if(label!=null):
 		label_control()
 		emit_signal("stage_clear")
+	get_node("bossbgm").stop()
 	get_parent().get_node("ScoreManager/stageclear").visible = false
 	get_parent().get_node("ScoreManager/stagechangeb").visible = false
 	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
+	pass # Replace with function body.
+
+
+func _on_movefront_pressed() -> void:
+	if(!clicked):
+		if(stage_enemy==4):
+			isdanger = true
+			dangerinterval = 0
+		else:
+			make_enemy()
+			add_stage_label()
+			isdeadf = false
+			clicked = true
+			deadinterval = 0
+			get_node("movefront").visible = false
 	pass # Replace with function body.
