@@ -56,6 +56,7 @@ var canfall = false
 var scratch :AnimatedSprite2D
 var isattack :int = 0
 var isblock :int = 0
+var isgameover = false
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -517,6 +518,17 @@ func movecell() -> void:
 	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
+		if(isgameover):
+			if(interval<=1):
+				get_parent().get_node("haiboku").play()
+			if(interval<50):
+				pass
+			if(interval<100):
+				get_parent().get_node("StageManager").get_node("GameOver").position.y = (interval-50)*6
+			if(interval==100):
+				get_parent().get_node("StageManager").get_node("GameOver").text = "[tornado radius=20 freq=2]ゲームオーバー[/tornado]"
+			interval += 1
+			return
 		if(get_parent().get_node("ScoreManager").divscore[1]>0||(get_parent().get_node("ScoreManager").divscore[4]>0&&get_parent().get_node("StageManager").myhp<5000)||(get_parent().get_node("ScoreManager").divscore[3]>0&&get_parent().get_node("StageManager").fevergage<5000)):
 			isattack = 1
 		if(get_parent().get_node("ScoreManager").divscore[0]>0):
@@ -609,6 +621,10 @@ func _process(delta: float) -> void:
 				moveshieldt.pop_back()
 				moveshieldp.pop_back()
 				moveshieldv.pop_back()
+			if(get_parent().get_node("StageManager").myhp<=0):
+				get_parent().get_node("StageManager").get_node("gameover").position = Vector2(0,0)
+				isgameover = true
+				interval = 0
 		elif(interval<138+144*isattack+128*isblock):
 			pass
 		elif(interval==138+144*isattack+128*isblock):

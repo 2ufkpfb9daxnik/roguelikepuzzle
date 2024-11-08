@@ -20,6 +20,11 @@ var isfevertime = false
 var fevercount = 0
 signal stage_clear
 var appeartime = 1e9
+var stage1enemy = []
+var stage2enemy = []
+var stage3enemy = []
+var stage4enemy = []
+var stage5enemy = []
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	board = get_parent().get_node("PuzzleBoard")  # StageLabelの参照を取得
