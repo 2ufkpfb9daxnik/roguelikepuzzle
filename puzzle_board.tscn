@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=51 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
@@ -26,6 +26,29 @@
 [ext_resource type="AudioStream" uid="uid://c5po6aass3tgm" path="res://Sound/block.mp3" id="23_fv4ln"]
 [ext_resource type="AudioStream" uid="uid://bchvymhlfivgo" path="res://Sound/se/kieruoto/break_and_chain_03_1_demo.mp3" id="24_4l87l"]
 [ext_resource type="AudioStream" uid="uid://disyawcovnfr6" path="res://Sound/se/patinko/anten.mp3" id="26_y3d27"]
+[ext_resource type="Texture2D" uid="uid://b80kbsvsvf44p" path="res://Texture/enemy/2CDF0D54-BB4C-40BC-9FDA-BFFC9BE514ED-preview.png" id="27_hcbq4"]
+[ext_resource type="Texture2D" uid="uid://bosq6tg2k1pmv" path="res://Texture/enemy/7CD13BE7-4A80-4A6A-9B38-8CF11176BBB6-preview.png" id="28_q20oy"]
+[ext_resource type="Texture2D" uid="uid://c24nv6jls242e" path="res://Texture/enemy/62FC0C59-C06A-4F2D-8F45-8B97FAF6CE0D-preview.png" id="29_k680d"]
+[ext_resource type="Texture2D" uid="uid://dotrjlr8s2fyy" path="res://Texture/enemy/89B867BC-A9EC-41CA-91B8-842173054CE6-preview.png" id="30_dtac1"]
+[ext_resource type="Texture2D" uid="uid://0uenhum8uq7l" path="res://Texture/enemy/431C5D5B-E03A-4132-944F-BCB9280B9E02-preview.png" id="31_jibcp"]
+[ext_resource type="Texture2D" uid="uid://b7p7yo5ldi7r8" path="res://Texture/enemy/486F2D2A-3A64-45B7-AE33-84043A25886C-preview.png" id="32_60i03"]
+[ext_resource type="Texture2D" uid="uid://bw7eosa6746vl" path="res://Texture/enemy/9177DE2B-8D99-49E6-8727-6A1B5B82C46D-preview.png" id="33_6khwy"]
+[ext_resource type="Texture2D" uid="uid://c23k17uafsevm" path="res://Texture/enemy/62397D94-819D-406D-AB2E-14CF147E67A0-preview.png" id="34_3vrdr"]
+[ext_resource type="Texture2D" uid="uid://ctgjdpdant3hn" path="res://Texture/enemy/95682DCB-962F-40A4-8FC3-78D5221F1151-preview.png" id="35_04g85"]
+[ext_resource type="Texture2D" uid="uid://b8ebe4xighqoq" path="res://Texture/enemy/373044AA-CAA2-40DE-A003-FBF746BF58B9-preview.png" id="36_535sq"]
+[ext_resource type="Texture2D" uid="uid://bdg8ckxyqrik5" path="res://Texture/enemy/88129345-4E97-4A28-8DE9-267163178C79-preview.png" id="37_2vvgx"]
+[ext_resource type="Texture2D" uid="uid://bipy4mo6c1ukq" path="res://Texture/enemy/A28C2F4D-FB65-4B73-963C-3956F9D5FAAC-preview.png" id="38_udhuv"]
+[ext_resource type="Texture2D" uid="uid://b2ff0cyp121cc" path="res://Texture/enemy/AE3D90A3-3C62-4DEE-A714-D850BE8EE2F7-preview.png" id="39_puhsn"]
+[ext_resource type="Texture2D" uid="uid://bfgoy0k38xfil" path="res://Texture/enemy/bat_preview_rev_1.png" id="40_slnt5"]
+[ext_resource type="Texture2D" uid="uid://3njav20gu80x" path="res://Texture/enemy/BE12CB2A-9B00-4FA7-A1B2-76B518633DCD-preview.png" id="41_ycuir"]
+[ext_resource type="Texture2D" uid="uid://djhlgtvty5t6m" path="res://Texture/enemy/C9EA8ED3-6BE0-4403-AE61-266042825A48-preview.png" id="42_3mqop"]
+[ext_resource type="Texture2D" uid="uid://v5gq1pv0q224" path="res://Texture/enemy/dragon_preview_rev_1.png" id="43_aka78"]
+[ext_resource type="Texture2D" uid="uid://dh6vngxvtap6h" path="res://Texture/enemy/F2724454-974E-419C-944E-C63884AE593E-preview.png" id="44_8gy1i"]
+[ext_resource type="Texture2D" uid="uid://bwwn7x3m5vo62" path="res://Texture/enemy/octopus_preview_rev_1.png" id="45_spyx7"]
+[ext_resource type="Texture2D" uid="uid://dybcxyh18q7c6" path="res://Texture/enemy/sasori_preview_rev_1.png" id="46_ul2rg"]
+[ext_resource type="Texture2D" uid="uid://pv1fprd2p5tc" path="res://Texture/enemy/snake_preview_rev_1.png" id="47_m6pvu"]
+[ext_resource type="Texture2D" uid="uid://cp81vwfrp5qis" path="res://Texture/enemy/treeman_preview_rev_1.png" id="48_khxed"]
+[ext_resource type="Texture2D" uid="uid://b4q2r8sisc5vj" path="res://Texture/enemy/wolf_preview_rev_1.png" id="49_dvcyd"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
 size = Vector2(25, 25)
@@ -150,5 +173,101 @@ volume_db = 20.0
 [node name="anten" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("26_y3d27")
 volume_db = 20.0
+
+[node name="enemy1" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("27_hcbq4")
+
+[node name="enemy2" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("28_q20oy")
+
+[node name="enemy3" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("29_k680d")
+
+[node name="enemy4" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("30_dtac1")
+
+[node name="enemy5" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("31_jibcp")
+
+[node name="enemy6" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("32_60i03")
+
+[node name="enemy7" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("33_6khwy")
+
+[node name="enemy8" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("34_3vrdr")
+
+[node name="enemy9" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("35_04g85")
+
+[node name="enemy10" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("36_535sq")
+
+[node name="enemy11" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("37_2vvgx")
+
+[node name="enemy12" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("38_udhuv")
+
+[node name="enemy13" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("39_puhsn")
+
+[node name="enemy14" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("40_slnt5")
+
+[node name="enemy15" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("41_ycuir")
+
+[node name="enemy16" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("42_3mqop")
+
+[node name="enemy17" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("43_aka78")
+
+[node name="enemy18" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("44_8gy1i")
+
+[node name="enemy19" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("45_spyx7")
+
+[node name="enemy20" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("46_ul2rg")
+
+[node name="enemy21" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("47_m6pvu")
+
+[node name="enemy22" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("47_m6pvu")
+
+[node name="enemy23" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("48_khxed")
+
+[node name="enemy24" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("49_dvcyd")
 
 [connection signal="input_event" from="Area2D" to="." method="_on_area_2d_input_event"]
