@@ -27,6 +27,7 @@ var stage4enemy = []
 var stage5enemy = []
 var stagehaikei = ["plane","cave","desert","snow field","castle"]
 var interval = 0
+var facearr = []
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
@@ -159,6 +160,21 @@ func _process(delta: float) -> void: # ずっとする
 		get_parent().get_node("ScoreManager").get_node("feverlabel3").visible = true
 		get_parent().get_node("ScoreManager").get_node("fevertime").visible = true
 		get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = true
+		for i in range(facearr.size()):
+			facearr[i].position.y += 10
+		var nfacearr = []
+		for i in range(facearr.size()):
+			if(facearr[i].position.y>=4000):
+				facearr[i].queue_free()
+				facearr[i] = null
+		for i in range(facearr.size()):
+			if(facearr[i]!=null):
+				nfacearr.append(facearr[i])
+		facearr = nfacearr
+		var adc = get_node("feverface").duplicate()
+		adc.position = Vector2(randi()%14000,0)
+		add_child(adc)
+		facearr.append(adc)
 	for i in range(5):
 		get_node(stagehaikei[i]).visible = false
 	get_node(stagehaikei[stage-1]).visible = true	

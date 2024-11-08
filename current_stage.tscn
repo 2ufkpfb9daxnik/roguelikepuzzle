@@ -1,4 +1,4 @@
-[gd_scene load_steps=103 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=104 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -26,6 +26,7 @@
 [ext_resource type="AudioStream" uid="uid://qsm3v6hpnoxh" path="res://Sound/パーティーはハチャメチャ大騒ぎ.ogg" id="12_wavme"]
 [ext_resource type="Texture2D" uid="uid://cvjkmjd3ttmho" path="res://Texture/kemuri/frame_099_delay-0.04s.png" id="12_yr03s"]
 [ext_resource type="Texture2D" uid="uid://d21gqpv5b1sjb" path="res://Texture/tumezangeki/frame_007_delay-0.03s.png" id="13_jg0xa"]
+[ext_resource type="Texture2D" uid="uid://dnixn22xxse6o" path="res://Texture/スクリーンショット 2024-11-08 172543_preview_rev_1.png" id="13_kqb64"]
 [ext_resource type="Texture2D" uid="uid://cn4mt6mc61ttm" path="res://Texture/kemuri/frame_098_delay-0.03s.png" id="13_o8yf3"]
 [ext_resource type="Texture2D" uid="uid://cg2ro3lwo5o83" path="res://Texture/kemuri/frame_097_delay-0.03s.png" id="14_jrks0"]
 [ext_resource type="Texture2D" uid="uid://bjxhci6hwp52r" path="res://Texture/tumezangeki/frame_008_delay-0.03s.png" id="14_q5by6"]
@@ -1084,6 +1085,11 @@ process_priority = 100
 stream = ExtResource("12_wavme")
 volume_db = 10.0
 parameters/looping = true
+
+[node name="feverface" type="Sprite2D" parent="StageManager"]
+z_index = -50
+position = Vector2(-1e+09, -1e+09)
+texture = ExtResource("13_kqb64")
 
 [node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
