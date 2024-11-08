@@ -1,6 +1,7 @@
-[gd_scene load_steps=93 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=97 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
+[ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
 [ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
 [ext_resource type="Script" path="res://stage_manager.gd" id="3_tkwor"]
 [ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
@@ -90,6 +91,9 @@
 [ext_resource type="Texture2D" uid="uid://da8rry1kbyw2t" path="res://Texture/kemuri/frame_062_delay-0.03s.png" id="67_uasxf"]
 [ext_resource type="Texture2D" uid="uid://3puy2wkn8jiw" path="res://Texture/kemuri/frame_063_delay-0.04s.png" id="68_van0e"]
 [ext_resource type="Texture2D" uid="uid://vdqua0py442q" path="res://Texture/tumezangeki/frame_000_delay-0.03s.png" id="69_gxi0w"]
+[ext_resource type="AudioStream" uid="uid://cnsa2lvyrpyij" path="res://Sound/ゲージ回復2.mp3" id="91_dyam7"]
+[ext_resource type="AudioStream" uid="uid://b5qsk2n8e2v42" path="res://Sound/se/teki/kougekizyunbi-2.mp3" id="93_52ps6"]
+[ext_resource type="AudioStream" uid="uid://pdekvt3muelm" path="res://Sound/se/teki/kougekizyunbi-1.mp3" id="94_dpvfp"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
 
@@ -533,6 +537,7 @@ animations = [{
 }]
 
 [node name="CurrentStage" type="Node2D"]
+script = ExtResource("1_ycm5o")
 
 [node name="PuzzleBoard" parent="." instance=ExtResource("1_46jpj")]
 
@@ -841,28 +846,34 @@ mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="GameClear" type="RichTextLabel" parent="ScoreManager"]
+visible = false
 offset_left = 100.0
 offset_top = 250.0
 offset_right = 2000.0
 offset_bottom = 650.0
+mouse_filter = 2
 theme_override_font_sizes/normal_font_size = 300
 bbcode_enabled = true
 text = "[color=FFD700]ゲームクリアー!![/color]"
 
 [node name="GameClear2" type="RichTextLabel" parent="ScoreManager"]
+visible = false
 z_index = -1
 offset_left = 120.0
 offset_top = 260.0
 offset_right = 2025.0
 offset_bottom = 665.0
+mouse_filter = 2
 theme_override_font_sizes/normal_font_size = 300
 bbcode_enabled = true
 text = "[color=191970]ゲームクリアー!![/color]"
 
 [node name="GameClearWhite" type="ColorRect" parent="ScoreManager"]
+visible = false
 z_index = -2
 offset_right = 2000.0
 offset_bottom = 1500.0
+mouse_filter = 2
 color = Color(1, 1, 1, 0.768627)
 
 [node name="StageManager" type="Node2D" parent="."]
@@ -956,6 +967,7 @@ stream = ExtResource("23_4gdkg")
 
 [node name="kaihuku" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("24_jy36a")
+volume_db = 20.0
 
 [node name="fevertime" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("25_ghswd")
@@ -973,3 +985,36 @@ sprite_frames = SubResource("SpriteFrames_02pi5")
 animation = &"new_animation"
 frame = 123
 frame_progress = 1.0
+
+[node name="potion" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("91_dyam7")
+volume_db = 20.0
+
+[node name="returntitle" type="Button" parent="."]
+visible = false
+z_index = 11
+offset_left = 700.0
+offset_top = 700.0
+offset_right = 1271.0
+offset_bottom = 850.0
+theme_override_font_sizes/font_size = 100
+text = "タイトルに戻る"
+
+[node name="click" type="AudioStreamPlayer2D" parent="."]
+z_index = 11
+stream = ExtResource("93_52ps6")
+volume_db = 10.0
+
+[node name="anten" type="ColorRect" parent="."]
+z_index = 10
+offset_right = 2000.0
+offset_bottom = 1000.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
+
+[node name="syutsugen" type="AudioStreamPlayer2D" parent="."]
+position = Vector2(700, 700)
+stream = ExtResource("94_dpvfp")
+volume_db = 20.0
+
+[connection signal="pressed" from="returntitle" to="." method="_on_returntitle_pressed"]

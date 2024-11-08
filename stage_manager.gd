@@ -128,7 +128,9 @@ func _process(delta: float) -> void: # ずっとする
 	displayhp()
 	displaygage()
 	interval += 1
-	if(interval>=105):
+	if(interval==40):
+		get_parent().get_node("syutsugen").play()
+	elif(interval==105):
 		get_parent().get_node("kemuri").position = Vector2(-1e9,-1e9)
 	appeartime += 1
 	if(appeartime>=220):
