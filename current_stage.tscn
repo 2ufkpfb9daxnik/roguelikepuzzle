@@ -1,4 +1,4 @@
-[gd_scene load_steps=104 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=105 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -101,6 +101,7 @@
 [ext_resource type="AudioStream" uid="uid://cnsa2lvyrpyij" path="res://Sound/ゲージ回復2.mp3" id="91_dyam7"]
 [ext_resource type="AudioStream" uid="uid://b5qsk2n8e2v42" path="res://Sound/se/teki/kougekizyunbi-2.mp3" id="93_52ps6"]
 [ext_resource type="AudioStream" uid="uid://pdekvt3muelm" path="res://Sound/se/teki/kougekizyunbi-1.mp3" id="94_dpvfp"]
+[ext_resource type="AudioStream" uid="uid://dfi0hlenbulwl" path="res://Sound/se/endingse/syouri-2.mp3" id="102_jkr3u"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
 
@@ -1167,6 +1168,11 @@ color = Color(0, 0, 0, 0)
 [node name="syutsugen" type="AudioStreamPlayer2D" parent="."]
 position = Vector2(700, 700)
 stream = ExtResource("94_dpvfp")
+volume_db = 20.0
+
+[node name="stagekirikae" type="AudioStreamPlayer2D" parent="."]
+position = Vector2(100, 250)
+stream = ExtResource("102_jkr3u")
 volume_db = 20.0
 
 [connection signal="pressed" from="returntitle" to="." method="_on_returntitle_pressed"]

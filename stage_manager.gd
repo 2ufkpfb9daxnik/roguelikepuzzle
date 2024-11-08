@@ -11,7 +11,7 @@ var enemy :Sprite2D
 var ehpbar :ColorRect
 var ehpbar1 :ColorRect
 var ehppar :float = 1.0
-var ehp = 4000*pow(10,stage)
+var ehp = 0
 var myhp :float = 5000
 var myhppar :float = 1.0
 var fevergage :float = 0
@@ -20,14 +20,28 @@ var isfevertime = false
 var fevercount = 0
 signal stage_clear
 var appeartime = 1e9
-var stage1enemy = []
-var stage2enemy = []
-var stage3enemy = []
-var stage4enemy = []
-var stage5enemy = []
+var stage1enemy = ["enemy4","enemy5","enemy8","enemy12","enemy15","enemy24"]
+var stage2enemy = ["enemy2","enemy3","enemy6","enemy10","enemy5","enemy14"]
+var stage3enemy = ["enemy2","enemy7","enemy19","enemy20","enemy21","enemy11"]
+var stage4enemy = ["enemy3","enemy5","enemy13","enemy16","enemy23","enemy17"]
+var stage5enemy = ["enemy1","enemy7","enemy9","enemy19","enemy12","enemy18"]
 var stagehaikei = ["plane","cave","desert","snow field","castle"]
+var stage1enemyhp = [10000,3000,4000,7500,6000,20000]
+var stage1enemyat = [1500,1000,1500,2000,1700,1900]
+var stage2enemyhp = [3000,8000,7000,6000,3000,15000]
+var stage2enemyat = [2500,1500,1000,2000,1000,3000]
+var stage3enemyhp = [3000,5000,9000,4000,3000,30000]
+var stage3enemyat = [2500,2000,2000,2500,2000,1500]
+var stage4enemyhp = [8000,3000,5000,7000,12000,25000]
+var stage4enemyat = [1500,1000,2000,2000,1000,3500]
+var stage5enemyhp = [7000,5000,7000,9000,7500,50000]
+var stage5enemyat = [2000,2000,3000,2000,2000,4000]
 var interval = 0
 var facearr = []
+var enemyat = 0
+var ehpmax = 0
+var isstageclear = false
+var clearinterval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
@@ -37,7 +51,11 @@ func _ready() -> void: # 初期化
 	label = get_node("StageLabel")
 	if label != null&&label2!=null: # ScoreManagerのスコアの参照ができるかどうか
 		print(label!=null)
-		add_stage_label()
+		stage_enemy = 1
+		stage += 1
+		if(label!=null):
+			label_control()
+			emit_signal("stage_clear")
 	else:
 		print("スコアが取得できません") # 見つからなかったことを知らせる
 	
@@ -50,11 +68,8 @@ func _ready() -> void: # 初期化
 
 func add_stage_label() -> void: # ステージを1増やす処理
 	if(stage_enemy == 5):
-		stage_enemy = 1
-		stage += 1
-		if(label!=null):
-			label_control()
-			emit_signal("stage_clear")
+		isstageclear = true
+		clearinterval = 0
 	else:
 		stage_enemy += 1
 func score_check() -> void: # スコアがステージを増やす基準を満たしたかチェックする
@@ -76,7 +91,32 @@ func make_enemy() -> void:
 		interval = 0
 		get_parent().get_node("kemuri").position = Vector2(1552.375,210.125)
 		get_parent().get_node("kemuri").play()
-		enemy = get_parent().get_child(0).get_node("enemy0").duplicate()
+		var rand = randi()%5
+		if(stage==1):
+			if(stage_enemy==4):
+				enemy = get_parent().get_child(0).get_node(stage1enemy[5]).duplicate()
+			else:
+				enemy = get_parent().get_child(0).get_node(stage1enemy[rand]).duplicate()
+		elif(stage==2):
+			if(stage_enemy==4):
+				enemy = get_parent().get_child(0).get_node(stage2enemy[5]).duplicate()
+			else:
+				enemy = get_parent().get_child(0).get_node(stage2enemy[rand]).duplicate()
+		elif(stage==3):
+			if(stage_enemy==4):
+				enemy = get_parent().get_child(0).get_node(stage3enemy[5]).duplicate()
+			else:
+				enemy = get_parent().get_child(0).get_node(stage3enemy[rand]).duplicate()
+		elif(stage==4):
+			if(stage_enemy==4):
+				enemy = get_parent().get_child(0).get_node(stage4enemy[5]).duplicate()
+			else:
+				enemy = get_parent().get_child(0).get_node(stage4enemy[rand]).duplicate()
+		elif(stage==5):
+			if(stage_enemy==4):
+				enemy = get_parent().get_child(0).get_node(stage5enemy[5]).duplicate()
+			else:
+				enemy = get_parent().get_child(0).get_node(stage5enemy[rand]).duplicate()
 		enemy.position = Vector2(1550,250)
 		get_parent().get_node("PuzzleBoard").encolor = enemy.modulate.r
 		ehpbar = get_parent().get_node("ScoreManager").get_node("ehpbar").duplicate()
@@ -84,7 +124,40 @@ func make_enemy() -> void:
 		ehpbar.position = Vector2(1475,145)
 		ehpbar1.position = Vector2(1475,145)
 		ehppar = 1.0
-		ehp = 4000*pow(10,(stage-1))
+		if(stage_enemy==4):
+			if(stage==1):
+				ehp = stage1enemyhp[5]
+				enemyat = stage1enemyat[5]
+			elif(stage==2):
+				ehp = stage2enemyhp[5]
+				enemyat = stage2enemyat[5]
+			elif(stage==3):
+				ehp = stage3enemyhp[5]
+				enemyat = stage3enemyat[5]
+			elif(stage==4):
+				ehp = stage4enemyhp[5]
+				enemyat = stage4enemyat[5]
+			elif(stage==5):	
+				ehp = stage5enemyhp[5]
+				enemyat = stage5enemyat[5]
+		else:
+			if(stage==1):
+				ehp = stage1enemyhp[rand]
+				enemyat = stage1enemyat[rand]
+			elif(stage==2):
+				ehp = stage2enemyhp[rand]
+				enemyat = stage2enemyat[rand]
+			elif(stage==3):
+				ehp = stage3enemyhp[rand]
+				enemyat = stage3enemyat[rand]
+			elif(stage==4):
+				ehp = stage4enemyhp[rand]
+				enemyat = stage4enemyat[rand]
+			elif(stage==5):	
+				ehp = stage5enemyhp[rand]
+				enemyat = stage5enemyat[rand]
+		ehp *= pow(10,max((stage-1),0))
+		ehpmax = ehp
 		add_child(enemy)
 		add_child(ehpbar)
 		add_child(ehpbar1)
@@ -92,7 +165,7 @@ func make_enemy() -> void:
 func calchp(damage1,damage2) -> void:
 	ehp -= damage1
 	myhp -= damage2
-	ehppar = ehp/(4000*pow(10,(stage-1)))
+	ehppar = ehp/ehpmax
 	myhppar = myhp/5000
 	if(ehp<=0):
 		isdead()
@@ -102,11 +175,12 @@ func calcgage(potion) -> void:
 func displayhp() -> void:
 	if(ehppar*150!=0):
 		ehpbar1.size = Vector2(ehppar*150,10)
-		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(int(myhppar*725),15)
+		get_parent().get_node("ScoreManager/hpbar1").size = Vector2(min(int(myhppar*725),725),15)
 func displaygage() -> void:
 	get_parent().get_node("ScoreManager/feverbar2").size = Vector2(int(feverpar*725),15)
 	get_parent().get_node("ScoreManager/fevertimecount").text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]"+str(fevercount)+"[/wave][/rainbow][/center]"
 func isdead() -> void:
+	
 	get_parent().get_node("gekiha").play()
 	enemy.queue_free()
 	ehpbar.queue_free()
@@ -139,6 +213,25 @@ func notfevertime() -> void:
 	get_parent().get_node("ScoreManager").get_node("fevertime").visible = false
 	get_parent().get_node("ScoreManager").get_node("fevertimecount").visible = false
 func _process(delta: float) -> void: # ずっとする
+	if(isstageclear):
+		if(clearinterval<=20):
+			pass
+		elif(clearinterval==21):
+			get_parent().get_node("ScoreManager/GameClear2").visible = true
+			get_parent().get_node("ScoreManager/GameClear").visible = true
+			get_parent().get_node("ScoreManager/GameClearWhite").visible = true
+			get_parent().get_node("stagekirikae").play()
+		elif(clearinterval<=80):
+			pass
+		else:
+			isstageclear = false
+			stage_enemy = 1
+			stage += 1
+			if(label!=null):
+				label_control()
+				emit_signal("stage_clear")
+		clearinterval += 1
+		return
 	make_enemy()
 	displayhp()
 	displaygage()

@@ -117,7 +117,7 @@ func _ready() -> void:	#初期化
 	
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _on_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:	#クリックされた時の処理
-	if(isbreak||endbreak||isswap||get_parent().get_node("StageManager").interval<105):	#消す処理が行われている場合
+	if(isbreak||endbreak||isswap||get_parent().get_node("StageManager").interval<105||get_parent().get_node("StageManager").isstageclear):	#消す処理が行われている場合
 		return	#処理を終了
 	if event is InputEventMouseButton and !isbreak:	#マウスのボタンが押された場合
 		if event.button_index == MOUSE_BUTTON_LEFT:	#左クリックされた場合
@@ -365,7 +365,7 @@ func moveswords() -> void:
 		moveswordt[i] += 1
 	for i in range(movesword.size()):
 		if(movesword[i].position.y==2700):
-			get_parent().get_node("StageManager").calchp(100,0)
+			get_parent().get_node("StageManager").calchp(10000*pow(10,max(0,get_parent().get_node("StageManager").stage-1)),0)
 			if(get_parent().get_node("StageManager").ehp<=0):
 				pass
 			get_parent().get_node("StageManager").enemy.modulate.r += 50
@@ -615,7 +615,7 @@ func _process(delta: float) -> void:
 			add_child(scratch)
 			get_node("block").play()
 			get_node("block").seek(0.7)
-			get_parent().get_node("StageManager").calchp(0,2000/(moveshield.size()+1))
+			get_parent().get_node("StageManager").calchp(0,get_parent().get_node("StageManager").enemyat/(moveshield.size()+1))
 			for i in range(moveshield.size()):
 				moveshield[i].queue_free()
 				moveshield[i] = null
