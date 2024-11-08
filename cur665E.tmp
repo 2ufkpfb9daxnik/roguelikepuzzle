@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://xmeslbtexm7n"]
+
+[ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
+[ext_resource type="Script" path="res://score_manager.gd" id="2_0elqe"]
+
+[node name="CurrentStage" type="Node2D"]
+
+[node name="PuzzleBoard" parent="." instance=ExtResource("1_46jpj")]
+
+[node name="BuffManager" type="Node" parent="."]
+
+[node name="ScoreManager" type="Node" parent="."]
+script = ExtResource("2_0elqe")
+
+[node name="ScoreLabel" type="Label" parent="ScoreManager"]
+offset_left = 1171.0
+offset_top = 12.0
+offset_right = 32932.0
+offset_bottom = 4098.0
+theme_override_font_sizes/font_size = 100
+text = "合計得点"

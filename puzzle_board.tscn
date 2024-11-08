@@ -1,0 +1,156 @@
+[gd_scene load_steps=28 format=3 uid="uid://ifsp0dwpm78g"]
+
+[ext_resource type="Script" path="res://puzzle_board.gd" id="1_2mien"]
+[ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
+[ext_resource type="PackedScene" uid="uid://dcharjcbg2ebd" path="res://piece_transformer_buff.tscn" id="3_f866t"]
+[ext_resource type="Script" path="res://buff_manager.gd" id="3_sg06f"]
+[ext_resource type="PackedScene" uid="uid://bg770ntkoy11m" path="res://adjacent_match_buff.tscn" id="4_b2jqo"]
+[ext_resource type="PackedScene" uid="uid://ng4tm02lkeyl" path="res://diagonal_match_buff.tscn" id="5_x62uw"]
+[ext_resource type="PackedScene" uid="uid://6alb0irugq5j" path="res://random_removal_buff.tscn" id="6_7kipb"]
+[ext_resource type="PackedScene" uid="uid://c2r1owvruny4g" path="res://conditional_buff.tscn" id="7_8gubq"]
+[ext_resource type="PackedScene" uid="uid://b4oem6qo0b1p0" path="res://custom_buff.tscn" id="8_62jrr"]
+[ext_resource type="PackedScene" uid="uid://blknlv8b7tsk3" path="res://special_piece_buff.tscn" id="9_7kh2n"]
+[ext_resource type="PackedScene" uid="uid://bbs2ble8mc7w3" path="res://universal_match_buff.tscn" id="10_1nrjj"]
+[ext_resource type="PackedScene" uid="uid://ibjd3vrxkao7" path="res://score_multiplier_buff.tscn" id="11_kkvgh"]
+[ext_resource type="Script" path="res://buff_selection_screen.gd" id="12_58o64"]
+[ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="13_cd54x"]
+[ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="14_6a3y7"]
+[ext_resource type="PackedScene" uid="uid://lmbt1wwb7woh" path="res://buff_card.tscn" id="14_gdhw6"]
+[ext_resource type="Texture2D" uid="uid://bynhx3dvdryof" path="res://Texture/potion_cut.png" id="15_kpjd4"]
+[ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="16_yd1jb"]
+[ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="17_y7rej"]
+[ext_resource type="Texture2D" uid="uid://cmvpbrw4pyh2v" path="res://Texture/lizard.png" id="19_0q2x6"]
+[ext_resource type="AudioStream" uid="uid://vt1a6imn7otk" path="res://Sound/剣で斬る3.mp3" id="20_de3dv"]
+[ext_resource type="AudioStream" uid="uid://dti640q8rqvvh" path="res://Sound/決定ボタンを押す38.mp3" id="21_xkahe"]
+[ext_resource type="AudioStream" uid="uid://cghxxqinhmcdk" path="res://Sound/shieldmove.mp3" id="22_b7g75"]
+[ext_resource type="AudioStream" uid="uid://c5po6aass3tgm" path="res://Sound/block.mp3" id="23_fv4ln"]
+[ext_resource type="AudioStream" uid="uid://bchvymhlfivgo" path="res://Sound/se/kieruoto/break_and_chain_03_1_demo.mp3" id="24_4l87l"]
+[ext_resource type="AudioStream" uid="uid://disyawcovnfr6" path="res://Sound/se/patinko/anten.mp3" id="26_y3d27"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_kwm7l"]
+size = Vector2(25, 25)
+
+[node name="PuzzleBoard" type="Node2D"]
+scale = Vector2(0.1, 0.1)
+script = ExtResource("1_2mien")
+
+[node name="Cells" parent="." instance=ExtResource("1_virbo")]
+
+[node name="DroppingPieces" type="Node" parent="."]
+
+[node name="Effects" type="Node" parent="."]
+
+[node name="BuffManager" type="Node" parent="."]
+script = ExtResource("3_sg06f")
+
+[node name="Buffs" type="Node" parent="BuffManager"]
+
+[node name="PieceTransformerBuff" parent="BuffManager/Buffs" instance=ExtResource("3_f866t")]
+
+[node name="AdjacentMatchBuff" parent="BuffManager/Buffs" instance=ExtResource("4_b2jqo")]
+
+[node name="DiagonalMatchBuff" parent="BuffManager/Buffs" instance=ExtResource("5_x62uw")]
+
+[node name="RandomRemovalBuff" parent="BuffManager/Buffs" instance=ExtResource("6_7kipb")]
+
+[node name="ConditionalBuff" parent="BuffManager/Buffs" instance=ExtResource("7_8gubq")]
+
+[node name="CustomBuff" parent="BuffManager/Buffs" instance=ExtResource("8_62jrr")]
+
+[node name="SpecialPieceBuff" parent="BuffManager/Buffs" instance=ExtResource("9_7kh2n")]
+
+[node name="UniversalMatchBuff" parent="BuffManager/Buffs" instance=ExtResource("10_1nrjj")]
+
+[node name="ScoreMultiplierBuff" parent="BuffManager/Buffs" instance=ExtResource("11_kkvgh")]
+
+[node name="BuffSelectionScreen" type="Control" parent="BuffManager"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("12_58o64")
+
+[node name="ColorRect" type="ColorRect" parent="BuffManager/BuffSelectionScreen"]
+layout_mode = 0
+offset_right = 1179.0
+offset_bottom = 877.0
+color = Color(0, 0, 0, 0.768627)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BuffManager/BuffSelectionScreen"]
+layout_mode = 0
+offset_right = 27.0
+offset_bottom = 33.0
+
+[node name="Button" parent="BuffManager/BuffSelectionScreen" instance=ExtResource("14_gdhw6")]
+layout_mode = 0
+offset_left = -122.0
+offset_right = -114.0
+
+[node name="Sprite2D0" type="Sprite2D" parent="."]
+texture = ExtResource("16_yd1jb")
+
+[node name="Sprite2D1" type="Sprite2D" parent="."]
+texture = ExtResource("17_y7rej")
+
+[node name="Sprite2D2" type="Sprite2D" parent="."]
+visibility_layer = 15
+texture = ExtResource("14_6a3y7")
+
+[node name="Sprite2D3" type="Sprite2D" parent="."]
+texture = ExtResource("15_kpjd4")
+
+[node name="Sprite2D4" type="Sprite2D" parent="."]
+texture = ExtResource("13_cd54x")
+
+[node name="enemy0" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("19_0q2x6")
+
+[node name="Area2D" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+position = Vector2(0, -1.19209e-05)
+scale = Vector2(20, 20)
+shape = SubResource("RectangleShape2D_kwm7l")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+z_index = -10
+offset_left = 4250.0
+offset_top = 1250.0
+offset_right = 5000.0
+offset_bottom = 2000.0
+scale = Vector2(10, 10)
+mouse_filter = 2
+color = Color(0.454902, 0.862745, 0.0901961, 1)
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("20_de3dv")
+parameters/looping = false
+
+[node name="AudioStreamPlayer2" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("21_xkahe")
+parameters/looping = false
+
+[node name="shieldmove" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("22_b7g75")
+parameters/looping = false
+
+[node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="block" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("23_fv4ln")
+volume_db = 24.0
+parameters/looping = false
+
+[node name="1rensa" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("24_4l87l")
+volume_db = 20.0
+
+[node name="anten" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("26_y3d27")
+volume_db = 20.0
+
+[connection signal="input_event" from="Area2D" to="." method="_on_area_2d_input_event"]
