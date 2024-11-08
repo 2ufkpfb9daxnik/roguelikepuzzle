@@ -1,5 +1,0 @@
-[gd_scene format=3 uid="uid://c0i3wi1jc07p6"]
-
-[node name="RestartButton" type="Button"]
-offset_right = 8.0
-offset_bottom = 8.0
