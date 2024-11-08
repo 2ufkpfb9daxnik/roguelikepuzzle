@@ -1,7 +1,8 @@
-[gd_scene load_steps=9 format=3 uid="uid://ehrdb5wm5hly"]
+[gd_scene load_steps=10 format=3 uid="uid://ehrdb5wm5hly"]
 
+[ext_resource type="Script" path="res://main_scene.gd" id="1_3dr4c"]
 [ext_resource type="PackedScene" uid="uid://xmeslbtexm7n" path="res://current_stage.tscn" id="1_40tcl"]
-[ext_resource type="PackedScene" uid="uid://b706qb43gc6d8" path="res://title_screen.tscn" id="2_0qq57"]
+[ext_resource type="PackedScene" uid="uid://c8rppwohbm5bi" path="res://title_screen.tscn" id="2_0qq57"]
 [ext_resource type="PackedScene" uid="uid://cso60v6jc7o8o" path="res://score_display.tscn" id="2_unsrg"]
 [ext_resource type="PackedScene" uid="uid://br3hjjh1sbn2i" path="res://stage_display.tscn" id="3_3v7id"]
 [ext_resource type="PackedScene" uid="uid://c44kkymy1y33v" path="res://buff_display.tscn" id="4_50cum"]
@@ -10,6 +11,7 @@
 [ext_resource type="PackedScene" uid="uid://j2irglnij16q" path="res://sound_effect.tscn" id="7_m5b1y"]
 
 [node name="MainScene" type="Node2D"]
+script = ExtResource("1_3dr4c")
 
 [node name="GameManager" type="Node" parent="."]
 
