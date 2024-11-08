@@ -52,9 +52,10 @@ var mshisvalid = false
 var touchsword = 0
 var encolor
 var breakinterval = 0
-var combocount = 0
 var canfall = false
 var scratch :AnimatedSprite2D
+var isattack :int = 0
+var isblock :int = 0
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -244,7 +245,8 @@ func breakmatchedcell() -> void: #マッチした駒を消す
 				grid_n[i][j] = -1e9
 	if(breakel.size()>0):
 		canfall = true
-		combocount += 1
+		get_parent().get_node("ScoreManager").combocount += 1
+		get_parent().get_node("ScoreManager").iscombo = true
 		get_node("1rensa").play()
 		get_node("1rensa").pitch_scale += 0.08
 	for i in range(breakel.size()):
@@ -515,6 +517,10 @@ func movecell() -> void:
 	movetoscoren = nmovetoscoren
 func _process(delta: float) -> void:
 	if(endbreak&&movetoscore.size()==0):
+		if(get_parent().get_node("ScoreManager").divscore[1]>0||(get_parent().get_node("ScoreManager").divscore[4]>0&&get_parent().get_node("StageManager").myhp<5000)||(get_parent().get_node("ScoreManager").divscore[3]>0&&get_parent().get_node("StageManager").fevergage<5000)):
+			isattack = 1
+		if(get_parent().get_node("ScoreManager").divscore[0]>0):
+			isblock = 1
 		if(interval<=36):
 			if(interval==0):
 				get_node("anten").play()
@@ -530,7 +536,7 @@ func _process(delta: float) -> void:
 				get_node("anten").play()
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
-		elif(interval==109):
+		elif(interval==109&&isattack):
 			var makecnt = min(int(get_parent().get_node("StageManager").ehp/100),int(get_parent().get_node("ScoreManager").divscore[1]/100))
 			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100
 			for i in range(makecnt):
@@ -562,9 +568,9 @@ func _process(delta: float) -> void:
 				movepotion.append(adc)
 				movepotiont.append(-i*70/makecnt3)
 				movepotionrnd.append(randi()%120)
-		elif(interval<=252):
+		elif(interval<=252&&isattack):
 			pass
-		elif(interval==253):
+		elif(interval==109+144*isattack&&isblock):
 			var makecnt = get_parent().get_node("ScoreManager").divscore[0]/100
 			get_parent().get_node("ScoreManager").divscore[0] -= makecnt*100
 			for i in range(makecnt):
@@ -579,13 +585,13 @@ func _process(delta: float) -> void:
 				moveshieldt.append(-i*70/makecnt)
 				moveshieldv.append(Vector2(abs(adc.position.x-moveshieldp.back().x)/108,abs(adc.position.y-moveshieldp.back().y)/108))
 				shismoved.append(false)
-		elif(interval<=380):
+		elif(interval<=164+144*isattack&&isblock):
 			pass
-		elif(interval==381):
+		elif(interval==109+144*isattack+128*isblock):
 			get_parent().get_node("StageManager").enemy.scale *= 1.5
-		elif(interval<393):
+		elif(interval<121+144*isattack+128*isblock):
 			pass
-		elif(interval==393):
+		elif(interval==121+144*isattack+128*isblock):
 			scratch = get_parent().get_node("scratch").duplicate()
 			scratch.scale *= 8
 			scratch.position = Vector2(15000,2500)
@@ -603,16 +609,23 @@ func _process(delta: float) -> void:
 				moveshieldt.pop_back()
 				moveshieldp.pop_back()
 				moveshieldv.pop_back()
-		elif(interval<410):
+		elif(interval<138+144*isattack+128*isblock):
 			pass
-		elif(interval==410):
+		elif(interval==138+144*isattack+128*isblock):
 			get_parent().get_node("StageManager").enemy.scale /= 1.5
+		elif(interval<160+144*isattack+128*isblock):
+			pass
+		elif(interval==160+144*isattack+128*isblock):
+			if(!get_parent().get_node("StageManager").isfevertime):
+				get_parent().get_node("StageManager").fevertime()
 		else:
+			isattack = false
+			isblock = false
 			isswap = false 
 			endbreak = false
 			isbreak = false
 			interval = 0
-			combocount = 0
+			get_parent().get_node("ScoreManager").combocount = 0
 			get_node("1rensa").pitch_scale = 0.92
 		interval+=1	
 	var mouse_position = get_global_mouse_position()

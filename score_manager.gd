@@ -16,7 +16,9 @@ var gridatt = []
 var divscore = [0,0,0,0,0]
 var texturestr = ["shield_cut","sword_cut","coin_cut","potion_cut","bread_cut"]
 var health = 1.0
-
+var combocount = 0
+var iscombo = false
+var interval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
@@ -51,6 +53,8 @@ func update_score_label() -> void:
 			maxdigit = max(maxdigit,divdigit)
 			get_node("status").size = Vector2(106+30*maxdigit,275)
 			get_node("status2").size = Vector2(101+30*maxdigit,271)
+			get_node("combocount").text = "[center][color=FFD700]"+str(combocount)+"[/color][/center]"
+			get_node("combo").text = "[color=00AE95]コンボ数[/color]"
 	else:
 		pass
 func display_score_label()-> void:
@@ -135,9 +139,19 @@ func calcscore(matchi,grid_att) -> void:
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
 		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
+func combo() -> void:
+	if(iscombo):
+		if(interval<=36):
+			get_node("combo").position.y = 250+(interval-18)*(interval-18)/10-33
+			get_node("combocount").position.y = 350+(interval-18)*(interval-18)/10-33
+		else:
+			iscombo = false
+			interval = 0
+		interval += 1
 func _process(delta: float) -> void:
 	update_score_label()
 	display_score_label()
+	combo()
 	for i in range(labelarr.size()):
 		if(labelarr[i]==null):
 			continue

@@ -342,6 +342,59 @@ text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 tab_size = 10
 script = SubResource("GDScript_t23u5")
 
+[node name="combo" type="RichTextLabel" parent="ScoreManager"]
+z_index = -1
+offset_left = 35.0
+offset_top = 250.0
+offset_right = 2035.0
+offset_bottom = 2250.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 95
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "コンボ数
+"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="combocount" type="RichTextLabel" parent="ScoreManager"]
+z_index = -1
+offset_left = 35.0
+offset_top = 350.0
+offset_right = 360.0
+offset_bottom = 550.0
+mouse_filter = 2
+theme_override_font_sizes/bold_italics_font_size = 95
+theme_override_font_sizes/italics_font_size = 100
+theme_override_font_sizes/mono_font_size = 100
+theme_override_font_sizes/normal_font_size = 100
+theme_override_font_sizes/bold_font_size = 100
+bbcode_enabled = true
+text = "[center]0[/center]"
+tab_size = 10
+script = SubResource("GDScript_t23u5")
+
+[node name="comborect1" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 34.0
+offset_top = 266.0
+offset_right = 372.0
+offset_bottom = 478.0
+mouse_filter = 2
+color = Color(0.960784, 1, 0.0901961, 1)
+
+[node name="comborect2" type="ColorRect" parent="ScoreManager"]
+z_index = -10
+offset_left = 38.0
+offset_top = 270.0
+offset_right = 368.0
+offset_bottom = 474.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 

@@ -105,7 +105,7 @@ func isdead() -> void:
 	make_enemy()
 	add_stage_label()
 func fevertime() -> void:
-	if(int(fevergage)==500):
+	if(int(fevergage)>=500):
 		fevercount = 0
 		fevergage = 0
 		appeartime = 0
@@ -118,8 +118,6 @@ func _process(delta: float) -> void: # ずっとする
 	make_enemy()
 	displayhp()
 	displaygage()
-	if(!isfevertime):
-		fevertime()
 	appeartime += 1
 	if(appeartime>=220):
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(-1e9,-1e9)
