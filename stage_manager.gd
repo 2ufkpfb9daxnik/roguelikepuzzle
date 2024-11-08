@@ -121,6 +121,7 @@ func fevertime() -> void:
 		fevergage = 0
 		appeartime = 0
 		isfevertime = true
+		get_node("fieldbgm").stop()
 		get_parent().get_node("fevertime").play()
 		get_parent().get_node("ScoreManager/feverlabel").text = "[rainbow freq=0.5 sat=2 val=20][tornado radius=50 freq=50]フィーバー[/tornado][/rainbow]"
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(400,300)
@@ -135,7 +136,10 @@ func _process(delta: float) -> void: # ずっとする
 	elif(interval==105):
 		get_parent().get_node("kemuri").position = Vector2(-1e9,-1e9)
 	appeartime += 1
-	if(appeartime>=220&&isfevertime):
+	if(appeartime>=220&&appeartime<230&&isfevertime):
+		get_parent().get_node("fevertime").stop()
+	elif(appeartime>=230&&isfevertime):
+		get_node("feverbgm").play()
 		get_parent().get_node("ScoreManager/feverlabel").position = Vector2(-1e9,-1e9)
 		get_parent().get_node("ScoreManager").get_node("feverrect").visible = true
 		get_parent().get_node("ScoreManager").get_node("feverrect2").visible = true

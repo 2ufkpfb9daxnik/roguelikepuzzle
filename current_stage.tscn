@@ -1,4 +1,4 @@
-[gd_scene load_steps=102 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=103 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -23,6 +23,7 @@
 [ext_resource type="Texture2D" uid="uid://bn0cdsaviqvep" path="res://Texture/tumezangeki/frame_005_delay-0.03s.png" id="11_7knln"]
 [ext_resource type="AudioStream" uid="uid://d0u1utx7argao" path="res://Sound/bgm/gameppoi/RPG_Battle_demo_bpm192.mp3" id="11_k7rkw"]
 [ext_resource type="Texture2D" uid="uid://bi4egjl2bvwja" path="res://Texture/tumezangeki/frame_006_delay-0.03s.png" id="12_5u4os"]
+[ext_resource type="AudioStream" uid="uid://cclg1met7xj37" path="res://Sound/パーティーはハチャメチャ大騒ぎ.mp3" id="12_qv3gu"]
 [ext_resource type="Texture2D" uid="uid://cvjkmjd3ttmho" path="res://Texture/kemuri/frame_099_delay-0.04s.png" id="12_yr03s"]
 [ext_resource type="Texture2D" uid="uid://d21gqpv5b1sjb" path="res://Texture/tumezangeki/frame_007_delay-0.03s.png" id="13_jg0xa"]
 [ext_resource type="Texture2D" uid="uid://cn4mt6mc61ttm" path="res://Texture/kemuri/frame_098_delay-0.03s.png" id="13_o8yf3"]
@@ -1057,6 +1058,11 @@ texture = ExtResource("10_ptb66")
 
 [node name="fieldbgm" type="AudioStreamPlayer2D" parent="StageManager"]
 stream = ExtResource("11_k7rkw")
+volume_db = 15.0
+parameters/looping = true
+
+[node name="feverbgm" type="AudioStreamPlayer2D" parent="StageManager"]
+stream = ExtResource("12_qv3gu")
 volume_db = 15.0
 parameters/looping = true
 
