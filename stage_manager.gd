@@ -96,7 +96,6 @@ func label_control() -> void:
 	score = get_parent().get_node("ScoreManager").totalScore
 	label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/rainbow]"
 	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
-	
 func make_enemy() -> void:
 	if(enemycount==0):
 		if(stage_enemy==4&&stage==5):
@@ -159,7 +158,7 @@ func make_enemy() -> void:
 				enemyat = stage5enemyat[5]
 		else:
 			if(stage==1):
-				ehp = stage1enemyhp[rand]
+				ehp = stage1enemyhp[rand]/100
 				enemyat = stage1enemyat[rand]
 			elif(stage==2):
 				ehp = stage2enemyhp[rand]
@@ -209,7 +208,7 @@ func isdead() -> void:
 	isdeadf = true
 	if(stage==5&&stage_enemy==5):
 		islastboss = true
-	elif(stage_enemy==5):
+	elif(stage_enemy==1):
 		isstageclear = true
 func fevertime() -> void:
 	if(int(fevergage)>=7000):
@@ -303,7 +302,8 @@ func _process(delta: float) -> void: # ずっとする
 			pass
 		elif(clearinterval==101):
 			get_parent().get_node("ScoreManager/stageclear").visible = true
-			get_parent().get_node("ScoreManagex	r/stageclearWhite2").visible = true
+			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
+			get_parent().get_node("ScoreManager/stageclearblack").visible = true
 			get_node("bossbgm").stop()
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=160):
@@ -375,6 +375,7 @@ func _on_stagechangeb_pressed() -> void:
 	get_parent().get_node("ScoreManager/stageclear").visible = false
 	get_parent().get_node("ScoreManager/stagechangeb").visible = false
 	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
+	get_parent().get_node("ScoreManager/stageclearblack").visible = false
 	make_enemy()
 	add_stage_label()
 	isdeadf = false

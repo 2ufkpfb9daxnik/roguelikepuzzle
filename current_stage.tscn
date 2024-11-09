@@ -985,30 +985,32 @@ script = SubResource("GDScript_t23u5")
 [node name="stageclear" type="RichTextLabel" parent="ScoreManager"]
 visible = false
 z_index = 20
-offset_left = 100.0
-offset_top = 250.0
-offset_right = 3100.0
-offset_bottom = 650.0
+offset_left = 1230.0
+offset_top = 150.0
+offset_right = 4230.0
+offset_bottom = 550.0
 mouse_filter = 2
-theme_override_font_sizes/normal_font_size = 300
+theme_override_font_sizes/normal_font_size = 100
 bbcode_enabled = true
 text = "[color=FFD700]ステージクリアー!![/color]"
 
 [node name="stagechangeb" type="Button" parent="ScoreManager"]
 visible = false
 z_index = 20
-offset_left = 700.0
-offset_top = 700.0
-offset_right = 1258.0
-offset_bottom = 913.0
-theme_override_font_sizes/font_size = 150
+offset_left = 1760.0
+offset_top = 770.0
+offset_right = 1914.0
+offset_bottom = 847.0
+theme_override_font_sizes/font_size = 40
 text = "次へ進む"
 
 [node name="stageclearWhite2" type="ColorRect" parent="ScoreManager"]
 visible = false
 z_index = 19
-offset_right = 2000.0
-offset_bottom = 1500.0
+offset_left = 1196.0
+offset_top = 16.0
+offset_right = 1908.0
+offset_bottom = 407.0
 mouse_filter = 2
 color = Color(1, 1, 1, 0.768627)
 
@@ -1021,6 +1023,16 @@ offset_bottom = 881.0
 theme_override_font_sizes/font_size = 200
 text = "Start
 "
+
+[node name="stageclearblack" type="ColorRect" parent="ScoreManager"]
+visible = false
+z_index = 19
+offset_left = 1196.0
+offset_top = 170.0
+offset_right = 1908.0
+offset_bottom = 270.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
 
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
