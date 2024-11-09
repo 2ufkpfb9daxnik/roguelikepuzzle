@@ -1,4 +1,4 @@
-[gd_scene load_steps=109 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=116 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -106,6 +106,13 @@
 [ext_resource type="AudioStream" uid="uid://b5qsk2n8e2v42" path="res://Sound/se/teki/kougekizyunbi-2.mp3" id="93_52ps6"]
 [ext_resource type="AudioStream" uid="uid://pdekvt3muelm" path="res://Sound/se/teki/kougekizyunbi-1.mp3" id="94_dpvfp"]
 [ext_resource type="AudioStream" uid="uid://dfi0hlenbulwl" path="res://Sound/se/endingse/syouri-2.mp3" id="102_jkr3u"]
+[ext_resource type="Texture2D" uid="uid://3p1tbhypum8l" path="res://Texture/parchment-20241107_preview_rev_1.png" id="107_3ruuh"]
+[ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield_cut.png" id="108_lddnb"]
+[ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword_cut.png" id="109_0ldq3"]
+[ext_resource type="Texture2D" uid="uid://bq6kq8hvuo3w" path="res://Texture/coin_cut.png" id="110_1xaw1"]
+[ext_resource type="Texture2D" uid="uid://cl12weagqylpq" path="res://Texture/bread_cut.png" id="111_l1o0f"]
+[ext_resource type="AudioStream" uid="uid://clxic0ol82gjd" path="res://Sound/se/kieruoto/coin.mp3" id="112_crn65"]
+[ext_resource type="AudioStream" uid="uid://g1pbhc4pt8q6" path="res://Sound/se/teki/utu-2.mp3" id="113_j0pnx"]
 
 [sub_resource type="GDScript" id="GDScript_t23u5"]
 
@@ -1293,44 +1300,172 @@ volume_db = 20.0
 
 [node name="buffselectbutton0" type="Button" parent="."]
 visible = false
+z_index = 20
 offset_right = 390.0
-offset_bottom = 500.0
+offset_bottom = 381.0
 
-[node name="Sprite2D" type="Sprite2D" parent="buffselectbutton0"]
+[node name="shieldbuff" type="Sprite2D" parent="buffselectbutton0"]
+position = Vector2(199, 179)
+scale = Vector2(0.77, 0.811)
+texture = ExtResource("107_3ruuh")
+
+[node name="shield" type="Sprite2D" parent="buffselectbutton0"]
+position = Vector2(192, 113)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("108_lddnb")
+
+[node name="shieldlabel" type="Label" parent="buffselectbutton0"]
+layout_mode = 0
+offset_left = 122.0
+offset_top = 171.0
+offset_right = 274.0
+offset_bottom = 310.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 50
+text = "シールド 
+が2倍"
+
+[node name="shieldlabel2" type="RichTextLabel" parent="buffselectbutton0"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 383.0
+offset_right = 404.0
+offset_bottom = 466.0
+theme_override_font_sizes/normal_font_size = 50
+bbcode_enabled = true
+text = "[center][img=80]res://Texture/coin_cut.png[/img]×5000[/center]
+"
 
 [node name="buffselectbutton1" type="Button" parent="."]
 visible = false
-offset_left = 400.0
-offset_right = 790.0
-offset_bottom = 500.0
+z_index = 20
+offset_left = 390.0
+offset_right = 780.0
+offset_bottom = 381.0
+
+[node name="shieldbuff" type="Sprite2D" parent="buffselectbutton1"]
+position = Vector2(199, 179)
+scale = Vector2(0.77, 0.811)
+texture = ExtResource("107_3ruuh")
+
+[node name="sword" type="Sprite2D" parent="buffselectbutton1"]
+position = Vector2(192, 113)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("109_0ldq3")
+
+[node name="swordlabel" type="Label" parent="buffselectbutton1"]
+layout_mode = 0
+offset_left = 139.0
+offset_top = 173.0
+offset_right = 291.0
+offset_bottom = 312.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 50
+text = "攻撃
+が2倍"
+
+[node name="swordlabel2" type="RichTextLabel" parent="buffselectbutton1"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 383.0
+offset_right = 404.0
+offset_bottom = 466.0
+theme_override_font_sizes/normal_font_size = 50
+bbcode_enabled = true
+text = "[center][img=80]res://Texture/coin_cut.png[/img]×5000[/center]
+"
 
 [node name="buffselectbutton2" type="Button" parent="."]
 visible = false
-offset_left = 800.0
-offset_right = 1190.0
-offset_bottom = 500.0
+z_index = 20
+offset_left = 780.0
+offset_right = 1170.0
+offset_bottom = 381.0
+
+[node name="foodbuff" type="Sprite2D" parent="buffselectbutton2"]
+position = Vector2(199, 179)
+scale = Vector2(0.77, 0.811)
+texture = ExtResource("107_3ruuh")
+
+[node name="food" type="Sprite2D" parent="buffselectbutton2"]
+position = Vector2(197, 108)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("111_l1o0f")
+
+[node name="foodlabel" type="Label" parent="buffselectbutton2"]
+layout_mode = 0
+offset_left = 141.0
+offset_top = 173.0
+offset_right = 293.0
+offset_bottom = 312.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 50
+text = "回復
+が2倍"
+
+[node name="foodlabel2" type="RichTextLabel" parent="buffselectbutton2"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 383.0
+offset_right = 404.0
+offset_bottom = 466.0
+theme_override_font_sizes/normal_font_size = 50
+bbcode_enabled = true
+text = "[center][img=80]res://Texture/coin_cut.png[/img]×5000[/center]
+"
 
 [node name="buffselectbutton3" type="Button" parent="."]
 visible = false
-offset_top = 510.0
+z_index = 20
+offset_top = 470.0
 offset_right = 390.0
-offset_bottom = 1010.0
+offset_bottom = 851.0
 
-[node name="buffselectbutton4" type="Button" parent="."]
-visible = false
-offset_left = 400.0
-offset_top = 510.0
-offset_right = 790.0
-offset_bottom = 1010.0
+[node name="shieldbuff" type="Sprite2D" parent="buffselectbutton3"]
+position = Vector2(199, 179)
+scale = Vector2(0.77, 0.811)
+texture = ExtResource("107_3ruuh")
 
-[node name="buffselectbutton5" type="Button" parent="."]
-visible = false
-offset_left = 800.0
-offset_top = 510.0
-offset_right = 1190.0
-offset_bottom = 1010.0
+[node name="coin" type="Sprite2D" parent="buffselectbutton3"]
+position = Vector2(192, 113)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("110_1xaw1")
+
+[node name="coinlabel" type="Label" parent="buffselectbutton3"]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 180.0
+offset_right = 279.0
+offset_bottom = 319.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 50
+text = "お金
+が2倍"
+
+[node name="coinlabel2" type="RichTextLabel" parent="buffselectbutton3"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 383.0
+offset_right = 404.0
+offset_bottom = 466.0
+theme_override_font_sizes/normal_font_size = 50
+bbcode_enabled = true
+text = "[center][img=80]res://Texture/coin_cut.png[/img]×5000[/center]
+"
+
+[node name="coinsound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("112_crn65")
+volume_db = 20.0
+
+[node name="cancel" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("113_j0pnx")
+volume_db = 24.0
 
 [connection signal="pressed" from="ScoreManager/stagechangeb" to="StageManager" method="_on_stagechangeb_pressed"]
 [connection signal="pressed" from="ScoreManager/gameclearbutton" to="." method="_on_gameclearbutton_pressed"]
 [connection signal="pressed" from="StageManager/movefront" to="StageManager" method="_on_movefront_pressed"]
 [connection signal="pressed" from="returntitle" to="." method="_on_returntitle_pressed"]
+[connection signal="pressed" from="buffselectbutton0" to="ScoreManager" method="_on_buffselectbutton_0_pressed"]
+[connection signal="pressed" from="buffselectbutton1" to="ScoreManager" method="_on_buffselectbutton_1_pressed"]
+[connection signal="pressed" from="buffselectbutton2" to="ScoreManager" method="_on_buffselectbutton_2_pressed"]
+[connection signal="pressed" from="buffselectbutton3" to="ScoreManager" method="_on_buffselectbutton_3_pressed"]

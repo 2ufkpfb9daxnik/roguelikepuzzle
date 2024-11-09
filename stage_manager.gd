@@ -208,7 +208,7 @@ func isdead() -> void:
 	isdeadf = true
 	if(stage==5&&stage_enemy==5):
 		islastboss = true
-	elif(stage_enemy==1):
+	elif(stage_enemy==5):
 		isstageclear = true
 func fevertime() -> void:
 	if(int(fevergage)>=7000):
@@ -305,6 +305,8 @@ func _process(delta: float) -> void: # ずっとする
 			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
 			get_parent().get_node("ScoreManager/stageclearblack").visible = true
 			get_node("choosebuff").visible = true
+			for i in range(4):
+				get_parent().get_node("buffselectbutton"+str(i)).visible = true
 			get_node("bossbgm").stop()
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=160):
@@ -318,6 +320,8 @@ func _process(delta: float) -> void: # ずっとする
 			if(stage_enemy!=5):
 				get_node("movefront").visible = true
 				get_node("choosebuff").visible = true
+				for i in range(4):
+					get_parent().get_node("buffselectbutton"+str(i)).visible = true
 			clicked = false
 		deadinterval += 1
 		return
@@ -379,6 +383,8 @@ func _on_stagechangeb_pressed() -> void:
 	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
 	get_parent().get_node("ScoreManager/stageclearblack").visible = false
 	get_node("choosebuff").visible = false
+	for i in range(4):
+		get_parent().get_node("buffselectbutton"+str(i)).visible = false
 	make_enemy()
 	add_stage_label()
 	isdeadf = false
@@ -387,6 +393,8 @@ func _on_stagechangeb_pressed() -> void:
 	clearinterval = 0
 	get_node("movefront").visible = false
 	get_node("choosebuff").visible = false
+	for i in range(4):
+		get_parent().get_node("buffselectbutton"+str(i)).visible = false
 	pass # Replace with function body.
 
 
@@ -402,4 +410,7 @@ func _on_movefront_pressed() -> void:
 			clicked = true
 			deadinterval = 0
 			get_node("movefront").visible = false
+			get_node("choosebuff").visible = false
+			for i in range(4):
+				get_parent().get_node("buffselectbutton"+str(i)).visible = false
 	pass # Replace with function body.

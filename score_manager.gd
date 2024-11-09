@@ -19,6 +19,10 @@ var health = 1.0
 var combocount = 0
 var iscombo = false
 var interval = 0
+var currentshieldcoin :int = 5000
+var currentswordcoin :int = 5000
+var currentcoincoin :int = 5000
+var currentfoodcoin :int = 5000
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	label = get_node("RichTextLabel")  # ScoreLabelの参照を取得
@@ -186,6 +190,10 @@ func combo() -> void:
 			interval = 0
 		interval += 1
 func _process(delta: float) -> void:
+	get_parent().get_node("buffselectbutton0").get_node("shieldlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentshieldcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton1").get_node("swordlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentswordcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton2").get_node("foodlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentfoodcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton3").get_node("coinlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentcoincoin)+"[/center]"
 	update_score_label()
 	display_score_label()
 	combo()
@@ -210,3 +218,39 @@ func _process(delta: float) -> void:
 			labelarr1.append(labelarr[i])
 	labelarr = labelarr1
 	pass
+func _on_buffselectbutton_0_pressed() -> void:
+	if(divscore[2]>=currentshieldcoin):
+		divscore[2] -= currentshieldcoin
+		get_parent().get_node("PuzzleBoard").shieldt *= 2
+		currentshieldcoin *= 1.5
+		get_parent().get_node("coinsound").play()
+	else:
+		get_parent().get_node("cancel").play()
+	pass # Replace with function body.
+func _on_buffselectbutton_1_pressed() -> void:
+	if(divscore[2]>=currentswordcoin):
+		divscore[2] -= currentswordcoin
+		get_parent().get_node("PuzzleBoard").swordt *= 2
+		currentswordcoin *= 1.5
+		get_parent().get_node("coinsound").play()
+	else:
+		get_parent().get_node("cancel").play()
+	pass # Replace with function body.
+func _on_buffselectbutton_2_pressed() -> void:
+	if(divscore[2]>=currentfoodcoin):
+		divscore[2] -= currentfoodcoin
+		get_parent().get_node("PuzzleBoard").foodt *= 2
+		currentfoodcoin *= 1.5
+		get_parent().get_node("coinsound").play()
+	else:
+		get_parent().get_node("cancel").play()
+	pass # Replace with function body.
+func _on_buffselectbutton_3_pressed() -> void:
+	if(divscore[2]>=currentcoincoin):
+		divscore[2] -= currentcoincoin
+		get_parent().get_node("PuzzleBoard").coint *= 2
+		currentcoincoin *= 1.5
+		get_parent().get_node("coinsound").play()
+	else:
+		get_parent().get_node("cancel").play()
+	pass # Replace with function body.
