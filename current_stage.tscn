@@ -1201,6 +1201,13 @@ volume_db = 15.0
 stream = ExtResource("17_i722m")
 volume_db = 20.0
 
+[node name="choosebuff" type="ColorRect" parent="StageManager"]
+visible = false
+z_index = 19
+offset_right = 1178.0
+offset_bottom = 1000.0
+color = Color(0.00784314, 0.00784314, 0.00784314, 0.6)
+
 [node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
 position = Vector2(960, 700)

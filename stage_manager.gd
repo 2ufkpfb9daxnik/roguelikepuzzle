@@ -304,6 +304,7 @@ func _process(delta: float) -> void: # ずっとする
 			get_parent().get_node("ScoreManager/stageclear").visible = true
 			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
 			get_parent().get_node("ScoreManager/stageclearblack").visible = true
+			get_node("choosebuff").visible = true
 			get_node("bossbgm").stop()
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=160):
@@ -316,6 +317,7 @@ func _process(delta: float) -> void: # ずっとする
 		if(deadinterval==100):
 			if(stage_enemy!=5):
 				get_node("movefront").visible = true
+				get_node("choosebuff").visible = true
 			clicked = false
 		deadinterval += 1
 		return
@@ -376,6 +378,7 @@ func _on_stagechangeb_pressed() -> void:
 	get_parent().get_node("ScoreManager/stagechangeb").visible = false
 	get_parent().get_node("ScoreManager/stageclearWhite2").visible = false
 	get_parent().get_node("ScoreManager/stageclearblack").visible = false
+	get_node("choosebuff").visible = false
 	make_enemy()
 	add_stage_label()
 	isdeadf = false
@@ -383,6 +386,7 @@ func _on_stagechangeb_pressed() -> void:
 	deadinterval = 0
 	clearinterval = 0
 	get_node("movefront").visible = false
+	get_node("choosebuff").visible = false
 	pass # Replace with function body.
 
 
