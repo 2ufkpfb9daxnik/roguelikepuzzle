@@ -57,6 +57,11 @@ var scratch :AnimatedSprite2D
 var isattack :int = 0
 var isblock :int = 0
 var isgameover = false
+var shieldt = 1.0
+var swordt = 1.0
+var coint = 1.0
+var potiont = 1.0
+var foodt = 1.0
 func _ready() -> void:	#初期化
 	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
@@ -365,7 +370,7 @@ func moveswords() -> void:
 		moveswordt[i] += 1
 	for i in range(movesword.size()):
 		if(movesword[i].position.y==2700):
-			get_parent().get_node("StageManager").calchp(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)),0)
+			get_parent().get_node("StageManager").calchp(100*swordt,0)
 			if(get_parent().get_node("StageManager").ehp<=0):
 				pass
 			if(get_parent().get_node("StageManager").enemy!=null):
@@ -568,8 +573,8 @@ func _process(delta: float) -> void:
 			for i in range(5):
 				get_parent().get_node("ScoreManager").get_node("score"+str(i)).position.y = 450+50*i+((interval-72)-18)*((interval-72)-18)/10-33
 		elif(interval==109&&isattack):
-			var makecnt = min(int(get_parent().get_node("StageManager").ehp/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))),int(get_parent().get_node("ScoreManager").divscore[1]/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))))
-			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*100*pow(10,max(0,get_parent().get_node("StageManager").stage-1))
+			var makecnt = min(int(get_parent().get_node("StageManager").ehp/swordt),int(get_parent().get_node("ScoreManager").divscore[1]/(swordt*100)))
+			get_parent().get_node("ScoreManager").divscore[1] -= makecnt*swordt*100
 			for i in range(makecnt):
 				var adc = get_node("Sprite2D1").duplicate();
 				adc.position = Vector2(12300,5300)
@@ -579,8 +584,8 @@ func _process(delta: float) -> void:
 				msisvalid = true
 				moveswordt.append(-i*70/makecnt)
 				moveswordrnd.append(randi()%120)
-			var makecnt2 = min(50-int(get_parent().get_node("StageManager").myhp/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))),int(get_parent().get_node("ScoreManager").divscore[4]/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))))
-			get_parent().get_node("ScoreManager").divscore[4] -= makecnt2*100*pow(10,max(0,get_parent().get_node("StageManager").stage-1))
+			var makecnt2 = min(50*pow(10,get_parent().get_node("StageManager").stage-1)-int(get_parent().get_node("StageManager").myhp/(foodt*100)),int(get_parent().get_node("ScoreManager").divscore[4]/(foodt*100)))
+			get_parent().get_node("ScoreManager").divscore[4] -= makecnt2*foodt*100
 			for i in range(makecnt2):
 				var adc = get_node("Sprite2D4").duplicate();
 				adc.position = Vector2(12300,6800)
@@ -589,8 +594,8 @@ func _process(delta: float) -> void:
 				movefood.append(adc)
 				movefoodt.append(-i*70/makecnt2)
 				movefoodrnd.append(randi()%120)
-			var makecnt3 = min(70-int(get_parent().get_node("StageManager").fevergage/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))),int(get_parent().get_node("ScoreManager").divscore[3]/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1)))))
-			get_parent().get_node("ScoreManager").divscore[3] -= makecnt3*100*pow(10,max(0,get_parent().get_node("StageManager").stage-1))
+			var makecnt3 = min(70-int(get_parent().get_node("StageManager").fevergage/(100*potiont)),int(get_parent().get_node("ScoreManager").divscore[3]/(potiont*100)))
+			get_parent().get_node("ScoreManager").divscore[3] -= makecnt3*potiont*100
 			for i in range(makecnt3):
 				var adc = get_node("Sprite2D3").duplicate();
 				adc.position = Vector2(12300,6300)
@@ -602,8 +607,8 @@ func _process(delta: float) -> void:
 		elif(interval<=252&&isattack):
 			pass
 		elif(interval==109+144*isattack&&isblock):
-			var makecnt = int(get_parent().get_node("ScoreManager").divscore[0]/(100*pow(10,max(0,get_parent().get_node("StageManager").stage-1))))
-			get_parent().get_node("ScoreManager").divscore[0] -= makecnt*100*pow(10,max(0,get_parent().get_node("StageManager").stage-1))
+			var makecnt = int(get_parent().get_node("ScoreManager").divscore[0]/(shieldt*100))
+			get_parent().get_node("ScoreManager").divscore[0] -= makecnt*shieldt*100
 			for i in range(makecnt):
 				var adc = get_node("Sprite2D0").duplicate();
 				adc.position = Vector2(12300,4800)

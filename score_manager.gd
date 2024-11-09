@@ -138,17 +138,43 @@ func calcscore(matchi,grid_att) -> void:
 				lambda1(i,j,count)
 				connectcell.append(count)
 				divcntcell.append(attn)		
+	var shieldt = get_parent().get_node("PuzzleBoard").shieldt
+	var swordt = get_parent().get_node("PuzzleBoard").swordt
+	var coint = get_parent().get_node("PuzzleBoard").coint
+	var potiont = get_parent().get_node("PuzzleBoard").potiont
+	var foodt = get_parent().get_node("PuzzleBoard").foodt
 	for i in range(connectcell.size()):
-		totalScore += connectcell[i]*(connectcell[i]-2)*100	
+		if(divcntcell[i]==0):
+			totalScore += connectcell[i]*(connectcell[i]-2)*shieldt*100
+		elif(divcntcell[i]==1):
+			totalScore += connectcell[i]*(connectcell[i]-2)*swordt*100
+		elif(divcntcell[i]==2):
+			totalScore += connectcell[i]*(connectcell[i]-2)*coint*100
+		elif(divcntcell[i]==3):
+			totalScore += connectcell[i]*(connectcell[i]-2)*potiont*100
+		elif(divcntcell[i]==4):
+			totalScore += connectcell[i]*(connectcell[i]-2)*foodt*100
 		if(get_parent().get_node("StageManager").isfevertime):
-			if(i!=3):
-				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100*pow(10,get_parent().get_node("StageManager").stage-1)
-			else:
-				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
-		if(i!=3):
-			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100*pow(10,get_parent().get_node("StageManager").stage-1)
-		else:
-			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
+			if(divcntcell[i]==0):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*shieldt*100
+			elif(divcntcell[i]==1):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*swordt*100
+			elif(divcntcell[i]==2):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*coint*100
+			elif(divcntcell[i]==3):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*potiont*100
+			elif(divcntcell[i]==4):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*foodt*100
+		if(divcntcell[i]==0):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*shieldt*100
+		elif(divcntcell[i]==1):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*swordt*100
+		elif(divcntcell[i]==2):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*coint*100
+		elif(divcntcell[i]==3):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*potiont*100
+		elif(divcntcell[i]==4):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*foodt*100
 			
 func combo() -> void:
 	if(iscombo):
