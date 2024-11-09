@@ -1277,6 +1277,8 @@ visible = false
 offset_right = 390.0
 offset_bottom = 500.0
 
+[node name="Sprite2D" type="Sprite2D" parent="buffselectbutton0"]
+
 [node name="buffselectbutton1" type="Button" parent="."]
 visible = false
 offset_left = 400.0

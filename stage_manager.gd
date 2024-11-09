@@ -96,6 +96,7 @@ func label_control() -> void:
 	score = get_parent().get_node("ScoreManager").totalScore
 	label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/rainbow]"
 	label2.text = "[b][color=#FFDF00][tornado radius="+str(5+score/10000)+"freq="+str(1+score/10000)+"]"+"ステージ:"+str(stage)+"[/tornado][/color][/b]"
+	
 func make_enemy() -> void:
 	if(enemycount==0):
 		if(stage_enemy==4&&stage==5):
@@ -302,7 +303,7 @@ func _process(delta: float) -> void: # ずっとする
 			pass
 		elif(clearinterval==101):
 			get_parent().get_node("ScoreManager/stageclear").visible = true
-			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
+			get_parent().get_node("ScoreManagex	r/stageclearWhite2").visible = true
 			get_node("bossbgm").stop()
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=160):
