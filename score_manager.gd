@@ -141,8 +141,14 @@ func calcscore(matchi,grid_att) -> void:
 	for i in range(connectcell.size()):
 		totalScore += connectcell[i]*(connectcell[i]-2)*100	
 		if(get_parent().get_node("StageManager").isfevertime):
+			if(i!=3):
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100*pow(10,get_parent().get_node("StageManager").stage-1)
+			else:
+				divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
+		if(i!=3):
+			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100*pow(10,get_parent().get_node("StageManager").stage-1)
+		else:
 			divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
-		divscore[divcntcell[i]] += connectcell[i]*(connectcell[i]-2)*100
 			
 func combo() -> void:
 	if(iscombo):

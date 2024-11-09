@@ -12,7 +12,9 @@ var ehpbar :ColorRect
 var ehpbar1 :ColorRect
 var ehppar :float = 1.0
 var ehp = 0
-var myhp :float = 5000
+
+var myhp :float = 5000*pow(10,max(0,stage-1))
+var myhpmax :float = 5000*pow(10,max(0,stage-1))
 var myhppar :float = 1.0
 var fevergage :float = 0
 var feverpar :float = 0.0
@@ -48,6 +50,7 @@ var clicked = false
 var isdanger = false
 var dangerinterval = 0
 var islastboss = false
+var lastbossinterval = 0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void: # 初期化
 	connect("stage_clear", Callable(get_parent().get_child(0).get_child(3).get_child(1).get_child(2), "buff_selecter"))
@@ -72,7 +75,10 @@ func _ready() -> void: # 初期化
 	
 
 func add_stage_label() -> void: # ステージを1増やす処理
-	if(stage_enemy == 5):
+	if(stage_enemy==5&&stage==5):
+		islastboss = true
+		lastbossinterval = 0
+	elif(stage_enemy == 5):
 		isstageclear = true
 		clearinterval = 0
 	else:
@@ -93,7 +99,6 @@ func label_control() -> void:
 func make_enemy() -> void:
 	if(enemycount==0):
 		if(stage_enemy==4&&stage==5):
-			islastboss = true
 			get_node("maoubgm").play()
 		elif(stage_enemy==4):
 			get_node("bossbgm").play()
@@ -168,6 +173,7 @@ func make_enemy() -> void:
 				ehp = stage5enemyhp[rand]
 				enemyat = stage5enemyat[rand]
 		ehp *= pow(10,max((stage-1),0))
+		enemyat *= pow(10,max(0,stage-1))
 		ehpmax = ehp
 		add_child(enemy)
 		add_child(ehpbar)
@@ -177,7 +183,7 @@ func calchp(damage1,damage2) -> void:
 	ehp -= damage1
 	myhp -= damage2
 	ehppar = ehp/ehpmax
-	myhppar = myhp/5000
+	myhppar = myhp/myhpmax
 	if(ehp<=0&&!isdeadf):
 		isdead()
 func calcgage(potion) -> void:
@@ -200,10 +206,12 @@ func isdead() -> void:
 	ehpbar1 = null
 	enemycount = 0
 	isdeadf = true
-	if(stage_enemy==5):
+	if(stage==5&&stage_enemy==5):
+		islastboss = true
+	elif(stage_enemy==5):
 		isstageclear = true
 func fevertime() -> void:
-	if(int(fevergage)>=700):
+	if(int(fevergage)>=7000):
 		fevercount = 5
 		fevergage = 0
 		appeartime = 0
@@ -272,12 +280,30 @@ func _process(delta: float) -> void: # ずっとする
 			isdanger = false
 		dangerinterval += 1
 		return
-	if(isstageclear):
+	if(islastboss):
+		if(lastbossinterval<=100):
+			pass
+		elif(lastbossinterval==101):
+			get_parent().get_node("ScoreManager/GameClear2").visible = true
+			get_parent().get_node("ScoreManager/GameClear").visible = true
+			get_parent().get_node("ScoreManager/GameClearWhite").visible = true
+			get_node("bossbgm").stop()
+			get_parent().get_node("StageManager/lastbossclear").play()
+		elif(lastbossinterval<=120):
+			pass
+		elif(lastbossinterval==121):
+			get_parent().get_node("StageManager/ending").play()
+		else:
+			get_parent().get_node("ScoreManager/gameclearbutton").visible = true
+		lastbossinterval += 1
+		return
+	if(isstageclear&&!islastboss):
 		if(clearinterval<=100):
 			pass
 		elif(clearinterval==101):
 			get_parent().get_node("ScoreManager/stageclear").visible = true
 			get_parent().get_node("ScoreManager/stageclearWhite2").visible = true
+			get_node("bossbgm").stop()
 			get_parent().get_node("stagekirikae").play()
 		elif(clearinterval<=160):
 			pass
@@ -336,6 +362,8 @@ func _process(delta: float) -> void: # ずっとする
 func _on_stagechangeb_pressed() -> void:
 	if(!isstageclear):
 		return
+	myhp *= 10
+	myhpmax *= 10
 	isstageclear = false
 	stage_enemy = 1
 	stage += 1
@@ -351,6 +379,7 @@ func _on_stagechangeb_pressed() -> void:
 	isdeadf = false
 	clicked = true
 	deadinterval = 0
+	clearinterval = 0
 	get_node("movefront").visible = false
 	pass # Replace with function body.
 

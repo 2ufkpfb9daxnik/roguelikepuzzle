@@ -1,4 +1,4 @@
-[gd_scene load_steps=108 format=3 uid="uid://xmeslbtexm7n"]
+[gd_scene load_steps=109 format=3 uid="uid://xmeslbtexm7n"]
 
 [ext_resource type="PackedScene" uid="uid://ifsp0dwpm78g" path="res://puzzle_board.tscn" id="1_46jpj"]
 [ext_resource type="Script" path="res://current_stage.gd" id="1_ycm5o"]
@@ -38,6 +38,7 @@
 [ext_resource type="AudioStream" uid="uid://qxpg8fx3pr7p" path="res://Sound/bgm/gameppoi/maou_bgm_fantasy06.mp3" id="16_hyc0a"]
 [ext_resource type="Texture2D" uid="uid://cyrpmkjrifqxc" path="res://Texture/tumezangeki/frame_010_delay-0.03s.png" id="16_rbyc4"]
 [ext_resource type="Texture2D" uid="uid://0sp8boqjt8jc" path="res://Texture/tumezangeki/frame_011_delay-0.03s.png" id="17_641bm"]
+[ext_resource type="AudioStream" uid="uid://fhpislohh75r" path="res://Sound/se/endingse/game_clear_01_demo.mp3" id="17_i722m"]
 [ext_resource type="Texture2D" uid="uid://cmtgdp2jn8pfl" path="res://Texture/kemuri/frame_094_delay-0.03s.png" id="17_y0i7j"]
 [ext_resource type="Texture2D" uid="uid://hmkxwwa5khyx" path="res://Texture/tumezangeki/frame_012_delay-0.03s.png" id="18_mt5lt"]
 [ext_resource type="Texture2D" uid="uid://x245dv6c7mp6" path="res://Texture/kemuri/frame_093_delay-0.04s.png" id="18_x0k61"]
@@ -1011,6 +1012,16 @@ offset_bottom = 1500.0
 mouse_filter = 2
 color = Color(1, 1, 1, 0.768627)
 
+[node name="gameclearbutton" type="Button" parent="ScoreManager"]
+visible = false
+offset_left = 700.0
+offset_top = 600.0
+offset_right = 1177.0
+offset_bottom = 881.0
+theme_override_font_sizes/font_size = 200
+text = "Start
+"
+
 [node name="StageManager" type="Node2D" parent="."]
 script = ExtResource("3_tkwor")
 
@@ -1137,6 +1148,7 @@ text = "前に進む"
 [node name="danger" type="AudioStreamPlayer2D" parent="StageManager"]
 position = Vector2(1760, 770)
 stream = ExtResource("14_cj15f")
+volume_db = 20.0
 
 [node name="dangerlabel" type="RichTextLabel" parent="StageManager"]
 visible = false
@@ -1169,6 +1181,13 @@ volume_db = 15.0
 [node name="maoubgm" type="AudioStreamPlayer2D" parent="StageManager"]
 stream = ExtResource("16_hyc0a")
 volume_db = 15.0
+
+[node name="ending" type="AudioStreamPlayer2D" parent="StageManager"]
+volume_db = 15.0
+
+[node name="lastbossclear" type="AudioStreamPlayer2D" parent="StageManager"]
+stream = ExtResource("17_i722m")
+volume_db = 20.0
 
 [node name="sougen2D" type="Sprite2D" parent="."]
 z_index = -100
@@ -1254,5 +1273,6 @@ stream = ExtResource("102_jkr3u")
 volume_db = 20.0
 
 [connection signal="pressed" from="ScoreManager/stagechangeb" to="StageManager" method="_on_stagechangeb_pressed"]
+[connection signal="pressed" from="ScoreManager/gameclearbutton" to="." method="_on_gameclearbutton_pressed"]
 [connection signal="pressed" from="StageManager/movefront" to="StageManager" method="_on_movefront_pressed"]
 [connection signal="pressed" from="returntitle" to="." method="_on_returntitle_pressed"]

@@ -11,6 +11,7 @@ func _on_returntitle_pressed() -> void:
 	print("pressed")
 	get_node("click").play()
 	isclicked = true
+	get_node("StageManager").stage = 0
 	pass # Replace with function body.
 func _process(delta: float) -> void:
 	if(isclicked):
@@ -22,3 +23,13 @@ func _process(delta: float) -> void:
 			var next_scene = load("res://title_screen.tscn")
 			get_tree().change_scene_to_packed(next_scene)
 		interval += 1
+
+
+func _on_gameclearbutton_pressed() -> void:
+	if(isclicked):
+		return
+	print("pressed")
+	get_node("click").play()
+	isclicked = true
+	pass 
+	pass # Replace with function body.

@@ -90,6 +90,7 @@ text = "[color=00ffff]3つ揃えて消そう!![/color]"
 
 [node name="description2" type="RichTextLabel" parent="."]
 z_index = -1
+layout_mode = 0
 offset_left = 603.0
 offset_top = 452.0
 offset_right = 1310.0
