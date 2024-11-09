@@ -63,7 +63,7 @@ var coint = 1.0
 var potiont = 1.0
 var foodt = 1.0
 func _ready() -> void:	#初期化
-	score_manager = get_parent().get_child(2)	#スコアマネージャの取得
+	score_manager = get_parent().get_node("ScoreManager")	#スコアマネージャの取得
 	grid_column = 15	#ボードの列数
 	grid_row = 15	#ボードの行数
 	get_node("1rensa").pitch_scale = 0.92

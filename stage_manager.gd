@@ -158,7 +158,7 @@ func make_enemy() -> void:
 				enemyat = stage5enemyat[5]
 		else:
 			if(stage==1):
-				ehp = stage1enemyhp[rand]/100
+				ehp = stage1enemyhp[rand]
 				enemyat = stage1enemyat[rand]
 			elif(stage==2):
 				ehp = stage2enemyhp[rand]
@@ -224,7 +224,10 @@ func fevertime() -> void:
 func notfevertime() -> void:
 	isfevertime = false
 	get_node("feverbgm").stop()
-	get_node("fieldbgm").play()
+	if(stage_enemy==5):
+		get_node("bossbgm").play()
+	else:
+		get_node("fieldbgm").play()
 	get_parent().get_node("ScoreManager").get_node("feverrect").visible = false
 	get_parent().get_node("ScoreManager").get_node("feverrect2").visible = false
 	get_parent().get_node("ScoreManager").get_node("feverlabel2").visible = false

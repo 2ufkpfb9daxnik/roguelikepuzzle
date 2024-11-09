@@ -15,6 +15,7 @@ var attn = -1e9
 var gridatt = []
 var divscore = [0,0,0,0,0]
 var texturestr = ["shield_cut","sword_cut","coin_cut","potion_cut","bread_cut"]
+var texturestr2 = ["shield","sword","coin","potion","food"]
 var health = 1.0
 var combocount = 0
 var iscombo = false
@@ -46,7 +47,7 @@ func update_score_label() -> void:
 		label.text = "[rainbow freq=0.5 sat=2 val=20][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/rainbow]"
 		label2.text = "[b][color=#FFDF00][tornado radius="+str(5+totalScore/10000)+" freq="+str(1+totalScore/10000)+"]"+"得点:"+str(totalScore)+"[/tornado][/color][/b]"
 		for i in range(5):
-			divscorelabel[i].text = "[img=100]res://Texture/"+texturestr[i]+".png"+"[/img][rainbow freq=0.5 sat=2 val=20]"+" "+str(divscore[i])+"[/rainbow]"
+			divscorelabel[i].text = "[img=100]res://Texture/"+texturestr2[i]+"/"+texturestr[i]+".png"+"[/img][rainbow freq=0.5 sat=2 val=20]"+" "+str(divscore[i])+"[/rainbow]"
 		var maxdigit = 0
 		for i in range(5):
 			var divdigit = 0
@@ -190,10 +191,10 @@ func combo() -> void:
 			interval = 0
 		interval += 1
 func _process(delta: float) -> void:
-	get_parent().get_node("buffselectbutton0").get_node("shieldlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentshieldcoin)+"[/center]"
-	get_parent().get_node("buffselectbutton1").get_node("swordlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentswordcoin)+"[/center]"
-	get_parent().get_node("buffselectbutton2").get_node("foodlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentfoodcoin)+"[/center]"
-	get_parent().get_node("buffselectbutton3").get_node("coinlabel2").text = "[center][img=80]res://Texture/coin_cut.png[/img]×"+str(currentcoincoin)+"[/center]"
+	get_parent().get_node("buffselectbutton0").get_node("shieldlabel2").text = "[center][img=80]res://Texture/coin/coin_cut.png[/img]×"+str(currentshieldcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton1").get_node("swordlabel2").text = "[center][img=80]res://Texture/coin/coin_cut.png[/img]×"+str(currentswordcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton2").get_node("foodlabel2").text = "[center][img=80]res://Texture/coin/coin_cut.png[/img]×"+str(currentfoodcoin)+"[/center]"
+	get_parent().get_node("buffselectbutton3").get_node("coinlabel2").text = "[center][img=80]res://Texture/coin/coin_cut.png[/img]×"+str(currentcoincoin)+"[/center]"
 	update_score_label()
 	display_score_label()
 	combo()
