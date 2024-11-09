@@ -1272,6 +1272,43 @@ position = Vector2(100, 250)
 stream = ExtResource("102_jkr3u")
 volume_db = 20.0
 
+[node name="buffselectbutton0" type="Button" parent="."]
+visible = false
+offset_right = 390.0
+offset_bottom = 500.0
+
+[node name="buffselectbutton1" type="Button" parent="."]
+visible = false
+offset_left = 400.0
+offset_right = 790.0
+offset_bottom = 500.0
+
+[node name="buffselectbutton2" type="Button" parent="."]
+visible = false
+offset_left = 800.0
+offset_right = 1190.0
+offset_bottom = 500.0
+
+[node name="buffselectbutton3" type="Button" parent="."]
+visible = false
+offset_top = 510.0
+offset_right = 390.0
+offset_bottom = 1010.0
+
+[node name="buffselectbutton4" type="Button" parent="."]
+visible = false
+offset_left = 400.0
+offset_top = 510.0
+offset_right = 790.0
+offset_bottom = 1010.0
+
+[node name="buffselectbutton5" type="Button" parent="."]
+visible = false
+offset_left = 800.0
+offset_top = 510.0
+offset_right = 1190.0
+offset_bottom = 1010.0
+
 [connection signal="pressed" from="ScoreManager/stagechangeb" to="StageManager" method="_on_stagechangeb_pressed"]
 [connection signal="pressed" from="ScoreManager/gameclearbutton" to="." method="_on_gameclearbutton_pressed"]
 [connection signal="pressed" from="StageManager/movefront" to="StageManager" method="_on_movefront_pressed"]
