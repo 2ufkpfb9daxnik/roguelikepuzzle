@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://c8rppwohbm5bi"]
 
-[ext_resource type="Script" path="res://title_screen.gd" id="1_q70fj"]
+[ext_resource type="Script" uid="uid://b7w2e3wj6ruld" path="res://title_screen.gd" id="1_q70fj"]
 [ext_resource type="Texture2D" uid="uid://1ydv0h8bii7m" path="res://Texture/title.jpg" id="1_qwbl7"]
 [ext_resource type="AudioStream" uid="uid://b5qsk2n8e2v42" path="res://Sound/se/teki/kougekizyunbi-2.mp3" id="3_ki4e7"]
 [ext_resource type="AudioStream" uid="uid://djxepb6wewi2f" path="res://Sound/dvoraksymphony93.mp3" id="4_bu7p4"]
@@ -56,26 +56,27 @@ text = "[color=E6E6Fa
 
 [node name="Button" type="Button" parent="."]
 layout_mode = 0
-offset_left = 700.0
-offset_top = 600.0
-offset_right = 1177.0
-offset_bottom = 881.0
-theme_override_font_sizes/font_size = 200
-text = "Start
-"
+offset_left = 740.0
+offset_top = 590.0
+offset_right = 1180.0
+offset_bottom = 674.0
+theme_override_font_sizes/font_size = 42
+text = "START"
 
 [node name="click" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("3_ki4e7")
-volume_db = 10.0
+volume_db = -4.0
+attenuation = 0.0
+panning_strength = 0.0
 
 [node name="titlebgm" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("4_bu7p4")
-volume_db = 10.0
+volume_db = -8.0
 parameters/looping = true
 
 [node name="titlebgm2" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("4_bu7p4")
-volume_db = 10.0
+volume_db = -8.0
 parameters/looping = true
 
 [node name="description" type="RichTextLabel" parent="."]

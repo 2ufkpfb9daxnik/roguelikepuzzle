@@ -3,11 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://8amm31f65k0m"
-valid=false
+path="res://.godot/imported/ks037.wav-495c51ed07b9385422ad8854e73c9b82.sample"
 
 [deps]
 
 source_file="res://Sound/bgm/pazudorappoi/ks037.wav"
+dest_files=["res://.godot/imported/ks037.wav-495c51ed07b9385422ad8854e73c9b82.sample"]
 
 [params]
 

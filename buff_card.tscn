@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://lmbt1wwb7woh"]
 
-[ext_resource type="Script" path="res://buff_card.gd" id="1_8yjw8"]
+[ext_resource type="Script" uid="uid://mpcaxmrtk018" path="res://buff_card.gd" id="1_8yjw8"]
 [ext_resource type="Texture2D" uid="uid://b83kq8gxrmmk" path="res://Texture/parchment.jpg" id="1_u4a5h"]
 
 [node name="Button" type="Button"]

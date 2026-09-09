@@ -1,2 +1,4 @@
 # Godot 4+ specific ignores
 .godot/
+*.tmp
+test_out.txt
