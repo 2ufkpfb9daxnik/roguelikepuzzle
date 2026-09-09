@@ -398,7 +398,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var sm = _get_stage_manager()
 
 	# ゲームオーバー判定：体力が0またはゲームオーバー時はすべての盤面入力を遮断
-	if isgameover or (sm and sm.myhp <= 0):
+	if isgameover or (sm and sm.myhpmax > 0 and sm.myhp <= 0):
 		if selected_cell.x != -1:
 			_deselect_piece()
 		is_holding = false

@@ -638,6 +638,14 @@ func _process(_delta: float) -> void:
 	if steps >= 16:
 		_sim_accumulator = 0.0
 
+func _ensure_fever_bgm() -> void:
+	var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
+	if fever_se and fever_se.playing:
+		fever_se.stop()
+	var fever_bgm = get_node_or_null("feverbgm")
+	if fever_bgm and not fever_bgm.playing:
+		fever_bgm.play()
+
 func _step_process() -> void:
 	# フィーバータイム突入演出の更新（敵状態・クリア演出に関わらず速度連動で確実に進行）
 	if isfevertime and appeartime < FEVER_INTRO_FRAMES + 10:
@@ -649,14 +657,6 @@ func _step_process() -> void:
 	elif isfevertime:
 		_ensure_fever_bgm()
 		_process_fever_effects()
-
-func _ensure_fever_bgm() -> void:
-	var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
-	if fever_se and fever_se.playing:
-		fever_se.stop()
-	var fever_bgm = get_node_or_null("feverbgm")
-	if fever_bgm and not fever_bgm.playing:
-		fever_bgm.play()
 
 	# 1. ボス警告（デンジャー演出）処理
 	if isdanger and not is_current_boss:
