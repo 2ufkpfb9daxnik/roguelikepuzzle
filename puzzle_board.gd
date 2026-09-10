@@ -3849,13 +3849,17 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
 		var end_wait_fast = 95 if is_casting_skill_turn else (60 if has_custom_atk else 14)
 		if interval == 0:
+			is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
+			has_enemy_attacked = false
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
-			_set_enemy_attack_motion(sm, true)
+			if not is_casting_skill_turn:
+				_set_enemy_attack_motion(sm, true)
 		elif interval == 4:
 			_execute_enemy_attack(sm)
 		elif interval == 10:
-			_set_enemy_attack_motion(sm, false)
+			if not is_casting_skill_turn:
+				_set_enemy_attack_motion(sm, false)
 		elif interval == end_wait_fast:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
@@ -3926,13 +3930,17 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 				interval = base_time + 144 * isattack + 128 * isblock
 
 	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
-		_set_enemy_attack_motion(sm, true)
+		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
+		has_enemy_attacked = false
+		if not is_casting_skill_turn:
+			_set_enemy_attack_motion(sm, true)
 
 	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
 		_execute_enemy_attack(sm)
 
 	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
-		_set_enemy_attack_motion(sm, false)
+		if not is_casting_skill_turn:
+			_set_enemy_attack_motion(sm, false)
 
 	elif interval == base_time + (125 if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
@@ -4043,8 +4051,9 @@ func _set_enemy_attack_motion(sm: Node2D, forward: bool) -> void:
 			var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
 			sm.enemy.scale = base_s * 1.35
 	else:
-		if sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack"):
-			# スプライトシート再生時はアニメーション完了時に自動で元画像・スケールに戻る
+		if sm.has_method("is_playing_custom_animation") and sm.is_playing_custom_animation:
+			pass
+		elif sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack"):
 			pass
 		else:
 			var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
@@ -4248,46 +4257,48 @@ func _spawn_enemy_skill_chant_vfx(sm: Node2D, elem_color_hex: String, is_boss: b
 	var p = get_parent()
 	var root_node = p if p != null else self
 
-	# ① 敵スプライトのカラーフラッシュ・咆哮巨大化・シェイク
-	var base_scale: Vector2 = enemy_sp.get_meta("base_scale", Vector2(0.5, 0.5))
-	var orig_mod = Color.WHITE
-	var orig_pos = enemy_sp.position
+	# ① 敵スプライトのカラーフラッシュ・咆哮巨大化・シェイク（スプライトシートを持たない敵のみ）
+	var has_custom_anim = sm.has_method("has_enemy_animation") and sm.has_enemy_animation("skill")
+	if not has_custom_anim:
+		var base_scale: Vector2 = enemy_sp.get_meta("base_scale", Vector2(0.5, 0.5))
+		var orig_mod = Color.WHITE
+		var orig_pos = enemy_sp.position
 
-	# 以前のTweenがあれば強制終了して初期状態に復帰
-	if enemy_sp.has_meta("active_skill_tween"):
-		var old_tw = enemy_sp.get_meta("active_skill_tween")
-		if is_instance_valid(old_tw) and old_tw is Tween and old_tw.is_valid():
-			old_tw.kill()
-	enemy_sp.scale = base_scale
-	enemy_sp.position = orig_pos
+		# 以前のTweenがあれば強制終了して初期状態に復帰
+		if enemy_sp.has_meta("active_skill_tween"):
+			var old_tw = enemy_sp.get_meta("active_skill_tween")
+			if is_instance_valid(old_tw) and old_tw is Tween and old_tw.is_valid():
+				old_tw.kill()
+		enemy_sp.scale = base_scale
+		enemy_sp.position = orig_pos
 
-	var tw_enemy = create_tween()
-	tw_enemy.bind_node(enemy_sp)
-	enemy_sp.set_meta("active_skill_tween", tw_enemy)
-	tw_enemy.set_parallel(true)
-	# 属性カラーで強烈に発光
-	tw_enemy.tween_property(enemy_sp, "modulate", Color(elem_col.r * 2.0, elem_col.g * 2.0, elem_col.b * 2.0, 1.0), 0.15)
-	# 咆哮するように拡大（常に base_scale を基準にする）
-	var boost_scale = base_scale * (1.38 if is_boss else 1.28)
-	tw_enemy.tween_property(enemy_sp, "scale", boost_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		var tw_enemy = create_tween()
+		tw_enemy.bind_node(enemy_sp)
+		enemy_sp.set_meta("active_skill_tween", tw_enemy)
+		tw_enemy.set_parallel(true)
+		# 属性カラーで強烈に発光
+		tw_enemy.tween_property(enemy_sp, "modulate", Color(elem_col.r * 2.0, elem_col.g * 2.0, elem_col.b * 2.0, 1.0), 0.15)
+		# 咆哮するように拡大（常に base_scale を基準にする）
+		var boost_scale = base_scale * (1.38 if is_boss else 1.28)
+		tw_enemy.tween_property(enemy_sp, "scale", boost_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
-	# 激しいシェイク
-	for s_i in range(8):
-		var offset = Vector2(randf_range(-16, 16), randf_range(-16, 16))
-		tw_enemy.chain().tween_property(enemy_sp, "position", orig_pos + offset, 0.04)
+		# 激しいシェイク
+		for s_i in range(8):
+			var offset = Vector2(randf_range(-16, 16), randf_range(-16, 16))
+			tw_enemy.chain().tween_property(enemy_sp, "position", orig_pos + offset, 0.04)
 
-	# 元の状態へ確実に復帰
-	tw_enemy.chain().set_parallel(true)
-	tw_enemy.tween_property(enemy_sp, "position", orig_pos, 0.2)
-	tw_enemy.tween_property(enemy_sp, "scale", base_scale, 0.2)
-	tw_enemy.tween_property(enemy_sp, "modulate", orig_mod, 0.25)
-	# 終了時コールバックで絶対に base_scale に復帰
-	tw_enemy.chain().tween_callback(func():
-		if is_instance_valid(enemy_sp):
-			enemy_sp.scale = base_scale
-			enemy_sp.modulate = orig_mod
-			enemy_sp.position = orig_pos
-	)
+		# 元の状態へ確実に復帰
+		tw_enemy.chain().set_parallel(true)
+		tw_enemy.tween_property(enemy_sp, "position", orig_pos, 0.2)
+		tw_enemy.tween_property(enemy_sp, "scale", base_scale, 0.2)
+		tw_enemy.tween_property(enemy_sp, "modulate", orig_mod, 0.25)
+		# 終了時コールバックで絶対に base_scale に復帰
+		tw_enemy.chain().tween_callback(func():
+			if is_instance_valid(enemy_sp):
+				enemy_sp.scale = base_scale
+				enemy_sp.modulate = orig_mod
+				enemy_sp.position = orig_pos
+		)
 
 	# ② 敵足元・背後の詠唱魔法陣サークル（SkillVFXNode）
 	var chant_node = SkillVFXNode.new(SkillVFXNode.VFXMode.CHANT_CIRCLE, elem_col, 0.95)
