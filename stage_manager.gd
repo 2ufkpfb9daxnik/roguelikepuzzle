@@ -105,27 +105,36 @@ const ENEMY_ANIMATION_SHEETS: Dictionary = {
 	"enemy24": { # 冥狼フェンリル
 		"attack": {
 			"path": "res://Texture/enemy/wolf-attack.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
+			"flip_h": true,
+			"scale_mult": 1.55
 		},
 		"skill": {
 			"path": "res://Texture/enemy/wolf-skill.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
+			"flip_h": true,
+			"scale_mult": 1.88
 		}
 	},
 	"enemy14": { # グランガーゴイル (demon)
 		"attack": {
 			"path": "res://Texture/enemy/demon-attack.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
+			"flip_h": true,
+			"scale_mult": 2.15
 		},
 		"skill": {
 			"path": "res://Texture/enemy/demon-skill.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
+			"flip_h": true,
+			"scale_mult": 1.50
 		}
 	}
 }
 
 var _anim_original_texture: Texture2D = null
 var _anim_original_scale: Vector2 = Vector2.ONE
+var _anim_original_position: Vector2 = Vector2(1550, 250)
 var _anim_tween: Tween = null
 var is_playing_custom_animation: bool = false
 
@@ -419,26 +428,32 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	if _anim_tween and _anim_tween.is_valid():
 		_anim_tween.kill()
 
-	# 初回なら元テクスチャとスケールを退避
+	# 初回なら元テクスチャとスケール、位置を退避
 	if not is_playing_custom_animation:
 		_anim_original_texture = enemy.texture
 		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
+		_anim_original_position = enemy.position
 		is_playing_custom_animation = true
 
 	var hf: int = anim_info["hframes"]
 	var vf: int = anim_info["vframes"]
 	var total_f: int = anim_info["total_frames"]
 	var fps: float = anim_info["fps"]
+	var should_flip: bool = anim_info.get("flip_h", false)
+	var scale_mult: float = anim_info.get("scale_mult", 1.0)
+	var offset_pos: Vector2 = anim_info.get("offset", Vector2.ZERO)
 
 	var frame_w = sheet_tex.get_size().x / float(hf)
 	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
-	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w))
+	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
 
 	enemy.texture = sheet_tex
 	enemy.hframes = hf
 	enemy.vframes = vf
 	enemy.frame = 0
 	enemy.scale = target_scale
+	enemy.flip_h = should_flip
+	enemy.position = _anim_original_position + offset_pos
 
 	var duration = float(total_f) / maxf(1.0, fps)
 	_anim_tween = create_tween()
@@ -466,6 +481,8 @@ func stop_enemy_animation() -> void:
 		enemy.vframes = 1
 		enemy.frame = 0
 		enemy.scale = _anim_original_scale
+		enemy.flip_h = false
+		enemy.position = _anim_original_position
 	is_playing_custom_animation = false
 
 ## HP計算（ダメージ適用）
