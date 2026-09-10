@@ -3845,8 +3845,9 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			current_state = BoardState.IDLE
 			return
 
-		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時は演出確認のため待機時間をしっかり確保）
-		var end_wait_fast = 95 if is_casting_skill_turn else 14
+		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時やスプライトシート再生時は演出確認のため待機時間を確保）
+		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
+		var end_wait_fast = 95 if is_casting_skill_turn else (60 if has_custom_atk else 14)
 		if interval == 0:
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
@@ -3933,11 +3934,11 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
 		_set_enemy_attack_motion(sm, false)
 
-	elif interval == base_time + (125 if is_casting_skill_turn else 52) + 144 * isattack + 128 * isblock:
+	elif interval == base_time + (125 if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + (125 if is_casting_skill_turn else 52) + 144 * isattack + 128 * isblock:
+	elif interval > base_time + (125 if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
@@ -4031,15 +4032,23 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 		})
 		mshisvalid = true
 
-## 敵の攻撃モーション（安全なbase_scale絶対指定）
+## 敵の攻撃モーション（安全なbase_scale絶対指定 ＆ スプライトシート対応）
 func _set_enemy_attack_motion(sm: Node2D, forward: bool) -> void:
 	if sm == null or sm.enemy == null:
 		return
-	var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
 	if forward:
-		sm.enemy.scale = base_s * 1.35
+		if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("attack"):
+			sm.play_enemy_animation("attack")
+		else:
+			var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
+			sm.enemy.scale = base_s * 1.35
 	else:
-		sm.enemy.scale = base_s
+		if sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack"):
+			# スプライトシート再生時はアニメーション完了時に自動で元画像・スケールに戻る
+			pass
+		else:
+			var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
+			sm.enemy.scale = base_s
 
 ## 敵が属性スキルを発動するかどうかの判定
 func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
@@ -4145,7 +4154,9 @@ func _execute_enemy_elemental_skill(sm: Node2D) -> void:
 	# ② 【重要】まずスキル名バナーを真っ先に画面中央上部に表示！
 	_show_enemy_skill_banner(s_name, elem_color, is_boss)
 
-	# ③ 敵が属性魔力を全身に滾らせ、足元に魔法陣を展開して詠唱開始
+	# ③ 敵が属性魔力を全身に滾らせ、足元に魔法陣を展開して詠唱開始（スプライトシートがあればスキルアニメ再生）
+	if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("skill"):
+		sm.play_enemy_animation("skill")
 	_spawn_enemy_skill_chant_vfx(sm, elem_color, is_boss)
 
 	# ④ スキル名を表示してから【待機時間（約0.7秒）】を置き、その後に盤面へスペル発射＆妨害展開！
@@ -4874,6 +4885,9 @@ func _spawn_curse_burst_effect(pos: Vector2) -> void:
 
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	if sm and sm.has_method("stop_enemy_animation"):
+		sm.stop_enemy_animation()
+
 	# 敵スキル演出ノードを安全に消去
 	if get_tree():
 		get_tree().call_group("enemy_skill_vfx", "queue_free")

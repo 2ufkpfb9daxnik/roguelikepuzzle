@@ -100,6 +100,35 @@ const ENEMY_SPECIES: Dictionary = {
 	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "color": "#FFD700"},
 }
 
+# 敵の連番スプライトシート定義（攻撃・スキル等のアニメーション）
+const ENEMY_ANIMATION_SHEETS: Dictionary = {
+	"enemy24": { # 冥狼フェンリル
+		"attack": {
+			"path": "res://Texture/enemy/wolf-attack.png",
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+		},
+		"skill": {
+			"path": "res://Texture/enemy/wolf-skill.png",
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+		}
+	},
+	"enemy14": { # グランガーゴイル (demon)
+		"attack": {
+			"path": "res://Texture/enemy/demon-attack.png",
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+		},
+		"skill": {
+			"path": "res://Texture/enemy/demon-skill.png",
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0
+		}
+	}
+}
+
+var _anim_original_texture: Texture2D = null
+var _anim_original_scale: Vector2 = Vector2.ONE
+var _anim_tween: Tween = null
+var is_playing_custom_animation: bool = false
+
 const STAGE_STANDARD: Array[int] = [1000, 2000, 30000, 50000, 9223372036854775807]
 
 # --- 公開プロパティ ---
@@ -273,6 +302,9 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	if enemycount != 0:
 		return
 		
+	stop_enemy_animation()
+	_anim_original_texture = null
+
 	var is_boss: bool = spawn_as_boss or (stage_enemy == 5)
 	is_current_boss = is_boss
 	if is_boss:
@@ -361,6 +393,80 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	ehpmax = ehp
 
 	enemycount += 1
+
+## 敵が特定のアニメーションスプライトシートを持っているか判定
+func has_enemy_animation(anim_name: String) -> bool:
+	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
+	return enemy_anims.has(anim_name)
+
+## 敵の連番スプライトシートアニメーションを再生
+func play_enemy_animation(anim_name: String, on_complete: Callable = Callable()) -> bool:
+	if enemy == null or not is_instance_valid(enemy):
+		return false
+	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
+	if not enemy_anims.has(anim_name):
+		return false
+
+	var anim_info = enemy_anims[anim_name]
+	var sheet_path = anim_info.get("path", "")
+	var sheet_tex: Texture2D = anim_info.get("texture", null)
+	if sheet_tex == null and ResourceLoader.exists(sheet_path):
+		sheet_tex = load(sheet_path) as Texture2D
+	if sheet_tex == null:
+		return false
+
+	# 実行中のアニメーションTweenがあれば停止
+	if _anim_tween and _anim_tween.is_valid():
+		_anim_tween.kill()
+
+	# 初回なら元テクスチャとスケールを退避
+	if not is_playing_custom_animation:
+		_anim_original_texture = enemy.texture
+		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
+		is_playing_custom_animation = true
+
+	var hf: int = anim_info["hframes"]
+	var vf: int = anim_info["vframes"]
+	var total_f: int = anim_info["total_frames"]
+	var fps: float = anim_info["fps"]
+
+	var frame_w = sheet_tex.get_size().x / float(hf)
+	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
+	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w))
+
+	enemy.texture = sheet_tex
+	enemy.hframes = hf
+	enemy.vframes = vf
+	enemy.frame = 0
+	enemy.scale = target_scale
+
+	var duration = float(total_f) / maxf(1.0, fps)
+	_anim_tween = create_tween()
+	_anim_tween.tween_method(func(f_idx: int):
+		if enemy and is_instance_valid(enemy):
+			enemy.frame = clampi(f_idx, 0, total_f - 1)
+	, 0, total_f - 1, duration)
+
+	_anim_tween.tween_callback(func():
+		stop_enemy_animation()
+		if on_complete.is_valid():
+			on_complete.call()
+	)
+	return true
+
+## 再生中のアニメーションを停止し、元の通常画像・スケールに即時復元
+func stop_enemy_animation() -> void:
+	if _anim_tween and _anim_tween.is_valid():
+		_anim_tween.kill()
+		_anim_tween = null
+	if enemy and is_instance_valid(enemy) and is_playing_custom_animation:
+		if _anim_original_texture:
+			enemy.texture = _anim_original_texture
+		enemy.hframes = 1
+		enemy.vframes = 1
+		enemy.frame = 0
+		enemy.scale = _anim_original_scale
+	is_playing_custom_animation = false
 
 ## HP計算（ダメージ適用）
 func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
@@ -514,6 +620,7 @@ func displaygage() -> void:
 
 ## 敵死亡時の処理
 func isdead() -> void:
+	stop_enemy_animation()
 	var gekiha = get_parent().get_node_or_null("gekiha")
 	if gekiha: gekiha.play()
 	
