@@ -143,6 +143,7 @@ var encolor: float = 1.0
 var isattack: int = 0
 var isblock: int = 0
 var has_enemy_attacked: bool = false
+var has_enemy_skilled: bool = false
 var isswap: bool = false
 var isbreak: bool = false
 var endbreak: bool = false
@@ -3847,16 +3848,19 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 
 		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時やスプライトシート再生時は演出確認のため待機時間を確保）
 		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
-		var end_wait_fast = 95 if is_casting_skill_turn else (60 if has_custom_atk else 14)
+		var skill_trigger_fast = 8
+		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (60 if has_custom_atk else 14)
 		if interval == 0:
 			is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 			has_enemy_attacked = false
+			has_enemy_skilled = false
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
-			if not is_casting_skill_turn:
-				_set_enemy_attack_motion(sm, true)
+			_set_enemy_attack_motion(sm, true)
 		elif interval == 4:
 			_execute_enemy_attack(sm)
+		elif interval == skill_trigger_fast and is_casting_skill_turn:
+			_execute_enemy_elemental_skill(sm)
 		elif interval == 10:
 			if not is_casting_skill_turn:
 				_set_enemy_attack_motion(sm, false)
@@ -3932,21 +3936,25 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
 		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 		has_enemy_attacked = false
-		if not is_casting_skill_turn:
-			_set_enemy_attack_motion(sm, true)
+		has_enemy_skilled = false
+		_set_enemy_attack_motion(sm, true)
 
 	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
 		_execute_enemy_attack(sm)
+
+	elif interval == base_time + 18 + 144 * isattack + 128 * isblock:
+		if is_casting_skill_turn:
+			_execute_enemy_elemental_skill(sm)
 
 	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
 		if not is_casting_skill_turn:
 			_set_enemy_attack_motion(sm, false)
 
-	elif interval == base_time + (125 if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + (125 if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
@@ -4072,7 +4080,7 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 		return false
 	return true
 
-## 敵の攻撃処理（通常攻撃時は爪斬撃、スキル発動時は爪斬撃を排除し本格スキル演出）
+## 敵の攻撃処理（物理攻撃・爪斬撃演出・ダメージ計算）
 func _execute_enemy_attack(sm: Node2D) -> void:
 	# 同一ターン内での多重攻撃を完全防止
 	if has_enemy_attacked:
@@ -4083,28 +4091,21 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
 
-	var will_cast_skill = _should_cast_enemy_elemental_skill(sm)
-	is_casting_skill_turn = will_cast_skill
+	# 物理攻撃の爪引っかき攻撃演出
+	var p = get_parent()
+	var scratch_template = p.get_node_or_null("scratch") if p else null
+	if scratch_template:
+		scratch_effect = scratch_template.duplicate()
+		scratch_effect.scale *= 8.0
+		scratch_effect.position = Vector2(15000, 2500)
+		scratch_effect.frame = 0
+		scratch_effect.play()
+		add_child(scratch_effect)
 
-	if will_cast_skill:
-		# スキル攻撃時: 爪斬撃（scratch）とblock音を完全にスキップし、本格属性スキル演出を発動！
-		_execute_enemy_elemental_skill(sm)
-	else:
-		# 通常攻撃時: 従来の爪引っかき攻撃演出
-		var p = get_parent()
-		var scratch_template = p.get_node_or_null("scratch") if p else null
-		if scratch_template:
-			scratch_effect = scratch_template.duplicate()
-			scratch_effect.scale *= 8.0
-			scratch_effect.position = Vector2(15000, 2500)
-			scratch_effect.frame = 0
-			scratch_effect.play()
-			add_child(scratch_effect)
-
-		var block_se = get_node_or_null("block")
-		if block_se:
-			block_se.play()
-			block_se.seek(0.7)
+	var block_se = get_node_or_null("block")
+	if block_se:
+		block_se.play()
+		block_se.seek(0.7)
 
 	if sm:
 		var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
@@ -4148,6 +4149,10 @@ func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
 
 ## 敵属性スキルの総合ハンドラ（スキル名表示 ➜ 詠唱待機 ➜ 盤面発射・妨害展開）
 func _execute_enemy_elemental_skill(sm: Node2D) -> void:
+	if has_enemy_skilled:
+		return
+	has_enemy_skilled = true
+
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
 
@@ -4906,6 +4911,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	isattack = 0
 	isblock = 0
 	has_enemy_attacked = false
+	has_enemy_skilled = false
 	is_casting_skill_turn = false
 	isswap = false
 	endbreak = false
