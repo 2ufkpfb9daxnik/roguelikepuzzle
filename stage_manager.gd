@@ -56,7 +56,7 @@ const STAGE_ENEMIES: Array[Dictionary] = [
 		"atk": [2500, 1500, 1000, 2000, 1000, 3000]
 	},
 	{ # Stage 3 (砂漠)
-		"names": ["enemy2", "enemy7", "enemy19", "enemy20", "enemy21", "enemy11"],
+		"names": ["enemy22", "enemy7", "enemy19", "enemy20", "enemy21", "enemy11"],
 		"hp": [3000, 5000, 9000, 4000, 3000, 30000],
 		"atk": [2500, 2000, 2000, 2500, 2000, 1500]
 	},
@@ -95,7 +95,7 @@ const ENEMY_SPECIES: Dictionary = {
 	"enemy19": {"name": "アビスクラーケン", "element": "水属性", "race": "水属性", "color": "#00E676"},
 	"enemy20": {"name": "デスクラウンサソリ", "element": "地属性", "race": "地属性", "color": "#FF6D00"},
 	"enemy21": {"name": "ブラックバイパー", "element": "地属性", "race": "地属性", "color": "#76FF03"},
-	"enemy22": {"name": "ブラックバイパー", "element": "地属性", "race": "地属性", "color": "#76FF03"},
+	"enemy22": {"name": "ヴェノムバイパー", "element": "地属性", "race": "地属性", "color": "#76FF03"},
 	"enemy23": {"name": "エルダートレント", "element": "木属性", "race": "木属性", "color": "#8BC34A"},
 	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "color": "#FFD700"},
 }
