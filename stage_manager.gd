@@ -605,9 +605,9 @@ func _play_enemy_attack_rush_se() -> void:
 		asp.stream = se_stream
 		asp.pitch_scale = 1.15
 		var sm_autoload = get_node_or_null("/root/SettingsManager")
-		var se_vol: float = 0.75
+		var se_vol: float = 0.55
 		if sm_autoload and "se_volume" in sm_autoload:
-			se_vol = clampf(sm_autoload.se_volume * 0.75, 0.001, 1.0)
+			se_vol = clampf(sm_autoload.se_volume * 0.55, 0.001, 1.0)
 		asp.volume_db = linear_to_db(se_vol)
 		add_child(asp)
 		asp.play()

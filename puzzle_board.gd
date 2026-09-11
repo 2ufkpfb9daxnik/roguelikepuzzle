@@ -4157,10 +4157,24 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
 
-	var block_se = get_node_or_null("block")
+	# 通常攻撃の効果音再生（消さずに確実にしっかりと再生）
+	var se_vol: float = 1.0
+	var sm_autoload = get_node_or_null("/root/SettingsManager")
+	if sm_autoload and "se_volume" in sm_autoload:
+		se_vol = clampf(sm_autoload.se_volume, 0.001, 1.0)
+
+	var block_se = get_node_or_null("block") as AudioStreamPlayer
+	if block_se == null:
+		block_se = AudioStreamPlayer.new()
+		block_se.name = "block"
+		block_se.stream = load("res://Sound/block.mp3")
+		add_child(block_se)
+
 	if block_se:
-		block_se.play()
-		block_se.seek(0.7)
+		if block_se.stream == null:
+			block_se.stream = load("res://Sound/block.mp3")
+		block_se.volume_db = linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5))
+		block_se.play(0.0)
 
 	if sm:
 		var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
