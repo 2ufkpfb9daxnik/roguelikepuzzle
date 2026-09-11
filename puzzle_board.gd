@@ -190,6 +190,8 @@ var scratch_effect: AnimatedSprite2D = null
 var is_casting_skill_turn: bool = false
 var _last_spark_msec: int = 0
 var _last_shockwave_msec: int = 0
+var _sword_hit_sound_timer: float = 0.0
+const SWORD_HIT_SOUND_INTERVAL: float = 0.14  # 剣衝突音（SE）再生の最小インターバル（約0.14秒）
 
 # ノード参照
 var score_manager: Node2D = null
@@ -3414,6 +3416,9 @@ func _process(delta: float) -> void:
 
 	# 戦闘演出ターンおよび発射物シミュレーションのゲーム速度連動
 	var spd: float = maxf(0.1, _get_game_speed())
+	if _sword_hit_sound_timer > 0.0:
+		_sword_hit_sound_timer = maxf(0.0, _sword_hit_sound_timer - delta * spd)
+
 	_turn_sim_accumulator += spd
 	var sim_steps: int = 0
 	while _turn_sim_accumulator >= 1.0 and sim_steps < 16:
@@ -3705,13 +3710,12 @@ func moveswords() -> void:
 			if sm:
 				var dmg: float = item.get("damage", 100.0 * swordt)
 				sm.calchp(dmg, 0)
-				# 剣が当たるたびに敵の被弾アニメーションを確実に再生
-				if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("damaged"):
-					sm.play_enemy_animation("damaged")
-				if sm.enemy != null:
-					sm.enemy.modulate.r = 2.0
 			_spawn_hit_spark(s.position)
-			_play_sword_hit_sound()
+			
+			# 衝突音SEにインターバルを設けて再生（過度な重なり・騒音を防止）
+			if _sword_hit_sound_timer <= 0.0:
+				_play_sword_hit_sound()
+				_sword_hit_sound_timer = SWORD_HIT_SOUND_INTERVAL
 			# 着弾後も消去せず画面外まで貫通飛翔させる
 
 		item["t"] = t + 1.0

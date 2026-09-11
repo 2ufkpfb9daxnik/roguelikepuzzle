@@ -113,6 +113,8 @@ var _current_custom_anim: String = ""
 var _edge_fade_material: ShaderMaterial = null
 var _battle_camera: Camera2D = null
 var _zoom_tween: Tween = null
+var _damaged_anim_timer: float = 0.0
+const DAMAGED_ANIM_INTERVAL: float = 0.26  # 被弾アニメーションの最小再開インターバル（約0.26秒）
 
 const STAGE_STANDARD: Array[int] = [1000, 2000, 30000, 50000, 9223372036854775807]
 
@@ -609,9 +611,11 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 		var flash_tw = create_tween()
 		enemy.modulate = Color(2.0, 1.8, 1.8, 1.0)
 		flash_tw.tween_property(enemy, "modulate", Color.WHITE, 0.12)
-		# 攻撃中・スキル発動中でなければ被弾アニメーションを再生（被弾中なら連打リスタート）
-		if _current_custom_anim != "attack" and _current_custom_anim != "skill" and has_enemy_animation("damaged"):
-			play_enemy_animation("damaged")
+		# 攻撃中・スキル発動中でなく、インターバルを満たしていれば被弾アニメーションを再生
+		if _damaged_anim_timer <= 0.0:
+			if _current_custom_anim != "attack" and _current_custom_anim != "skill" and has_enemy_animation("damaged"):
+				play_enemy_animation("damaged")
+				_damaged_anim_timer = DAMAGED_ANIM_INTERVAL
 
 	if ehp <= 0 and not isdeadf:
 		isdead()
@@ -880,6 +884,9 @@ func notfevertime() -> void:
 
 func _process(_delta: float) -> void:
 	var spd: float = maxf(0.1, _get_game_speed())
+	if _damaged_anim_timer > 0.0:
+		_damaged_anim_timer = maxf(0.0, _damaged_anim_timer - _delta * spd)
+
 	_sim_accumulator += spd
 	var steps: int = 0
 	while _sim_accumulator >= 1.0 and steps < 16:
