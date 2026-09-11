@@ -191,7 +191,7 @@ var is_casting_skill_turn: bool = false
 var _last_spark_msec: int = 0
 var _last_shockwave_msec: int = 0
 var _sword_hit_sound_timer: float = 0.0
-const SWORD_HIT_SOUND_INTERVAL: float = 0.14  # 剣衝突音（SE）再生の最小インターバル（約0.14秒）
+const SWORD_HIT_SOUND_INTERVAL: float = 0.11  # 剣衝突音（SE）再生の最小インターバル（約0.11秒）
 
 # ノード参照
 var score_manager: Node2D = null
@@ -276,7 +276,8 @@ func _ready() -> void:
 
 	var sword_se = get_node_or_null("AudioStreamPlayer") as AudioStreamPlayer
 	if sword_se:
-		sword_se.max_polyphony = 32
+		sword_se.max_polyphony = 1
+		sword_se.volume_db = -7.5
 
 	# シーン上のテンプレートスプライトを画面外に退避して非表示化
 	for i in range(5):
@@ -1851,14 +1852,14 @@ func _spawn_enemy_heal_effect(sm: Node2D, heal_amount: int) -> void:
 	var target_parent = p if p != null else self
 
 	var enemy_sp = sm.enemy
-	var base_scale: Vector2 = enemy_sp.get_meta("base_scale", Vector2(0.5, 0.5))
+	var orig_scale: Vector2 = enemy_sp.scale
 
-	# 敵の緑色生命力パルス発光
+	# 敵の緑色生命力パルス発光（スケールを破壊せず元のサイズを正確に保持）
 	var tw_pulse = create_tween()
 	tw_pulse.tween_property(enemy_sp, "modulate", Color(0.4, 2.2, 0.8, 1.0), 0.18)
-	tw_pulse.parallel().tween_property(enemy_sp, "scale", base_scale * 1.15, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw_pulse.parallel().tween_property(enemy_sp, "scale", orig_scale * 1.06, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw_pulse.tween_property(enemy_sp, "modulate", Color.WHITE, 0.3)
-	tw_pulse.parallel().tween_property(enemy_sp, "scale", base_scale, 0.3)
+	tw_pulse.parallel().tween_property(enemy_sp, "scale", orig_scale, 0.3)
 
 	# 敵HP回復ポップアップ
 	var custom_font = preload("res://font/g_comickoin_freeR.ttf")
@@ -3727,19 +3728,19 @@ func moveswords() -> void:
 
 	flying_swords = remaining
 
-## 剣が敵にぶつかるたびに衝突・斬撃SEを再生（ポリフォニック再生対応）
+## 剣が敵にぶつかる時の衝突・斬撃SE再生（単一ボイス再生・音の重複と音量肥大化を完全防止）
 func _play_sword_hit_sound() -> void:
 	var se = get_node_or_null("AudioStreamPlayer") as AudioStreamPlayer
 	if se == null:
 		se = AudioStreamPlayer.new()
 		se.name = "AudioStreamPlayer"
 		se.stream = load("res://Sound/剣で斬る3.mp3")
-		se.volume_db = -4.0
-		se.max_polyphony = 32
+		se.volume_db = -7.5
+		se.max_polyphony = 1
 		add_child(se)
 	else:
-		if se.max_polyphony < 32:
-			se.max_polyphony = 32
+		se.max_polyphony = 1
+		se.volume_db = -7.5
 		if se.stream == null:
 			se.stream = load("res://Sound/剣で斬る3.mp3")
 	se.play(0.0)
@@ -4155,25 +4156,6 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	# 敵が倒れている、または存在しない場合は攻撃しない
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
-
-	# 物理攻撃の爪引っかき攻撃演出
-	var p = get_parent()
-	var scratch_template = p.get_node_or_null("scratch") if p else null
-	if scratch_template:
-		if is_instance_valid(scratch_effect):
-			scratch_effect.queue_free()
-			scratch_effect = null
-		scratch_effect = scratch_template.duplicate()
-		scratch_effect.scale *= 8.0
-		scratch_effect.position = Vector2(15000, 2500)
-		scratch_effect.frame = 0
-		scratch_effect.play()
-		scratch_effect.animation_finished.connect(func():
-			if is_instance_valid(scratch_effect):
-				scratch_effect.queue_free()
-				scratch_effect = null
-		)
-		add_child(scratch_effect)
 
 	var block_se = get_node_or_null("block")
 	if block_se:

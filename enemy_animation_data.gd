@@ -102,7 +102,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/magmagolem-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.20
 		},
 	},
@@ -154,7 +154,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/Fungus Lord-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.31
 		},
 	},
@@ -258,7 +258,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/jewelarachne-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.31
 		},
 	},
@@ -310,7 +310,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/werewolf-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.33
 		},
 	},
@@ -388,7 +388,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/rainbowserpent-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.09
 		},
 	},
@@ -605,7 +605,7 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/wolf-attack.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": true,
-			"scale_mult": 1.55
+			"scale_mult": 1.05
 		},
 		"skill": {
 			"path": "res://Texture/enemy/wolf-skill.png",

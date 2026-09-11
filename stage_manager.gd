@@ -9,8 +9,8 @@ const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 const STAGE_BACKGROUNDS: Array[String] = ["plane", "cave", "desert", "snow field", "castle"]
 const STAGE_BACKGROUND_TEXTURES: Array[Texture2D] = [
 	preload("res://Texture/plane.jpeg"),
-	preload("res://Texture/haikei/desert.jpg"),
 	preload("res://Texture/haikei/cave2.jpg"),
+	preload("res://Texture/haikei/desert.jpg"),
 	preload("res://Texture/haikei/snowfield.jpg"),
 	preload("res://Texture/haikei/demonkingscastle.jpg"),
 ]

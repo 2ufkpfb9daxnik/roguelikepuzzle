@@ -57,8 +57,8 @@ script = ExtResource("2_board_bg")
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("20_de3dv")
-volume_db = -4.0
-max_polyphony = 32
+volume_db = -7.5
+max_polyphony = 1
 parameters/looping = false
 
 [node name="AudioStreamPlayer2" type="AudioStreamPlayer" parent="."]
