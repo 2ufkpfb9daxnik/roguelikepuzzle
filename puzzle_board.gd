@@ -272,6 +272,10 @@ func _ready() -> void:
 	if rensa_se:
 		rensa_se.pitch_scale = 0.92
 
+	var sword_se = get_node_or_null("AudioStreamPlayer") as AudioStreamPlayer
+	if sword_se:
+		sword_se.max_polyphony = 32
+
 	# シーン上のテンプレートスプライトを画面外に退避して非表示化
 	for i in range(5):
 		var t_sprite = get_node_or_null("Sprite2D" + str(i))
@@ -3707,8 +3711,7 @@ func moveswords() -> void:
 				if sm.enemy != null:
 					sm.enemy.modulate.r = 2.0
 			_spawn_hit_spark(s.position)
-			var se = get_node_or_null("AudioStreamPlayer")
-			if se and not se.playing: se.play()
+			_play_sword_hit_sound()
 			# 着弾後も消去せず画面外まで貫通飛翔させる
 
 		item["t"] = t + 1.0
@@ -3719,6 +3722,23 @@ func moveswords() -> void:
 			remaining.append(item)
 
 	flying_swords = remaining
+
+## 剣が敵にぶつかるたびに衝突・斬撃SEを再生（ポリフォニック再生対応）
+func _play_sword_hit_sound() -> void:
+	var se = get_node_or_null("AudioStreamPlayer") as AudioStreamPlayer
+	if se == null:
+		se = AudioStreamPlayer.new()
+		se.name = "AudioStreamPlayer"
+		se.stream = load("res://Sound/剣で斬る3.mp3")
+		se.volume_db = -4.0
+		se.max_polyphony = 32
+		add_child(se)
+	else:
+		if se.max_polyphony < 32:
+			se.max_polyphony = 32
+		if se.stream == null:
+			se.stream = load("res://Sound/剣で斬る3.mp3")
+	se.play(0.0)
 
 ## 展開シールドのアニメーション
 func moveshields() -> void:

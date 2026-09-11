@@ -43,31 +43,31 @@ const ENEMY_TEXTURES: Dictionary = {
 	"enemy24": "res://Texture/enemy/wolf_preview_rev_1.png",
 }
 
-# 各ステージごとの敵定義 (全24体が登場するように完全網羅)
+# 各ステージごとの敵定義 (初期実装時の設定に完全準拠)
 const STAGE_ENEMIES: Array[Dictionary] = [
 	{ # Stage 1 (草原)
-		"names": ["enemy4", "enemy5", "enemy8", "enemy13", "enemy15", "enemy24"],
+		"names": ["enemy4", "enemy5", "enemy8", "enemy12", "enemy15", "enemy24"],
 		"hp": [10000, 3000, 4000, 7500, 6000, 20000],
 		"atk": [1500, 1000, 1500, 2000, 1700, 1900]
 	},
 	{ # Stage 2 (洞窟)
-		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy14"],
-		"hp": [3000, 8000, 7000, 6000, 4000, 15000],
-		"atk": [2500, 1500, 1000, 2000, 2500, 3000]
+		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy5", "enemy14"],
+		"hp": [3000, 8000, 7000, 6000, 3000, 15000],
+		"atk": [2500, 1500, 1000, 2000, 1000, 3000]
 	},
 	{ # Stage 3 (砂漠)
-		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy11"],
-		"hp": [5000, 9000, 4000, 4500, 12000, 30000],
-		"atk": [2000, 2000, 2000, 2200, 1000, 1500]
+		"names": ["enemy2", "enemy7", "enemy19", "enemy20", "enemy21", "enemy11"],
+		"hp": [3000, 5000, 9000, 4000, 3000, 30000],
+		"atk": [2500, 2000, 2000, 2500, 2000, 1500]
 	},
 	{ # Stage 4 (雪原・氷結界)
-		"names": ["enemy1", "enemy9", "enemy12", "enemy16", "enemy2", "enemy17"],
-		"hp": [7000, 7000, 7500, 7000, 3000, 25000],
-		"atk": [2000, 3000, 2000, 2000, 2500, 3500]
+		"names": ["enemy3", "enemy5", "enemy13", "enemy16", "enemy23", "enemy17"],
+		"hp": [8000, 3000, 5000, 7000, 12000, 25000],
+		"atk": [1500, 1000, 2000, 2000, 1000, 3500]
 	},
 	{ # Stage 5 (魔王城・決戦)
-		"names": ["enemy1", "enemy7", "enemy9", "enemy10", "enemy12", "enemy18"],
-		"hp": [7000, 5000, 7000, 6000, 7500, 50000],
+		"names": ["enemy1", "enemy7", "enemy9", "enemy19", "enemy12", "enemy18"],
+		"hp": [7000, 5000, 7000, 9000, 7500, 50000],
 		"atk": [2000, 2000, 3000, 2000, 2000, 4000]
 	}
 ]
