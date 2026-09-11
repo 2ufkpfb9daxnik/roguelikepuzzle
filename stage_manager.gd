@@ -50,15 +50,15 @@ const STAGE_ENEMIES: Array[Dictionary] = [
 		"hp": [10000, 3000, 4000, 7500, 6000, 20000],
 		"atk": [1500, 1000, 1500, 2000, 1700, 1900]
 	},
-	{ # Stage 2 (砂漠・古代遺跡)
-		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy14"],
-		"hp": [3000, 8000, 7000, 6000, 4000, 15000],
+	{ # Stage 2 (洞窟・火山地帯)
+		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy11"],
+		"hp": [3000, 8000, 7000, 6000, 4000, 18000],
 		"atk": [2500, 1500, 1000, 2000, 2500, 3000]
 	},
-	{ # Stage 3 (深海・洞窟)
-		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy11"],
-		"hp": [5000, 9000, 4000, 4500, 12000, 30000],
-		"atk": [2000, 2000, 2000, 2200, 1000, 1500]
+	{ # Stage 3 (砂漠・古代遺跡)
+		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy14"],
+		"hp": [5000, 9000, 4000, 4500, 12000, 28000],
+		"atk": [2000, 2000, 2000, 2200, 1000, 2000]
 	},
 	{ # Stage 4 (雪原・氷結界)
 		"names": ["enemy1", "enemy9", "enemy12", "enemy16", "enemy2", "enemy17"],
