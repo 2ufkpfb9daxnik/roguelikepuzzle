@@ -107,6 +107,7 @@ var _anim_original_texture: Texture2D = null
 var _anim_original_scale: Vector2 = Vector2.ONE
 var _anim_original_position: Vector2 = Vector2(1550, 250)
 var _anim_tween: Tween = null
+var _rush_tween: Tween = null
 var _idle_tween: Tween = null
 var is_playing_custom_animation: bool = false
 var _current_custom_anim: String = ""
@@ -453,6 +454,10 @@ func _play_idle_loop() -> void:
 		_idle_tween.kill()
 		_idle_tween = null
 
+	if _rush_tween and _rush_tween.is_valid():
+		_rush_tween.kill()
+		_rush_tween = null
+
 	if _anim_original_texture == null:
 		_anim_original_texture = enemy.texture
 		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
@@ -520,6 +525,11 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 		_anim_tween.kill()
 		_anim_tween = null
 
+	# 実行中の突進Tweenがあれば停止
+	if _rush_tween and _rush_tween.is_valid():
+		_rush_tween.kill()
+		_rush_tween = null
+
 	# 初回なら元テクスチャとスケール、位置を退避
 	if _anim_original_texture == null:
 		_anim_original_texture = enemy.texture
@@ -537,25 +547,38 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	var scale_mult: float = anim_info.get("scale_mult", 1.0)
 	var offset_pos: Vector2 = anim_info.get("offset", Vector2.ZERO)
 
-	# 攻撃時は盤面を動かさず敵がいる領域（敵スプライト）だけを手前に大きく1.45倍ズームアップ！
-	var zoom_mult: float = 1.45 if anim_name == "attack" else 1.0
-	var zoom_step_x: float = (-70.0 if not should_flip else 70.0) if anim_name == "attack" else 0.0
-	var zoom_step_y: float = 15.0 if anim_name == "attack" else 0.0
-
 	var frame_w = sheet_tex.get_size().x / float(hf)
 	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
-	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult * zoom_mult
+	var base_anim_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
 
 	enemy.texture = sheet_tex
 	enemy.hframes = hf
 	enemy.vframes = vf
 	enemy.frame = 0
-	enemy.scale = target_scale
 	enemy.flip_h = should_flip
-	enemy.position = _anim_original_position + offset_pos + Vector2(zoom_step_x, zoom_step_y)
+	enemy.position = _anim_original_position + offset_pos
 	enemy.material = _get_or_create_edge_fade_material()
 
 	var duration = float(total_f) / maxf(1.0, fps)
+
+	if anim_name == "attack":
+		# 斜め移動ではなく、中央位置のまま手前（前面）へ連続的にズーム突進
+		enemy.scale = base_anim_scale
+		var rush_in_dur: float = minf(0.24, duration * 0.3)
+		var rush_out_dur: float = minf(0.22, duration * 0.25)
+		var hold_dur: float = maxf(0.0, duration - rush_in_dur - rush_out_dur)
+
+		_rush_tween = create_tween()
+		_rush_tween.tween_property(enemy, "scale", base_anim_scale * 1.45, rush_in_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		if hold_dur > 0.0:
+			_rush_tween.tween_interval(hold_dur)
+		_rush_tween.tween_property(enemy, "scale", base_anim_scale, rush_out_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+
+		# 疾走感のある効果音を再生
+		_play_enemy_attack_rush_se()
+	else:
+		enemy.scale = base_anim_scale
+
 	_anim_tween = create_tween()
 	_anim_tween.tween_method(func(f_idx: int):
 		if enemy and is_instance_valid(enemy):
@@ -573,6 +596,23 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 func is_enemy_animating() -> bool:
 	return is_playing_custom_animation or (_idle_tween != null and _idle_tween.is_valid())
 
+## 敵攻撃時の疾走突進効果音の再生
+func _play_enemy_attack_rush_se() -> void:
+	var se_path = "res://Sound/se/patinko/acceleration_15_demo.mp3"
+	var se_stream = load(se_path) as AudioStream
+	if se_stream:
+		var asp = AudioStreamPlayer.new()
+		asp.stream = se_stream
+		asp.pitch_scale = 1.15
+		var sm_autoload = get_node_or_null("/root/SettingsManager")
+		var se_vol: float = 0.75
+		if sm_autoload and "se_volume" in sm_autoload:
+			se_vol = clampf(sm_autoload.se_volume * 0.75, 0.001, 1.0)
+		asp.volume_db = linear_to_db(se_vol)
+		add_child(asp)
+		asp.play()
+		asp.finished.connect(asp.queue_free)
+
 ## 再生中のアニメーションを停止し、元の待機アニメーションまたは通常画像・スケールに復帰
 func stop_enemy_animation() -> void:
 	if _anim_tween and _anim_tween.is_valid():
@@ -581,6 +621,9 @@ func stop_enemy_animation() -> void:
 	if _idle_tween and _idle_tween.is_valid():
 		_idle_tween.kill()
 		_idle_tween = null
+	if _rush_tween and _rush_tween.is_valid():
+		_rush_tween.kill()
+		_rush_tween = null
 
 	is_playing_custom_animation = false
 	_current_custom_anim = ""
