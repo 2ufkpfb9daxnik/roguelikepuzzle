@@ -24,7 +24,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/grimreaper-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 0.90
 		},
 	},
@@ -50,7 +50,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/cursedmummy-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.15
 		},
 	},
@@ -58,7 +58,7 @@ const SHEETS: Dictionary = {
 		"attack": {
 			"path": "res://Texture/enemy/poisontoad-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.45
 		},
 		"skill": {
@@ -76,7 +76,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/poisontoad-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.45
 		},
 	},
@@ -102,7 +102,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/magmagolem-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.20
 		},
 	},
@@ -111,13 +111,13 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/deepsahuagin-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.09
+			"scale_mult": 1.42
 		},
 		"skill": {
 			"path": "res://Texture/enemy/deepsahuagin-iso_custom_skill_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.09
+			"scale_mult": 1.58
 		},
 		"idle": {
 			"path": "res://Texture/enemy/deepsahuagin-iso_custom_idle1_down.png",
@@ -128,8 +128,8 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/deepsahuagin-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
-			"scale_mult": 1.09
+			"flip_h": true,
+			"scale_mult": 1.31
 		},
 	},
 	"enemy6": {
@@ -154,7 +154,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/Fungus Lord-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.31
 		},
 	},
@@ -180,7 +180,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/skeltonknight-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.05
 		},
 	},
@@ -206,7 +206,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/killerhornet-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.11
 		},
 	},
@@ -232,7 +232,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/Crimson Warlock-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.03
 		},
 	},
@@ -258,7 +258,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/jewelarachne-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.31
 		},
 	},
@@ -284,7 +284,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/granddragon-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.14
 		},
 	},
@@ -310,7 +310,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/werewolf-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.33
 		},
 	},
@@ -336,7 +336,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/darkpixie-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.25
 		},
 	},
@@ -362,7 +362,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/gargoyle-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.32
 		},
 	},
@@ -388,7 +388,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/rainbowserpent-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.09
 		},
 	},
@@ -414,7 +414,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/abysslizard-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.32
 		},
 	},
@@ -423,25 +423,25 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/frostdragon-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.33
+			"scale_mult": 2.19
 		},
 		"skill": {
 			"path": "res://Texture/enemy/frostdragon-iso_custom_skill_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.33
+			"scale_mult": 2.16
 		},
 		"idle": {
 			"path": "res://Texture/enemy/frostdragon-iso_custom_idle1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.33
+			"scale_mult": 1.14
 		},
 		"damaged": {
 			"path": "res://Texture/enemy/frostdragon-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
-			"scale_mult": 1.33
+			"flip_h": true,
+			"scale_mult": 1.86
 		},
 	},
 	"enemy18": {
@@ -466,7 +466,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/demonius-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.40
 		},
 	},
@@ -492,7 +492,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/octopus-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.33
 		},
 	},
@@ -518,7 +518,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/sasori-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.31
 		},
 	},
@@ -527,13 +527,13 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/snake-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 0.95
+			"scale_mult": 1.28
 		},
 		"skill": {
 			"path": "res://Texture/enemy/snake-iso_custom_skill_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 0.95
+			"scale_mult": 1.13
 		},
 		"idle": {
 			"path": "res://Texture/enemy/snake-iso_custom_idle1_down.png",
@@ -544,8 +544,8 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/snake-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
-			"scale_mult": 0.95
+			"flip_h": true,
+			"scale_mult": 0.97
 		},
 	},
 	"enemy22": {
@@ -553,13 +553,13 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/snake-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 0.95
+			"scale_mult": 1.28
 		},
 		"skill": {
 			"path": "res://Texture/enemy/snake-iso_custom_skill_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 0.95
+			"scale_mult": 1.13
 		},
 		"idle": {
 			"path": "res://Texture/enemy/snake-iso_custom_idle1_down.png",
@@ -570,8 +570,8 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/snake-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
-			"scale_mult": 0.95
+			"flip_h": true,
+			"scale_mult": 0.97
 		},
 	},
 	"enemy23": {
@@ -596,7 +596,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/treeman-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.29
 		},
 	},

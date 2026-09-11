@@ -364,15 +364,38 @@ func _create_settings_dialog() -> void:
 		spd_val_lbl.text = "%.1fx" % v
 	)
 	
-	# --- 4. 「閉じる」ボタン ---
+	# --- 4. 「タイトルへ戻る」＆「閉じる」ボタン ---
+	var bottom_btn_w = 320.0
+	var btn_gap = 50.0
+	var start_btn_x = panel_x + (panel_w - (bottom_btn_w * 2.0 + btn_gap)) / 2.0
+	var btn_y = panel_y + panel_h - 85.0
+
+	var title_btn = Button.new()
+	title_btn.text = "タイトルへ戻る"
+	title_btn.add_theme_font_override("font", CUSTOM_FONT)
+	title_btn.add_theme_font_size_override("font_size", 28)
+	title_btn.add_theme_constant_override("outline_size", 6)
+	title_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	title_btn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	title_btn.position = Vector2(start_btn_x, btn_y)
+	title_btn.size = Vector2(bottom_btn_w, 58)
+	title_btn.pressed.connect(func():
+		close_settings()
+		Engine.time_scale = 1.0
+		var t = _get_tree_safe()
+		if t:
+			t.change_scene_to_file("res://title_screen.tscn")
+	)
+	_dialog_canvas.add_child(title_btn)
+
 	var close_btn = Button.new()
 	close_btn.text = "閉じる (CLOSE)"
 	close_btn.add_theme_font_override("font", CUSTOM_FONT)
-	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.add_theme_constant_override("outline_size", 6)
 	close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	close_btn.position = Vector2(panel_x + (panel_w - 280) / 2.0, panel_y + panel_h - 85)
-	close_btn.size = Vector2(280, 58)
+	close_btn.position = Vector2(start_btn_x + bottom_btn_w + btn_gap, btn_y)
+	close_btn.size = Vector2(bottom_btn_w, 58)
 	close_btn.pressed.connect(func():
 		close_settings()
 	)

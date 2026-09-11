@@ -115,6 +115,7 @@ var special_item: Array = []   # [row][col] -> SpecialItemType (int)
 var special_charge: Array = [] # [row][col] -> int (チャージ段階 1..3)
 var grid_water: Array = []     # [row][col] -> bool (水浸しマス・スワップ禁止・雷感電)
 var grid_ice: Array = []       # [row][col] -> int (氷漬けマス・耐久値・スワップ禁止・落雷除去不可)
+var grid_fire: Array = []      # [row][col] -> int (0:なし, 1:炎, 2:木燃焼中・次ターン全方位大延焼)
 var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/マッチで反動ダメージ)
 var grid_stones: Array = []    # [row][col] -> int (石・耐久値 1)
 var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int}] (黒い霧)
@@ -300,6 +301,7 @@ func _initialize_board(collid_template: Node) -> void:
 	special_charge.clear()
 	grid_water.clear()
 	grid_ice.clear()
+	grid_fire.clear()
 	grid_electrified.clear()
 	grid_stones.clear()
 	grid_fog.clear()
@@ -318,6 +320,7 @@ func _initialize_board(collid_template: Node) -> void:
 		var row_charge: Array[int] = []
 		var row_water: Array[bool] = []
 		var row_ice: Array = []
+		var row_fire: Array[int] = []
 		var row_electrified: Array[bool] = []
 		var row_stones: Array[int] = []
 		var row_cursed: Array[bool] = []
@@ -350,6 +353,7 @@ func _initialize_board(collid_template: Node) -> void:
 			row_charge.append(0)
 			row_water.append(false)
 			row_ice.append(0)
+			row_fire.append(0)
 			row_electrified.append(false)
 			row_stones.append(0)
 			row_cursed.append(false)
@@ -381,6 +385,7 @@ func _initialize_board(collid_template: Node) -> void:
 		special_charge.append(row_charge)
 		grid_water.append(row_water)
 		grid_ice.append(row_ice)
+		grid_fire.append(row_fire)
 		grid_electrified.append(row_electrified)
 		grid_stones.append(row_stones)
 		grid_cursed.append(row_cursed)
@@ -3696,14 +3701,15 @@ func moveswords() -> void:
 			if sm:
 				var dmg: float = item.get("damage", 100.0 * swordt)
 				sm.calchp(dmg, 0)
+				# 剣が当たるたびに敵の被弾アニメーションを確実に再生
+				if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("damaged"):
+					sm.play_enemy_animation("damaged")
 				if sm.enemy != null:
 					sm.enemy.modulate.r = 2.0
 			_spawn_hit_spark(s.position)
 			var se = get_node_or_null("AudioStreamPlayer")
 			if se and not se.playing: se.play()
-			# 着弾と同時に確実に破棄（上空へ突き抜けて残存し続ける負荷を完全解消）
-			s.queue_free()
-			continue
+			# 着弾後も消去せず画面外まで貫通飛翔させる
 
 		item["t"] = t + 1.0
 
@@ -4486,7 +4492,32 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> void:
 
 	_redraw_board_effects()
 
-## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ上昇でマス数＆耐久値増加）
+## 水マスに氷が接触した際、連結する水の塊全体を一括で凍結（Flood Fill BFS）
+func _freeze_connected_water(start_cell: Vector2i, ice_dur: int) -> void:
+	if grid_water.size() != GRID_ROWS or grid_ice.size() != GRID_ROWS:
+		return
+	if not grid_water[start_cell.x][start_cell.y]:
+		return
+
+	var queue: Array[Vector2i] = [start_cell]
+	var visited: Dictionary = {start_cell: true}
+
+	while not queue.is_empty():
+		var curr = queue.pop_front()
+		# 水マスを解除し、氷漬けにする
+		grid_water[curr.x][curr.y] = false
+		grid_ice[curr.x][curr.y] = maxi(int(grid_ice[curr.x][curr.y]), ice_dur)
+		_spawn_ice_break_effect(get_cell_position(curr.x, curr.y))
+
+		# 上下左右の隣接水マスを探索
+		for offset in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+			var next_c = curr + offset
+			if next_c.x >= 0 and next_c.x < GRID_ROWS and next_c.y >= 0 and next_c.y < GRID_COLUMNS:
+				if not visited.has(next_c) and grid_water[next_c.x][next_c.y]:
+					visited[next_c] = true
+					queue.append(next_c)
+
+## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ上昇でマス数＆耐久値増加、水接触時は塊ごと一括凍結）
 func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> void:
 	var s_name = "絶対零度・ブリザード" if is_boss else "フロストロック"
 	if show_banner: _show_enemy_skill_banner(s_name, "#80DEEA", is_boss)
@@ -4512,8 +4543,14 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> void:
 			ice_dur = 2
 		elif st_idx >= 2 and i < 4:
 			ice_dur = 2
-		grid_ice[p.x][p.y] = ice_dur
-		_spawn_ice_break_effect(get_cell_position(p.x, p.y))
+
+		# 氷のブレス/スキルが水マスに当たった場合、水の塊ごと全体を一括凍結！
+		var is_water = (grid_water.size() == GRID_ROWS and grid_water[p.x][p.y])
+		if is_water:
+			_freeze_connected_water(p, ice_dur)
+		else:
+			grid_ice[p.x][p.y] = ice_dur
+			_spawn_ice_break_effect(get_cell_position(p.x, p.y))
 
 	_redraw_board_effects()
 
@@ -4802,7 +4839,7 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> void:
 
 	_redraw_board_effects()
 
-## 9. 火属性スキル: 燃焼爆弾コマ生成（ステージ上昇で生成数増加）
+## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ上昇で生成数増加）
 func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> void:
 	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss)
@@ -4822,7 +4859,108 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var p = cands[i]
 		special_item[p.x][p.y] = SpecialItemType.BOMB
 		if is_bomb.size() == GRID_ROWS: is_bomb[p.x][p.y] = true
+		if grid_fire.size() == GRID_ROWS: grid_fire[p.x][p.y] = 1
+		_spawn_explosion_effect(get_cell_position(p.x, p.y))
 
+	_redraw_board_effects()
+
+## 炎の毎ターン延焼処理（隣接延焼、水・氷での消火、木への延焼で次ターン周囲全マス大延焼）
+func _process_fire_spread() -> void:
+	if grid_fire.size() != GRID_ROWS:
+		return
+
+	var has_fire = false
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_fire[r][c] > 0:
+				has_fire = true
+				break
+		if has_fire: break
+
+	if not has_fire:
+		return
+
+	var next_fire: Array = []
+	for r in range(GRID_ROWS):
+		var row: Array[int] = []
+		for c in range(GRID_COLUMNS):
+			row.append(grid_fire[r][c])
+		next_fire.append(row)
+
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var f_state = grid_fire[r][c]
+			if f_state == 1:
+				# 通常の炎：上下左右の4隣接マスへ延焼
+				for offset in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+					var nr = r + offset.x
+					var nc = c + offset.y
+					if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
+						continue
+
+					# 1. 延焼先が水マスの場合は消火され、水蒸気化（水も蒸発）
+					if grid_water.size() == GRID_ROWS and grid_water[nr][nc]:
+						grid_water[nr][nc] = false
+						_spawn_steam_effect(get_cell_position(nr, nc))
+						continue
+
+					# 2. 延焼先が氷マスの場合は消火され、氷耐久値が減少
+					if grid_ice.size() == GRID_ROWS and int(grid_ice[nr][nc]) > 0:
+						grid_ice[nr][nc] = int(grid_ice[nr][nc]) - 1
+						_spawn_ice_break_effect(get_cell_position(nr, nc))
+						_spawn_steam_effect(get_cell_position(nr, nc))
+						continue
+
+					# 3. 延焼先が木（植物マス）の場合：木に延焼（状態2：次ターン全方位大延焼）
+					if _is_plant_cell(nr, nc):
+						if next_fire[nr][nc] == 0:
+							next_fire[nr][nc] = 2
+							_spawn_explosion_effect(get_cell_position(nr, nc))
+						continue
+
+					# 4. 通常マスへの延焼
+					if next_fire[nr][nc] == 0:
+						next_fire[nr][nc] = 1
+						_spawn_explosion_effect(get_cell_position(nr, nc))
+
+			elif f_state == 2:
+				# 前ターンに木に火が移ったマス：このターンで木に隣接するマスすべて（周囲8マス）へ大延焼！
+				var plant = _get_plant_at(r, c)
+				if not plant.is_empty():
+					_burn_plant(plant)
+
+				next_fire[r][c] = 1 # 木の位置は通常の炎として残る
+				_spawn_mega_explosion_effect(get_cell_position(r, c), 2)
+
+				for dr in [-1, 0, 1]:
+					for dc in [-1, 0, 1]:
+						if dr == 0 and dc == 0: continue
+						var nr = r + dr
+						var nc = c + dc
+						if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
+							continue
+
+						# 水マスなら消火
+						if grid_water.size() == GRID_ROWS and grid_water[nr][nc]:
+							grid_water[nr][nc] = false
+							_spawn_steam_effect(get_cell_position(nr, nc))
+							continue
+
+						# 氷マスなら消火＆解凍
+						if grid_ice.size() == GRID_ROWS and int(grid_ice[nr][nc]) > 0:
+							grid_ice[nr][nc] = int(grid_ice[nr][nc]) - 1
+							_spawn_ice_break_effect(get_cell_position(nr, nc))
+							continue
+
+						# 木マスなら状態2へ、通常マスなら状態1へ延焼
+						if _is_plant_cell(nr, nc):
+							if next_fire[nr][nc] == 0:
+								next_fire[nr][nc] = 2
+						else:
+							next_fire[nr][nc] = 1
+						_spawn_explosion_effect(get_cell_position(nr, nc))
+
+	grid_fire = next_fire
 	_redraw_board_effects()
 
 ## ジグルフィードバック演出（操作不可・拒否時の揺れ演出）
@@ -5021,6 +5159,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		f_idx -= 1
 
 	_spawn_turn_bombs()
+	_process_fire_spread()
 	_redraw_board_effects()
 
 ## ゲームオーバー演出

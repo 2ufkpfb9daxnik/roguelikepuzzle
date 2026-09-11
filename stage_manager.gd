@@ -43,31 +43,31 @@ const ENEMY_TEXTURES: Dictionary = {
 	"enemy24": "res://Texture/enemy/wolf_preview_rev_1.png",
 }
 
-# 各ステージごとの敵定義 (通常敵5種 + ボス1種)
+# 各ステージごとの敵定義 (全24体が登場するように完全網羅)
 const STAGE_ENEMIES: Array[Dictionary] = [
-	{ # Stage 1
-		"names": ["enemy4", "enemy5", "enemy8", "enemy12", "enemy15", "enemy24"],
+	{ # Stage 1 (草原)
+		"names": ["enemy4", "enemy5", "enemy8", "enemy13", "enemy15", "enemy24"],
 		"hp": [10000, 3000, 4000, 7500, 6000, 20000],
 		"atk": [1500, 1000, 1500, 2000, 1700, 1900]
 	},
-	{ # Stage 2
-		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy5", "enemy14"],
-		"hp": [3000, 8000, 7000, 6000, 3000, 15000],
-		"atk": [2500, 1500, 1000, 2000, 1000, 3000]
+	{ # Stage 2 (砂漠・古代遺跡)
+		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy14"],
+		"hp": [3000, 8000, 7000, 6000, 4000, 15000],
+		"atk": [2500, 1500, 1000, 2000, 2500, 3000]
 	},
-	{ # Stage 3
-		"names": ["enemy2", "enemy7", "enemy19", "enemy20", "enemy21", "enemy11"],
-		"hp": [3000, 5000, 9000, 4000, 3000, 30000],
-		"atk": [2500, 2000, 2000, 2500, 2000, 1500]
+	{ # Stage 3 (深海・洞窟)
+		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy11"],
+		"hp": [5000, 9000, 4000, 4500, 12000, 30000],
+		"atk": [2000, 2000, 2000, 2200, 1000, 1500]
 	},
-	{ # Stage 4
-		"names": ["enemy3", "enemy5", "enemy13", "enemy16", "enemy23", "enemy17"],
-		"hp": [8000, 3000, 5000, 7000, 12000, 25000],
-		"atk": [1500, 1000, 2000, 2000, 1000, 3500]
+	{ # Stage 4 (雪原・氷結界)
+		"names": ["enemy1", "enemy9", "enemy12", "enemy16", "enemy2", "enemy17"],
+		"hp": [7000, 7000, 7500, 7000, 3000, 25000],
+		"atk": [2000, 3000, 2000, 2000, 2500, 3500]
 	},
-	{ # Stage 5
-		"names": ["enemy1", "enemy7", "enemy9", "enemy19", "enemy12", "enemy18"],
-		"hp": [7000, 5000, 7000, 9000, 7500, 50000],
+	{ # Stage 5 (魔王城・決戦)
+		"names": ["enemy1", "enemy7", "enemy9", "enemy10", "enemy12", "enemy18"],
+		"hp": [7000, 5000, 7000, 6000, 7500, 50000],
 		"atk": [2000, 2000, 3000, 2000, 2000, 4000]
 	}
 ]
@@ -109,6 +109,10 @@ var _anim_original_position: Vector2 = Vector2(1550, 250)
 var _anim_tween: Tween = null
 var _idle_tween: Tween = null
 var is_playing_custom_animation: bool = false
+var _current_custom_anim: String = ""
+var _edge_fade_material: ShaderMaterial = null
+var _battle_camera: Camera2D = null
+var _zoom_tween: Tween = null
 
 const STAGE_STANDARD: Array[int] = [1000, 2000, 30000, 50000, 9223372036854775807]
 
@@ -378,6 +382,69 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 
 	enemycount += 1
 
+## 敵スプライト外周の画面切れ・離散エッジを防止するソフトフェードシェーダーマテリアル
+func _get_or_create_edge_fade_material() -> ShaderMaterial:
+	if _edge_fade_material == null:
+		var sh = Shader.new()
+		sh.code = """
+shader_type canvas_item;
+
+uniform float hframes = 5.0;
+uniform float vframes = 5.0;
+uniform float margin : hint_range(0.0, 0.25) = 0.055;
+
+void fragment() {
+	vec4 col = texture(TEXTURE, UV);
+	vec2 cell_uv = fract(UV * vec2(hframes, vframes));
+	float dist_x = min(cell_uv.x, 1.0 - cell_uv.x);
+	float dist_y = min(cell_uv.y, 1.0 - cell_uv.y);
+	float edge_factor = smoothstep(0.0, margin, min(dist_x, dist_y));
+	col.a *= edge_factor;
+	COLOR = col;
+}
+"""
+		_edge_fade_material = ShaderMaterial.new()
+		_edge_fade_material.shader = sh
+		_edge_fade_material.set_shader_parameter("hframes", 5.0)
+		_edge_fade_material.set_shader_parameter("vframes", 5.0)
+		_edge_fade_material.set_shader_parameter("margin", 0.055)
+	return _edge_fade_material
+
+## 戦闘演出用 Camera2D の取得と初期化
+func _get_battle_camera() -> Camera2D:
+	if _battle_camera == null or not is_instance_valid(_battle_camera):
+		var p = get_parent()
+		if p:
+			_battle_camera = p.get_node_or_null("BattleCamera2D") as Camera2D
+			if _battle_camera == null:
+				_battle_camera = Camera2D.new()
+				_battle_camera.name = "BattleCamera2D"
+				_battle_camera.position = Vector2(960, 540)
+				_battle_camera.enabled = true
+				p.add_child(_battle_camera)
+	return _battle_camera
+
+## 敵攻撃時のズームイン演出
+func _zoom_to_enemy(duration: float = 0.25) -> void:
+	var cam = _get_battle_camera()
+	if cam == null: return
+	if _zoom_tween and _zoom_tween.is_valid():
+		_zoom_tween.kill()
+	_zoom_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var target_cam_pos = Vector2(960, 540) + (Vector2(1550, 250) - Vector2(960, 540)) * 0.40
+	_zoom_tween.tween_property(cam, "position", target_cam_pos, duration)
+	_zoom_tween.tween_property(cam, "zoom", Vector2(1.30, 1.30), duration)
+
+## 通常画角へのズームリセット演出
+func _reset_zoom(duration: float = 0.28) -> void:
+	var cam = _get_battle_camera()
+	if cam == null: return
+	if _zoom_tween and _zoom_tween.is_valid():
+		_zoom_tween.kill()
+	_zoom_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_zoom_tween.tween_property(cam, "position", Vector2(960, 540), duration)
+	_zoom_tween.tween_property(cam, "zoom", Vector2.ONE, duration)
+
 ## 敵が特定のアニメーションスプライトシートを持っているか判定
 func has_enemy_animation(anim_name: String) -> bool:
 	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
@@ -434,6 +501,7 @@ func _play_idle_loop() -> void:
 	enemy.scale = target_scale
 	enemy.flip_h = should_flip
 	enemy.position = _anim_original_position + offset_pos
+	enemy.material = _get_or_create_edge_fade_material()
 
 	var duration = float(total_f) / maxf(1.0, fps)
 	_idle_tween = create_tween().set_loops()
@@ -458,6 +526,14 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	if sheet_tex == null:
 		return false
 
+	# 被弾（damaged）の場合、攻撃やスキル中でなければ連打リスタートを許可
+	if anim_name == "damaged" and is_playing_custom_animation:
+		if _current_custom_anim == "attack" or _current_custom_anim == "skill":
+			return false # 攻撃・スキルモーションを優先
+		if _anim_tween and _anim_tween.is_valid():
+			_anim_tween.kill()
+			_anim_tween = null
+
 	# 待機アニメーションを一時停止
 	if _idle_tween and _idle_tween.is_valid():
 		_idle_tween.kill()
@@ -475,6 +551,11 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 		_anim_original_position = enemy.position
 
 	is_playing_custom_animation = true
+	_current_custom_anim = anim_name
+
+	# 敵の通常攻撃モーション発動時にカメラズームイン
+	if anim_name == "attack":
+		_zoom_to_enemy(0.25)
 
 	var hf: int = anim_info["hframes"]
 	var vf: int = anim_info["vframes"]
@@ -495,6 +576,7 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	enemy.scale = target_scale
 	enemy.flip_h = should_flip
 	enemy.position = _anim_original_position + offset_pos
+	enemy.material = _get_or_create_edge_fade_material()
 
 	var duration = float(total_f) / maxf(1.0, fps)
 	_anim_tween = create_tween()
@@ -522,7 +604,12 @@ func stop_enemy_animation() -> void:
 	if _idle_tween and _idle_tween.is_valid():
 		_idle_tween.kill()
 		_idle_tween = null
+
+	if _current_custom_anim == "attack":
+		_reset_zoom(0.28)
+
 	is_playing_custom_animation = false
+	_current_custom_anim = ""
 
 	if enemy and is_instance_valid(enemy) and not isdeadf:
 		if has_enemy_animation("idle"):
@@ -536,6 +623,7 @@ func stop_enemy_animation() -> void:
 			enemy.scale = _anim_original_scale
 			enemy.flip_h = false
 			enemy.position = _anim_original_position
+			enemy.material = null
 
 ## HP計算（ダメージ適用）
 func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
@@ -549,8 +637,8 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 		var flash_tw = create_tween()
 		enemy.modulate = Color(2.0, 1.8, 1.8, 1.0)
 		flash_tw.tween_property(enemy, "modulate", Color.WHITE, 0.12)
-		# 攻撃中・スキル発動中でなければ被弾アニメーションを再生
-		if not is_playing_custom_animation and has_enemy_animation("damaged"):
+		# 攻撃中・スキル発動中でなければ被弾アニメーションを再生（被弾中なら連打リスタート）
+		if _current_custom_anim != "attack" and _current_custom_anim != "skill" and has_enemy_animation("damaged"):
 			play_enemy_animation("damaged")
 
 	if ehp <= 0 and not isdeadf:

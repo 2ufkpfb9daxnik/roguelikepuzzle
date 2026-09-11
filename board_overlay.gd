@@ -48,6 +48,7 @@ func _process(delta: float) -> void:
 		   ("grid_stones" in board and _has_any_int_in_2d(board.grid_stones)) or \
 		   ("grid_gold_statue" in board and _has_any_int_in_2d(board.grid_gold_statue)) or \
 		   ("grid_cursed" in board and _has_any_in_2d(board.grid_cursed)) or \
+		   ("grid_fire" in board and _has_any_int_in_2d(board.grid_fire)) or \
 		   ("plant_entities" in board and not board.plant_entities.is_empty()):
 			needs_redraw = true
 
@@ -126,6 +127,14 @@ func _draw() -> void:
 	if "active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty():
 		for tor in board.active_wind_tornadoes:
 			_draw_wind_tornado(tor, rot_fast)
+
+	# 9. 炎マス (grid_fire: 毎ターン隣接延焼・木大延焼・水/氷で消火)
+	if "grid_fire" in board and board.grid_fire.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLS):
+				var f_type = int(board.grid_fire[r][c])
+				if f_type > 0:
+					_draw_fire_tile(r, c, f_type, pulse, now)
 
 ## 氷漬けタイルの描画（凍結クリスタル・フロストフレーム・耐久値表示対応）
 func _draw_ice_tile(r: int, c: int, hp: int, pulse: float) -> void:
@@ -453,4 +462,30 @@ func _draw_wind_tornado(tor: Dictionary, rot: float) -> void:
 
 	# 衝撃波リング
 	draw_arc(Vector2(center_x, cur_y), bot_w * 1.8, 0.0, TAU, 22, Color(0.4, 1.0, 0.85, 0.95), 18.0)
+
+## 炎タイルの描画（燃焼フレーム・火柱パルス・木延焼警告マーク）
+func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> void:
+	var x = BOARD_LEFT + c * CELL_PITCH
+	var y = BOARD_TOP + r * CELL_PITCH
+	var center = Vector2(x + CELL_PITCH * 0.5, y + CELL_PITCH * 0.5)
+
+	# 背景の燃焼グロー
+	var glow_col = Color(1.0, 0.3, 0.0, 0.35 * pulse) if fire_type == 1 else Color(1.0, 0.1, 0.1, 0.55 * pulse)
+	draw_rect(Rect2(x + 10, y + 10, CELL_PITCH - 20, CELL_PITCH - 20), glow_col, true)
+
+	# 炎の枠線
+	var border_col = Color(1.0, 0.6, 0.1, 0.85 * pulse) if fire_type == 1 else Color(1.0, 0.2, 0.0, 0.95 * pulse)
+	draw_rect(Rect2(x + 15, y + 15, CELL_PITCH - 30, CELL_PITCH - 30), border_col, false, 8.0)
+
+	# 炎アイコン・火炎球（複数の火炎円のゆらめき）
+	var flicker1 = sin(now * 0.012 + r * 2.0 + c) * 20.0
+	var flicker2 = cos(now * 0.015 + c * 3.0) * 15.0
+	draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(1.0, 0.4, 0.0, 0.65))
+	draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(1.0, 0.8, 0.1, 0.80))
+	draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(1.0, 1.0, 0.6, 0.90))
+
+	if fire_type == 2:
+		# 木燃焼中（次ターン全方位大延焼警告テキスト）
+		draw_string(CUSTOM_FONT, center + Vector2(-120, 140), "⚠大延焼⚠", HORIZONTAL_ALIGNMENT_CENTER, 240, 40, Color(1.0, 0.9, 0.2, 0.95))
+
 
