@@ -50,15 +50,15 @@ const STAGE_ENEMIES: Array[Dictionary] = [
 		"hp": [10000, 3000, 4000, 7500, 6000, 20000],
 		"atk": [1500, 1000, 1500, 2000, 1700, 1900]
 	},
-	{ # Stage 2 (洞窟・火山地帯)
-		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy11"],
-		"hp": [3000, 8000, 7000, 6000, 4000, 18000],
+	{ # Stage 2 (洞窟)
+		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy20", "enemy14"],
+		"hp": [3000, 8000, 7000, 6000, 4000, 15000],
 		"atk": [2500, 1500, 1000, 2000, 2500, 3000]
 	},
-	{ # Stage 3 (砂漠・古代遺跡)
-		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy14"],
-		"hp": [5000, 9000, 4000, 4500, 12000, 28000],
-		"atk": [2000, 2000, 2000, 2200, 1000, 2000]
+	{ # Stage 3 (砂漠)
+		"names": ["enemy7", "enemy19", "enemy21", "enemy22", "enemy23", "enemy11"],
+		"hp": [5000, 9000, 4000, 4500, 12000, 30000],
+		"atk": [2000, 2000, 2000, 2200, 1000, 1500]
 	},
 	{ # Stage 4 (雪原・氷結界)
 		"names": ["enemy1", "enemy9", "enemy12", "enemy16", "enemy2", "enemy17"],
@@ -289,6 +289,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 		
 	stop_enemy_animation()
 	_anim_original_texture = null
+	_cleanup_battle_camera()
 
 	var is_boss: bool = spawn_as_boss or (stage_enemy == 5)
 	is_current_boss = is_boss
@@ -410,40 +411,13 @@ void fragment() {
 		_edge_fade_material.set_shader_parameter("margin", 0.055)
 	return _edge_fade_material
 
-## 戦闘演出用 Camera2D の取得と初期化
-func _get_battle_camera() -> Camera2D:
-	if _battle_camera == null or not is_instance_valid(_battle_camera):
-		var p = get_parent()
-		if p:
-			_battle_camera = p.get_node_or_null("BattleCamera2D") as Camera2D
-			if _battle_camera == null:
-				_battle_camera = Camera2D.new()
-				_battle_camera.name = "BattleCamera2D"
-				_battle_camera.position = Vector2(960, 540)
-				_battle_camera.enabled = true
-				p.add_child(_battle_camera)
-	return _battle_camera
-
-## 敵攻撃時のズームイン演出
-func _zoom_to_enemy(duration: float = 0.25) -> void:
-	var cam = _get_battle_camera()
-	if cam == null: return
-	if _zoom_tween and _zoom_tween.is_valid():
-		_zoom_tween.kill()
-	_zoom_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	var target_cam_pos = Vector2(960, 540) + (Vector2(1550, 250) - Vector2(960, 540)) * 0.40
-	_zoom_tween.tween_property(cam, "position", target_cam_pos, duration)
-	_zoom_tween.tween_property(cam, "zoom", Vector2(1.30, 1.30), duration)
-
-## 通常画角へのズームリセット演出
-func _reset_zoom(duration: float = 0.28) -> void:
-	var cam = _get_battle_camera()
-	if cam == null: return
-	if _zoom_tween and _zoom_tween.is_valid():
-		_zoom_tween.kill()
-	_zoom_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_zoom_tween.tween_property(cam, "position", Vector2(960, 540), duration)
-	_zoom_tween.tween_property(cam, "zoom", Vector2.ONE, duration)
+## 既存Camera2Dノードがあれば初期位置にリセット・安全に無効化
+func _cleanup_battle_camera() -> void:
+	var p = get_parent()
+	if p:
+		var cam = p.get_node_or_null("BattleCamera2D") as Camera2D
+		if cam:
+			cam.queue_free()
 
 ## 敵が特定のアニメーションスプライトシートを持っているか判定
 func has_enemy_animation(anim_name: String) -> bool:
@@ -553,10 +527,6 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	is_playing_custom_animation = true
 	_current_custom_anim = anim_name
 
-	# 敵の通常攻撃モーション発動時にカメラズームイン
-	if anim_name == "attack":
-		_zoom_to_enemy(0.25)
-
 	var hf: int = anim_info["hframes"]
 	var vf: int = anim_info["vframes"]
 	var total_f: int = anim_info["total_frames"]
@@ -565,9 +535,14 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	var scale_mult: float = anim_info.get("scale_mult", 1.0)
 	var offset_pos: Vector2 = anim_info.get("offset", Vector2.ZERO)
 
+	# 攻撃時は盤面を動かさず敵がいる領域（敵スプライト）だけを手前に大きく1.45倍ズームアップ！
+	var zoom_mult: float = 1.45 if anim_name == "attack" else 1.0
+	var zoom_step_x: float = (-70.0 if not should_flip else 70.0) if anim_name == "attack" else 0.0
+	var zoom_step_y: float = 15.0 if anim_name == "attack" else 0.0
+
 	var frame_w = sheet_tex.get_size().x / float(hf)
 	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
-	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
+	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult * zoom_mult
 
 	enemy.texture = sheet_tex
 	enemy.hframes = hf
@@ -575,7 +550,7 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	enemy.frame = 0
 	enemy.scale = target_scale
 	enemy.flip_h = should_flip
-	enemy.position = _anim_original_position + offset_pos
+	enemy.position = _anim_original_position + offset_pos + Vector2(zoom_step_x, zoom_step_y)
 	enemy.material = _get_or_create_edge_fade_material()
 
 	var duration = float(total_f) / maxf(1.0, fps)
@@ -604,9 +579,6 @@ func stop_enemy_animation() -> void:
 	if _idle_tween and _idle_tween.is_valid():
 		_idle_tween.kill()
 		_idle_tween = null
-
-	if _current_custom_anim == "attack":
-		_reset_zoom(0.28)
 
 	is_playing_custom_animation = false
 	_current_custom_anim = ""
