@@ -100,42 +100,14 @@ const ENEMY_SPECIES: Dictionary = {
 	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "color": "#FFD700"},
 }
 
-# 敵の連番スプライトシート定義（攻撃・スキル等のアニメーション）
-const ENEMY_ANIMATION_SHEETS: Dictionary = {
-	"enemy24": { # 冥狼フェンリル
-		"attack": {
-			"path": "res://Texture/enemy/wolf-attack.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
-			"scale_mult": 1.55
-		},
-		"skill": {
-			"path": "res://Texture/enemy/wolf-skill.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
-			"scale_mult": 1.88
-		}
-	},
-	"enemy14": { # グランガーゴイル (demon)
-		"attack": {
-			"path": "res://Texture/enemy/demon-attack.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
-			"scale_mult": 2.15
-		},
-		"skill": {
-			"path": "res://Texture/enemy/demon-skill.png",
-			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
-			"scale_mult": 1.50
-		}
-	}
-}
+# 敵の連番スプライトシート定義（全24キャラの攻撃・スキル・待機・被弾アニメーション）
+const ENEMY_ANIMATION_SHEETS: Dictionary = EnemyAnimationData.SHEETS
 
 var _anim_original_texture: Texture2D = null
 var _anim_original_scale: Vector2 = Vector2.ONE
 var _anim_original_position: Vector2 = Vector2(1550, 250)
 var _anim_tween: Tween = null
+var _idle_tween: Tween = null
 var is_playing_custom_animation: bool = false
 
 const STAGE_STANDARD: Array[int] = [1000, 2000, 30000, 50000, 9223372036854775807]
@@ -380,6 +352,9 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 		if pb:
 			pb.encolor = enemy.modulate.r
 
+		# 敵の待機（Idle）アニメーションを開始
+		start_enemy_idle_animation()
+
 	# HPバーの生成
 	var sm = _get_score_manager()
 	if sm:
@@ -408,6 +383,65 @@ func has_enemy_animation(anim_name: String) -> bool:
 	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
 	return enemy_anims.has(anim_name)
 
+## 敵の待機（Idle）アニメーションをループ再生開始
+func start_enemy_idle_animation() -> void:
+	if not has_enemy_animation("idle"):
+		return
+	if is_playing_custom_animation:
+		return
+	_play_idle_loop()
+
+func _play_idle_loop() -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
+	if not enemy_anims.has("idle"):
+		return
+
+	var anim_info = enemy_anims["idle"]
+	var sheet_path = anim_info.get("path", "")
+	var sheet_tex: Texture2D = anim_info.get("texture", null)
+	if sheet_tex == null and ResourceLoader.exists(sheet_path):
+		sheet_tex = load(sheet_path) as Texture2D
+	if sheet_tex == null:
+		return
+
+	if _idle_tween and _idle_tween.is_valid():
+		_idle_tween.kill()
+		_idle_tween = null
+
+	if _anim_original_texture == null:
+		_anim_original_texture = enemy.texture
+		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
+		_anim_original_position = enemy.position
+
+	var hf: int = anim_info["hframes"]
+	var vf: int = anim_info["vframes"]
+	var total_f: int = anim_info["total_frames"]
+	var fps: float = anim_info["fps"]
+	var should_flip: bool = anim_info.get("flip_h", false)
+	var scale_mult: float = anim_info.get("scale_mult", 1.0)
+	var offset_pos: Vector2 = anim_info.get("offset", Vector2.ZERO)
+
+	var frame_w = sheet_tex.get_size().x / float(hf)
+	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
+	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
+
+	enemy.texture = sheet_tex
+	enemy.hframes = hf
+	enemy.vframes = vf
+	enemy.frame = 0
+	enemy.scale = target_scale
+	enemy.flip_h = should_flip
+	enemy.position = _anim_original_position + offset_pos
+
+	var duration = float(total_f) / maxf(1.0, fps)
+	_idle_tween = create_tween().set_loops()
+	_idle_tween.tween_method(func(f_idx: int):
+		if enemy and is_instance_valid(enemy) and not is_playing_custom_animation:
+			enemy.frame = clampi(f_idx, 0, total_f - 1)
+	, 0, total_f - 1, duration)
+
 ## 敵の連番スプライトシートアニメーションを再生
 func play_enemy_animation(anim_name: String, on_complete: Callable = Callable()) -> bool:
 	if enemy == null or not is_instance_valid(enemy):
@@ -424,16 +458,23 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	if sheet_tex == null:
 		return false
 
+	# 待機アニメーションを一時停止
+	if _idle_tween and _idle_tween.is_valid():
+		_idle_tween.kill()
+		_idle_tween = null
+
 	# 実行中のアニメーションTweenがあれば停止
 	if _anim_tween and _anim_tween.is_valid():
 		_anim_tween.kill()
+		_anim_tween = null
 
 	# 初回なら元テクスチャとスケール、位置を退避
-	if not is_playing_custom_animation:
+	if _anim_original_texture == null:
 		_anim_original_texture = enemy.texture
 		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
 		_anim_original_position = enemy.position
-		is_playing_custom_animation = true
+
+	is_playing_custom_animation = true
 
 	var hf: int = anim_info["hframes"]
 	var vf: int = anim_info["vframes"]
@@ -469,21 +510,32 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	)
 	return true
 
-## 再生中のアニメーションを停止し、元の通常画像・スケールに即時復元
+## 敵のアニメーションが動作中か判定
+func is_enemy_animating() -> bool:
+	return is_playing_custom_animation or (_idle_tween != null and _idle_tween.is_valid())
+
+## 再生中のアニメーションを停止し、元の待機アニメーションまたは通常画像・スケールに復帰
 func stop_enemy_animation() -> void:
 	if _anim_tween and _anim_tween.is_valid():
 		_anim_tween.kill()
 		_anim_tween = null
-	if enemy and is_instance_valid(enemy) and is_playing_custom_animation:
-		if _anim_original_texture:
-			enemy.texture = _anim_original_texture
-		enemy.hframes = 1
-		enemy.vframes = 1
-		enemy.frame = 0
-		enemy.scale = _anim_original_scale
-		enemy.flip_h = false
-		enemy.position = _anim_original_position
+	if _idle_tween and _idle_tween.is_valid():
+		_idle_tween.kill()
+		_idle_tween = null
 	is_playing_custom_animation = false
+
+	if enemy and is_instance_valid(enemy) and not isdeadf:
+		if has_enemy_animation("idle"):
+			start_enemy_idle_animation()
+		else:
+			if _anim_original_texture:
+				enemy.texture = _anim_original_texture
+			enemy.hframes = 1
+			enemy.vframes = 1
+			enemy.frame = 0
+			enemy.scale = _anim_original_scale
+			enemy.flip_h = false
+			enemy.position = _anim_original_position
 
 ## HP計算（ダメージ適用）
 func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
@@ -491,7 +543,16 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 	myhp = clampf(myhp - damage_to_player, 0.0, myhpmax)
 	ehppar = ehp / ehpmax if ehpmax > 0 else 0.0
 	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
-	
+
+	if damage_to_enemy > 0.0 and not isdeadf and enemy != null and is_instance_valid(enemy):
+		# 被弾時のヒット点滅（爽快感向上）
+		var flash_tw = create_tween()
+		enemy.modulate = Color(2.0, 1.8, 1.8, 1.0)
+		flash_tw.tween_property(enemy, "modulate", Color.WHITE, 0.12)
+		# 攻撃中・スキル発動中でなければ被弾アニメーションを再生
+		if not is_playing_custom_animation and has_enemy_animation("damaged"):
+			play_enemy_animation("damaged")
+
 	if ehp <= 0 and not isdeadf:
 		isdead()
 
@@ -751,6 +812,12 @@ func notfevertime() -> void:
 			var n = sm.get_node_or_null(node_name)
 			if n: n.visible = false
 
+	# フィーバー演出の顔パーティクルを全消去してメモリ解放
+	for face in facearr:
+		if face != null and is_instance_valid(face):
+			face.queue_free()
+	facearr.clear()
+
 func _process(_delta: float) -> void:
 	var spd: float = maxf(0.1, _get_game_speed())
 	_sim_accumulator += spd
@@ -918,18 +985,18 @@ func _process_fever_effects() -> void:
 			var n = sm.get_node_or_null(node_name)
 			if n: n.visible = true
 			
-	# 顔アイコンの落下と生成
+	# 顔アイコンの落下と生成（毎フレーム無制限追加を防ぎ、最大24個に制限）
 	var alive_faces: Array[Node2D] = []
 	for face in facearr:
 		if face != null and is_instance_valid(face):
-			face.position.y += 10.0
+			face.position.y += 24.0
 			if face.position.y >= 4000.0:
 				face.queue_free()
 			else:
 				alive_faces.append(face)
 	facearr = alive_faces
 	
-	if fever_face_template:
+	if fever_face_template and facearr.size() < 24:
 		var new_face: Node2D = fever_face_template.duplicate()
 		new_face.position = Vector2(randi() % 14000, 0)
 		add_child(new_face)

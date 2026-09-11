@@ -57,8 +57,8 @@ const BOUNCE_CYCLES: int = 3        # 跳ねる回数 (3回)
 const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 36フレーム (約0.6秒)
 const BOUNCE_HEIGHT: float = 28.0   # 上下運動の跳ね上がり高さ (px)
 
-# 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（フリーズ対策・描画負荷最適化）
-const MAX_COMBAT_PROJECTILES: int = 300
+# 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（描画負荷・ノード生成最適化。ダメージ・回復等は100%保持）
+const MAX_COMBAT_PROJECTILES: int = 24
 
 # 外部ノードから参照されるプロパティ
 var grid_column: int = GRID_COLUMNS
@@ -187,6 +187,8 @@ var flying_potions: Array[Dictionary] = []  # ポーション
 
 var scratch_effect: AnimatedSprite2D = null
 var is_casting_skill_turn: bool = false
+var _last_spark_msec: int = 0
+var _last_shockwave_msec: int = 0
 
 # ノード参照
 var score_manager: Node2D = null
@@ -286,6 +288,7 @@ func _ready() -> void:
 
 ## 盤面の初期化（初期状態で3マッチが発生しないよう配置・定数テクスチャによる確実な属性紐付け）
 func _initialize_board(collid_template: Node) -> void:
+	_clear_all_combat_projectiles()
 	grid_n.clear()
 	grid_i.clear()
 	ismatched.clear()
@@ -1968,8 +1971,13 @@ func _create_multi_layer_bolt(parent: Node, pts: PackedVector2Array, glow_color:
 
 	return [glow, bolt, core]
 
-## 剣命中時の斬撃十字スパーク演出
+## 剣命中時の斬撃十字スパーク演出（高密度過負荷を防ぐため時間間引き）
 func _spawn_hit_spark(hit_pos: Vector2) -> void:
+	var now = Time.get_ticks_msec()
+	if now - _last_spark_msec < 40:
+		return
+	_last_spark_msec = now
+
 	var effects_parent = get_node_or_null("Effects")
 	if effects_parent == null: effects_parent = self
 
@@ -1988,7 +1996,9 @@ func _spawn_hit_spark(hit_pos: Vector2) -> void:
 		tw_sl.tween_property(slash, "modulate:a", 0.0, 0.14)
 		tw_sl.chain().tween_callback(slash.queue_free)
 
-	_spawn_shockwave_ring(hit_pos, Color(1.0, 0.85, 0.2, 0.9), 180.0, 0.16)
+	if now - _last_shockwave_msec >= 100:
+		_last_shockwave_msec = now
+		_spawn_shockwave_ring(hit_pos, Color(1.0, 0.85, 0.2, 0.9), 180.0, 0.16)
 
 ## 爆発演出（白熱スターフラッシュ、二重火炎球、火炎衝撃波リング、飛散火の粉パーティクル）
 func _spawn_explosion_effect(pos: Vector2) -> void:
@@ -3403,6 +3413,7 @@ func _process(delta: float) -> void:
 
 		# ステージクリア時または敵死亡時の演出停止
 		if sm and (sm.isstageclear or sm.isdeadf):
+			_clear_all_combat_projectiles()
 			isattack = 0
 			isblock = 0
 			has_enemy_attacked = false
@@ -3416,7 +3427,6 @@ func _process(delta: float) -> void:
 			if rensa_se:
 				rensa_se.pitch_scale = 0.92 * spd
 			_restore_score_label_positions()
-			_update_all_projectiles()
 			continue
 
 		# 戦闘演出ターンの処理
@@ -3659,10 +3669,11 @@ func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s
 			overlay.draw_circle(center, 30.0 * s, Color.WHITE)
 
 
-## 剣の発射物アニメーション (通過判定によるダメージすり抜けバグ完全解消)
+## 剣の発射物アニメーション（着弾時即座に消去・敵撃破時は残存弾を速やかに全消去）
 func moveswords() -> void:
 	var remaining: Array[Dictionary] = []
 	var sm = _get_stage_manager()
+	var is_enemy_dead = (sm == null or sm.isdeadf or (sm.enemy == null and sm.ehp <= 0))
 
 	for item in flying_swords:
 		if not is_instance_valid(item.get("node")):
@@ -3670,6 +3681,11 @@ func moveswords() -> void:
 		var s: Sprite2D = item["node"]
 		var t: float = item["t"]
 		var rnd: float = item["rnd"]
+
+		# 敵がすでに撃破されている場合は、無駄な飛翔を続けず即座に消去
+		if is_enemy_dead:
+			s.queue_free()
+			continue
 
 		if t >= 0:
 			s.position.x += 10.0 + rnd
@@ -3681,10 +3697,13 @@ func moveswords() -> void:
 				var dmg: float = item.get("damage", 100.0 * swordt)
 				sm.calchp(dmg, 0)
 				if sm.enemy != null:
-					sm.enemy.modulate.r += 50.0
+					sm.enemy.modulate.r = 2.0
 			_spawn_hit_spark(s.position)
 			var se = get_node_or_null("AudioStreamPlayer")
-			if se: se.play()
+			if se and not se.playing: se.play()
+			# 着弾と同時に確実に破棄（上空へ突き抜けて残存し続ける負荷を完全解消）
+			s.queue_free()
+			continue
 
 		item["t"] = t + 1.0
 
@@ -3715,7 +3734,7 @@ func moveshields() -> void:
 			s.position = target_p
 			_spawn_shockwave_ring(target_p, Color(0.3, 0.9, 1.0, 0.8), 80.0, 0.22)
 			var se = get_node_or_null("shieldmove")
-			if se: se.play()
+			if se and not se.playing: se.play()
 
 		item["t"] = t + 1.0
 		remaining.append(item)
@@ -3740,10 +3759,12 @@ func movefoods() -> void:
 		item["t"] = t + 1.0
 
 		if s.position.y <= 5000.0:
-			if sm: sm.calchp(0, -100.0)
+			if sm:
+				var heal_val: float = item.get("heal", 100.0)
+				sm.calchp(0, -heal_val)
 			var p = get_parent()
 			var se = p.get_node_or_null("kaihuku") if p else null
-			if se: se.play()
+			if se and not se.playing: se.play()
 			s.queue_free()
 		else:
 			remaining.append(item)
@@ -3769,10 +3790,12 @@ func movepotions() -> void:
 		item["t"] = t + 1.0
 
 		if s.position.y <= 5000.0:
-			if sm: sm.calcgage(100.0)
+			if sm:
+				var gage_val: float = item.get("gage", 100.0)
+				sm.calcgage(gage_val)
 			var p = get_parent()
 			var se = p.get_node_or_null("potion") if p else null
-			if se: se.play()
+			if se and not se.playing: se.play()
 			s.queue_free()
 		else:
 			remaining.append(item)
@@ -3906,12 +3929,12 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		_spawn_attack_projectiles(sm, score_mgr)
 
 	elif interval <= base_time + 144 and isattack:
-		# 敵が撃破された場合、残存発射物の着地完了後に即座にターン終了（無駄な待機・シールド・死んだ敵の攻撃を完全カット）
+		# 敵が撃破された場合、残存発射物を即座に全消去してターン終了（死んだ敵への攻撃や無駄な待機を完全カット）
 		if sm and (sm.isdeadf or (sm.enemy == null and sm.ehp <= 0)):
-			if flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
-				_reset_turn(sm, score_mgr)
-				current_state = BoardState.IDLE
-				return
+			_clear_all_combat_projectiles()
+			_reset_turn(sm, score_mgr)
+			current_state = BoardState.IDLE
+			return
 		# 攻撃発射物が全数着地済みなら、長すぎる144フレームの空き時間をスキップして速やかに次フェーズへ
 		if interval >= base_time + 10 and flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
 			interval = base_time + 144
@@ -3987,12 +4010,13 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		})
 		msisvalid = true
 
-	# 食料（生成数最大300個制限）
+	# 食料（生成数最大24個制限・回復量100%保持）
 	var stage_idx = sm.stage - 1 if sm else 0
 	var max_heal_cap: int = 50 * int(pow(10, stage_idx)) - int((sm.myhp if sm else 0) / (foodt * 100.0))
 	var raw_food_cnt: int = min(max_heal_cap, int(score_mgr.divscore[PieceType.FOOD] / (foodt * 100.0)))
 	score_mgr.divscore[PieceType.FOOD] -= int(raw_food_cnt * foodt * 100.0)
 	var food_cnt: int = clampi(raw_food_cnt, 0, MAX_COMBAT_PROJECTILES)
+	var heal_per_food: float = (float(raw_food_cnt) / float(max(1, food_cnt))) * 100.0
 	for i in range(food_cnt):
 		var s: Sprite2D = Sprite2D.new()
 		s.texture = PIECE_TEXTURES[PieceType.FOOD]
@@ -4000,13 +4024,19 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
 		add_child(s)
-		flying_foods.append({"node": s, "t": -float(i * 70) / float(max(1, food_cnt)), "rnd": float(randi() % 120)})
+		flying_foods.append({
+			"node": s,
+			"t": -float(i * 70) / float(max(1, food_cnt)),
+			"rnd": float(randi() % 120),
+			"heal": heal_per_food
+		})
 
-	# ポーション（生成数最大300個制限）
+	# ポーション（生成数最大24個制限・ゲージ量100%保持）
 	var max_gage_cap: int = 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont))
 	var raw_potion_cnt: int = min(max_gage_cap, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
 	score_mgr.divscore[PieceType.POTION] -= int(raw_potion_cnt * potiont * 100.0)
 	var potion_cnt: int = clampi(raw_potion_cnt, 0, MAX_COMBAT_PROJECTILES)
+	var gage_per_potion: float = (float(raw_potion_cnt) / float(max(1, potion_cnt))) * 100.0
 	for i in range(potion_cnt):
 		var s: Sprite2D = Sprite2D.new()
 		s.texture = PIECE_TEXTURES[PieceType.POTION]
@@ -4014,9 +4044,14 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
 		add_child(s)
-		flying_potions.append({"node": s, "t": -float(i * 70) / float(max(1, potion_cnt)), "rnd": float(randi() % 120)})
+		flying_potions.append({
+			"node": s,
+			"t": -float(i * 70) / float(max(1, potion_cnt)),
+			"rnd": float(randi() % 120),
+			"gage": gage_per_potion
+		})
 
-## シールド生成（フリーズ対策・描画負荷最適化のため生成数を最大300個に制限。防御力は全数保持）
+## シールド生成（描画負荷最適化のため生成数を最大24個に制限。防御力は全数保持）
 func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 	if not score_mgr: return
 	var raw_shield_cnt: int = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
@@ -4095,11 +4130,19 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	var p = get_parent()
 	var scratch_template = p.get_node_or_null("scratch") if p else null
 	if scratch_template:
+		if is_instance_valid(scratch_effect):
+			scratch_effect.queue_free()
+			scratch_effect = null
 		scratch_effect = scratch_template.duplicate()
 		scratch_effect.scale *= 8.0
 		scratch_effect.position = Vector2(15000, 2500)
 		scratch_effect.frame = 0
 		scratch_effect.play()
+		scratch_effect.animation_finished.connect(func():
+			if is_instance_valid(scratch_effect):
+				scratch_effect.queue_free()
+				scratch_effect = null
+		)
 		add_child(scratch_effect)
 
 	var block_se = get_node_or_null("block")
@@ -4899,6 +4942,38 @@ func _spawn_curse_burst_effect(pos: Vector2) -> void:
 		tw.tween_property(orb, "modulate:a", 0.0, 0.3)
 		tw.chain().tween_callback(orb.queue_free)
 
+## 戦闘発射物・シールド・攻撃エフェクトの全消去（蓄積・メモリリーク・重さの完全根絶）
+func _clear_all_combat_projectiles() -> void:
+	for item in flying_swords:
+		if is_instance_valid(item.get("node")):
+			item["node"].queue_free()
+	flying_swords.clear()
+
+	for item in active_shields:
+		if is_instance_valid(item.get("node")):
+			item["node"].queue_free()
+	active_shields.clear()
+	current_total_shields = 0
+
+	for item in flying_foods:
+		if is_instance_valid(item.get("node")):
+			item["node"].queue_free()
+	flying_foods.clear()
+
+	for item in flying_potions:
+		if is_instance_valid(item.get("node")):
+			item["node"].queue_free()
+	flying_potions.clear()
+
+	for item in flying_cells:
+		if is_instance_valid(item.get("node")):
+			item["node"].queue_free()
+	flying_cells.clear()
+
+	if is_instance_valid(scratch_effect):
+		scratch_effect.queue_free()
+		scratch_effect = null
+
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	if sm and sm.has_method("stop_enemy_animation"):
@@ -4907,6 +4982,9 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	# 敵スキル演出ノードを安全に消去
 	if get_tree():
 		get_tree().call_group("enemy_skill_vfx", "queue_free")
+
+	# 残存発射物・シールド・エフェクトを確実に全消去してメモリと処理負荷をリセット
+	_clear_all_combat_projectiles()
 
 	isattack = 0
 	isblock = 0
