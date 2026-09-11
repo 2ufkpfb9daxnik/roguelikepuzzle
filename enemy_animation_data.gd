@@ -310,7 +310,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/werewolf-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": false,
+			"flip_h": true,
 			"scale_mult": 1.33
 		},
 	},
