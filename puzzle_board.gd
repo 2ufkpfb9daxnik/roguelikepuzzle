@@ -60,11 +60,11 @@ const ACCEL_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_de
 const UTU2_SE: AudioStream = preload("res://Sound/se/teki/utu-2.mp3")
 const GAGE_HEAL_SE: AudioStream = preload("res://Sound/ゲージ回復2.mp3")
 
-# スコア欄の上下運動（放物線バウンド）パラメータ
-const BOUNCE_CYCLE_FRAMES: int = 12  # 1回の跳ね上がり周期 (12フレーム)
+# スコア欄の上下運動（放物線バウンド）パラメータ (36フレーム x 3回 = 108フレーム)
+const BOUNCE_CYCLE_FRAMES: int = 36  # 1回の跳ね上がり周期 (36フレーム)
 const BOUNCE_CYCLES: int = 3        # 跳ねる回数 (3回)
-const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 36フレーム (約0.6秒)
-const BOUNCE_HEIGHT: float = 24.0   # 上下運動の跳ね上がり高さ (px)
+const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 108フレーム (約1.8秒)
+const BOUNCE_HEIGHT: float = 33.0   # 上下運動の跳ね上がり高さ (px)
 
 # 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（描画負荷・ノード生成最適化。ダメージ・回復等は100%保持）
 const MAX_COMBAT_PROJECTILES: int = 24
@@ -3945,16 +3945,18 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時やスプライトシート再生時は演出確認のため待機時間を確保）
 		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
 		var skill_trigger_fast = 8
-		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (60 if has_custom_atk else 14)
+		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (75 if has_custom_atk else 14)
 		if interval == 0:
 			is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 			has_enemy_attacked = false
 			has_enemy_skilled = false
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
-			_set_enemy_attack_motion(sm, true)
+			if not is_casting_skill_turn:
+				_set_enemy_attack_motion(sm, true)
 		elif interval == 4:
-			_execute_enemy_attack(sm)
+			if not is_casting_skill_turn:
+				_execute_enemy_attack(sm)
 		elif interval == skill_trigger_fast and is_casting_skill_turn:
 			_execute_enemy_elemental_skill(sm)
 		elif interval == 10:
@@ -3964,6 +3966,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
 		elif interval > end_wait_fast:
+			if sm and sm.is_playing_custom_animation:
+				return
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
 			return
@@ -3971,17 +3975,15 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		return
 
 	# --- 行動が発生する場合の通常のタイムライン ---
-	# 効果音の再生
-	if interval == 0:
-		var anten = get_node_or_null("anten")
-		if anten: anten.play()
+	# スコア欄ラベルの上下運動（放物線バウンド）演出 (36フレーム x 3回 = 108フレーム)
+	if interval <= 108:
+		if interval == 0 or interval == 36 or interval == 72:
+			var anten = get_node_or_null("anten")
+			if anten: anten.play()
 
-	if interval < BOUNCE_TOTAL_FRAMES:
-		# 以前の上下放物線バウンド挙動に復元し、テンポよく大幅に高速化 (12フレーム/周期 x 3回)
-		var t_in_cycle: float = float(interval % BOUNCE_CYCLE_FRAMES)
-		var half: float = float(BOUNCE_CYCLE_FRAMES) / 2.0
-		# 放物線: t=0で0, t=6で-BOUNCE_HEIGHT, t=12で0
-		var hop_y: float = ((t_in_cycle - half) * (t_in_cycle - half) * (BOUNCE_HEIGHT / (half * half))) - BOUNCE_HEIGHT
+		var t_in_cycle: float = float(interval % 36)
+		# 放物線: t=0で0, t=18で-32.4, t=36で0 (元の計算式: (t-18)^2 / 10 - 32.4)
+		var hop_y: float = (t_in_cycle - 18.0) * (t_in_cycle - 18.0) / 10.0 - 32.4
 
 		if score_mgr:
 			for i in range(5):
@@ -3995,8 +3997,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		# バウンド終了後および攻撃フェーズ中は、初期位置・通常スケール・白色に復帰固定
 		_restore_score_label_positions()
 
-	# 攻撃・防御・敵ターンのタイムライン（BOUNCE_TOTAL_FRAMES を基準にテンポよく進行）
-	var base_time: int = BOUNCE_TOTAL_FRAMES
+	# 攻撃・防御・敵ターンのタイムライン（108フレームのバウンド終了後から開始）
+	var base_time: int = 108
 
 	if interval == base_time + 1 and isattack:
 		_spawn_attack_projectiles(sm, score_mgr)
@@ -4033,10 +4035,12 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 		has_enemy_attacked = false
 		has_enemy_skilled = false
-		_set_enemy_attack_motion(sm, true)
+		if not is_casting_skill_turn:
+			_set_enemy_attack_motion(sm, true)
 
 	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
-		_execute_enemy_attack(sm)
+		if not is_casting_skill_turn:
+			_execute_enemy_attack(sm)
 
 	elif interval == base_time + 18 + 144 * isattack + 128 * isblock:
 		if is_casting_skill_turn:
@@ -4046,11 +4050,14 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		if not is_casting_skill_turn:
 			_set_enemy_attack_motion(sm, false)
 
-	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+		# 敵のアニメーション（攻撃モーションまたはスキルモーション）が再生中の場合は完了を必ず待つ
+		if sm and sm.is_playing_custom_animation:
+			return
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
