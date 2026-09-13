@@ -59,6 +59,7 @@ const BUFF2_SE: AudioStream = preload("res://Sound/se/buff/buff2.mp3")
 const ACCEL_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_demo.mp3")
 const UTU2_SE: AudioStream = preload("res://Sound/se/teki/utu-2.mp3")
 const GAGE_HEAL_SE: AudioStream = preload("res://Sound/ゲージ回復2.mp3")
+const ENEMY_ATTACK_SE: AudioStream = preload("res://Sound/se/teki/kougeki.mp3")
 
 # スコア欄の上下運動（放物線バウンド）パラメータ (36フレーム x 3回 = 108フレーム)
 const BOUNCE_CYCLE_FRAMES: int = 36  # 1回の跳ね上がり周期 (36フレーム)
@@ -327,6 +328,17 @@ func _ready() -> void:
 	if sword_se:
 		sword_se.max_polyphony = 1
 		sword_se.volume_db = -7.5
+
+	# 敵攻撃用SEプレイヤーの事前インスタンス化
+	var enemy_atk_se = AudioStreamPlayer.new()
+	enemy_atk_se.name = "enemy_attack_se"
+	enemy_atk_se.stream = ENEMY_ATTACK_SE
+	add_child(enemy_atk_se)
+
+	var enemy_hit_se = AudioStreamPlayer.new()
+	enemy_hit_se.name = "enemy_hit_se"
+	enemy_hit_se.stream = UTU2_SE
+	add_child(enemy_hit_se)
 
 	# シーン上のテンプレートスプライトを画面外に退避して非表示化
 	for i in range(5):
@@ -4206,28 +4218,41 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
 
-	# 通常攻撃の効果音再生（消さずに確実にしっかりと再生）
+	# 敵の通常攻撃効果音再生（「こんこん」音を廃止し、迫力ある本格攻撃SEを再生）
 	var se_vol: float = 1.0
 	var sm_autoload = get_node_or_null("/root/SettingsManager")
 	if sm_autoload and "se_volume" in sm_autoload:
 		se_vol = clampf(sm_autoload.se_volume, 0.001, 1.0)
 
-	var block_se = get_node_or_null("block") as AudioStreamPlayer
-	if block_se == null:
-		block_se = AudioStreamPlayer.new()
-		block_se.name = "block"
-		block_se.stream = BLOCK_SE
-		add_child(block_se)
+	var enemy_atk_se = get_node_or_null("enemy_attack_se") as AudioStreamPlayer
+	if enemy_atk_se == null:
+		enemy_atk_se = AudioStreamPlayer.new()
+		enemy_atk_se.name = "enemy_attack_se"
+		enemy_atk_se.stream = ENEMY_ATTACK_SE
+		add_child(enemy_atk_se)
 
-	if block_se:
-		if block_se.stream == null:
-			block_se.stream = BLOCK_SE
-		block_se.volume_db = linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5))
-		block_se.play(0.0)
+	if enemy_atk_se:
+		enemy_atk_se.stream = ENEMY_ATTACK_SE
+		enemy_atk_se.volume_db = linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5))
+		enemy_atk_se.play(0.0)
 
 	if sm:
 		var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
 		var incoming_damage = sm.enemyat / float(effective_shield_cnt + 1)
+		
+		# 被弾インパクト時の重厚な打撃音演出
+		if incoming_damage > 0.0:
+			var hit_se = get_node_or_null("enemy_hit_se") as AudioStreamPlayer
+			if hit_se == null:
+				hit_se = AudioStreamPlayer.new()
+				hit_se.name = "enemy_hit_se"
+				hit_se.stream = UTU2_SE
+				add_child(hit_se)
+			if hit_se:
+				hit_se.stream = UTU2_SE
+				hit_se.volume_db = linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5))
+				hit_se.play(0.0)
+
 		sm.calchp(0, incoming_damage)
 
 	for item in active_shields:
