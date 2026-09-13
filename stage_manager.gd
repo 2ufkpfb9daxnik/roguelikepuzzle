@@ -1055,10 +1055,10 @@ func _step_process() -> void:
 	displaygage()
 	interval += 1
 	
-	if interval == 8:
+	if interval == 40:
 		var se = get_parent().get_node_or_null("syutsugen")
 		if se: se.play()
-	elif interval == 25:
+	elif interval == 105:
 		var kemuri = get_parent().get_node_or_null("kemuri")
 		if kemuri: kemuri.position = Vector2(-1e9, -1e9)
 

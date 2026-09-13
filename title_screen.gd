@@ -120,10 +120,10 @@ func _on_button_pressed() -> void:
 
 func _process(_delta: float) -> void:
 	if isclicked:
-		if interval < 12:
+		if interval < 30:
 			if anten_rect:
-				anten_rect.color.a = minf(1.0, anten_rect.color.a + 0.08)
-		elif interval >= 14:
+				anten_rect.color.a += 0.03
+		elif interval >= 40:
 			if anten_rect:
 				anten_rect.color.a = 0.0
 			isclicked = false

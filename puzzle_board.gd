@@ -60,15 +60,11 @@ const ACCEL_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_de
 const UTU2_SE: AudioStream = preload("res://Sound/se/teki/utu-2.mp3")
 const GAGE_HEAL_SE: AudioStream = preload("res://Sound/ゲージ回復2.mp3")
 
-# スコア欄の上下運動（放物線バウンド）パラメータ（スピーディで爽快な2回跳ね）
-const BOUNCE_CYCLE_FRAMES: int = 8   # 1回の跳ね上がり周期 (8フレーム)
-const BOUNCE_CYCLES: int = 2        # 跳ねる回数 (2回)
-const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 16フレーム (約0.26秒)
+# スコア欄の上下運動（放物線バウンド）パラメータ
+const BOUNCE_CYCLE_FRAMES: int = 12  # 1回の跳ね上がり周期 (12フレーム)
+const BOUNCE_CYCLES: int = 3        # 跳ねる回数 (3回)
+const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 36フレーム (約0.6秒)
 const BOUNCE_HEIGHT: float = 24.0   # 上下運動の跳ね上がり高さ (px)
-
-# 攻撃・防御フェーズのタイムライン基準（テンポの改善 ＆ 無駄な待ち時間の徹底排除）
-const ATTACK_PHASE_FRAMES: int = 70  # 攻撃フェーズ最大時間
-const BLOCK_PHASE_FRAMES: int = 35   # 防御フェーズ最大時間
 
 # 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（描画負荷・ノード生成最適化。ダメージ・回復等は100%保持）
 const MAX_COMBAT_PROJECTILES: int = 24
@@ -480,7 +476,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			return
 
-	if sm and (sm.interval < 25 or sm.isstageclear or sm.isdeadf):
+	if sm and (sm.interval < 105 or sm.isstageclear or sm.isdeadf):
 		if selected_cell.x != -1:
 			_deselect_piece()
 		return
@@ -3764,8 +3760,10 @@ func moveswords() -> void:
 
 		item["t"] = t + 1.0
 
-		# 敵を貫通通過した時点で消去（無駄な画面外遠方飛翔・不要な待機遅延を防止）
-		if s.position.y <= 1800.0:
+		# 画面外まで飛翔した時点で消去
+		if s.position.y <= -300.0:
+			s.position.y = -300.0
+			s.visible = false
 			s.queue_free()
 		else:
 			remaining.append(item)
@@ -4003,56 +4001,56 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	if interval == base_time + 1 and isattack:
 		_spawn_attack_projectiles(sm, score_mgr)
 
-	elif interval <= base_time + ATTACK_PHASE_FRAMES and isattack:
+	elif interval <= base_time + 144 and isattack:
 		# 敵が撃破された場合、残存発射物を即座に全消去してターン終了（死んだ敵への攻撃や無駄な待機を完全カット）
 		if sm and (sm.isdeadf or (sm.enemy == null and sm.ehp <= 0)):
 			_clear_all_combat_projectiles()
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
 			return
-		# 攻撃発射物が全数着地済みなら、空き時間をスキップして速やかに次フェーズへ
+		# 攻撃発射物が全数着地済みなら、長すぎる144フレームの空き時間をスキップして速やかに次フェーズへ
 		if interval >= base_time + 10 and flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
-			interval = base_time + ATTACK_PHASE_FRAMES
+			interval = base_time + 144
 
-	elif interval == base_time + 1 + ATTACK_PHASE_FRAMES * isattack and isblock:
+	elif interval == base_time + 1 + 144 * isattack and isblock:
 		_spawn_shield_projectiles(score_mgr)
 
-	elif interval <= base_time + 15 + ATTACK_PHASE_FRAMES * isattack and isblock:
+	elif interval <= base_time + 56 + 144 * isattack and isblock:
 		pass
 
-	elif interval < base_time + 1 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
-		# シールド展開が完了していれば、空き時間をスキップして速やかに敵ターンへ
-		if interval > base_time + 10 + ATTACK_PHASE_FRAMES * isattack and isblock:
+	elif interval < base_time + 1 + 144 * isattack + 128 * isblock:
+		# シールド展開が完了していれば、長すぎる空き時間をスキップして速やかに敵ターンへ
+		if interval > base_time + 35 + 144 * isattack and isblock:
 			var all_arrived: bool = true
 			for it in active_shields:
 				if not it.get("has_arrived", false):
 					all_arrived = false
 					break
 			if all_arrived:
-				interval = base_time + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock
+				interval = base_time + 144 * isattack + 128 * isblock
 
-	elif interval == base_time + 1 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
 		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 		has_enemy_attacked = false
 		has_enemy_skilled = false
 		_set_enemy_attack_motion(sm, true)
 
-	elif interval == base_time + 13 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
 		_execute_enemy_attack(sm)
 
-	elif interval == base_time + 18 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval == base_time + 18 + 144 * isattack + 128 * isblock:
 		if is_casting_skill_turn:
 			_execute_enemy_elemental_skill(sm)
 
-	elif interval == base_time + 30 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
 		if not is_casting_skill_turn:
 			_set_enemy_attack_motion(sm, false)
 
-	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
@@ -4078,7 +4076,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_swords.append({
 			"node": s,
-			"t": -float(i * 30) / float(max(1, spawn_sword_cnt)),
+			"t": -float(i * 70) / float(max(1, spawn_sword_cnt)),
 			"rnd": float(randi() % 120),
 			"has_hit": false,
 			"damage": dmg_per_sword
@@ -4101,7 +4099,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_foods.append({
 			"node": s,
-			"t": -float(i * 30) / float(max(1, food_cnt)),
+			"t": -float(i * 70) / float(max(1, food_cnt)),
 			"rnd": float(randi() % 120),
 			"heal": heal_per_food
 		})
@@ -4121,7 +4119,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_potions.append({
 			"node": s,
-			"t": -float(i * 30) / float(max(1, potion_cnt)),
+			"t": -float(i * 70) / float(max(1, potion_cnt)),
 			"rnd": float(randi() % 120),
 			"gage": gage_per_potion
 		})
@@ -4147,11 +4145,11 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 			7200.0 / float(max(1, spawn_shield_cnt)) * i + 12300.0,
 			-1000.0 / float(max(1, spawn_shield_cnt * 2)) * (randi() % max(1, spawn_shield_cnt * 2)) + 3800.0
 		)
-		var v = Vector2(abs(s.position.x - target_p.x) / 36.0, abs(s.position.y - target_p.y) / 36.0)
+		var v = Vector2(abs(s.position.x - target_p.x) / 108.0, abs(s.position.y - target_p.y) / 108.0)
 
 		active_shields.append({
 			"node": s,
-			"t": -float(i * 24) / float(max(1, spawn_shield_cnt)),
+			"t": -float(i * 70) / float(max(1, spawn_shield_cnt)),
 			"target_p": target_p,
 			"v": v,
 			"has_arrived": false
