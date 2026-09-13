@@ -27,7 +27,7 @@ func _ready() -> void:
 	# ゲーム主背景（敵がいる欄以外の領域）を高級カジノ風背景に初期化
 	var bg = get_node_or_null("sougen2D")
 	if bg:
-		var casino_tex = load("res://Texture/haikei/casino_bg.jpg") as Texture2D
+		var casino_tex = preload("res://Texture/haikei/casino_bg.jpg") as Texture2D
 		if casino_tex:
 			bg.texture = casino_tex
 			var tex_size = casino_tex.get_size()

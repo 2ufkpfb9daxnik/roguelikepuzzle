@@ -103,6 +103,19 @@ const ENEMY_SPECIES: Dictionary = {
 # 敵の連番スプライトシート定義（全24キャラの攻撃・スキル・待機・被弾アニメーション）
 const ENEMY_ANIMATION_SHEETS: Dictionary = EnemyAnimationData.SHEETS
 
+var _cached_anim_textures: Dictionary = {}
+
+func _get_anim_texture(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if _cached_anim_textures.has(path):
+		return _cached_anim_textures[path]
+	if ResourceLoader.exists(path):
+		var tex = load(path) as Texture2D
+		_cached_anim_textures[path] = tex
+		return tex
+	return null
+
 var _anim_original_texture: Texture2D = null
 var _anim_original_scale: Vector2 = Vector2.ONE
 var _anim_original_position: Vector2 = Vector2(1550, 250)
@@ -198,6 +211,9 @@ var _cached_fever_bar: ColorRect = null
 var _cached_fever_count_lbl = null
 var _last_updated_bg_stage: int = -1
 var _cached_casino_bg: Texture2D = preload("res://Texture/haikei/casino_bg.jpg")
+const ACCEL_RUSH_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_demo.mp3")
+var _cached_enemy_textures: Dictionary = {}
+var _rush_se_player: AudioStreamPlayer = null
 
 func _format_comma(value: int) -> String:
 	var s = str(absi(value))
@@ -353,9 +369,12 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	var raw_hp: int = enemy_info["hp"][enemy_idx]
 	var raw_atk: int = enemy_info["atk"][enemy_idx]
 
-	# 敵スプライトの生成（テクスチャから直接生成、または既存ノードから複製）
+	# 敵スプライトの生成（キャッシュ利用でディスクI/O負荷をゼロに）
 	if enemy_name in ENEMY_TEXTURES:
-		var tex = load(ENEMY_TEXTURES[enemy_name]) as Texture2D
+		var tex: Texture2D = _cached_enemy_textures.get(enemy_name)
+		if tex == null:
+			tex = load(ENEMY_TEXTURES[enemy_name]) as Texture2D
+			_cached_enemy_textures[enemy_name] = tex
 		enemy = Sprite2D.new()
 		enemy.name = "Enemy"
 		enemy.texture = tex
@@ -365,6 +384,14 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 		var template_enemy = get_parent().get_child(0).get_node_or_null(enemy_name)
 		if template_enemy:
 			enemy = template_enemy.duplicate()
+
+	# 出現敵のアニメーションシートを即座に事前ロードしてメモリキャッシュ（戦闘中のフレーム落ちを完全防止）
+	if ENEMY_ANIMATION_SHEETS.has(enemy_name):
+		var anims = ENEMY_ANIMATION_SHEETS[enemy_name]
+		for a_key in anims:
+			var a_info = anims[a_key]
+			var s_path = a_info.get("path", "")
+			_get_anim_texture(s_path)
 
 	if enemy:
 		enemy.set_meta("base_scale", enemy.scale)
@@ -459,9 +486,7 @@ func _play_idle_loop() -> void:
 
 	var anim_info = enemy_anims["idle"]
 	var sheet_path = anim_info.get("path", "")
-	var sheet_tex: Texture2D = anim_info.get("texture", null)
-	if sheet_tex == null and ResourceLoader.exists(sheet_path):
-		sheet_tex = load(sheet_path) as Texture2D
+	var sheet_tex: Texture2D = _get_anim_texture(sheet_path)
 	if sheet_tex == null:
 		return
 
@@ -516,9 +541,7 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 
 	var anim_info = enemy_anims[anim_name]
 	var sheet_path = anim_info.get("path", "")
-	var sheet_tex: Texture2D = anim_info.get("texture", null)
-	if sheet_tex == null and ResourceLoader.exists(sheet_path):
-		sheet_tex = load(sheet_path) as Texture2D
+	var sheet_tex: Texture2D = _get_anim_texture(sheet_path)
 	if sheet_tex == null:
 		return false
 
@@ -545,14 +568,14 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 		_rush_tween.kill()
 		_rush_tween = null
 
+	is_playing_custom_animation = true
+	_current_custom_anim = anim_name
+
 	# 初回なら元テクスチャとスケール、位置を退避
 	if _anim_original_texture == null:
 		_anim_original_texture = enemy.texture
 		_anim_original_scale = enemy.get_meta("base_scale", enemy.scale)
 		_anim_original_position = enemy.position
-
-	is_playing_custom_animation = true
-	_current_custom_anim = anim_name
 
 	var hf: int = anim_info["hframes"]
 	var vf: int = anim_info["vframes"]
@@ -564,12 +587,13 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 
 	var frame_w = sheet_tex.get_size().x / float(hf)
 	var orig_w = _anim_original_texture.get_size().x if _anim_original_texture else frame_w
-	var base_anim_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
+	var target_scale = _anim_original_scale * (float(orig_w) / float(frame_w)) * scale_mult
 
 	enemy.texture = sheet_tex
 	enemy.hframes = hf
 	enemy.vframes = vf
 	enemy.frame = 0
+	enemy.scale = target_scale
 	enemy.flip_h = should_flip
 	enemy.position = _anim_original_position + offset_pos
 	enemy.material = _get_or_create_edge_fade_material()
@@ -578,21 +602,21 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 
 	if anim_name == "attack":
 		# 斜め移動ではなく、中央位置のまま手前（前面）へ連続的にズーム突進
-		enemy.scale = base_anim_scale
+		enemy.scale = target_scale
 		var rush_in_dur: float = minf(0.24, duration * 0.3)
 		var rush_out_dur: float = minf(0.22, duration * 0.25)
 		var hold_dur: float = maxf(0.0, duration - rush_in_dur - rush_out_dur)
 
 		_rush_tween = create_tween()
-		_rush_tween.tween_property(enemy, "scale", base_anim_scale * 1.45, rush_in_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_rush_tween.tween_property(enemy, "scale", target_scale * 1.45, rush_in_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		if hold_dur > 0.0:
 			_rush_tween.tween_interval(hold_dur)
-		_rush_tween.tween_property(enemy, "scale", base_anim_scale, rush_out_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		_rush_tween.tween_property(enemy, "scale", target_scale, rush_out_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 
 		# 疾走感のある効果音を再生
 		_play_enemy_attack_rush_se()
 	else:
-		enemy.scale = base_anim_scale
+		enemy.scale = target_scale
 
 	_anim_tween = create_tween()
 	_anim_tween.tween_method(func(f_idx: int):
@@ -613,20 +637,18 @@ func is_enemy_animating() -> bool:
 
 ## 敵攻撃時の疾走突進効果音の再生
 func _play_enemy_attack_rush_se() -> void:
-	var se_path = "res://Sound/se/patinko/acceleration_15_demo.mp3"
-	var se_stream = load(se_path) as AudioStream
-	if se_stream:
-		var asp = AudioStreamPlayer.new()
-		asp.stream = se_stream
-		asp.pitch_scale = 1.15
-		var sm_autoload = get_node_or_null("/root/SettingsManager")
-		var se_vol: float = 0.55
-		if sm_autoload and "se_volume" in sm_autoload:
-			se_vol = clampf(sm_autoload.se_volume * 0.55, 0.001, 1.0)
-		asp.volume_db = linear_to_db(se_vol)
-		add_child(asp)
-		asp.play()
-		asp.finished.connect(asp.queue_free)
+	if _rush_se_player == null:
+		_rush_se_player = AudioStreamPlayer.new()
+		_rush_se_player.name = "EnemyRushSE"
+		_rush_se_player.stream = ACCEL_RUSH_SE
+		_rush_se_player.pitch_scale = 1.15
+		add_child(_rush_se_player)
+	var sm_autoload = get_node_or_null("/root/SettingsManager")
+	var se_vol: float = 0.55
+	if sm_autoload and "se_volume" in sm_autoload:
+		se_vol = clampf(sm_autoload.se_volume * 0.55, 0.001, 1.0)
+	_rush_se_player.volume_db = linear_to_db(se_vol)
+	_rush_se_player.play()
 
 ## 再生中のアニメーションを停止し、元の待機アニメーションまたは通常画像・スケールに復帰
 func stop_enemy_animation() -> void:

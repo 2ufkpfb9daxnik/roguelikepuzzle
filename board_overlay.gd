@@ -31,26 +31,33 @@ func _process(delta: float) -> void:
 
 	# 竜巻の移動更新
 	if "active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty():
+		var removed = false
 		var i = board.active_wind_tornadoes.size() - 1
 		while i >= 0:
 			var tor = board.active_wind_tornadoes[i]
 			tor["y"] += tor.get("speed", 4500.0) * delta
 			if tor["y"] > BOARD_TOP + BOARD_HEIGHT + 600.0:
 				board.active_wind_tornadoes.remove_at(i)
+				removed = true
 			i -= 1
+		if removed and board.active_wind_tornadoes.is_empty() and board.has_method("_update_board_element_flags"):
+			board._update_board_element_flags()
 		needs_redraw = true
 
-	# 常時アニメーションする効果がある場合は再描画
+	# 常時アニメーションする効果がある場合は再描画（has_board_hazards フラグを活用して毎フレームの2D走査を完全スキップ）
 	if not needs_redraw:
-		if ("grid_electrified" in board and _has_any_in_2d(board.grid_electrified)) or \
-		   ("grid_fog" in board and not board.grid_fog.is_empty()) or \
-		   ("grid_ice" in board and _has_any_in_2d(board.grid_ice)) or \
-		   ("grid_stones" in board and _has_any_int_in_2d(board.grid_stones)) or \
-		   ("grid_gold_statue" in board and _has_any_int_in_2d(board.grid_gold_statue)) or \
-		   ("grid_cursed" in board and _has_any_in_2d(board.grid_cursed)) or \
-		   ("grid_fire" in board and _has_any_int_in_2d(board.grid_fire)) or \
-		   ("plant_entities" in board and not board.plant_entities.is_empty()):
-			needs_redraw = true
+		if "has_board_hazards" in board:
+			needs_redraw = board.has_board_hazards
+		else:
+			if ("grid_electrified" in board and _has_any_in_2d(board.grid_electrified)) or \
+			   ("grid_fog" in board and not board.grid_fog.is_empty()) or \
+			   ("grid_ice" in board and _has_any_in_2d(board.grid_ice)) or \
+			   ("grid_stones" in board and _has_any_int_in_2d(board.grid_stones)) or \
+			   ("grid_gold_statue" in board and _has_any_int_in_2d(board.grid_gold_statue)) or \
+			   ("grid_cursed" in board and _has_any_in_2d(board.grid_cursed)) or \
+			   ("grid_fire" in board and _has_any_int_in_2d(board.grid_fire)) or \
+			   ("plant_entities" in board and not board.plant_entities.is_empty()):
+				needs_redraw = true
 
 	if needs_redraw:
 		queue_redraw()

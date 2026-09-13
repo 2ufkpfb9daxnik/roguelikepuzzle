@@ -51,11 +51,24 @@ const SCORE_LABEL_BASE_Y: float = 472.0
 const SCORE_LABEL_PITCH: float = 50.0
 const SCORE_LABEL_BASE_SCALE: Vector2 = Vector2(0.5, 0.5)
 
-# スコア欄の上下運動（放物線バウンド）パラメータ（以前の挙動の完全復元 ＆ 3倍速化）
-const BOUNCE_CYCLE_FRAMES: int = 12  # 1回の跳ね上がり周期 (12フレーム = 約0.2秒)
-const BOUNCE_CYCLES: int = 3        # 跳ねる回数 (3回)
-const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 36フレーム (約0.6秒)
-const BOUNCE_HEIGHT: float = 28.0   # 上下運動の跳ね上がり高さ (px)
+# 事前ロード済みオーディオ（実行時ディスクI/Oフリーズ完全排除）
+const SWORD_HIT_SE: AudioStream = preload("res://Sound/剣で斬る3.mp3")
+const BLOCK_SE: AudioStream = preload("res://Sound/block.mp3")
+const BUFF1_SE: AudioStream = preload("res://Sound/se/buff/buff.mp3")
+const BUFF2_SE: AudioStream = preload("res://Sound/se/buff/buff2.mp3")
+const ACCEL_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_demo.mp3")
+const UTU2_SE: AudioStream = preload("res://Sound/se/teki/utu-2.mp3")
+const GAGE_HEAL_SE: AudioStream = preload("res://Sound/ゲージ回復2.mp3")
+
+# スコア欄の上下運動（放物線バウンド）パラメータ（スピーディで爽快な2回跳ね）
+const BOUNCE_CYCLE_FRAMES: int = 8   # 1回の跳ね上がり周期 (8フレーム)
+const BOUNCE_CYCLES: int = 2        # 跳ねる回数 (2回)
+const BOUNCE_TOTAL_FRAMES: int = BOUNCE_CYCLE_FRAMES * BOUNCE_CYCLES # 16フレーム (約0.26秒)
+const BOUNCE_HEIGHT: float = 24.0   # 上下運動の跳ね上がり高さ (px)
+
+# 攻撃・防御フェーズのタイムライン基準（テンポの改善 ＆ 無駄な待ち時間の徹底排除）
+const ATTACK_PHASE_FRAMES: int = 70  # 攻撃フェーズ最大時間
+const BLOCK_PHASE_FRAMES: int = 35   # 防御フェーズ最大時間
 
 # 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（描画負荷・ノード生成最適化。ダメージ・回復等は100%保持）
 const MAX_COMBAT_PROJECTILES: int = 24
@@ -199,11 +212,51 @@ var score_manager: Node2D = null
 var mark_overlay: Node2D = null
 var board_overlay: Node2D = null
 
+# パフォーマンス最適化用フラグ（毎フレームの全マス走査・無駄な再描画を完全に抑止）
+var has_special_items: bool = false
+var has_board_hazards: bool = false
+
+func _update_board_element_flags() -> void:
+	var old_has_special = has_special_items
+	has_special_items = false
+	if is_bomb.size() == GRID_ROWS and special_item.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if is_bomb[r][c] or special_item[r][c] != SpecialItemType.NONE:
+					has_special_items = true
+					break
+			if has_special_items:
+				break
+
+	if old_has_special and not has_special_items:
+		for p in piece:
+			if p != null and is_instance_valid(p) and p.modulate != Color.WHITE:
+				p.modulate = Color.WHITE
+
+	has_board_hazards = false
+	if not active_wind_tornadoes.is_empty() or not plant_entities.is_empty() or not grid_fog.is_empty():
+		has_board_hazards = true
+	elif grid_ice.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
+				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
+				   (grid_ice[r][c] > 0) or \
+				   (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0) or \
+				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
+				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0):
+					has_board_hazards = true
+					break
+			if has_board_hazards:
+				break
+
+
 ## 盤面描画の一括更新
 func _redraw_board_effects() -> void:
+	_update_board_element_flags()
 	if board_bg: board_bg.queue_redraw()
-	if board_overlay: board_overlay.queue_redraw()
-	if mark_overlay: mark_overlay.queue_redraw()
+	if board_overlay and (has_board_hazards or not active_wind_tornadoes.is_empty()): board_overlay.queue_redraw()
+	if mark_overlay and has_special_items: mark_overlay.queue_redraw()
 
 # 戦闘演出・発射物シミュレーションの速度累積変数
 var _turn_sim_accumulator: float = 0.0
@@ -395,6 +448,7 @@ func _initialize_board(collid_template: Node) -> void:
 
 	current_state = BoardState.IDLE
 	_spawn_turn_specials()
+	_redraw_board_effects()
 
 # --- マウス入力とスワップ処理 ---
 
@@ -845,8 +899,7 @@ func _spawn_turn_specials() -> void:
 			if item_type == SpecialItemType.CHARGE_BOMB:
 				special_charge[pos.x][pos.y] = 1
 
-	if board_bg:
-		board_bg.queue_redraw()
+	_redraw_board_effects()
 
 func _spawn_turn_bombs() -> void:
 	_spawn_turn_specials()
@@ -1692,20 +1745,18 @@ func _play_wood_drain_se() -> void:
 	var target_parent = p if p != null else self
 
 	# 打撃吸収インパクト音
-	var s_impact = load("res://Sound/se/teki/utu-2.mp3") as AudioStream
-	if s_impact:
+	if UTU2_SE:
 		var asp_i = AudioStreamPlayer.new()
-		asp_i.stream = s_impact
+		asp_i.stream = UTU2_SE
 		asp_i.volume_db = vol
 		target_parent.add_child(asp_i)
 		asp_i.play()
 		asp_i.finished.connect(asp_i.queue_free)
 
 	# 神秘的生命吸収ループ音
-	var s_drain = load("res://Sound/ゲージ回復2.mp3") as AudioStream
-	if s_drain:
+	if GAGE_HEAL_SE:
 		var asp_d = AudioStreamPlayer.new()
-		asp_d.stream = s_drain
+		asp_d.stream = GAGE_HEAL_SE
 		asp_d.volume_db = vol
 		asp_d.pitch_scale = 0.95
 		target_parent.add_child(asp_d)
@@ -2793,7 +2844,7 @@ func _spawn_burst_particles(origin: Vector2, kind: int) -> void:
 		Color(0.45, 1.0, 0.2)    # FOOD: エメラルドエナジーライム
 	]
 	var base_color = colors[clampi(kind % 5, 0, 4)]
-	var shard_count = 10
+	var shard_count = 4
 
 	for k in range(shard_count):
 		var shard = Polygon2D.new()
@@ -3349,6 +3400,7 @@ func _update_falling_physics(delta: float) -> void:
 
 	if all_landed:
 		falling_pieces.clear()
+		_redraw_board_effects()
 		_check_cascade()
 
 
@@ -3449,12 +3501,12 @@ func _process(delta: float) -> void:
 		sm.enemy.modulate.r = encolor
 		msisvalid = false
 
-	# 特殊アイテムマークの再描画更新
-	if mark_overlay:
+	# 特殊アイテムマークの再描画更新（特殊アイテム存在時のみ実行し毎フレームの再描画・ループを完全抑止）
+	if has_special_items and mark_overlay:
 		mark_overlay.queue_redraw()
 
 	# 特殊アイテムマスの点滅・脈動演出
-	if (is_bomb.size() == GRID_ROWS or special_item.size() == GRID_ROWS):
+	if has_special_items and (is_bomb.size() == GRID_ROWS or special_item.size() == GRID_ROWS):
 		var time_pulse = 0.80 + 0.30 * sin(Time.get_ticks_msec() * 0.008)
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
@@ -3712,7 +3764,8 @@ func moveswords() -> void:
 
 		item["t"] = t + 1.0
 
-		if s.position.y <= -300.0:
+		# 敵を貫通通過した時点で消去（無駄な画面外遠方飛翔・不要な待機遅延を防止）
+		if s.position.y <= 1800.0:
 			s.queue_free()
 		else:
 			remaining.append(item)
@@ -3725,7 +3778,7 @@ func _play_sword_hit_sound() -> void:
 	if se == null:
 		se = AudioStreamPlayer.new()
 		se.name = "AudioStreamPlayer"
-		se.stream = load("res://Sound/剣で斬る3.mp3")
+		se.stream = SWORD_HIT_SE
 		se.volume_db = -7.5
 		se.max_polyphony = 1
 		add_child(se)
@@ -3733,7 +3786,7 @@ func _play_sword_hit_sound() -> void:
 		se.max_polyphony = 1
 		se.volume_db = -7.5
 		if se.stream == null:
-			se.stream = load("res://Sound/剣で斬る3.mp3")
+			se.stream = SWORD_HIT_SE
 	se.play(0.0)
 
 ## 展開シールドのアニメーション
@@ -3950,56 +4003,56 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	if interval == base_time + 1 and isattack:
 		_spawn_attack_projectiles(sm, score_mgr)
 
-	elif interval <= base_time + 144 and isattack:
+	elif interval <= base_time + ATTACK_PHASE_FRAMES and isattack:
 		# 敵が撃破された場合、残存発射物を即座に全消去してターン終了（死んだ敵への攻撃や無駄な待機を完全カット）
 		if sm and (sm.isdeadf or (sm.enemy == null and sm.ehp <= 0)):
 			_clear_all_combat_projectiles()
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
 			return
-		# 攻撃発射物が全数着地済みなら、長すぎる144フレームの空き時間をスキップして速やかに次フェーズへ
+		# 攻撃発射物が全数着地済みなら、空き時間をスキップして速やかに次フェーズへ
 		if interval >= base_time + 10 and flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
-			interval = base_time + 144
+			interval = base_time + ATTACK_PHASE_FRAMES
 
-	elif interval == base_time + 1 + 144 * isattack and isblock:
+	elif interval == base_time + 1 + ATTACK_PHASE_FRAMES * isattack and isblock:
 		_spawn_shield_projectiles(score_mgr)
 
-	elif interval <= base_time + 56 + 144 * isattack and isblock:
+	elif interval <= base_time + 15 + ATTACK_PHASE_FRAMES * isattack and isblock:
 		pass
 
-	elif interval < base_time + 1 + 144 * isattack + 128 * isblock:
-		# シールド展開が完了していれば、長すぎる空き時間をスキップして速やかに敵ターンへ
-		if interval > base_time + 35 + 144 * isattack and isblock:
+	elif interval < base_time + 1 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
+		# シールド展開が完了していれば、空き時間をスキップして速やかに敵ターンへ
+		if interval > base_time + 10 + ATTACK_PHASE_FRAMES * isattack and isblock:
 			var all_arrived: bool = true
 			for it in active_shields:
 				if not it.get("has_arrived", false):
 					all_arrived = false
 					break
 			if all_arrived:
-				interval = base_time + 144 * isattack + 128 * isblock
+				interval = base_time + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock
 
-	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 1 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
 		has_enemy_attacked = false
 		has_enemy_skilled = false
 		_set_enemy_attack_motion(sm, true)
 
-	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 13 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		_execute_enemy_attack(sm)
 
-	elif interval == base_time + 18 + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 18 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		if is_casting_skill_turn:
 			_execute_enemy_elemental_skill(sm)
 
-	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 30 + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		if not is_casting_skill_turn:
 			_set_enemy_attack_motion(sm, false)
 
-	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (65 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + ATTACK_PHASE_FRAMES * isattack + BLOCK_PHASE_FRAMES * isblock:
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
@@ -4025,7 +4078,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_swords.append({
 			"node": s,
-			"t": -float(i * 70) / float(max(1, spawn_sword_cnt)),
+			"t": -float(i * 30) / float(max(1, spawn_sword_cnt)),
 			"rnd": float(randi() % 120),
 			"has_hit": false,
 			"damage": dmg_per_sword
@@ -4048,7 +4101,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_foods.append({
 			"node": s,
-			"t": -float(i * 70) / float(max(1, food_cnt)),
+			"t": -float(i * 30) / float(max(1, food_cnt)),
 			"rnd": float(randi() % 120),
 			"heal": heal_per_food
 		})
@@ -4068,7 +4121,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		add_child(s)
 		flying_potions.append({
 			"node": s,
-			"t": -float(i * 70) / float(max(1, potion_cnt)),
+			"t": -float(i * 30) / float(max(1, potion_cnt)),
 			"rnd": float(randi() % 120),
 			"gage": gage_per_potion
 		})
@@ -4094,11 +4147,11 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 			7200.0 / float(max(1, spawn_shield_cnt)) * i + 12300.0,
 			-1000.0 / float(max(1, spawn_shield_cnt * 2)) * (randi() % max(1, spawn_shield_cnt * 2)) + 3800.0
 		)
-		var v = Vector2(abs(s.position.x - target_p.x) / 108.0, abs(s.position.y - target_p.y) / 108.0)
+		var v = Vector2(abs(s.position.x - target_p.x) / 36.0, abs(s.position.y - target_p.y) / 36.0)
 
 		active_shields.append({
 			"node": s,
-			"t": -float(i * 70) / float(max(1, spawn_shield_cnt)),
+			"t": -float(i * 24) / float(max(1, spawn_shield_cnt)),
 			"target_p": target_p,
 			"v": v,
 			"has_arrived": false
@@ -4158,12 +4211,12 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 	if block_se == null:
 		block_se = AudioStreamPlayer.new()
 		block_se.name = "block"
-		block_se.stream = load("res://Sound/block.mp3")
+		block_se.stream = BLOCK_SE
 		add_child(block_se)
 
 	if block_se:
 		if block_se.stream == null:
-			block_se.stream = load("res://Sound/block.mp3")
+			block_se.stream = BLOCK_SE
 		block_se.volume_db = linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5))
 		block_se.play(0.0)
 
@@ -4193,21 +4246,21 @@ func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
 		"風属性":
 			return {"name": "滅神風・テンペスト" if is_boss else "ダウンバースト", "color": "#64FFDA"}
 		"木属性":
-			return {"name": "生命強奪・フォレストカース" if is_boss else "ソーンシード", "color": "#69F0AE"}
+			return {"name": "樹縛・ユグドラシル" if is_boss else "ヴァインソーン", "color": "#76FF03"}
 		"地属性":
-			return {"name": "天変地異・グランドカタストロフ" if is_boss else "ロックフォール", "color": "#FFB74D"}
+			return {"name": "大地激震・ガイアクエイク" if is_boss else "ロックフォール", "color": "#BCAAA4"}
 		"雷属性":
-			return {"name": "神罰・ジャッジメントサンダー" if is_boss else "ギガスパーク", "color": "#FFD700"}
+			return {"name": "神鳴・トールハンマー" if is_boss else "ライトニングボルト", "color": "#FFD600"}
 		"闇属性":
-			return {"name": "終焉の夜・アビスディメンション" if is_boss else "シャドウベール＆カース", "color": "#E040FB"}
+			return {"name": "深淵・ヴォイドカラミティ" if is_boss else "ダークネスフォール", "color": "#7C4DFF"}
 		"光属性":
-			return {"name": "太陽神の審判・ソーラープリズム" if is_boss else "ミダスグレイス", "color": "#FFD700"}
+			return {"name": "極光・ホーリージャッジ" if is_boss else "シャイニングレイ", "color": "#FFF59D"}
 		"火属性":
-			return {"name": "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト", "color": "#FF1744"}
+			return {"name": "紅蓮・ヘルフレイム" if is_boss else "ブレイズブラスト", "color": "#FF3D00"}
 		_:
-			return {"name": "天変地異・グランドカタストロフ" if is_boss else "ロックフォール", "color": "#FFB74D"}
+			return {"name": "アースクエイク", "color": "#BCAAA4"}
 
-## 敵属性スキルの総合ハンドラ（スキル名表示 ➜ 詠唱待機 ➜ 盤面発射・妨害展開）
+## 属性スキル発動演出
 func _execute_enemy_elemental_skill(sm: Node2D) -> void:
 	if has_enemy_skilled:
 		return
@@ -4277,9 +4330,7 @@ func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> void:
 
 ## 敵スキル専用効果音の再生（魔法スキル発動SE）
 func _play_enemy_skill_se(is_boss: bool) -> void:
-	# 攻撃音ではなく、神秘的・本格的な魔法スキル発動効果音
-	var se_path = "res://Sound/se/buff/buff2.mp3" if is_boss else "res://Sound/se/buff/buff.mp3"
-	var se_stream = load(se_path) as AudioStream
+	var se_stream = BUFF2_SE if is_boss else BUFF1_SE
 	if se_stream:
 		var asp = AudioStreamPlayer.new()
 		asp.stream = se_stream
@@ -4296,11 +4347,9 @@ func _play_enemy_skill_se(is_boss: bool) -> void:
 
 ## スペルビーム飛翔効果音の再生
 func _play_spell_beam_se() -> void:
-	var se_path = "res://Sound/se/patinko/acceleration_15_demo.mp3"
-	var se_stream = load(se_path) as AudioStream
-	if se_stream:
+	if ACCEL_SE:
 		var asp = AudioStreamPlayer.new()
-		asp.stream = se_stream
+		asp.stream = ACCEL_SE
 		var sm_autoload = get_node_or_null("/root/SettingsManager")
 		if sm_autoload and "se_volume" in sm_autoload:
 			asp.volume_db = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0))
