@@ -184,6 +184,21 @@ var enemy_race_lbl: RichTextLabel = null
 var current_enemy_key: String = ""
 var fever_bar_lbl: RichTextLabel = null
 
+# パフォーマンス最適化用キャッシュ変数
+var _last_ehp: int = -999999
+var _last_ehpmax: int = -999999
+var _last_myhp: int = -999999
+var _last_myhpmax: int = -999999
+var _last_displayed_enemy_key: String = ""
+var _last_is_boss: bool = false
+var _last_fever_pct: int = -999999
+var _last_fever_count: int = -999999
+var _cached_hp_bar: ColorRect = null
+var _cached_fever_bar: ColorRect = null
+var _cached_fever_count_lbl = null
+var _last_updated_bg_stage: int = -1
+var _cached_casino_bg: Texture2D = preload("res://Texture/haikei/casino_bg.jpg")
+
 func _format_comma(value: int) -> String:
 	var s = str(absi(value))
 	var res = ""
@@ -692,17 +707,20 @@ func displayhp() -> void:
 			enemy_race_lbl.z_index = 13
 			add_child(enemy_race_lbl)
 
-		var sp_data = ENEMY_SPECIES.get(current_enemy_key, {"name": "モンスター", "element": "無属性", "race": "無属性", "color": "#FFD700"})
 		var is_boss_enemy: bool = is_current_boss or (stage_enemy == 5)
-		var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color] " if is_boss_enemy else ""
-		var name_str: String = sp_data["name"]
-		var font_sz: int = 15 if name_str.length() > 10 else 18
-		enemy_race_lbl.add_theme_font_size_override("normal_font_size", font_sz)
-		enemy_race_lbl.add_theme_font_size_override("bold_font_size", font_sz)
-		var elem_name: String = sp_data.get("element", sp_data.get("race", "無属性"))
-		enemy_race_lbl.text = "[center][b]%s[color=%s]【%s】[/color] [color=#FFFFFF]%s[/color][/b][/center]" % [
-			boss_tag, sp_data["color"], elem_name, sp_data["name"]
-		]
+		if current_enemy_key != _last_displayed_enemy_key or is_boss_enemy != _last_is_boss:
+			_last_displayed_enemy_key = current_enemy_key
+			_last_is_boss = is_boss_enemy
+			var sp_data = ENEMY_SPECIES.get(current_enemy_key, {"name": "モンスター", "element": "無属性", "race": "無属性", "color": "#FFD700"})
+			var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color] " if is_boss_enemy else ""
+			var name_str: String = sp_data["name"]
+			var font_sz: int = 15 if name_str.length() > 10 else 18
+			enemy_race_lbl.add_theme_font_size_override("normal_font_size", font_sz)
+			enemy_race_lbl.add_theme_font_size_override("bold_font_size", font_sz)
+			var elem_name: String = sp_data.get("element", sp_data.get("race", "無属性"))
+			enemy_race_lbl.text = "[center][b]%s[color=%s]【%s】[/color] [color=#FFFFFF]%s[/color][/b][/center]" % [
+				boss_tag, sp_data["color"], elem_name, sp_data["name"]
+			]
 		enemy_race_lbl.visible = true
 
 		# 敵HP数値ラベル
@@ -724,17 +742,23 @@ func displayhp() -> void:
 			add_child(enemy_hp_lbl)
 		
 		enemy_hp_lbl.visible = true
-		enemy_hp_lbl.text = "[b][color=#FF5252]HP[/color] [color=#FFFFFF]%s / %s[/color][/b]" % [
-			_format_comma(int(ehp)), _format_comma(int(ehpmax))
-		]
+		var cur_ehp_int: int = int(ehp)
+		var cur_ehpmax_int: int = int(ehpmax)
+		if cur_ehp_int != _last_ehp or cur_ehpmax_int != _last_ehpmax:
+			_last_ehp = cur_ehp_int
+			_last_ehpmax = cur_ehpmax_int
+			enemy_hp_lbl.text = "[b][color=#FF5252]HP[/color] [color=#FFFFFF]%s / %s[/color][/b]" % [
+				_format_comma(cur_ehp_int), _format_comma(cur_ehpmax_int)
+			]
 	elif enemy_hp_lbl != null and is_instance_valid(enemy_hp_lbl):
 		enemy_hp_lbl.visible = false
 		if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl):
 			enemy_race_lbl.visible = false
 
-	var hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1")
-	if hp_bar:
-		hp_bar.size = Vector2(min(int(myhppar * 725.0), 725), 26.0)
+	if _cached_hp_bar == null or not is_instance_valid(_cached_hp_bar):
+		_cached_hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1") as ColorRect if get_parent() else null
+	if _cached_hp_bar:
+		_cached_hp_bar.size = Vector2(min(int(myhppar * 725.0), 725), 26.0)
 		
 		# プレイヤーHP数値ラベル（HPバー内部に中央配置）
 		if player_hp_lbl == null or not is_instance_valid(player_hp_lbl):
@@ -758,16 +782,21 @@ func displayhp() -> void:
 			else:
 				add_child(player_hp_lbl)
 		
-		var hp_col = "#FFFFFF"
-		player_hp_lbl.text = "[center][b][color=#FFFF00]PLAYER HP[/color] [color=%s]%s / %s[/color][/b][/center]" % [
-			hp_col, _format_comma(int(myhp)), _format_comma(int(myhpmax))
-		]
+		var cur_myhp_int: int = int(myhp)
+		var cur_myhpmax_int: int = int(myhpmax)
+		if cur_myhp_int != _last_myhp or cur_myhpmax_int != _last_myhpmax:
+			_last_myhp = cur_myhp_int
+			_last_myhpmax = cur_myhpmax_int
+			player_hp_lbl.text = "[center][b][color=#FFFF00]PLAYER HP[/color] [color=#FFFFFF]%s / %s[/color][/b][/center]" % [
+				_format_comma(cur_myhp_int), _format_comma(cur_myhpmax_int)
+			]
 
 ## ゲージ表示の更新
 func displaygage() -> void:
-	var fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2")
-	if fever_bar:
-		fever_bar.size = Vector2(int(feverpar * 725.0), 24.0)
+	if _cached_fever_bar == null or not is_instance_valid(_cached_fever_bar):
+		_cached_fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2") as ColorRect if get_parent() else null
+	if _cached_fever_bar:
+		_cached_fever_bar.size = Vector2(int(feverpar * 725.0), 24.0)
 		
 		# フィーバーゲージ%ラベル（フィーバーバー内部に中央配置）
 		if fever_bar_lbl == null or not is_instance_valid(fever_bar_lbl):
@@ -792,16 +821,21 @@ func displaygage() -> void:
 				add_child(fever_bar_lbl)
 				
 		var pct = clampi(int(feverpar * 100.0), 0, 100)
-		fever_bar_lbl.text = "[center][b][color=#FFD700]FEVER GAUGE[/color] [color=#FFFFFF]%d%%[/color][/b][/center]" % pct
+		if pct != _last_fever_pct:
+			_last_fever_pct = pct
+			fever_bar_lbl.text = "[center][b][color=#FFD700]FEVER GAUGE[/color] [color=#FFFFFF]%d%%[/color][/b][/center]" % pct
 
-	var fever_count_lbl = get_parent().get_node_or_null("ScoreManager/fevertimecount")
-	if fever_count_lbl:
-		if not fever_count_lbl.has_theme_font_override("normal_font"):
-			fever_count_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
-			fever_count_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
-			fever_count_lbl.add_theme_constant_override("outline_size", 8)
-			fever_count_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		fever_count_lbl.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % fevercount
+	if _cached_fever_count_lbl == null or not is_instance_valid(_cached_fever_count_lbl):
+		_cached_fever_count_lbl = get_parent().get_node_or_null("ScoreManager/fevertimecount") if get_parent() else null
+	if _cached_fever_count_lbl:
+		if not _cached_fever_count_lbl.has_theme_font_override("normal_font"):
+			_cached_fever_count_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+			_cached_fever_count_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+			_cached_fever_count_lbl.add_theme_constant_override("outline_size", 8)
+			_cached_fever_count_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		if fevercount != _last_fever_count:
+			_last_fever_count = fevercount
+			_cached_fever_count_lbl.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % fevercount
 
 ## 敵死亡時の処理
 func isdead() -> void:
@@ -999,14 +1033,14 @@ func _step_process() -> void:
 	displaygage()
 	interval += 1
 	
-	if interval == 40:
+	if interval == 8:
 		var se = get_parent().get_node_or_null("syutsugen")
 		if se: se.play()
-	elif interval == 105:
+	elif interval == 25:
 		var kemuri = get_parent().get_node_or_null("kemuri")
 		if kemuri: kemuri.position = Vector2(-1e9, -1e9)
 
-	# 背景の切り替え
+	# 背景の切り替え（ステージ変更時のみ軽量実行）
 	_update_background()
 
 ## 警告演出の更新
@@ -1114,6 +1148,10 @@ func _process_fever_effects() -> void:
 
 ## 背景画像の切り替え（敵背景・全画面背景・盤面背景の完全同期）
 func _update_background() -> void:
+	if _last_updated_bg_stage == stage:
+		return
+	_last_updated_bg_stage = stage
+
 	var cur_idx: int = clampi(stage - 1, 0, STAGE_BACKGROUND_TEXTURES.size() - 1)
 	var cur_texture: Texture2D = STAGE_BACKGROUND_TEXTURES[cur_idx]
 
@@ -1127,16 +1165,14 @@ func _update_background() -> void:
 	# 2. 全画面主背景スプライト（sougen2D）更新（敵がいる欄以外の全領域＝ゲーム主背景をカジノ風に維持）
 	var p = get_parent()
 	var fullscreen_bg = p.get_node_or_null("sougen2D") if p else null
-	if fullscreen_bg:
-		var casino_tex = load("res://Texture/haikei/casino_bg.jpg") as Texture2D
-		if casino_tex and fullscreen_bg.texture != casino_tex:
-			fullscreen_bg.texture = casino_tex
-		if casino_tex:
-			var tex_size = casino_tex.get_size()
-			if tex_size.x > 0 and tex_size.y > 0:
-				var scale_val = maxf(1920.0 / tex_size.x, 1080.0 / tex_size.y)
-				fullscreen_bg.scale = Vector2(scale_val, scale_val)
-				fullscreen_bg.position = Vector2(960, 540)
+	if fullscreen_bg and _cached_casino_bg:
+		if fullscreen_bg.texture != _cached_casino_bg:
+			fullscreen_bg.texture = _cached_casino_bg
+		var tex_size = _cached_casino_bg.get_size()
+		if tex_size.x > 0 and tex_size.y > 0:
+			var scale_val = maxf(1920.0 / tex_size.x, 1080.0 / tex_size.y)
+			fullscreen_bg.scale = Vector2(scale_val, scale_val)
+			fullscreen_bg.position = Vector2(960, 540)
 
 	# 3. パズル盤面背景（board_background）更新
 	var pb = _get_puzzle_board()

@@ -376,12 +376,7 @@ func _initialize_board(collid_template: Node) -> void:
 			sprite.modulate = Color.WHITE
 			add_child(sprite)
 			piece.append(sprite)
-
-			if collid_template and area_node:
-				var collid = collid_template.duplicate()
-				collid.position = pos
-				area_node.add_child(collid)
-				piececollid.append(collid)
+			piececollid.append(null)
 
 		grid_n.append(row_n)
 		grid_i.append(row_i)
@@ -431,7 +426,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			return
 
-	if sm and (sm.interval < 105 or sm.isstageclear or sm.isdeadf):
+	if sm and (sm.interval < 25 or sm.isstageclear or sm.isdeadf):
 		if selected_cell.x != -1:
 			_deselect_piece()
 		return
@@ -3239,11 +3234,7 @@ func _start_continuous_falling() -> void:
 		add_child(new_sprite)
 		piece.append(new_sprite)
 
-		if collid_template and area_node:
-			var new_collid = collid_template.duplicate()
-			new_collid.position = spawn_item.start_pos
-			area_node.add_child(new_collid)
-			piececollid.append(new_collid)
+		piececollid.append(null)
 
 	# 4. 盤面本番配列への確定反映 ＆ アニメーションリスト生成
 	for r in range(GRID_ROWS):

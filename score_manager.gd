@@ -36,6 +36,22 @@ var prev_page_btn: Button = null
 var next_page_btn: Button = null
 var page_indicator_lbl: Label = null
 
+# パフォーマンス最適化用キャッシュ変数
+var _cached_jp_font: SystemFont = null
+func _get_jp_font() -> SystemFont:
+	if _cached_jp_font == null:
+		_cached_jp_font = SystemFont.new()
+		_cached_jp_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
+		_cached_jp_font.font_weight = 700
+	return _cached_jp_font
+
+var _last_total_score: int = -999999
+var _last_divscore: Array = [-1, -1, -1, -1, -1]
+var _last_combocount: int = -999999
+var _shop_ui_dirty: bool = true
+var _last_shop_open_state: bool = false
+var _last_shop_page: int = -1
+
 # 全バフ・特殊アイテムのカタログ定義
 var stat_levels: Array[int] = [0, 0, 0, 0, 0] # 属性ごとのレベル [SHIELD, SWORD, COIN, POTION, FOOD]
 
@@ -418,6 +434,20 @@ func damage() -> float:
 func update_score_label() -> void:
 	if label == null:
 		return
+
+	var divscore_changed: bool = false
+	for i in range(5):
+		if i < divscore.size() and divscore[i] != _last_divscore[i]:
+			divscore_changed = true
+			break
+
+	if totalScore == _last_total_score and not divscore_changed and combocount == _last_combocount:
+		return
+
+	_last_total_score = totalScore
+	_last_combocount = combocount
+	for i in range(mini(5, divscore.size())):
+		_last_divscore[i] = divscore[i]
 		
 	# 洗練されたゴールド＋ホワイトのスコア表示（漢字「得点」）
 	label.text = "[b][color=#FFD700]得点 [/color][color=#FFFFFF]%s[/color][/b]" % _format_comma(totalScore)
@@ -673,9 +703,6 @@ func _spawn_combo_burst_effect(combo_num: int) -> void:
 	tw.chain().tween_callback(burst_lbl.queue_free)
 
 func _process(_delta: float) -> void:
-	# ショップボタンの価格表示を更新
-	_update_buff_button_labels()
-	
 	update_score_label()
 	display_score_label()
 	combo()
@@ -686,9 +713,7 @@ func _setup_shop_page_controls() -> void:
 	var parent = get_parent()
 	if parent == null: return
 
-	var jp_font = SystemFont.new()
-	jp_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-	jp_font.font_weight = 700
+	var jp_font = _get_jp_font()
 
 	if shop_page_container == null:
 		shop_page_container = HBoxContainer.new()
@@ -771,6 +796,13 @@ func _update_buff_button_labels() -> void:
 	if parent == null:
 		return
 
+	if not is_shop_open:
+		for i in range(6):
+			var btn = parent.get_node_or_null("buffselectbutton" + str(i))
+			if btn:
+				btn.visible = false
+		return
+
 	var total_pages = int(ceil(float(shop_items.size()) / 6.0))
 	if page_indicator_lbl:
 		page_indicator_lbl.text = "ページ %d / %d" % [current_shop_page + 1, total_pages]
@@ -778,9 +810,7 @@ func _update_buff_button_labels() -> void:
 	var label_names = ["shieldlabel2", "swordlabel2", "foodlabel2", "coinlabel2", "feverlabel2", "bomblabel2"]
 	var desc_names = ["shieldlabel", "swordlabel", "foodlabel", "coinlabel", "feverlabel", "bomblabel"]
 
-	var jp_font = SystemFont.new()
-	jp_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-	jp_font.font_weight = 700
+	var jp_font = _get_jp_font()
 
 	for i in range(6):
 		var btn = parent.get_node_or_null("buffselectbutton" + str(i))
@@ -792,8 +822,8 @@ func _update_buff_button_labels() -> void:
 			btn.visible = false
 			continue
 
-		# ショップが開いているときのみ表示（勝手に表示されるバグを防止）
-		btn.visible = is_shop_open
+		# ショップが開いているときのみ表示
+		btn.visible = true
 
 		var item = shop_items[item_idx]
 

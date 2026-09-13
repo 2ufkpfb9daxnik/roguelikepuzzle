@@ -6,7 +6,6 @@
 [ext_resource type="Script" uid="uid://g8lv7ufenaw3" path="res://stage_manager.gd" id="3_tkwor"]
 [ext_resource type="Texture2D" uid="uid://hu68a1ex77af" path="res://Texture/plane.jpeg" id="4_am0hi"]
 [ext_resource type="FontFile" uid="uid://8yfsfkm2infg" path="res://font/g_comickoin_freeR.ttf" id="4_nq3x5"]
-[ext_resource type="VideoStream" uid="uid://cf0bri18pss3i" path="res://Video/plane.ogv" id="5_3prb8"]
 [ext_resource type="Texture2D" uid="uid://dnhturq3m67d8" path="res://Texture/kemuri/frame_104_delay-0.03s.png" id="7_5vppl"]
 [ext_resource type="Texture2D" uid="uid://dbwemptho28x2" path="res://Texture/haikei/cave2.jpg" id="7_b0h7p"]
 [ext_resource type="Texture2D" uid="uid://c3j1ek2sm8w8c" path="res://Texture/tumezangeki/frame_001_delay-0.03s.png" id="7_bxmnf"]
@@ -1220,16 +1219,6 @@ z_index = -100
 position = Vector2(960, 540)
 scale = Vector2(1.875, 1.875)
 texture = ExtResource("4_am0hi")
-
-[node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
-visible = false
-z_index = -100
-offset_right = 1920.0
-offset_bottom = 1088.0
-mouse_filter = 2
-stream = ExtResource("5_3prb8")
-autoplay = false
-loop = false
 
 [node name="scratch" type="AnimatedSprite2D" parent="."]
 z_index = 10

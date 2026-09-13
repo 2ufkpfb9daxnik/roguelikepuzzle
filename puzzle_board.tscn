@@ -1,7 +1,6 @@
 [gd_scene load_steps=16 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" uid="uid://dvo26517nvfrt" path="res://puzzle_board.gd" id="1_2mien"]
-[ext_resource type="PackedScene" uid="uid://bjb6scx81hpby" path="res://cells.tscn" id="1_virbo"]
 [ext_resource type="Script" uid="uid://banbof3wc0yga" path="res://board_background.gd" id="2_board_bg"]
 [ext_resource type="Texture2D" uid="uid://ckjwtqslvbbda" path="res://Texture/shield/shield_cut.png" id="15_v6a30"]
 [ext_resource type="Texture2D" uid="uid://cncmdglnbr8fw" path="res://Texture/sword/sword_cut.png" id="16_xjp3i"]
@@ -21,8 +20,6 @@ size = Vector2(25, 25)
 [node name="PuzzleBoard" type="Node2D"]
 scale = Vector2(0.1, 0.1)
 script = ExtResource("1_2mien")
-
-[node name="Cells" parent="." instance=ExtResource("1_virbo")]
 
 [node name="DroppingPieces" type="Node" parent="."]
 

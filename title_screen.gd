@@ -25,6 +25,9 @@ func _ready() -> void:
 	if title_bgm:
 		title_bgm.play()
 
+	# 次のステージシーン（current_stage.tscn）をバックグラウンドで非同期先読み開始
+	ResourceLoader.load_threaded_request("res://current_stage.tscn")
+
 	if title_label != null:
 		title_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 		title_label.add_theme_font_override("bold_font", CUSTOM_FONT)
@@ -117,14 +120,19 @@ func _on_button_pressed() -> void:
 
 func _process(_delta: float) -> void:
 	if isclicked:
-		if interval < 30:
+		if interval < 12:
 			if anten_rect:
-				anten_rect.color.a += 0.03
-		elif interval >= 40:
+				anten_rect.color.a = minf(1.0, anten_rect.color.a + 0.08)
+		elif interval >= 14:
 			if anten_rect:
 				anten_rect.color.a = 0.0
 			isclicked = false
-			var next_scene = load("res://current_stage.tscn")
+			var next_scene: PackedScene = null
+			var status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
+			if status == ResourceLoader.THREAD_LOAD_LOADED:
+				next_scene = ResourceLoader.load_threaded_get("res://current_stage.tscn") as PackedScene
+			else:
+				next_scene = load("res://current_stage.tscn") as PackedScene
 			if next_scene:
 				get_tree().change_scene_to_packed(next_scene)
 		interval += 1
