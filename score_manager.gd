@@ -216,6 +216,8 @@ const TEXTURE_FILE: Array[String] = ["shield_cut", "sword_cut", "coin_cut", "pot
 @onready var template_score_label: RichTextLabel = get_node_or_null("RichTextLabel3")
 
 var divscorelabel: Array[RichTextLabel] = []
+var _popup_pool: Array[RichTextLabel] = []
+const MAX_POOLED_POPUPS: int = 16
 
 ## 3桁カンマ区切りの数値フォーマット
 func _format_comma(value: int) -> String:
@@ -426,6 +428,7 @@ func _ready() -> void:
 	update_score_label()
 	_setup_shop_page_controls()
 	_update_buff_button_labels()
+	_init_score_popup_pool()
 
 func damage() -> float:
 	return float(divscore[PieceType.SHIELD])
@@ -474,29 +477,68 @@ func update_score_label() -> void:
 	if combo_label != null:
 		combo_label.text = "[center][b][color=#00E5FF]COMBO[/color][/b][/center]"
 
+## スコアポップアップのオブジェクトプール初期化（実行時の動的生成・破棄スパイク完全排除）
+func _init_score_popup_pool() -> void:
+	if template_score_label == null:
+		template_score_label = get_node_or_null("RichTextLabel3")
+	if template_score_label == null:
+		return
+	for i in range(12):
+		var popup: RichTextLabel = template_score_label.duplicate()
+		popup.bbcode_enabled = true
+		popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		popup.add_theme_font_override("normal_font", CUSTOM_FONT)
+		popup.add_theme_font_override("bold_font", CUSTOM_FONT)
+		popup.add_theme_constant_override("outline_size", 8)
+		popup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		popup.add_theme_font_size_override("normal_font_size", 34)
+		popup.add_theme_font_size_override("bold_font_size", 38)
+		popup.fit_content = true
+		popup.autowrap_mode = TextServer.AUTOWRAP_OFF
+		popup.size = Vector2(300.0, 100.0)
+		popup.pivot_offset = Vector2(150.0, 50.0)
+		popup.z_index = 25
+		popup.visible = false
+		add_child(popup)
+		_popup_pool.append(popup)
+
+func _get_or_create_popup() -> RichTextLabel:
+	for popup in _popup_pool:
+		if not popup.visible:
+			return popup
+	if _popup_pool.size() < MAX_POOLED_POPUPS and template_score_label != null:
+		var popup: RichTextLabel = template_score_label.duplicate()
+		popup.bbcode_enabled = true
+		popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		popup.add_theme_font_override("normal_font", CUSTOM_FONT)
+		popup.add_theme_font_override("bold_font", CUSTOM_FONT)
+		popup.add_theme_constant_override("outline_size", 8)
+		popup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		popup.add_theme_font_size_override("normal_font_size", 34)
+		popup.add_theme_font_size_override("bold_font_size", 38)
+		popup.fit_content = true
+		popup.autowrap_mode = TextServer.AUTOWRAP_OFF
+		popup.size = Vector2(300.0, 100.0)
+		popup.pivot_offset = Vector2(150.0, 50.0)
+		popup.z_index = 25
+		popup.visible = false
+		add_child(popup)
+		_popup_pool.append(popup)
+		return popup
+	elif not _popup_pool.is_empty():
+		return _popup_pool[0]
+	return null
+
 ## マッチしたセルにポップアップスコア表示を生成 (Tweenによる自律アニメーション)
 func display_score_label() -> void:
 	# calcscore 内の _spawn_score_popup で直接スタイリッシュに生成するため互換維持
 	pass
 
-## マッチした駒グループにスタイリッシュなスコアポップアップを生成
+## マッチした駒グループにスタイリッシュなスコアポップアップを生成（プール再利用でゼロアロケーション化）
 func _spawn_score_popup(component_cells: Array[Vector2i], att_type: int, earned_score: int, count: int, is_fever: bool) -> void:
-	if template_score_label == null:
-		template_score_label = get_node_or_null("RichTextLabel3")
-	if template_score_label == null:
+	var popup: RichTextLabel = _get_or_create_popup()
+	if popup == null:
 		return
-
-	var popup: RichTextLabel = template_score_label.duplicate()
-	popup.bbcode_enabled = true
-	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	popup.add_theme_font_override("normal_font", CUSTOM_FONT)
-	popup.add_theme_font_override("bold_font", CUSTOM_FONT)
-	popup.add_theme_constant_override("outline_size", 8)
-	popup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	popup.add_theme_font_size_override("normal_font_size", 34)
-	popup.add_theme_font_size_override("bold_font_size", 38)
-	popup.fit_content = true
-	popup.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 	var col = ATT_COLORS[att_type % 5]
 	var header = ""
@@ -520,13 +562,10 @@ func _spawn_score_popup(component_cells: Array[Vector2i], att_type: int, earned_
 		sum_y += cell.x * 50.0 + 150.0
 	var center_pos = Vector2(sum_x / float(count), sum_y / float(count))
 
-	popup.size = Vector2(300.0, 100.0)
-	popup.pivot_offset = Vector2(150.0, 50.0)
 	popup.position = center_pos - popup.pivot_offset
 	popup.scale = Vector2(0.2, 0.2)
 	popup.modulate.a = 1.0
-	popup.z_index = 25
-	add_child(popup)
+	popup.visible = true
 
 	# ポップアップ・Tweenアニメーション（勢いよく飛び出してフワッと消える）
 	var p_tween = create_tween()
@@ -537,7 +576,7 @@ func _spawn_score_popup(component_cells: Array[Vector2i], att_type: int, earned_
 	p_tween.chain().tween_interval(0.35)
 	p_tween.tween_property(popup, "position:y", popup.position.y - 45.0, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	p_tween.parallel().tween_property(popup, "modulate:a", 0.0, 0.22)
-	p_tween.chain().tween_callback(popup.queue_free)
+	p_tween.chain().tween_callback(func(): popup.visible = false)
 
 ## マッチした駒のスコアおよび属性ポイントを計算
 func calcscore(match_index: Array, grid_att: Array) -> void:
@@ -698,8 +737,9 @@ func _spawn_combo_burst_effect(combo_num: int) -> void:
 	burst_lbl.scale = Vector2(0.2, 0.2)
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(burst_lbl, "scale", Vector2(1.15, 1.15), 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(burst_lbl, "position:y", burst_lbl.position.y - 45.0, 0.65)
-	tw.tween_property(burst_lbl, "modulate:a", 0.0, 0.35).set_delay(0.4)
+	var tp_b = tw.tween_property(burst_lbl, "modulate:a", 0.0, 0.35)
+	if tp_b != null:
+		tp_b.set_delay(0.4)
 	tw.chain().tween_callback(burst_lbl.queue_free)
 
 func _process(_delta: float) -> void:

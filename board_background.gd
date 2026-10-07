@@ -92,25 +92,7 @@ func _draw() -> void:
 			draw_line(bot_left, bot_right, Color(0.0, 0.0, 0.0, 0.35), 4.0)
 			draw_line(top_right, bot_right, Color(0.0, 0.0, 0.0, 0.35), 4.0)
 
-	# 3.5 水浸しマス（grid_water）の美麗水面・波紋描画
-	if board != null and "grid_water" in board and board.grid_water.size() == GRID_ROWS:
-		var water_pulse = 0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.005)
-		for r in range(GRID_ROWS):
-			for c in range(GRID_COLS):
-				if board.grid_water[r][c]:
-					var cell_rect = Rect2(
-						BOARD_LEFT + c * CELL_PITCH,
-						BOARD_TOP + r * CELL_PITCH,
-						CELL_PITCH,
-						CELL_PITCH
-					)
-					# 深いアクアブルーの水たまり
-					draw_rect(cell_rect, Color(0.10, 0.45, 0.85, 0.38 * water_pulse), true)
-					draw_rect(cell_rect.grow(-4.0), Color(0.30, 0.80, 1.0, 0.55), false, 8.0)
-					var center = cell_rect.get_center()
-					# 水滴・水面ハイライト
-					draw_circle(center + Vector2(-40.0, -40.0), 35.0, Color(1.0, 1.0, 1.0, 0.35))
-					draw_arc(center, 90.0 * water_pulse, 0.0, TAU, 20, Color(0.4, 0.85, 1.0, 0.65), 5.0)
+	# 3.5 水浸しマス(grid_water)の描画はBackgroundEffectsOverlayNodeに移行しました
 
 	# 3.6 植物エンティティ（苗木・若木・大木）は前面オーバーレイ (BoardOverlay z_index=8) にて描画
 
@@ -136,126 +118,7 @@ func _draw() -> void:
 			draw_circle(pt, 12.0, dot_color)
 			draw_circle(pt, 5.0, Color(0.20, 0.12, 0.04))
 
-	# 5. 特殊アイテムマスのスタイリッシュなオーラ・フレーム・シンボル描画
-	if board != null and "special_item" in board and board.special_item.size() == GRID_ROWS:
-		var time_pulse = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.007)
-		var rot_angle = Time.get_ticks_msec() * 0.004
-
-		for r in range(GRID_ROWS):
-			for c in range(GRID_COLS):
-				var sp_type = board.special_item[r][c]
-				# 後方互換性: is_bombがtrueだがspecial_itemがNONEの場合はBOMBとして扱う
-				if sp_type == 0 and "is_bomb" in board and board.is_bomb.size() == GRID_ROWS and board.is_bomb[r][c]:
-					sp_type = 1 # BOMB
-
-				if sp_type == 0:
-					continue
-
-				var item_rect = Rect2(
-					BOARD_LEFT + c * CELL_PITCH + 10.0,
-					BOARD_TOP + r * CELL_PITCH + 10.0,
-					CELL_PITCH - 20.0,
-					CELL_PITCH - 20.0
-				)
-				var center = item_rect.get_center()
-
-				match sp_type:
-					1: # BOMB: 通常爆弾（紅蓮オーラ ＋ ハザードフレーム ＋ 起爆コア）
-						draw_rect(item_rect, Color(1.0, 0.22, 0.05, 0.28 * time_pulse), true)
-						draw_rect(item_rect, Color(1.0, 0.65, 0.10, 0.90), false, 12.0)
-						draw_circle(center, 70.0 * time_pulse, Color(1.0, 0.15, 0.0, 0.65))
-						draw_circle(center, 35.0 * time_pulse, Color(1.0, 0.90, 0.2, 0.90))
-
-					2: # CROSS_BOMB: 十字爆弾（ネオンシアン ＋ 十字クロスレーザーシンボル）
-						draw_rect(item_rect, Color(0.0, 0.85, 1.0, 0.25 * time_pulse), true)
-						draw_rect(item_rect, Color(0.1, 0.95, 1.0, 0.95), false, 12.0)
-						# 十字クロスシンボル
-						var arm_len = 100.0 * time_pulse
-						draw_line(center - Vector2(arm_len, 0), center + Vector2(arm_len, 0), Color(1.0, 1.0, 1.0, 0.95), 14.0)
-						draw_line(center - Vector2(0, arm_len), center + Vector2(0, arm_len), Color(1.0, 1.0, 1.0, 0.95), 14.0)
-						draw_circle(center, 30.0, Color(0.2, 1.0, 1.0, 0.95))
-
-					3: # DISCO_BALL: ディスコボール（虹色カラーサイクル ＋ ミラーボール星光）
-						var hue = fposmod(Time.get_ticks_msec() * 0.0008, 1.0)
-						var disco_col = Color.from_hsv(hue, 0.85, 1.0, 0.95)
-						draw_rect(item_rect, Color.from_hsv(hue, 0.7, 1.0, 0.25 * time_pulse), true)
-						draw_rect(item_rect, disco_col, false, 14.0)
-						draw_circle(center, 65.0 * time_pulse, Color(1.0, 1.0, 1.0, 0.75))
-						draw_circle(center, 40.0, disco_col)
-
-					4: # COLOR_CONVERTER: ペンキ爆弾（エメラルド枠 ＋ 3色パレットドット）
-						draw_rect(item_rect, Color(0.0, 1.0, 0.45, 0.22 * time_pulse), true)
-						draw_rect(item_rect, Color(0.1, 1.0, 0.5, 0.90), false, 12.0)
-						draw_circle(center + Vector2(-35.0, 20.0), 28.0, Color(1.0, 0.25, 0.25, 0.9)) # 赤
-						draw_circle(center + Vector2(35.0, 20.0), 28.0, Color(0.2, 0.6, 1.0, 0.9))   # 青
-						draw_circle(center + Vector2(0.0, -35.0), 28.0, Color(0.2, 1.0, 0.3, 0.9))   # 緑
-
-					5: # LIGHTNING: チェインライトニング（電撃ゴールド ＋ ジグザグ稲妻）
-						draw_rect(item_rect, Color(1.0, 0.9, 0.1, 0.25 * time_pulse), true)
-						draw_rect(item_rect, Color(1.0, 0.95, 0.2, 0.95), false, 12.0)
-						var l_pts = PackedVector2Array([
-							center + Vector2(10.0, -70.0),
-							center + Vector2(-30.0, -10.0),
-							center + Vector2(15.0, 0.0),
-							center + Vector2(-15.0, 70.0)
-						])
-						draw_polyline(l_pts, Color(1.0, 1.0, 0.6, 1.0), 12.0)
-
-					6: # BLACK_HOLE: ブラックホール（暗黒バイオレット ＋ 吸引回転スパイラル）
-						draw_rect(item_rect, Color(0.3, 0.05, 0.6, 0.35), true)
-						draw_rect(item_rect, Color(0.7, 0.2, 1.0, 0.90), false, 12.0)
-						draw_circle(center, 55.0, Color(0.1, 0.0, 0.2, 0.95))
-						draw_arc(center, 90.0 * time_pulse, rot_angle, rot_angle + PI * 1.3, 24, Color(0.8, 0.3, 1.0, 0.85), 10.0)
-						draw_arc(center, 60.0 * time_pulse, rot_angle + PI, rot_angle + PI * 2.3, 24, Color(0.9, 0.5, 1.0, 0.85), 8.0)
-
-					7: # TORNADO: つむじ風/竜巻（エメラルドシアン ＋ 渦巻きトルネード）
-						draw_rect(item_rect, Color(0.1, 0.9, 0.7, 0.25 * time_pulse), true)
-						draw_rect(item_rect, Color(0.2, 1.0, 0.8, 0.95), false, 12.0)
-						draw_arc(center, 80.0 * time_pulse, rot_angle, rot_angle + PI * 1.5, 20, Color(0.3, 1.0, 0.85, 0.9), 10.0)
-						draw_arc(center, 45.0 * time_pulse, -rot_angle, -rot_angle + PI * 1.5, 16, Color(0.6, 1.0, 0.9, 0.95), 8.0)
-						draw_circle(center, 18.0, Color.WHITE)
-
-					8: # AQUA_SPLASH: アクアスプラッシュ（ディープアクア ＋ 水滴スプラッシュ）
-						draw_rect(item_rect, Color(0.05, 0.5, 1.0, 0.28 * time_pulse), true)
-						draw_rect(item_rect, Color(0.2, 0.75, 1.0, 0.95), false, 12.0)
-						draw_circle(center, 60.0 * time_pulse, Color(0.1, 0.6, 1.0, 0.85))
-						draw_circle(center + Vector2(-15.0, -15.0), 18.0, Color(1.0, 1.0, 1.0, 0.8))
-						for i in range(4):
-							var a = i * PI * 0.5 + rot_angle * 0.5
-							draw_circle(center + Vector2(cos(a), sin(a)) * 95.0, 14.0 * time_pulse, Color(0.4, 0.85, 1.0, 0.9))
-
-					9: # TREE_SPROUT: 生命の苗木（ライムグリーン ＋ 双葉シンボル）
-						draw_rect(item_rect, Color(0.2, 0.9, 0.3, 0.25 * time_pulse), true)
-						draw_rect(item_rect, Color(0.3, 1.0, 0.4, 0.95), false, 12.0)
-						draw_circle(center, 55.0 * time_pulse, Color(0.15, 0.75, 0.25, 0.75))
-						draw_line(center + Vector2(0.0, 30.0), center + Vector2(-30.0, -15.0), Color(1.0, 1.0, 1.0, 0.95), 10.0)
-						draw_line(center + Vector2(0.0, 30.0), center + Vector2(30.0, -15.0), Color(1.0, 1.0, 1.0, 0.95), 10.0)
-						draw_circle(center + Vector2(-30.0, -18.0), 16.0, Color(0.6, 1.0, 0.4))
-						draw_circle(center + Vector2(30.0, -18.0), 16.0, Color(0.6, 1.0, 0.4))
-
-					10: # MAGNET: マグネット（赤青ツートン ＋ 磁力U字）
-						draw_rect(item_rect, Color(1.0, 0.4, 0.0, 0.2 * time_pulse), true)
-						draw_rect(item_rect, Color(1.0, 0.3, 0.2, 0.9), false, 12.0)
-						draw_circle(center + Vector2(-40.0, 0.0), 30.0, Color(1.0, 0.2, 0.2, 0.95)) # N極(赤)
-						draw_circle(center + Vector2(40.0, 0.0), 30.0, Color(0.2, 0.5, 1.0, 0.95))  # S極(青)
-
-					11: # CHARGE_BOMB: チャージボム（熱狂パルス ＋ 段階ドット）
-						var ch = 1
-						if "special_charge" in board and board.special_charge.size() == GRID_ROWS:
-							ch = max(1, board.special_charge[r][c])
-						var ch_col = Color(1.0, 0.5, 0.0) if ch == 1 else (Color(1.0, 0.2, 0.0) if ch == 2 else Color(1.0, 0.0, 0.4))
-						draw_rect(item_rect, Color(ch_col.r, ch_col.g, ch_col.b, 0.35 * time_pulse), true)
-						draw_rect(item_rect, ch_col, false, 12.0 + ch * 4.0)
-						draw_circle(center, (35.0 + ch * 20.0) * time_pulse, ch_col)
-						for k in range(ch):
-							var dot_x = center.x + (k - (ch - 1) * 0.5) * 40.0
-							draw_circle(Vector2(dot_x, center.y + 65.0), 12.0, Color.WHITE)
-
-					12: # GEMINI_BOMB: 双子ボム（オレンジゴールド ＋ 2連サークル）
-						draw_rect(item_rect, Color(1.0, 0.6, 0.1, 0.25 * time_pulse), true)
-						draw_rect(item_rect, Color(1.0, 0.75, 0.15, 0.95), false, 12.0)
-						draw_circle(center + Vector2(-35.0, 0.0), 35.0 * time_pulse, Color(1.0, 0.3, 0.1, 0.9))
-						draw_circle(center + Vector2(35.0, 0.0), 35.0 * time_pulse, Color(1.0, 0.8, 0.1, 0.9))
+	# 5. 特殊アイテムの描画はBackgroundEffectsOverlayNodeに移行しました
 
 	# 6. 選択中マスの発光ハイライト
 	if board != null and "selected_cell" in board:

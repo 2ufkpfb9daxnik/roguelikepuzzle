@@ -23,13 +23,18 @@ func _ready() -> void:
 		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
+# 常時アニメーション（脈動・揺らめき）する障害物の再描画間隔（秒）。描画は時間ベースなのでアニメ速度は不変
+const ANIM_REDRAW_INTERVAL: float = 1.0 / 30.0
+var _anim_redraw_elapsed: float = 0.0
+
 func _process(delta: float) -> void:
+	var _prof = Profiler.begin("board_overlay::_process")
 	if board == null:
 		return
 
 	var needs_redraw = false
 
-	# 竜巻の移動更新
+	# 竜巻の移動更新（高速移動するため存在中は毎フレーム再描画）
 	if "active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty():
 		var removed = false
 		var i = board.active_wind_tornadoes.size() - 1
@@ -44,19 +49,18 @@ func _process(delta: float) -> void:
 			board._update_board_element_flags()
 		needs_redraw = true
 
-	# 常時アニメーションする効果がある場合は再描画（has_board_hazards フラグを活用して毎フレームの2D走査を完全スキップ）
+	# 脈動・揺らめきする障害物がある場合のみ一定間隔で再描画（石のみ・障害物なしなら定期再描画しない）
+	# ※ 障害物の追加・削除・状態変化時は puzzle_board._redraw_board_effects() から即時に queue_redraw() される
 	if not needs_redraw:
-		if "has_board_hazards" in board:
-			needs_redraw = board.has_board_hazards
-		else:
-			if ("grid_electrified" in board and _has_any_in_2d(board.grid_electrified)) or \
-			   ("grid_fog" in board and not board.grid_fog.is_empty()) or \
-			   ("grid_ice" in board and _has_any_in_2d(board.grid_ice)) or \
-			   ("grid_stones" in board and _has_any_int_in_2d(board.grid_stones)) or \
-			   ("grid_gold_statue" in board and _has_any_int_in_2d(board.grid_gold_statue)) or \
-			   ("grid_cursed" in board and _has_any_in_2d(board.grid_cursed)) or \
-			   ("grid_fire" in board and _has_any_int_in_2d(board.grid_fire)) or \
-			   ("plant_entities" in board and not board.plant_entities.is_empty()):
+		var animated: bool = false
+		if "has_animated_board_hazards" in board:
+			animated = board.has_animated_board_hazards
+		elif "has_board_hazards" in board:
+			animated = board.has_board_hazards
+		if animated:
+			_anim_redraw_elapsed += delta
+			if _anim_redraw_elapsed >= ANIM_REDRAW_INTERVAL:
+				_anim_redraw_elapsed = fmod(_anim_redraw_elapsed, ANIM_REDRAW_INTERVAL)
 				needs_redraw = true
 
 	if needs_redraw:
@@ -75,6 +79,7 @@ func _has_any_int_in_2d(arr: Array) -> bool:
 	return false
 
 func _draw() -> void:
+	var _prof = Profiler.begin("board_overlay::_draw")
 	if board == null:
 		return
 
@@ -119,6 +124,12 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				if board.grid_cursed[r][c]:
 					_draw_cursed_tile(r, c, pulse)
+
+	if "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLS):
+				if board.grid_poison[r][c]:
+					_draw_poison_tile(r, c, pulse)
 
 	# 6. 植物エンティティ（苗木・若木・3x3大木: 盤面手前 z_index=8）
 	if "plant_entities" in board and not board.plant_entities.is_empty():
@@ -495,4 +506,21 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 		# 木燃焼中（次ターン全方位大延焼警告テキスト）
 		draw_string(CUSTOM_FONT, center + Vector2(-120, 140), "⚠大延焼⚠", HORIZONTAL_ALIGNMENT_CENTER, 240, 40, Color(1.0, 0.9, 0.2, 0.95))
 
+
+
+
+func _draw_poison_tile(r: int, c: int, pulse: float) -> void:
+	var pos = Vector2(BOARD_LEFT + c * CELL_PITCH + CELL_PITCH/2.0, BOARD_TOP + r * CELL_PITCH + CELL_PITCH/2.0)
+	var m = CELL_PITCH / 2.0
+	var rect = Rect2(pos - Vector2(m, m), Vector2(CELL_PITCH, CELL_PITCH))
+	var bg_col = Color(0.4, 0.0, 0.8, 0.65 + 0.15 * pulse)
+	draw_rect(rect, bg_col, true)
+	draw_rect(rect, Color(0.6, 0.0, 1.0, 0.9), false, 18.0)
+	for i in range(5):
+		var p_x = pos.x + sin(i * 1.5 + pulse * TAU) * (m * 0.5)
+		var p_y = pos.y + cos(i * 2.1 - pulse * TAU) * (m * 0.5)
+		draw_circle(Vector2(p_x, p_y), 30.0 + 10.0 * pulse, Color(0.7, 0.2, 1.0, 0.8))
+		draw_circle(Vector2(p_x - 5, p_y - 5), 10.0, Color(0.9, 0.6, 1.0, 0.9))
+	var label = "POISON"
+	draw_string(CUSTOM_FONT, Vector2(pos.x - 200, pos.y + 195), label, HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.9, 0.5, 1.0, 0.95))
 

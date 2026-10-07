@@ -212,6 +212,8 @@ var board_overlay: Node2D = null
 # パフォーマンス最適化用フラグ（毎フレームの全マス走査・無駄な再描画を完全に抑止）
 var has_special_items: bool = false
 var has_board_hazards: bool = false
+# 脈動・揺らめき等の常時アニメーションを持つ障害物があるか（石のみの場合は false → 定期再描画不要）
+var has_animated_board_hazards: bool = false
 
 func _update_board_element_flags() -> void:
 	var old_has_special = has_special_items
@@ -231,29 +233,39 @@ func _update_board_element_flags() -> void:
 				p.modulate = Color.WHITE
 
 	has_board_hazards = false
+	has_animated_board_hazards = false
 	if not active_wind_tornadoes.is_empty() or not plant_entities.is_empty() or not grid_fog.is_empty():
 		has_board_hazards = true
+		has_animated_board_hazards = true
 	elif grid_ice.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
-				if (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
+				var is_stone: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
+				var is_animated: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
 				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
 				   (grid_ice[r][c] > 0) or \
-				   (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0) or \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
-				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0):
+				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
+				if is_stone or is_animated:
 					has_board_hazards = true
+				if is_animated:
+					has_animated_board_hazards = true
 					break
-			if has_board_hazards:
+			if has_animated_board_hazards:
 				break
 
 
-## 盤面描画の一括更新
+## 盤面描画の一括更新（盤面状態の変化時に呼ばれる＝イベント駆動の即時再描画）
+## ※ queue_redraw() は同一フレーム内で何度呼んでも Godot 側で1回に集約される
 func _redraw_board_effects() -> void:
 	_update_board_element_flags()
 	if board_bg: board_bg.queue_redraw()
 	if board_overlay and (has_board_hazards or not active_wind_tornadoes.is_empty()): board_overlay.queue_redraw()
 	if mark_overlay and has_special_items: mark_overlay.queue_redraw()
+
+# 特殊アイテム演出（明滅・マーク脈動）の更新間隔（秒）。時間ベースの演出なので速度は変わらない
+const SPECIAL_FX_UPDATE_INTERVAL: float = 1.0 / 30.0
+var _special_fx_elapsed: float = 0.0
 
 # 戦闘演出・発射物シミュレーションの速度累積変数
 var _turn_sim_accumulator: float = 0.0
@@ -299,7 +311,65 @@ func _restore_score_label_positions() -> void:
 				lbl.modulate = Color.WHITE
 
 
+
+# --- POOLING ---
+const SE_POOL_SIZE = 8
+var _se_pool: Array[AudioStreamPlayer] = []
+
+const SPRITE_POOL_SIZE = 64
+var _sprite_pool: Array[Sprite2D] = []
+
+func _init_pools() -> void:
+	for i in range(SE_POOL_SIZE):
+		var asp = AudioStreamPlayer.new()
+		Profiler.add_child_count += 1; add_child(asp)
+		_se_pool.append(asp)
+	for i in range(SPRITE_POOL_SIZE):
+		var sp = Sprite2D.new()
+		sp.visible = false
+		Profiler.add_child_count += 1; add_child(sp)
+		_sprite_pool.append(sp)
+
+func _play_pooled_se(stream: AudioStream, vol_db: float = 0.0, pitch: float = 1.0) -> void:
+	if stream == null: return
+	for asp in _se_pool:
+		if not asp.playing:
+			asp.stream = stream
+			asp.volume_db = vol_db
+			asp.pitch_scale = pitch
+			asp.play()
+			return
+	var fallback = _se_pool[0]
+	fallback.stream = stream
+	fallback.volume_db = vol_db
+	fallback.pitch_scale = pitch
+	fallback.play()
+
+func _get_sprite_from_pool() -> Sprite2D:
+	for s in _sprite_pool:
+		if not s.visible:
+			s.visible = true
+			s.modulate = Color.WHITE
+			s.rotation = 0.0
+			s.scale = Vector2.ONE
+			s.z_index = 0
+			s.texture = null
+			return s
+	var new_s = Sprite2D.new()
+	Profiler.add_child_count += 1; add_child(new_s)
+	_sprite_pool.append(new_s)
+	return new_s
+
+func _return_sprite_to_pool(s: Sprite2D) -> void:
+	if is_instance_valid(s):
+		s.visible = false
+		s.position = Vector2(-1e9, -1e9)
+		if s.get_parent() == null:
+			Profiler.add_child_count += 1; add_child(s)
+
+# --- POOLING END ---
 func _ready() -> void:
+	_init_pools()
 	score_manager = _get_score_manager()
 	if board_bg:
 		board_bg.board = self
@@ -310,7 +380,7 @@ func _ready() -> void:
 	board_overlay = overlay_script.new()
 	board_overlay.name = "BoardOverlay"
 	board_overlay.board = self
-	add_child(board_overlay)
+	Profiler.add_child_count += 1; add_child(board_overlay)
 	
 	# 特殊アイテムのシンプルシンボルマーク（雷マーク⚡等）を描画する最前面レイヤー
 	var ov = SpecialMarkOverlayNode.new()
@@ -318,7 +388,7 @@ func _ready() -> void:
 	ov.board = self
 	ov.z_index = 15
 	mark_overlay = ov
-	add_child(mark_overlay)
+	Profiler.add_child_count += 1; add_child(mark_overlay)
 	
 	var rensa_se = get_node_or_null("1rensa")
 	if rensa_se:
@@ -332,13 +402,11 @@ func _ready() -> void:
 	# 敵攻撃用SEプレイヤーの事前インスタンス化
 	var enemy_atk_se = AudioStreamPlayer.new()
 	enemy_atk_se.name = "enemy_attack_se"
-	enemy_atk_se.stream = ENEMY_ATTACK_SE
-	add_child(enemy_atk_se)
+	Profiler.add_child_count += 1; add_child(enemy_atk_se)
 
 	var enemy_hit_se = AudioStreamPlayer.new()
 	enemy_hit_se.name = "enemy_hit_se"
-	enemy_hit_se.stream = UTU2_SE
-	add_child(enemy_hit_se)
+	Profiler.add_child_count += 1; add_child(enemy_hit_se)
 
 	# シーン上のテンプレートスプライトを画面外に退避して非表示化
 	for i in range(5):
@@ -435,7 +503,7 @@ func _initialize_board(collid_template: Node) -> void:
 			sprite.position = pos
 			sprite.scale = cellsize
 			sprite.modulate = Color.WHITE
-			add_child(sprite)
+			Profiler.add_child_count += 1; add_child(sprite)
 			piece.append(sprite)
 			piececollid.append(null)
 
@@ -638,7 +706,7 @@ func _splash_water_jiggle(r: int, c: int) -> void:
 		drop.position = center - drop.size / 2.0
 		drop.color = Color(0.2, 0.7, 1.0, 0.8)
 		drop.z_index = 25
-		add_child(drop)
+		Profiler.add_child_count += 1; add_child(drop)
 		var a = randf() * TAU
 		var tw_d = create_tween().set_parallel(true)
 		tw_d.tween_property(drop, "position", center + Vector2(cos(a), sin(a)) * 80.0, 0.25).set_ease(Tween.EASE_OUT)
@@ -705,7 +773,9 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	if p1: tween.tween_property(p1, "position", pos2, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	if p2: tween.tween_property(p2, "position", pos1, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
+	var _t_aw_tween_finished = Time.get_ticks_usec()
 	await tween.finished
+	print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 
 	# スワップ後にマッチが存在するか判定
 	var has_match = _check_matches_exist()
@@ -718,7 +788,9 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 		if p1: revert_tween.tween_property(p1, "position", pos1, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		if p2: revert_tween.tween_property(p2, "position", pos2, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		_swap_grid_data(r1, c1, r2, c2)
+		var _t_aw_revert_tween_finished = Time.get_ticks_usec()
 		await revert_tween.finished
+		print("[AWAIT] revert_tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_revert_tween_finished) / 1000.0))
 		current_state = BoardState.IDLE
 
 ## グリッドデータのスワップ
@@ -768,14 +840,16 @@ func _swap_grid_data(r1: int, c1: int, r2: int, c2: int) -> void:
 
 # --- 3マッチ判定 ---
 
-func _check_matches_exist() -> bool:
+func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) -> bool:
+	var _prof = Profiler.begin("puzzle_board::_check_matches_exist")
+	# 安全のため、常に全セルを走査し ismatched を更新する
 	for i in range(GRID_ROWS):
 		for j in range(GRID_COLUMNS):
 			ismatched[i][j] = false
 
 	var found = false
 
-	# 横方向スキャン
+	# 水平走査
 	for i in range(GRID_ROWS):
 		var j: int = 0
 		while j < GRID_COLUMNS:
@@ -792,7 +866,7 @@ func _check_matches_exist() -> bool:
 					ismatched[i][k] = true
 			j += match_len
 
-	# 縦方向スキャン
+	# 垂直走査
 	for j in range(GRID_COLUMNS):
 		var i: int = 0
 		while i < GRID_ROWS:
@@ -810,7 +884,6 @@ func _check_matches_exist() -> bool:
 			i += match_len
 
 	return found
-
 # --- 特殊アイテムシステム（爆弾・クロスボム・ディスコ・ペンキ・雷・黒穴・磁石・時限・分裂） ---
 
 ## 最多属性の取得ヘルパー
@@ -1026,7 +1099,7 @@ func _spawn_steam_effect(pos: Vector2) -> void:
 		puff.polygon = pts
 		puff.color = Color(0.85, 0.95, 1.0, 0.65)
 		puff.position = pos + Vector2(randf_range(-30.0, 30.0), randf_range(-20.0, 20.0))
-		effects_parent.add_child(puff)
+		Profiler.add_child_count += 1; effects_parent.add_child(puff)
 
 		var tw = create_tween().set_parallel(true)
 		var rise_y = randf_range(60.0, 120.0)
@@ -1466,10 +1539,10 @@ func _clear_pieces_in_cells(cells: Array[Vector2i]) -> void:
 		if grid_i.size() == GRID_ROWS:
 			var idx = grid_i[cell.x][cell.y]
 			if idx >= 0 and idx < piece.size() and piece[idx] != null:
-				piece[idx].queue_free()
+				piece[idx].queue_free(); Profiler.queue_free_count += 1
 				piece[idx] = null
 			if idx >= 0 and idx < piececollid.size() and piececollid[idx] != null:
-				piececollid[idx].queue_free()
+				piececollid[idx].queue_free(); Profiler.queue_free_count += 1
 				piececollid[idx] = null
 			grid_i[cell.x][cell.y] = -1
 		if grid_n.size() == GRID_ROWS:
@@ -1749,29 +1822,10 @@ func _execute_wood_hp_drain(sm: Node2D, drain_plants: Array[Dictionary], stage_s
 func _play_wood_drain_se() -> void:
 	var sm_autoload = get_node_or_null("/root/SettingsManager")
 	var vol = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0)) if (sm_autoload and "se_volume" in sm_autoload) else 0.0
-	var p = get_parent()
-	var target_parent = p if p != null else self
+	
+	if UTU2_SE: _play_pooled_se(UTU2_SE, vol, 1.0)
+	if GAGE_HEAL_SE: _play_pooled_se(GAGE_HEAL_SE, vol, 0.95)
 
-	# 打撃吸収インパクト音
-	if UTU2_SE:
-		var asp_i = AudioStreamPlayer.new()
-		asp_i.stream = UTU2_SE
-		asp_i.volume_db = vol
-		target_parent.add_child(asp_i)
-		asp_i.play()
-		asp_i.finished.connect(asp_i.queue_free)
-
-	# 神秘的生命吸収ループ音
-	if GAGE_HEAL_SE:
-		var asp_d = AudioStreamPlayer.new()
-		asp_d.stream = GAGE_HEAL_SE
-		asp_d.volume_db = vol
-		asp_d.pitch_scale = 0.95
-		target_parent.add_child(asp_d)
-		asp_d.play()
-		asp_d.finished.connect(asp_d.queue_free)
-
-## 植物マス上の体力吸収ポップアップ（「吸血 -〇〇〇」）
 func _spawn_drain_number_effect(global_pos: Vector2, amount: int) -> void:
 	var p = get_parent()
 	var target_parent = p if p != null else self
@@ -1792,7 +1846,7 @@ func _spawn_drain_number_effect(global_pos: Vector2, amount: int) -> void:
 	rtl.size = Vector2(160.0, 36.0)
 	rtl.position = global_pos - Vector2(80.0, 32.0)
 	rtl.z_index = 45
-	target_parent.add_child(rtl)
+	Profiler.add_child_count += 1; target_parent.add_child(rtl)
 
 	var orig_p = rtl.position
 	rtl.scale = Vector2(0.6, 0.6)
@@ -1822,7 +1876,7 @@ func _spawn_plant_absorption_particles(global_pos: Vector2) -> void:
 		dot.color = Color(0.3, 1.0, 0.5, 0.95)
 		dot.position = start_p
 		dot.z_index = 44
-		target_parent.add_child(dot)
+		Profiler.add_child_count += 1; target_parent.add_child(dot)
 
 		var tw = create_tween()
 		var delay = i * 0.03
@@ -1857,7 +1911,7 @@ func _spawn_wood_drain_siphon_vfx(sm: Node2D, plant_local_positions: Array[Vecto
 			stream1.start_pos = player_pos
 			stream1.target_pos = plant_global_p
 			stream1.arc_height = randf_range(40.0, 80.0)
-			root_node.add_child(stream1)
+			Profiler.add_child_count += 1; root_node.add_child(stream1)
 		)
 
 		# ② 植物から敵へと生命力が注ぎ込まれるストリーム
@@ -1869,7 +1923,7 @@ func _spawn_wood_drain_siphon_vfx(sm: Node2D, plant_local_positions: Array[Vecto
 			stream2.start_pos = plant_global_p
 			stream2.target_pos = enemy_pos
 			stream2.arc_height = randf_range(-60.0, -30.0)
-			root_node.add_child(stream2)
+			Profiler.add_child_count += 1; root_node.add_child(stream2)
 		)
 
 ## プレイヤーHPバー上部の被ドレイン数値表示
@@ -1891,7 +1945,7 @@ func _spawn_player_drain_label(total_drain: int) -> void:
 	rtl.size = Vector2(300.0, 48.0)
 	rtl.position = Vector2(1550.0 - 150.0, 360.0)
 	rtl.z_index = 45
-	target_parent.add_child(rtl)
+	Profiler.add_child_count += 1; target_parent.add_child(rtl)
 
 	var orig_y = rtl.position.y
 	var tw = create_tween()
@@ -1930,7 +1984,7 @@ func _spawn_enemy_heal_effect(sm: Node2D, heal_amount: int) -> void:
 	rtl.size = Vector2(300.0, 48.0)
 	rtl.position = enemy_sp.global_position + Vector2(-150.0, 25.0)
 	rtl.z_index = 45
-	target_parent.add_child(rtl)
+	Profiler.add_child_count += 1; target_parent.add_child(rtl)
 
 	var orig_y = rtl.position.y
 	var tw_lbl = create_tween()
@@ -1945,7 +1999,7 @@ func _spawn_enemy_heal_effect(sm: Node2D, heal_amount: int) -> void:
 		spark.color = Color(0.4, 1.0, 0.6, 0.9)
 		spark.position = enemy_sp.global_position + Vector2(randf_range(-80, 80), randf_range(-40, 80))
 		spark.z_index = 44
-		target_parent.add_child(spark)
+		Profiler.add_child_count += 1; target_parent.add_child(spark)
 
 		var tw_s = create_tween()
 		tw_s.tween_property(spark, "position:y", spark.position.y - randf_range(60, 110), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -1967,7 +2021,7 @@ func _spawn_shockwave_ring(pos: Vector2, color: Color, max_radius: float, durati
 		pts.append(Vector2(cos(a), sin(a)) * 10.0)
 	ring.points = pts
 	ring.position = pos
-	effects_parent.add_child(ring)
+	Profiler.add_child_count += 1; effects_parent.add_child(ring)
 
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(ring, "scale", Vector2(max_radius / 10.0, max_radius / 10.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -1984,7 +2038,7 @@ func _spawn_screen_flash(color: Color, duration: float = 0.08) -> void:
 	flash.position = Vector2(-20000.0, -20000.0)
 	flash.color = color
 	flash.z_index = 40
-	effects_parent.add_child(flash)
+	Profiler.add_child_count += 1; effects_parent.add_child(flash)
 
 	var tw = create_tween()
 	tw.tween_property(flash, "modulate:a", 0.0, duration)
@@ -2013,7 +2067,7 @@ func _create_multi_layer_bolt(parent: Node, pts: PackedVector2Array, glow_color:
 	glow.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	glow.end_cap_mode = Line2D.LINE_CAP_ROUND
 	glow.z_index = z
-	parent.add_child(glow)
+	Profiler.add_child_count += 1; parent.add_child(glow)
 
 	var bolt = Line2D.new()
 	bolt.points = pts
@@ -2023,7 +2077,7 @@ func _create_multi_layer_bolt(parent: Node, pts: PackedVector2Array, glow_color:
 	bolt.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	bolt.end_cap_mode = Line2D.LINE_CAP_ROUND
 	bolt.z_index = z + 1
-	parent.add_child(bolt)
+	Profiler.add_child_count += 1; parent.add_child(bolt)
 
 	var core = Line2D.new()
 	core.points = pts
@@ -2033,7 +2087,7 @@ func _create_multi_layer_bolt(parent: Node, pts: PackedVector2Array, glow_color:
 	core.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	core.end_cap_mode = Line2D.LINE_CAP_ROUND
 	core.z_index = z + 2
-	parent.add_child(core)
+	Profiler.add_child_count += 1; parent.add_child(core)
 
 	return [glow, bolt, core]
 
@@ -2055,7 +2109,7 @@ func _spawn_hit_spark(hit_pos: Vector2) -> void:
 		var p1 = hit_pos + Vector2(-140.0 * slash_dir, -140.0)
 		var p2 = hit_pos + Vector2(140.0 * slash_dir, 140.0)
 		slash.points = PackedVector2Array([p1, p2])
-		effects_parent.add_child(slash)
+		Profiler.add_child_count += 1; effects_parent.add_child(slash)
 
 		var tw_sl = create_tween().set_parallel(true)
 		tw_sl.tween_property(slash, "width", 0.0, 0.14)
@@ -2089,7 +2143,7 @@ func _spawn_explosion_effect(pos: Vector2) -> void:
 	star.position = pos
 	star.scale = Vector2(0.2, 0.2)
 	star.z_index = 32
-	effects_parent.add_child(star)
+	Profiler.add_child_count += 1; effects_parent.add_child(star)
 
 	var tw_star = create_tween().set_parallel(true)
 	tw_star.tween_property(star, "scale", Vector2(1.6, 1.6), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -2111,7 +2165,7 @@ func _spawn_explosion_effect(pos: Vector2) -> void:
 		flame.position = pos
 		flame.scale = Vector2(0.15, 0.15)
 		flame.z_index = 30 + layer
-		effects_parent.add_child(flame)
+		Profiler.add_child_count += 1; effects_parent.add_child(flame)
 
 		var tw_f = create_tween().set_parallel(true)
 		var max_s = 2.4 if layer == 0 else 1.8
@@ -2132,7 +2186,7 @@ func _spawn_explosion_effect(pos: Vector2) -> void:
 		ember.color = Color(1.0, randf_range(0.4, 0.9), 0.1, 0.95)
 		ember.position = pos
 		ember.z_index = 33
-		effects_parent.add_child(ember)
+		Profiler.add_child_count += 1; effects_parent.add_child(ember)
 
 		var a = randf() * TAU
 		var spd = randf_range(350.0, 850.0)
@@ -2168,7 +2222,7 @@ func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
 	star.color = Color(1.0, 1.0, 1.0, 0.98)
 	star.position = pos
 	star.z_index = 33
-	effects_parent.add_child(star)
+	Profiler.add_child_count += 1; effects_parent.add_child(star)
 
 	var tw_s = create_tween().set_parallel(true)
 	tw_s.tween_property(star, "scale", Vector2(1.8, 1.8), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -2187,7 +2241,7 @@ func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
 		beam_aura.position = pos - beam_aura.pivot_offset
 		beam_aura.color = Color(0.1, 0.65, 1.0, 0.60)
 		beam_aura.z_index = 28
-		effects_parent.add_child(beam_aura)
+		Profiler.add_child_count += 1; effects_parent.add_child(beam_aura)
 
 		var beam_core = ColorRect.new()
 		if is_horizontal:
@@ -2199,7 +2253,7 @@ func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
 		beam_core.position = pos - beam_core.pivot_offset
 		beam_core.color = Color(1.0, 1.0, 1.0, 0.98)
 		beam_core.z_index = 29
-		effects_parent.add_child(beam_core)
+		Profiler.add_child_count += 1; effects_parent.add_child(beam_core)
 
 		var tw_b = create_tween().set_parallel(true)
 		var scale_prop = "scale:y" if is_horizontal else "scale:x"
@@ -2236,7 +2290,7 @@ func _spawn_disco_effect(pos: Vector2) -> void:
 		ray.default_color = c_hue
 		ray.points = PackedVector2Array([pos, pos + Vector2(cos(a), sin(a)) * 1200.0])
 		ray.z_index = 32
-		effects_parent.add_child(ray)
+		Profiler.add_child_count += 1; effects_parent.add_child(ray)
 
 		var tw_r = create_tween().set_parallel(true)
 		tw_r.tween_property(ray, "width", 0.0, 0.38)
@@ -2263,7 +2317,7 @@ func _spawn_paint_effect(pos: Vector2) -> void:
 	wave.color = Color(0.15, 1.0, 0.45, 0.85)
 	wave.position = pos
 	wave.z_index = 28
-	effects_parent.add_child(wave)
+	Profiler.add_child_count += 1; effects_parent.add_child(wave)
 
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(wave, "scale", Vector2(3.5, 3.5), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -2332,7 +2386,7 @@ func _execute_vertical_lightning_bolt(impact_pos: Vector2) -> void:
 		s_line.width = 6.0
 		s_line.default_color = Color(1.0, 0.95, 0.3, 0.95)
 		s_line.z_index = 33
-		effects_parent.add_child(s_line)
+		Profiler.add_child_count += 1; effects_parent.add_child(s_line)
 		var tw_s = create_tween()
 		tw_s.tween_interval(0.20)
 		tw_s.tween_property(s_line, "modulate:a", 0.0, 0.30)
@@ -2377,7 +2431,7 @@ func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
 	disk.color = Color(0.65, 0.15, 1.0, 0.85)
 	disk.position = pos
 	disk.z_index = 28
-	effects_parent.add_child(disk)
+	Profiler.add_child_count += 1; effects_parent.add_child(disk)
 
 	# 2. 事象の地平線（漆黒のコア特異点）
 	var void_core = Polygon2D.new()
@@ -2389,7 +2443,7 @@ func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
 	void_core.color = Color(0.01, 0.0, 0.03, 1.0)
 	void_core.position = pos
 	void_core.z_index = 29
-	effects_parent.add_child(void_core)
+	Profiler.add_child_count += 1; effects_parent.add_child(void_core)
 
 	var tw = create_tween().set_parallel(true)
 	var max_scale = Vector2(4.0 * lvl, 4.0 * lvl)
@@ -2409,7 +2463,7 @@ func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
 		var init_dist = randf_range(300.0, 700.0)
 		part.position = pos + Vector2(cos(init_a), sin(init_a)) * init_dist
 		part.z_index = 30
-		effects_parent.add_child(part)
+		Profiler.add_child_count += 1; effects_parent.add_child(part)
 
 		var tw_p = create_tween().set_parallel(true)
 		tw_p.tween_property(part, "position", pos, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -2434,7 +2488,7 @@ func _spawn_magnet_effect(center_pos: Vector2, targets: Array[Vector2]) -> void:
 		line.z_index = 28
 		line.add_point(t_pos)
 		line.add_point(center_pos)
-		effects_parent.add_child(line)
+		Profiler.add_child_count += 1; effects_parent.add_child(line)
 
 		var tw = create_tween()
 		tw.tween_property(line, "modulate:a", 0.0, 0.25)
@@ -2468,13 +2522,13 @@ func _spawn_gemini_effect(start_pos: Vector2, targets: Array[Vector2]) -> void:
 		spark.color = Color(1.0, 0.6, 0.1, 1.0)
 		spark.position = start_pos
 		spark.z_index = 32
-		effects_parent.add_child(spark)
+		Profiler.add_child_count += 1; effects_parent.add_child(spark)
 
 		var tw = create_tween()
 		tw.tween_property(spark, "position", t_pos, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_callback(func():
 			_spawn_explosion_effect(t_pos)
-			spark.queue_free()
+			spark.queue_free(); Profiler.queue_free_count += 1
 		)
 
 ## 本格立体サイクロン竜巻・つむじ風ノード（高速回転スパイラルファンネル ＆ 旋回風刃 ＆ 渦巻き木の葉）
@@ -2508,9 +2562,10 @@ class TornadoVortexNode extends Node2D:
 			})
 
 	func _process(delta: float) -> void:
+		var _prof = Profiler.begin("puzzle_board::_process")
 		life_time += delta
 		if life_time >= duration:
-			queue_free()
+			queue_free(); Profiler.queue_free_count += 1
 			return
 
 		var p: float = clampf(life_time / duration, 0.0, 1.0)
@@ -2520,6 +2575,7 @@ class TornadoVortexNode extends Node2D:
 		queue_redraw()
 
 	func _draw() -> void:
+		var _prof = Profiler.begin("puzzle_board::_draw")
 		var p: float = clampf(life_time / duration, 0.0, 1.0)
 		var fade_alpha: float = (1.0 - p) if p > 0.6 else 1.0
 
@@ -2613,7 +2669,7 @@ func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
 	var target_top_y = get_cell_position(0, 0).y - CELL_PITCH * 2.5
 
 	var vortex = TornadoVortexNode.new(pos, target_top_y, width_px, lvl)
-	effects_parent.add_child(vortex)
+	Profiler.add_child_count += 1; effects_parent.add_child(vortex)
 
 ## 水しぶき・アクアスプラッシュ演出（同心円波紋 ＆ 重力水滴放物線スプラッシュ ＆ ミスト）
 func _spawn_aqua_splash_effect(pos: Vector2, radius: int) -> void:
@@ -2637,7 +2693,7 @@ func _spawn_aqua_splash_effect(pos: Vector2, radius: int) -> void:
 		drop.color = Color(0.3, randf_range(0.8, 1.0), 1.0, 0.9)
 		drop.position = pos
 		drop.z_index = 29
-		effects_parent.add_child(drop)
+		Profiler.add_child_count += 1; effects_parent.add_child(drop)
 
 		var a = randf() * TAU
 		var spd = randf_range(300.0, 950.0)
@@ -2671,7 +2727,7 @@ func _spawn_sprout_effect(pos: Vector2) -> void:
 	mandala.position = pos
 	mandala.scale = Vector2(0.1, 0.1)
 	mandala.z_index = 28
-	effects_parent.add_child(mandala)
+	Profiler.add_child_count += 1; effects_parent.add_child(mandala)
 
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(mandala, "scale", Vector2(1.4, 1.4), 0.36).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -2698,7 +2754,7 @@ func _spawn_water_electric_effect(cells: Array[Vector2i]) -> void:
 		aura.color = Color(1.0, 0.85, 0.15, 0.50)
 		aura.position = c_pos
 		aura.z_index = 28
-		effects_parent.add_child(aura)
+		Profiler.add_child_count += 1; effects_parent.add_child(aura)
 
 		var tw_a = create_tween()
 		tw_a.tween_interval(0.20)
@@ -2714,7 +2770,7 @@ func _spawn_water_electric_effect(cells: Array[Vector2i]) -> void:
 			sp_line.width = 6.0
 			sp_line.default_color = Color(1.0, 0.95, 0.3, 0.95)
 			sp_line.z_index = 29
-			effects_parent.add_child(sp_line)
+			Profiler.add_child_count += 1; effects_parent.add_child(sp_line)
 			var tw_sp = create_tween()
 			tw_sp.tween_interval(0.20)
 			tw_sp.tween_property(sp_line, "modulate:a", 0.0, 0.28)
@@ -2734,7 +2790,7 @@ func _spawn_water_electric_effect(cells: Array[Vector2i]) -> void:
 				arc_line.width = 10.0
 				arc_line.default_color = Color(1.0, 0.92, 0.2, 0.95)
 				arc_line.z_index = 30
-				effects_parent.add_child(arc_line)
+				Profiler.add_child_count += 1; effects_parent.add_child(arc_line)
 				var tw_arc = create_tween()
 				tw_arc.tween_interval(0.20)
 				tw_arc.tween_property(arc_line, "modulate:a", 0.0, 0.28)
@@ -2753,7 +2809,7 @@ func _spawn_growth_effect(pos: Vector2, _stage: int) -> void:
 	pillar_aura.position = pos - pillar_aura.pivot_offset
 	pillar_aura.color = Color(0.2, 1.0, 0.5, 0.70)
 	pillar_aura.z_index = 32
-	effects_parent.add_child(pillar_aura)
+	Profiler.add_child_count += 1; effects_parent.add_child(pillar_aura)
 
 	var pillar_core = ColorRect.new()
 	pillar_core.size = Vector2(80.0, 2500.0)
@@ -2761,7 +2817,7 @@ func _spawn_growth_effect(pos: Vector2, _stage: int) -> void:
 	pillar_core.position = pos - pillar_core.pivot_offset
 	pillar_core.color = Color(1.0, 1.0, 0.8, 0.95)
 	pillar_core.z_index = 33
-	effects_parent.add_child(pillar_core)
+	Profiler.add_child_count += 1; effects_parent.add_child(pillar_core)
 
 	var tw_p = create_tween().set_parallel(true)
 	tw_p.tween_property(pillar_aura, "scale:x", 2.2, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -2783,7 +2839,7 @@ func _spawn_growth_effect(pos: Vector2, _stage: int) -> void:
 		star.color = Color(1.0, 0.9, 0.3, 0.95) if i % 2 == 0 else Color(0.3, 1.0, 0.6, 0.95)
 		star.position = pos + Vector2(randf_range(-80.0, 80.0), 0.0)
 		star.z_index = 34
-		effects_parent.add_child(star)
+		Profiler.add_child_count += 1; effects_parent.add_child(star)
 
 		var tw_s = create_tween().set_parallel(true)
 		var rise_y = -randf_range(400.0, 1000.0)
@@ -2809,7 +2865,7 @@ func _spawn_plant_damage_effect(pos: Vector2, _is_dead: bool) -> void:
 		leaf.color = Color(0.2, randf_range(0.7, 0.9), 0.3, 0.95)
 		leaf.position = pos
 		leaf.z_index = 31
-		effects_parent.add_child(leaf)
+		Profiler.add_child_count += 1; effects_parent.add_child(leaf)
 
 		var angle = randf() * TAU
 		var dist = randf_range(180.0, 400.0)
@@ -2832,7 +2888,7 @@ func _spawn_heal_number_effect(pos: Vector2, amount: int) -> void:
 	lbl.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
 	lbl.position = pos - Vector2(100.0, 60.0)
 	lbl.z_index = 35
-	effects_parent.add_child(lbl)
+	Profiler.add_child_count += 1; effects_parent.add_child(lbl)
 
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(lbl, "position:y", pos.y - 160.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -2865,7 +2921,7 @@ func _spawn_burst_particles(origin: Vector2, kind: int) -> void:
 		shard.color = base_color.lightened(randf_range(0.05, 0.45))
 		shard.position = origin
 		shard.z_index = 26
-		effects_parent.add_child(shard)
+		Profiler.add_child_count += 1; effects_parent.add_child(shard)
 
 		var angle = randf_range(0.0, TAU)
 		var distance = randf_range(300.0, 750.0)
@@ -2931,7 +2987,9 @@ func _start_match_highlight() -> void:
 					tween.tween_property(p, "modulate", Color.WHITE, 0.14)
 
 	if has_highlights:
-		await tween.finished
+			var _t_aw_tween_finished = Time.get_ticks_usec()
+			await tween.finished
+			print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 	else:
 		tween.kill()
 	_start_breaking_animation()
@@ -3018,13 +3076,12 @@ func _start_breaking_animation() -> void:
 			tween.tween_property(p, "modulate:a", 0.0, 0.18)
 
 			# 右側のステータス枠に向かって飛ぶエフェクト（確実に属性に対応したテクスチャを使用）
-			var fly_sprite: Sprite2D = Sprite2D.new()
+			var fly_sprite: Sprite2D = _get_sprite_from_pool()
 			fly_sprite.texture = PIECE_TEXTURES[clampi(kind % 5, 0, 4)]
 			fly_sprite.position = p.position
 			fly_sprite.scale = cellsize
 			fly_sprite.rotation = 0.0
 			fly_sprite.modulate = Color.WHITE
-			add_child(fly_sprite)
 			flying_cells.append({
 				"node": fly_sprite,
 				"kind": kind
@@ -3032,7 +3089,9 @@ func _start_breaking_animation() -> void:
 
 	# 「すべてが消えるまで待つ」
 	if has_breaking:
-		await tween.finished
+			var _t_aw_tween_finished = Time.get_ticks_usec()
+			await tween.finished
+			print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 	else:
 		tween.kill()
 
@@ -3040,10 +3099,10 @@ func _start_breaking_animation() -> void:
 	for cell in matched_cells_list:
 		var idx = grid_i[cell.x][cell.y]
 		if idx >= 0 and idx < piece.size() and piece[idx] != null:
-			piece[idx].queue_free()
+			piece[idx].queue_free(); Profiler.queue_free_count += 1
 			piece[idx] = null
 		if idx >= 0 and idx < piececollid.size() and piececollid[idx] != null:
-			piececollid[idx].queue_free()
+			piececollid[idx].queue_free(); Profiler.queue_free_count += 1
 			piececollid[idx] = null
 		grid_i[cell.x][cell.y] = -1
 		grid_n[cell.x][cell.y] = -1
@@ -3113,6 +3172,7 @@ func _is_under_flat_obstacle(sim_grid: Array, r: int, c: int) -> bool:
 
 ## 遮蔽物（木・水固定駒・石・氷）を迂回する斜め落下カスケードの開始
 func _start_continuous_falling() -> void:
+	var _prof = Profiler.begin("puzzle_board::_start_continuous_falling")
 	current_state = BoardState.FALLING
 	falling_pieces.clear()
 
@@ -3290,7 +3350,7 @@ func _start_continuous_falling() -> void:
 		new_sprite.position = spawn_item.start_pos
 		new_sprite.scale = cellsize
 		new_sprite.modulate = Color.WHITE
-		add_child(new_sprite)
+		Profiler.add_child_count += 1; add_child(new_sprite)
 		piece.append(new_sprite)
 
 		piececollid.append(null)
@@ -3360,6 +3420,7 @@ func _start_continuous_falling() -> void:
 
 ## 落下中の重力・斜めスライド物理更新 (毎フレーム)
 func _update_falling_physics(delta: float) -> void:
+	var _prof = Profiler.begin("puzzle_board::_update_falling_physics")
 	var all_landed: bool = true
 
 	for item in falling_pieces:
@@ -3371,40 +3432,28 @@ func _update_falling_physics(delta: float) -> void:
 		var waypoints: Array[Vector2] = item["waypoints"]
 		var wp_idx: int = item["wp_idx"]
 		var target_pos: Vector2 = waypoints[wp_idx]
-		var start_pos: Vector2 = item["current_start_pos"]
 
+		# なめらかにターゲットへ向かって直進させる
 		item["velocity_y"] = minf(item["velocity_y"] + GRAVITY * delta, MAX_FALL_SPEED)
-		var dy = item["velocity_y"] * delta
+		var current_speed = item["velocity_y"]
+		
+		var dist = s.position.distance_to(target_pos)
+		var step = current_speed * delta
 
-		if target_pos.y > start_pos.y:
-			s.position.y += dy
-			var total_dy = target_pos.y - start_pos.y
-			var t = clampf((s.position.y - start_pos.y) / maxf(1.0, total_dy), 0.0, 1.0)
-			s.position.x = lerpf(start_pos.x, target_pos.x, t)
-
-			if s.position.y >= target_pos.y:
-				s.position = target_pos
-				item["wp_idx"] += 1
-				if item["wp_idx"] < waypoints.size():
-					item["current_start_pos"] = target_pos
-				else:
-					item["landed"] = true
-					var bounce_tween = create_tween()
-					bounce_tween.tween_property(s, "scale", Vector2(cellsize.x * 1.12, cellsize.y * 0.88), 0.05)
-					bounce_tween.tween_property(s, "scale", cellsize, 0.08)
+		if dist <= step:
+			s.position = target_pos
+			item["wp_idx"] += 1
+			if item["wp_idx"] < waypoints.size():
+				item["current_start_pos"] = target_pos
+				# 曲がるときに速度を少し落とすとなめらかに見える
+				item["velocity_y"] = maxf(8000.0, item["velocity_y"] * 0.8)
+			else:
+				item["landed"] = true
+				var bounce_tween = create_tween()
+				bounce_tween.tween_property(s, "scale", Vector2(cellsize.x * 1.12, cellsize.y * 0.88), 0.05)
+				bounce_tween.tween_property(s, "scale", cellsize, 0.08)
 		else:
-			var speed_h = 7500.0 * delta
-			s.position = s.position.move_toward(target_pos, speed_h)
-			if s.position.distance_to(target_pos) < 4.0:
-				s.position = target_pos
-				item["wp_idx"] += 1
-				if item["wp_idx"] < waypoints.size():
-					item["current_start_pos"] = target_pos
-				else:
-					item["landed"] = true
-					var bounce_tween = create_tween()
-					bounce_tween.tween_property(s, "scale", Vector2(cellsize.x * 1.12, cellsize.y * 0.88), 0.05)
-					bounce_tween.tween_property(s, "scale", cellsize, 0.08)
+			s.position = s.position.move_toward(target_pos, step)
 
 	if all_landed:
 		falling_pieces.clear()
@@ -3414,6 +3463,7 @@ func _update_falling_physics(delta: float) -> void:
 
 ## 落下後の連鎖判定
 func _check_cascade() -> void:
+	var _prof = Profiler.begin("puzzle_board::_check_cascade")
 	current_state = BoardState.CASCADE_CHECK
 
 	var has_match = _check_matches_exist()
@@ -3452,6 +3502,18 @@ func _compact_piece_arrays() -> void:
 # --- 戦闘・エフェクト処理群 (バグ修正済み) ---
 
 func _process(delta: float) -> void:
+	var _prof = Profiler.begin("puzzle_board::_process")
+	Profiler.tick(delta)
+	if delta > 0.03:
+		var sp_cnt = 0
+		for child in get_children():
+			if child is Sprite2D: sp_cnt += 1
+		var st_str = str(current_state)
+		if "BoardState" in self and current_state >= 0 and current_state < BoardState.size():
+			st_str = BoardState.keys()[current_state]
+		print("[SLOW FRAME] delta: %.1fms | State: %s | Add: %d | Free: %d | Falling: %d | Sprites: %d" % [
+			delta * 1000.0, st_str, Profiler.add_child_count, Profiler.queue_free_count, falling_pieces.size(), sp_cnt
+		])
 	var sm = _get_stage_manager()
 	var score_mgr = _get_score_manager()
 
@@ -3509,42 +3571,49 @@ func _process(delta: float) -> void:
 		sm.enemy.modulate.r = encolor
 		msisvalid = false
 
-	# 特殊アイテムマークの再描画更新（特殊アイテム存在時のみ実行し毎フレームの再描画・ループを完全抑止）
-	if has_special_items and mark_overlay:
-		mark_overlay.queue_redraw()
+	# 特殊アイテム演出（特殊アイテムが無い時はこのブロック全体をスキップ）
+	if has_special_items:
+		_special_fx_elapsed += delta
+		var fx_tick: bool = _special_fx_elapsed >= SPECIAL_FX_UPDATE_INTERVAL
+		if fx_tick:
+			_special_fx_elapsed = fmod(_special_fx_elapsed, SPECIAL_FX_UPDATE_INTERVAL)
 
-	# 特殊アイテムマスの点滅・脈動演出
-	if has_special_items and (is_bomb.size() == GRID_ROWS or special_item.size() == GRID_ROWS):
-		var time_pulse = 0.80 + 0.30 * sin(Time.get_ticks_msec() * 0.008)
-		for r in range(GRID_ROWS):
-			for c in range(GRID_COLUMNS):
-				var p_idx = grid_i[r][c]
-				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
-					var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
-					var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
-					
-					if sp_type != SpecialItemType.NONE or is_b:
-						var glow_color = Color(1.8, 0.4, 0.2, 1.0) # デフォルト爆弾
-						match sp_type:
-							SpecialItemType.CROSS_BOMB: glow_color = Color(0.2, 1.4, 1.8, 1.0)
-							SpecialItemType.DISCO_BALL: glow_color = Color(1.8, 0.3, 1.8, 1.0)
-							SpecialItemType.COLOR_CONVERTER: glow_color = Color(0.2, 1.8, 0.6, 1.0)
-							SpecialItemType.LIGHTNING: glow_color = Color(1.8, 1.8, 0.2, 1.0)
-							SpecialItemType.BLACK_HOLE: glow_color = Color(0.8, 0.2, 1.8, 1.0)
-							SpecialItemType.MAGNET: glow_color = Color(1.8, 0.6, 0.2, 1.0)
-							SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
-							SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
-						piece[p_idx].modulate = glow_color * time_pulse
-					elif not ismatched[r][c] and (selected_piece_idx != p_idx):
-						if piece[p_idx].modulate != Color.WHITE:
-							piece[p_idx].modulate = Color.WHITE
+		# マークは駒の現在位置に描かれるため、駒が動く状態（IDLE以外：入替・落下・消去演出等）では毎フレーム追従。
+		# 静止中（IDLE、ドラッグ中含む※特殊アイテムはドラッグ不可）は脈動更新の間隔でのみ再描画。
+		if mark_overlay and (fx_tick or current_state != BoardState.IDLE):
+			mark_overlay.queue_redraw()
 
+		# 特殊アイテムマスの点滅・脈動演出（時間ベースなので間引いても点滅速度は不変）
+		if fx_tick and (is_bomb.size() == GRID_ROWS or special_item.size() == GRID_ROWS):
+			var time_pulse = 0.80 + 0.30 * sin(Time.get_ticks_msec() * 0.008)
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					var p_idx = grid_i[r][c]
+					if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
+						var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
+						var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
 
-## 特殊アイテムシンボルマーク専用描画ノード
+						if sp_type != SpecialItemType.NONE or is_b:
+							var glow_color = Color(1.8, 0.4, 0.2, 1.0) # デフォルト爆弾
+							match sp_type:
+								SpecialItemType.CROSS_BOMB: glow_color = Color(0.2, 1.4, 1.8, 1.0)
+								SpecialItemType.DISCO_BALL: glow_color = Color(1.8, 0.3, 1.8, 1.0)
+								SpecialItemType.COLOR_CONVERTER: glow_color = Color(0.2, 1.8, 0.6, 1.0)
+								SpecialItemType.LIGHTNING: glow_color = Color(1.8, 1.8, 0.2, 1.0)
+								SpecialItemType.BLACK_HOLE: glow_color = Color(0.8, 0.2, 1.8, 1.0)
+								SpecialItemType.MAGNET: glow_color = Color(1.8, 0.6, 0.2, 1.0)
+								SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
+								SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
+							piece[p_idx].modulate = glow_color * time_pulse
+						elif not ismatched[r][c] and (selected_piece_idx != p_idx):
+							if piece[p_idx].modulate != Color.WHITE:
+								piece[p_idx].modulate = Color.WHITE
+
 class SpecialMarkOverlayNode extends Node2D:
 	var board: Node2D = null
 
 	func _draw() -> void:
+		var _prof = Profiler.begin("puzzle_board::_draw")
 		if board != null and is_instance_valid(board):
 			board._draw_special_item_marks_on_overlay(self)
 
@@ -3750,7 +3819,7 @@ func moveswords() -> void:
 
 		# 敵がすでに撃破されている場合は、無駄な飛翔を続けず即座に消去
 		if is_enemy_dead:
-			s.queue_free()
+			_return_sprite_to_pool(s)
 			continue
 
 		if t >= 0:
@@ -3776,7 +3845,7 @@ func moveswords() -> void:
 		if s.position.y <= -300.0:
 			s.position.y = -300.0
 			s.visible = false
-			s.queue_free()
+			_return_sprite_to_pool(s)
 		else:
 			remaining.append(item)
 
@@ -3791,7 +3860,7 @@ func _play_sword_hit_sound() -> void:
 		se.stream = SWORD_HIT_SE
 		se.volume_db = -7.5
 		se.max_polyphony = 1
-		add_child(se)
+		Profiler.add_child_count += 1; add_child(se)
 	else:
 		se.max_polyphony = 1
 		se.volume_db = -7.5
@@ -3850,7 +3919,7 @@ func movefoods() -> void:
 			var p = get_parent()
 			var se = p.get_node_or_null("kaihuku") if p else null
 			if se and not se.playing: se.play()
-			s.queue_free()
+			_return_sprite_to_pool(s)
 		else:
 			remaining.append(item)
 
@@ -3881,7 +3950,7 @@ func movepotions() -> void:
 			var p = get_parent()
 			var se = p.get_node_or_null("potion") if p else null
 			if se and not se.playing: se.play()
-			s.queue_free()
+			_return_sprite_to_pool(s)
 		else:
 			remaining.append(item)
 
@@ -3906,7 +3975,7 @@ func movecell() -> void:
 		s.position.y = move_toward(s.position.y, dest_y, speed_y)
 
 		if s.position.x >= 12100.0 and absf(s.position.y - dest_y) < 25.0:
-			s.queue_free()
+			_return_sprite_to_pool(s)
 		else:
 			remaining.append(item)
 
@@ -3956,24 +4025,21 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 
 		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時やスプライトシート再生時は演出確認のため待機時間を確保）
 		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
-		var skill_trigger_fast = 8
-		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (75 if has_custom_atk else 14)
 		if interval == 0:
-			is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
+			is_casting_skill_turn = _decide_enemy_actions(sm)
 			has_enemy_attacked = false
 			has_enemy_skilled = false
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
-			if not is_casting_skill_turn:
-				_set_enemy_attack_motion(sm, true)
-		elif interval == 4:
-			if not is_casting_skill_turn:
-				_execute_enemy_attack(sm)
-		elif interval == skill_trigger_fast and is_casting_skill_turn:
-			_execute_enemy_elemental_skill(sm)
-		elif interval == 10:
-			if not is_casting_skill_turn:
-				_set_enemy_attack_motion(sm, false)
+		
+		# 敵全員がアクションを実行し終えるまでの十分な待機時間を計算 (最大 115)
+		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (75 if has_custom_atk else 14)
+		if sm and "active_enemies" in sm:
+			end_wait_fast = max(end_wait_fast, sm.active_enemies.size() * 50)
+			
+		if interval == 4:
+			_execute_enemy_turn_actions(sm)
+			
 		elif interval == end_wait_fast:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
@@ -4044,23 +4110,12 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 				interval = base_time + 144 * isattack + 128 * isblock
 
 	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
-		is_casting_skill_turn = _should_cast_enemy_elemental_skill(sm)
+		is_casting_skill_turn = _decide_enemy_actions(sm)
 		has_enemy_attacked = false
 		has_enemy_skilled = false
-		if not is_casting_skill_turn:
-			_set_enemy_attack_motion(sm, true)
 
 	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
-		if not is_casting_skill_turn:
-			_execute_enemy_attack(sm)
-
-	elif interval == base_time + 18 + 144 * isattack + 128 * isblock:
-		if is_casting_skill_turn:
-			_execute_enemy_elemental_skill(sm)
-
-	elif interval == base_time + 30 + 144 * isattack + 128 * isblock:
-		if not is_casting_skill_turn:
-			_set_enemy_attack_motion(sm, false)
+		_execute_enemy_turn_actions(sm)
 
 	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
@@ -4087,12 +4142,11 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	var dmg_per_sword: float = (float(raw_sword_cnt) / float(max(1, spawn_sword_cnt))) * 100.0 * swordt
 
 	for i in range(spawn_sword_cnt):
-		var s: Sprite2D = Sprite2D.new()
+		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SWORD]
 		s.position = Vector2(12300, 5300)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
-		add_child(s)
 		flying_swords.append({
 			"node": s,
 			"t": -float(i * 70) / float(max(1, spawn_sword_cnt)),
@@ -4110,12 +4164,11 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	var food_cnt: int = clampi(raw_food_cnt, 0, MAX_COMBAT_PROJECTILES)
 	var heal_per_food: float = (float(raw_food_cnt) / float(max(1, food_cnt))) * 100.0
 	for i in range(food_cnt):
-		var s: Sprite2D = Sprite2D.new()
+		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.FOOD]
 		s.position = Vector2(12300, 6800)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
-		add_child(s)
 		flying_foods.append({
 			"node": s,
 			"t": -float(i * 70) / float(max(1, food_cnt)),
@@ -4130,12 +4183,11 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	var potion_cnt: int = clampi(raw_potion_cnt, 0, MAX_COMBAT_PROJECTILES)
 	var gage_per_potion: float = (float(raw_potion_cnt) / float(max(1, potion_cnt))) * 100.0
 	for i in range(potion_cnt):
-		var s: Sprite2D = Sprite2D.new()
+		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.POTION]
 		s.position = Vector2(12300, 6300)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
-		add_child(s)
 		flying_potions.append({
 			"node": s,
 			"t": -float(i * 70) / float(max(1, potion_cnt)),
@@ -4152,13 +4204,12 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 	var spawn_shield_cnt: int = clampi(raw_shield_cnt, 0, MAX_COMBAT_PROJECTILES)
 
 	for i in range(spawn_shield_cnt):
-		var s: Sprite2D = Sprite2D.new()
+		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SHIELD]
 		s.position = Vector2(12300, 4800)
 		s.scale = Vector2(2.0, 2.0)
 		s.z_index = 1
 		s.visible = true
-		add_child(s)
 
 		var target_p = Vector2(
 			7200.0 / float(max(1, spawn_shield_cnt)) * i + 12300.0,
@@ -4208,64 +4259,194 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 	return true
 
 ## 敵の攻撃処理（物理攻撃・爪斬撃演出・ダメージ計算）
-func _execute_enemy_attack(sm: Node2D) -> void:
-	# 同一ターン内での多重攻撃を完全防止
-	if has_enemy_attacked:
-		return
+var _enemy_turn_actions: Array = []
+
+func _decide_enemy_actions(sm: Node2D) -> bool:
+	_enemy_turn_actions.clear()
+	var has_skill = false
+	if sm and "active_enemies" in sm:
+		for e in sm.active_enemies:
+			if randf() < 0.5:
+				_enemy_turn_actions.append("skill")
+				has_skill = true
+			else:
+				_enemy_turn_actions.append("attack")
+	return has_skill
+
+func _spawn_slash_effect(pos: Vector2) -> void:
+	var root_node = get_parent() if get_parent() != null else self
+	var node = Node2D.new()
+	node.position = pos
+	var script_src = """
+extends Node2D
+var life_time = 0.0
+func _process(delta: float):
+	var _prof = Profiler.begin("puzzle_board::_process")
+	life_time += delta
+	if life_time > 0.25:
+		queue_free(); Profiler.queue_free_count += 1
+	queue_redraw()
+func _draw():
+	var _prof = Profiler.begin("puzzle_board::_draw")
+	var p = clampf(1.0 - (life_time / 0.25), 0.0, 1.0)
+	var col = Color(1.0, 1.0, 1.0, p)
+	draw_line(Vector2(-60, -60), Vector2(60, 60), col, 12.0 * p)
+	draw_line(Vector2(-60, 60), Vector2(60, -60), col, 6.0 * p)
+"""
+	var script = GDScript.new()
+	script.source_code = script_src
+	script.reload()
+	node.set_script(script)
+	Profiler.add_child_count += 1; root_node.add_child(node)
+
+func _execute_enemy_turn_actions(sm: Node2D) -> void:
+	if has_enemy_attacked: return
 	has_enemy_attacked = true
+	if sm == null or sm.isdeadf or sm.ehp <= 0: return
 
-	# 敵が倒れている、または存在しない場合は攻撃しない
-	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
-		return
-
-	# 敵の通常攻撃効果音再生（「こんこん」音を廃止し、迫力ある本格攻撃SEを再生）
 	var se_vol: float = 1.0
 	var sm_autoload = get_node_or_null("/root/SettingsManager")
 	if sm_autoload and "se_volume" in sm_autoload:
 		se_vol = clampf(sm_autoload.se_volume, 0.001, 1.0)
 
-	var enemy_atk_se = get_node_or_null("enemy_attack_se") as AudioStreamPlayer
-	if enemy_atk_se == null:
-		enemy_atk_se = AudioStreamPlayer.new()
-		enemy_atk_se.name = "enemy_attack_se"
-		enemy_atk_se.stream = ENEMY_ATTACK_SE
-		add_child(enemy_atk_se)
 
-	if enemy_atk_se:
-		enemy_atk_se.stream = ENEMY_ATTACK_SE
-		enemy_atk_se.volume_db = linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5))
-		enemy_atk_se.play(0.0)
 
-	if sm:
-		var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
-		var incoming_damage = sm.enemyat / float(effective_shield_cnt + 1)
+	if not ("active_enemies" in sm) or sm.active_enemies.size() == 0:
+		return
+
+	var seq_tw = create_tween()
+	
+	for i in range(sm.active_enemies.size()):
+		var e = sm.active_enemies[i]
+		var action = _enemy_turn_actions[i] if i < _enemy_turn_actions.size() else "attack"
+		var spr = e["sprite"]
+		var atk = e["atk"]
 		
-		# 被弾インパクト時の重厚な打撃音演出
-		if incoming_damage > 0.0:
-			var hit_se = get_node_or_null("enemy_hit_se") as AudioStreamPlayer
-			if hit_se == null:
-				hit_se = AudioStreamPlayer.new()
-				hit_se.name = "enemy_hit_se"
-				hit_se.stream = UTU2_SE
-				add_child(hit_se)
-			if hit_se:
-				hit_se.stream = UTU2_SE
-				hit_se.volume_db = linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5))
-				hit_se.play(0.0)
+		if action == "attack":
+			seq_tw.tween_callback(func():
+				if not is_instance_valid(spr): return
+				
+				var has_anim = false
+				if sm.has_method("play_single_enemy_animation"):
+					has_anim = sm.play_single_enemy_animation(i, "attack")
+					
+				if not has_anim:
+					var orig_pos = spr.position
+					var atk_tw = create_tween()
+					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-60, 0), 0.1)
+					atk_tw.tween_property(spr, "position", orig_pos, 0.2).set_delay(0.1)
+				
+				_play_pooled_se(ENEMY_ATTACK_SE, linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5)), 1.0)
+					
+				_spawn_slash_effect(spr.global_position + Vector2(-80, 0))
+					
+				var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
+				var incoming_damage = atk / float(effective_shield_cnt + 1)
+				
+				if incoming_damage > 0.0:
+					_play_pooled_se(UTU2_SE, linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5)), 1.0)
+					_spawn_screen_flash(Color(0.8, 0.1, 0.1, 0.35), 0.3)
+					_trigger_screen_shake(20.0 + minf(incoming_damage * 0.05, 30.0))
+				
+				sm.calchp(0, incoming_damage)
+			)
+			seq_tw.tween_interval(0.3)
+		else:
+			var key = e.get("key", "slime")
+			var is_boss = false
+			if sm.has_method("is_boss_monster"): is_boss = sm.is_boss_monster()
+			else: is_boss = sm.is_current_boss if "is_current_boss" in sm else false
+			var sp_data = {}
+			if "ENEMY_SPECIES" in sm: sp_data = sm.ENEMY_SPECIES.get(key, {})
+			var elem = sp_data.get("element", sp_data.get("race", "???"))
+			if typeof(elem) == TYPE_ARRAY: elem = elem[randi() % elem.size()]
+			var s_info = _get_enemy_skill_info(elem, is_boss)
+			var s_name = s_info["name"]
+			var elem_color = s_info["color"]
+			
+			seq_tw.tween_callback(func():
+				_play_enemy_skill_se(is_boss)
+				_show_enemy_skill_banner(s_name, elem_color, is_boss)
+				
+				var has_anim = false
+				if sm.has_method("play_single_enemy_animation"):
+					has_anim = sm.play_single_enemy_animation(i, "skill")
+					
+				_spawn_enemy_skill_chant_vfx(sm, spr, elem_color, is_boss)
+			)
+			seq_tw.tween_interval(0.8)
+			seq_tw.tween_callback(func():
+				if sm == null or sm.isdeadf or sm.ehp <= 0: return
+				_spawn_enemy_skill_beam_and_burst(sm, spr, elem_color, is_boss)
+				_apply_enemy_elemental_skill_effect(elem, is_boss)
+			)
+			seq_tw.tween_interval(0.5)
 
-		sm.calchp(0, incoming_damage)
+	seq_tw.tween_callback(func():
+		for item in active_shields:
+			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
+		active_shields.clear()
+		current_total_shields = 0
+		if sm and sm.myhp <= 0:
+			var go_node = sm.get_node_or_null("gameover")
+			if go_node: go_node.position = Vector2.ZERO
+			isgameover = true
+			interval = 0
+	)
+func _execute_enemy_attack(sm: Node2D) -> void:
+	if has_enemy_attacked: return
+	has_enemy_attacked = true
+	if sm == null or sm.isdeadf or sm.ehp <= 0: return
 
-	for item in active_shields:
-		item["node"].queue_free()
-	active_shields.clear()
-	current_total_shields = 0
+	var se_vol: float = 1.0
+	var sm_autoload = get_node_or_null("/root/SettingsManager")
+	if sm_autoload and "se_volume" in sm_autoload:
+		se_vol = clampf(sm_autoload.se_volume, 0.001, 1.0)
 
-	if sm and sm.myhp <= 0:
-		var go_node = sm.get_node_or_null("gameover")
-		if go_node: go_node.position = Vector2.ZERO
-		isgameover = true
-		interval = 0
 
+
+	if not ("active_enemies" in sm) or sm.active_enemies.size() == 0:
+		return
+
+	var seq_tw = create_tween()
+	for e in sm.active_enemies:
+		var spr = e["sprite"]
+		var atk = e["atk"]
+		seq_tw.tween_callback(func():
+			if not is_instance_valid(spr): return
+			
+			var orig_pos = spr.position
+			var atk_tw = create_tween()
+			atk_tw.tween_property(spr, "position", orig_pos + Vector2(-60, 0), 0.1)
+			atk_tw.tween_property(spr, "position", orig_pos, 0.2).set_delay(0.1)
+			
+			_play_pooled_se(ENEMY_ATTACK_SE, linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5)), 1.0)
+				
+			var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
+			var incoming_damage = atk / float(effective_shield_cnt + 1)
+			
+			if incoming_damage > 0.0:
+				_play_pooled_se(UTU2_SE, linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5)), 1.0)
+				_spawn_screen_flash(Color(0.8, 0.1, 0.1, 0.35), 0.3)
+				_trigger_screen_shake(20.0 + minf(incoming_damage * 0.05, 30.0))
+			
+			sm.calchp(0, incoming_damage)
+		)
+		seq_tw.tween_interval(0.3)
+		
+	# すべての敵の攻撃が終わった後にシールドを消去し、ゲームオーバー判定を行う
+	seq_tw.tween_callback(func():
+		for item in active_shields:
+			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
+		active_shields.clear()
+		current_total_shields = 0
+		
+		if sm and sm.myhp <= 0:
+			var go_node = sm.get_node_or_null("gameover")
+			if go_node: go_node.position = Vector2.ZERO
+			isgameover = true
+			interval = 0
+	)
 ## 各属性スキルの情報（スキル名・演出カラー）の取得
 func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
 	match elem:
@@ -4299,116 +4480,131 @@ func _execute_enemy_elemental_skill(sm: Node2D) -> void:
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return
 
-	var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
-	var elem = sm.get_current_enemy_element() if sm.has_method("get_current_enemy_element") else "無属性"
-	var s_info = _get_enemy_skill_info(elem, is_boss)
-	var s_name: String = s_info["name"]
-	var elem_color: String = s_info["color"]
+	if sm.get("active_enemies") and sm.active_enemies.size() > 0:
+		var seq_tw = create_tween()
+		for e in sm.active_enemies:
+			var key = e.get("key", "slime")
+			var is_boss = false
+			if sm.has_method("is_boss_monster"):
+				is_boss = sm.is_boss_monster()
+			else:
+				is_boss = sm.is_current_boss if "is_current_boss" in sm else false
+				
+			var sp_data = {}
+			if "ENEMY_SPECIES" in sm:
+				sp_data = sm.ENEMY_SPECIES.get(key, {})
+				
+			var elem = sp_data.get("element", sp_data.get("race", "???"))
+			if typeof(elem) == TYPE_ARRAY:
+				elem = elem[randi() % elem.size()]
+				
+			var s_info = _get_enemy_skill_info(elem, is_boss)
+			var s_name = s_info["name"]
+			var elem_color = s_info["color"]
+			var spr = e.get("sprite")
+			
+			seq_tw.tween_callback(func():
+				_play_enemy_skill_se(is_boss)
+				_show_enemy_skill_banner(s_name, elem_color, is_boss)
+				_spawn_enemy_skill_chant_vfx(sm, sm.enemy, elem_color, is_boss)
+				if is_instance_valid(spr):
+					# 簡単なアニメーション
+					var tw = create_tween()
+					tw.tween_property(spr, "scale", spr.scale * 1.1, 0.2)
+					tw.tween_property(spr, "scale", spr.scale, 0.2)
+			)
+			seq_tw.tween_interval(0.70)
+			seq_tw.tween_callback(func():
+				if sm == null or sm.isdeadf or sm.ehp <= 0:
+					return
+				var targets = _apply_enemy_elemental_skill_effect(elem, is_boss)
+				_spawn_enemy_skill_beam_and_burst(sm, sm.enemy, elem_color, is_boss, targets)
+			)
+			seq_tw.tween_interval(0.5)
+	else:
+		var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
+		var elem = sm.get_current_enemy_element() if sm.has_method("get_current_enemy_element") else "???"
+		var s_info = _get_enemy_skill_info(elem, is_boss)
+		var s_name: String = s_info["name"]
+		var elem_color: String = s_info["color"]
 
-	# ① 敵スキル専用魔法SEの再生
-	_play_enemy_skill_se(is_boss)
+		_play_enemy_skill_se(is_boss)
+		_show_enemy_skill_banner(s_name, elem_color, is_boss)
+		if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("skill"):
+			sm.play_enemy_animation("skill")
+		_spawn_enemy_skill_chant_vfx(sm, sm.enemy, elem_color, is_boss)
 
-	# ② 【重要】まずスキル名バナーを真っ先に画面中央上部に表示！
-	_show_enemy_skill_banner(s_name, elem_color, is_boss)
-
-	# ③ 敵が属性魔力を全身に滾らせ、足元に魔法陣を展開して詠唱開始（スプライトシートがあればスキルアニメ再生）
-	if sm.has_method("play_enemy_animation") and sm.has_enemy_animation("skill"):
-		sm.play_enemy_animation("skill")
-	_spawn_enemy_skill_chant_vfx(sm, elem_color, is_boss)
-
-	# ④ スキル名を表示してから【待機時間（約0.7秒）】を置き、その後に盤面へスペル発射＆妨害展開！
-	var tw_cast = create_tween()
-	tw_cast.tween_interval(0.70)
-	tw_cast.tween_callback(func():
-		if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
-			return
-		# ⑤ 敵から盤面へ属性スペルビーム疾走 ＆ 着弾バースト炸裂
-		_spawn_enemy_skill_beam_and_burst(sm, elem_color, is_boss)
-
-		# ⑥ 盤面に属性妨害オブジェクト（水・氷・竜巻・苗木・岩・雷・霧・金像・爆弾）を展開！
-		_apply_enemy_elemental_skill_effect(elem, is_boss)
-	)
-
+		var tw_cast = create_tween()
+		tw_cast.tween_interval(0.70)
+		tw_cast.tween_callback(func():
+			if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
+				return
+			var targets = _apply_enemy_elemental_skill_effect(elem, is_boss)
+			_spawn_enemy_skill_beam_and_burst(sm, sm.enemy, elem_color, is_boss, targets)
+		)
 ## 現在のステージ進行度に応じた難易度インデックスを取得 (0: Stage 1, 1: Stage 2, ...)
 func _get_stage_index() -> int:
 	var sm = _get_stage_manager()
 	return clampi((sm.stage - 1) if sm else 0, 0, 10)
 
 ## 盤面への各属性妨害効果の適用
-func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> void:
+func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> Array[Vector2]:
 	match elem:
 		"水属性":
-			_cast_enemy_water_skill(is_boss, false)
+			return _cast_enemy_water_skill(is_boss, false)
 		"氷属性":
-			_cast_enemy_ice_skill(is_boss, false)
+			return _cast_enemy_ice_skill(is_boss, false)
 		"風属性":
-			_cast_enemy_wind_skill(is_boss, false)
+			return _cast_enemy_wind_skill(is_boss, false)
 		"木属性":
-			_cast_enemy_wood_skill(is_boss, false)
+			return _cast_enemy_wood_skill(is_boss, false)
 		"地属性":
-			_cast_enemy_earth_skill(is_boss, false)
+			return _cast_enemy_earth_skill(is_boss, false)
 		"雷属性":
-			_cast_enemy_lightning_skill(is_boss, false)
+			return _cast_enemy_lightning_skill(is_boss, false)
 		"闇属性":
-			_cast_enemy_dark_skill(is_boss, false)
+			return _cast_enemy_dark_skill(is_boss, false)
 		"光属性":
-			_cast_enemy_light_skill(is_boss, false)
+			return _cast_enemy_light_skill(is_boss, false)
 		"火属性":
-			_cast_enemy_fire_skill(is_boss, false)
+			return _cast_enemy_fire_skill(is_boss, false)
 		_:
-			_cast_enemy_earth_skill(is_boss, false)
+			return _cast_enemy_earth_skill(is_boss, false)
 
 ## 敵スキル専用効果音の再生（魔法スキル発動SE）
 func _play_enemy_skill_se(is_boss: bool) -> void:
 	var se_stream = BUFF2_SE if is_boss else BUFF1_SE
 	if se_stream:
-		var asp = AudioStreamPlayer.new()
-		asp.stream = se_stream
+		var vol = 0.0
 		var sm_autoload = get_node_or_null("/root/SettingsManager")
 		if sm_autoload and "se_volume" in sm_autoload:
-			asp.volume_db = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0))
-		else:
-			asp.volume_db = 0.0
-		var p = get_parent()
-		var target_parent = p if p != null else self
-		target_parent.add_child(asp)
-		asp.play()
-		asp.finished.connect(asp.queue_free)
+			vol = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0))
+		_play_pooled_se(se_stream, vol, 1.0)
 
 ## スペルビーム飛翔効果音の再生
 func _play_spell_beam_se() -> void:
 	if ACCEL_SE:
-		var asp = AudioStreamPlayer.new()
-		asp.stream = ACCEL_SE
+		var vol = 0.0
 		var sm_autoload = get_node_or_null("/root/SettingsManager")
 		if sm_autoload and "se_volume" in sm_autoload:
-			asp.volume_db = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0))
-		else:
-			asp.volume_db = 0.0
-		var p = get_parent()
-		var target_parent = p if p != null else self
-		target_parent.add_child(asp)
-		asp.play()
-		asp.finished.connect(asp.queue_free)
+			vol = linear_to_db(clampf(sm_autoload.se_volume, 0.001, 1.0))
+		_play_pooled_se(ACCEL_SE, vol, 1.0)
 
 ## 敵エリアの詠唱演出（敵発光・巨大化・咆哮シェイク・足元魔法陣展開）
-func _spawn_enemy_skill_chant_vfx(sm: Node2D, elem_color_hex: String, is_boss: bool) -> void:
-	if sm == null or sm.enemy == null:
+func _spawn_enemy_skill_chant_vfx(sm: Node2D, enemy_sp: Sprite2D, elem_color_hex: String, is_boss: bool) -> void:
+	if sm == null or enemy_sp == null:
 		return
 
-	var enemy_sp = sm.enemy
 	var elem_col = Color.from_string(elem_color_hex, Color(1, 0.8, 0.2))
 	var p = get_parent()
 	var root_node = p if p != null else self
 
-	# ① 敵スプライトのカラーフラッシュ・咆哮巨大化・シェイク（スプライトシートを持たない敵のみ）
 	var has_custom_anim = sm.has_method("has_enemy_animation") and sm.has_enemy_animation("skill")
 	if not has_custom_anim:
 		var base_scale: Vector2 = enemy_sp.get_meta("base_scale", Vector2(0.5, 0.5))
 		var orig_mod = Color.WHITE
 		var orig_pos = enemy_sp.position
 
-		# 以前のTweenがあれば強制終了して初期状態に復帰
 		if enemy_sp.has_meta("active_skill_tween"):
 			var old_tw = enemy_sp.get_meta("active_skill_tween")
 			if is_instance_valid(old_tw) and old_tw is Tween and old_tw.is_valid():
@@ -4420,23 +4616,18 @@ func _spawn_enemy_skill_chant_vfx(sm: Node2D, elem_color_hex: String, is_boss: b
 		tw_enemy.bind_node(enemy_sp)
 		enemy_sp.set_meta("active_skill_tween", tw_enemy)
 		tw_enemy.set_parallel(true)
-		# 属性カラーで強烈に発光
 		tw_enemy.tween_property(enemy_sp, "modulate", Color(elem_col.r * 2.0, elem_col.g * 2.0, elem_col.b * 2.0, 1.0), 0.15)
-		# 咆哮するように拡大（常に base_scale を基準にする）
 		var boost_scale = base_scale * (1.38 if is_boss else 1.28)
 		tw_enemy.tween_property(enemy_sp, "scale", boost_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
-		# 激しいシェイク
 		for s_i in range(8):
 			var offset = Vector2(randf_range(-16, 16), randf_range(-16, 16))
 			tw_enemy.chain().tween_property(enemy_sp, "position", orig_pos + offset, 0.04)
 
-		# 元の状態へ確実に復帰
 		tw_enemy.chain().set_parallel(true)
 		tw_enemy.tween_property(enemy_sp, "position", orig_pos, 0.2)
 		tw_enemy.tween_property(enemy_sp, "scale", base_scale, 0.2)
 		tw_enemy.tween_property(enemy_sp, "modulate", orig_mod, 0.25)
-		# 終了時コールバックで絶対に base_scale に復帰
 		tw_enemy.chain().tween_callback(func():
 			if is_instance_valid(enemy_sp):
 				enemy_sp.scale = base_scale
@@ -4444,53 +4635,58 @@ func _spawn_enemy_skill_chant_vfx(sm: Node2D, elem_color_hex: String, is_boss: b
 				enemy_sp.position = orig_pos
 		)
 
-	# ② 敵足元・背後の詠唱魔法陣サークル（SkillVFXNode）
 	var chant_node = SkillVFXNode.new(SkillVFXNode.VFXMode.CHANT_CIRCLE, elem_col, 0.95)
 	chant_node.position = enemy_sp.global_position
-	root_node.add_child(chant_node)
-
+	var vc = root_node.get_node_or_null("VFXContainer")
+	if vc: Profiler.add_child_count += 1; vc.add_child(chant_node)
+	else: Profiler.add_child_count += 1; root_node.add_child(chant_node)
 ## 敵から盤面への属性スペルビーム疾走 ＆ 盤面着弾バースト演出
-func _spawn_enemy_skill_beam_and_burst(sm: Node2D, elem_color_hex: String, is_boss: bool) -> void:
-	if sm == null or sm.enemy == null:
+func _spawn_enemy_skill_beam_and_burst(sm: Node2D, enemy_sp: Sprite2D, elem_color_hex: String, is_boss: bool, targets: Array[Vector2] = []) -> void:
+	if sm == null or enemy_sp == null:
 		return
 
-	var enemy_sp = sm.enemy
 	var elem_col = Color.from_string(elem_color_hex, Color(1, 0.8, 0.2))
 	var p = get_parent()
 	var root_node = p if p != null else self
 
-	# ① 敵から盤面へ突進する属性スペルビーム（SkillVFXNode）
-	var target_board_center = Vector2(780, 480)
-	var beam_node = SkillVFXNode.new(SkillVFXNode.VFXMode.SPELL_BEAM, elem_col, 0.35)
-	beam_node.start_pos = enemy_sp.global_position
-	beam_node.target_pos = target_board_center
-	root_node.add_child(beam_node)
-	_play_spell_beam_se()
+	if targets.is_empty():
+		targets.append(Vector2(7500.0 / 2.0, 7500.0 / 2.0)) # Board center local approx
 
-	# ② ビーム到達時に盤面中央で炸裂する着弾バースト（SkillVFXNode）
+	_play_spell_beam_se()
+	
+	# To prevent massive lag if a skill affects 25 cells, we can cap the number of visual beams to 8
+	var visual_targets = targets.duplicate()
+	visual_targets.shuffle()
+	var max_beams = mini(8, visual_targets.size())
+	
+	for i in range(max_beams):
+		var target_local = visual_targets[i]
+		var target_global = to_global(target_local)
+		var target_root_local = root_node.to_local(target_global)
+		
+		var beam_node = SkillVFXNode.new(SkillVFXNode.VFXMode.SPELL_BEAM, elem_col, 0.35)
+		beam_node.start_pos = enemy_sp.global_position
+		beam_node.target_pos = target_root_local
+		var vc = root_node.get_node_or_null("VFXContainer")
+		if vc: Profiler.add_child_count += 1; vc.add_child(beam_node)
+		else: Profiler.add_child_count += 1; root_node.add_child(beam_node)
+
 	var tw_burst = create_tween()
 	tw_burst.tween_interval(0.30)
 	tw_burst.tween_callback(func():
 		if not is_instance_valid(root_node): return
-		var burst_node = SkillVFXNode.new(SkillVFXNode.VFXMode.BURST_RING, elem_col, 0.50)
-		burst_node.position = target_board_center
-		burst_node.max_radius = 340.0 if is_boss else 260.0
-		root_node.add_child(burst_node)
+		for i in range(max_beams):
+			var target_local = visual_targets[i]
+			var target_global = to_global(target_local)
+			var target_root_local = root_node.to_local(target_global)
+			var burst_node = SkillVFXNode.new(SkillVFXNode.VFXMode.BURST_RING, elem_col, 0.40)
+			burst_node.position = target_root_local
+			burst_node.max_radius = 180.0 if is_boss else 140.0
+			var vc = root_node.get_node_or_null("VFXContainer")
+			if vc: Profiler.add_child_count += 1; vc.add_child(burst_node)
+			else: Profiler.add_child_count += 1; root_node.add_child(burst_node)
 	)
-
-	# ③ 散乱する補助スパーク粒子（8発）
-	for p_i in range(8):
-		var orb = SkillVFXNode.new(SkillVFXNode.VFXMode.BURST_RING, elem_col, randf_range(0.35, 0.55))
-		orb.position = target_board_center + Vector2(randf_range(-220, 220), randf_range(-220, 220))
-		orb.max_radius = randf_range(40.0, 90.0)
-		root_node.add_child(orb)
-
 ## 敵エリアのスキル発動カットインビジュアル演出（互換用）
-func _spawn_enemy_skill_activation_vfx(sm: Node2D, elem_color_hex: String, is_boss: bool) -> void:
-	_spawn_enemy_skill_chant_vfx(sm, elem_color_hex, is_boss)
-	_spawn_enemy_skill_beam_and_burst(sm, elem_color_hex, is_boss)
-
-## 敵スキル発動アナウンスバナー表示
 func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_boss: bool) -> void:
 	var custom_font = preload("res://font/g_comickoin_freeR.ttf")
 	var p = get_parent()
@@ -4532,7 +4728,7 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 
 	var boss_tag = "[color=#FF3D00]☠ BOSS SKILL ☠[/color]" if is_boss else "[color=#FFD700]⚡ 敵スキル発動 ⚡[/color]"
 	label.text = "[center][font_size=18]%s[/font_size]\n[b][color=%s][font_size=32]『%s』[/font_size][/color][/b][/center]" % [boss_tag, elem_color_hex, skill_name]
-	panel.add_child(label)
+	Profiler.add_child_count += 1; panel.add_child(label)
 
 	if target_parent == p:
 		panel.position = Vector2(800.0 - panel_w * 0.5, 30.0)
@@ -4544,7 +4740,7 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	panel.modulate.a = 0.0
 	var orig_scale = panel.scale
 	panel.scale = orig_scale * 0.8
-	target_parent.add_child(panel)
+	Profiler.add_child_count += 1; target_parent.add_child(panel)
 
 	var tw = create_tween()
 	# ① フェードイン ＆ ポップ拡大（0.2秒）
@@ -4560,7 +4756,8 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	tw.tween_callback(panel.queue_free)
 
 ## 1. 水属性スキル: 水浸しで操作困難（ステージ上昇でマス数増加）
-func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "怒涛・タイダルウェイブ" if is_boss else "アクアサージ"
 	if show_banner: _show_enemy_skill_banner(s_name, "#00E5FF", is_boss)
 	var st_idx = _get_stage_index()
@@ -4579,8 +4776,10 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var p = cands[i]
 		grid_water[p.x][p.y] = true
 		_spawn_aqua_splash_effect(get_cell_position(p.x, p.y), 1)
+		_targets.append(get_cell_position(p.x, p.y))
 
 	_redraw_board_effects()
+	return _targets
 
 ## 水マスに氷が接触した際、連結する水の塊全体を一括で凍結（Flood Fill BFS）
 func _freeze_connected_water(start_cell: Vector2i, ice_dur: int) -> void:
@@ -4608,7 +4807,8 @@ func _freeze_connected_water(start_cell: Vector2i, ice_dur: int) -> void:
 					queue.append(next_c)
 
 ## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ上昇でマス数＆耐久値増加、水接触時は塊ごと一括凍結）
-func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "絶対零度・ブリザード" if is_boss else "フロストロック"
 	if show_banner: _show_enemy_skill_banner(s_name, "#80DEEA", is_boss)
 	var st_idx = _get_stage_index()
@@ -4638,14 +4838,18 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var is_water = (grid_water.size() == GRID_ROWS and grid_water[p.x][p.y])
 		if is_water:
 			_freeze_connected_water(p, ice_dur)
+			_targets.append(get_cell_position(p.x, p.y))
 		else:
 			grid_ice[p.x][p.y] = ice_dur
 			_spawn_ice_break_effect(get_cell_position(p.x, p.y))
+			_targets.append(get_cell_position(p.x, p.y))
 
 	_redraw_board_effects()
+	return _targets
 
 ## 3. 風属性スキル: 縦1直線の竜巻が非コマオブジェクトを一掃（ステージ上昇で竜巻列数増加）
-func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "滅神風・テンペスト" if is_boss else "ダウンバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#64FFDA", is_boss)
 	var st_idx = _get_stage_index()
@@ -4695,9 +4899,11 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> void:
 	if rensa_se: rensa_se.play()
 
 	_redraw_board_effects()
+	return _targets
 
 ## 4. 木属性スキル: 苗木を植えて毎ターンドレイン（ステージ上昇で本数・若木割合・ドレイン量増加）
-func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "生命強奪・フォレストカース" if is_boss else "ソーンシード"
 	if show_banner: _show_enemy_skill_banner(s_name, "#69F0AE", is_boss)
 	var st_idx = _get_stage_index()
@@ -4720,7 +4926,7 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var p = cands[i]
 		var idx = grid_i[p.x][p.y]
 		if idx >= 0 and idx < piece.size() and piece[idx] != null:
-			piece[idx].queue_free()
+			piece[idx].queue_free(); Profiler.queue_free_count += 1
 			piece[idx] = null
 		grid_i[p.x][p.y] = -1
 		grid_n[p.x][p.y] = -1
@@ -4747,6 +4953,7 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> void:
 		plant_entities.append(plant_data)
 		newly_planted.append(plant_data)
 		_spawn_growth_effect(get_cell_position(p.x, p.y), st_val)
+		_targets.append(get_cell_position(p.x, p.y))
 
 	_compact_piece_arrays()
 	_redraw_board_effects()
@@ -4756,9 +4963,11 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> void:
 	if sm and not newly_planted.is_empty():
 		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
 		_execute_wood_hp_drain(sm, newly_planted, stage_scale)
+	return _targets
 
 ## 5. 地属性スキル: 石を複数配置（ステージ上昇で個数＆耐久値強化、巨岩出現）
-func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "天変地異・グランドカタストロフ" if is_boss else "ロックフォール"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFB74D", is_boss)
 	var st_idx = _get_stage_index()
@@ -4784,15 +4993,18 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var stone_dur = (base_dur + 1) if i < heavy_stones else base_dur
 		grid_stones[p.x][p.y] = stone_dur
 		_spawn_stone_break_effect(get_cell_position(p.x, p.y))
+		_targets.append(get_cell_position(p.x, p.y))
 
 	_trigger_screen_shake(12.0)
 	var block_se = get_node_or_null("block")
 	if block_se: block_se.play()
 
 	_redraw_board_effects()
+	return _targets
 
 ## 6. 雷属性スキル: 落雷（ステージ上昇で落雷本数大幅増加）
-func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "神罰・ジャッジメントサンダー" if is_boss else "ギガスパーク"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
@@ -4804,6 +5016,7 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> voi
 		var pos = get_cell_position(r, c)
 		var delay = i * 0.06
 		_spawn_vertical_lightning_bolt(pos, delay)
+		_targets.append(pos)
 
 		# 落雷ヒット時の処理
 		var tw_hit = create_tween()
@@ -4838,9 +5051,11 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> voi
 
 			_redraw_board_effects()
 		)
+	return _targets
 
 ## 7. 闇属性スキル: 黒い霧＆呪いコマ（ステージ上昇で霧拡大・呪いコマ数増加）
-func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "終焉の夜・アビスディメンション" if is_boss else "シャドウベール＆カース"
 	if show_banner: _show_enemy_skill_banner(s_name, "#E040FB", is_boss)
 	var st_idx = _get_stage_index()
@@ -4876,14 +5091,17 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> void:
 	for i in range(num):
 		var p = cands[i]
 		grid_cursed[p.x][p.y] = true
+		_targets.append(get_cell_position(p.x, p.y))
 
 	var anten_se = get_node_or_null("anten")
 	if anten_se: anten_se.play()
 
 	_redraw_board_effects()
+	return _targets
 
 ## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（ステージ上昇で個数＆耐久値強化）
-func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "太陽神の審判・ソーラープリズム" if is_boss else "ミダスグレイス"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
@@ -4919,6 +5137,7 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> void:
 		var p = cands[i]
 		grid_gold_statue[p.x][p.y] = statue_dur
 		_spawn_gold_shatter_effect(get_cell_position(p.x, p.y))
+		_targets.append(get_cell_position(p.x, p.y))
 
 	# ボス時はさらにランダムな通常コマも追加で黄金石像化
 	if is_boss:
@@ -4926,11 +5145,14 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> void:
 		for j in range(extra_num):
 			var p2 = backup_cands[j]
 			grid_gold_statue[p2.x][p2.y] = statue_dur
+			_targets.append(get_cell_position(p2.x, p2.y))
 
 	_redraw_board_effects()
+	return _targets
 
 ## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ上昇で生成数増加）
-func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> void:
+func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
 	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss)
 	var st_idx = _get_stage_index()
@@ -4953,6 +5175,7 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> void:
 		_spawn_explosion_effect(get_cell_position(p.x, p.y))
 
 	_redraw_board_effects()
+	return _targets
 
 ## 炎の毎ターン延焼処理（隣接延焼、水・氷での消火、木への延焼で次ターン周囲全マス大延焼）
 func _process_fire_spread() -> void:
@@ -5082,7 +5305,7 @@ func _jiggle_cell_piece(r: int, c: int, color: Color) -> void:
 		p.position = center - p.size / 2.0
 		p.color = color
 		p.z_index = 25
-		add_child(p)
+		Profiler.add_child_count += 1; add_child(p)
 		var a = randf() * TAU
 		var tw_p = create_tween().set_parallel(true)
 		tw_p.tween_property(p, "position", center + Vector2(cos(a), sin(a)) * 70.0, 0.22).set_ease(Tween.EASE_OUT)
@@ -5101,7 +5324,7 @@ func _spawn_ice_break_effect(pos: Vector2) -> void:
 		shard.points = PackedVector2Array([Vector2.ZERO, Vector2(cos(a), sin(a)) * 25.0])
 		shard.position = pos
 		shard.z_index = 28
-		add_child(shard)
+		Profiler.add_child_count += 1; add_child(shard)
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(shard, "position", pos + Vector2(cos(a), sin(a)) * dist, 0.25).set_ease(Tween.EASE_OUT)
 		tw.tween_property(shard, "modulate:a", 0.0, 0.25)
@@ -5117,7 +5340,7 @@ func _spawn_stone_break_effect(pos: Vector2) -> void:
 		dust.position = pos - dust.size / 2.0
 		dust.color = Color(0.45, 0.38, 0.32, 0.9)
 		dust.z_index = 28
-		add_child(dust)
+		Profiler.add_child_count += 1; add_child(dust)
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(dust, "position", pos + Vector2(cos(a), sin(a)) * dist, 0.25).set_ease(Tween.EASE_OUT)
 		tw.tween_property(dust, "modulate:a", 0.0, 0.25)
@@ -5133,7 +5356,7 @@ func _spawn_gold_shatter_effect(pos: Vector2) -> void:
 		coin.position = pos - coin.size / 2.0
 		coin.color = Color(1.0, 0.90, 0.2, 0.95)
 		coin.z_index = 28
-		add_child(coin)
+		Profiler.add_child_count += 1; add_child(coin)
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(coin, "position", pos + Vector2(cos(a), sin(a)) * dist, 0.3).set_ease(Tween.EASE_OUT)
 		tw.tween_property(coin, "modulate:a", 0.0, 0.3)
@@ -5149,7 +5372,7 @@ func _spawn_shock_zap_effect(pos: Vector2) -> void:
 		var pts = _generate_lightning_bolt_points(pos, pos + Vector2(cos(a), sin(a)) * 80.0, 4, 20.0)
 		sp.points = pts
 		sp.z_index = 30
-		add_child(sp)
+		Profiler.add_child_count += 1; add_child(sp)
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(sp, "modulate:a", 0.0, 0.18)
 		tw.chain().tween_callback(sp.queue_free)
@@ -5164,7 +5387,7 @@ func _spawn_curse_burst_effect(pos: Vector2) -> void:
 		orb.position = pos - orb.size / 2.0
 		orb.color = Color(0.4, 0.05, 0.6, 0.85)
 		orb.z_index = 30
-		add_child(orb)
+		Profiler.add_child_count += 1; add_child(orb)
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(orb, "position", pos + Vector2(cos(a), sin(a)) * dist, 0.3).set_ease(Tween.EASE_OUT)
 		tw.tween_property(orb, "modulate:a", 0.0, 0.3)
@@ -5174,34 +5397,29 @@ func _spawn_curse_burst_effect(pos: Vector2) -> void:
 func _clear_all_combat_projectiles() -> void:
 	for item in flying_swords:
 		if is_instance_valid(item.get("node")):
-			item["node"].queue_free()
+			_return_sprite_to_pool(item["node"])
 	flying_swords.clear()
 
 	for item in active_shields:
 		if is_instance_valid(item.get("node")):
-			item["node"].queue_free()
+			_return_sprite_to_pool(item["node"])
 	active_shields.clear()
 	current_total_shields = 0
 
 	for item in flying_foods:
 		if is_instance_valid(item.get("node")):
-			item["node"].queue_free()
+			_return_sprite_to_pool(item["node"])
 	flying_foods.clear()
-
+	
 	for item in flying_potions:
 		if is_instance_valid(item.get("node")):
-			item["node"].queue_free()
+			_return_sprite_to_pool(item["node"])
 	flying_potions.clear()
-
+	
 	for item in flying_cells:
 		if is_instance_valid(item.get("node")):
-			item["node"].queue_free()
+			_return_sprite_to_pool(item["node"])
 	flying_cells.clear()
-
-	if is_instance_valid(scratch_effect):
-		scratch_effect.queue_free()
-		scratch_effect = null
-
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	if sm and sm.has_method("stop_enemy_animation"):
@@ -5209,7 +5427,12 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 
 	# 敵スキル演出ノードを安全に消去
 	if get_tree():
-		get_tree().call_group("enemy_skill_vfx", "queue_free")
+		var p = get_parent()
+		if p != null:
+			var vc = p.get_node_or_null("VFXContainer")
+			if vc:
+				for child in vc.get_children():
+					child.queue_free(); Profiler.queue_free_count += 1
 
 	# 残存発射物・シールド・エフェクトを確実に全消去してメモリと処理負荷をリセット
 	_clear_all_combat_projectiles()
@@ -5280,5 +5503,9 @@ func _handle_gameover_sequence(sm: Node2D) -> void:
 				go_lbl.text = "[center][b][color=#FF1744]GAME OVER[/color][/b][/center]"
 		var p = get_parent()
 		var ret_btn = p.get_node_or_null("returntitle") if p else null
-		if ret_btn: ret_btn.visible = !ret_btn.visible
+		if ret_btn:
+			ret_btn.visible = true
+			ret_btn.size = Vector2(440, 84)
+			ret_btn.position = Vector2(740, 700)
+			ret_btn.add_theme_font_size_override("font_size", 42)
 	interval += 1
