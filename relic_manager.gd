@@ -109,11 +109,22 @@ func on_turn_start() -> void:
 					if pb and pb.has_method("_emit_combat_event"):
 						pb._emit_combat_event("heal", "ally", "ally", heal_val)
 
+func _get_stage_scale() -> float:
+	var p = get_parent()
+	if p:
+		var sm = p.get_node_or_null("StageManager")
+		if sm and "stage" in sm:
+			return pow(10.0, max(0, int(sm.stage) - 1))
+	return 1.0
+
 func on_match(count: int) -> void:
 	if has_relic("four_orb"):
 		var min_m = int(get_param("four_orb", "min_match", 4))
 		if count >= min_m:
-			var flat_dmg = float(get_param("four_orb", "flat_damage", 500.0))
+			var base_dmg = float(get_param("four_orb", "base_damage", 500.0))
+			var mult = float(get_param("four_orb", "mult", 1.0))
+			var stage_scale = _get_stage_scale()
+			var flat_dmg = base_dmg * mult * stage_scale
 			temp_state["four_orb_damage"] = temp_state.get("four_orb_damage", 0.0) + flat_dmg
 			emit_signal("relic_triggered", "four_orb")
 

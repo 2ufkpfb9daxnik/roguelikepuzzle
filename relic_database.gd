@@ -34,13 +34,13 @@ const RELICS: Dictionary = {
 		"rarity": "common",
 		"max_level": 5,
 		"requires_element": false,
-		"description": "4個以上のマッチで、追加ダメージ（固定値 +500）",
+		"description": "4個以上のマッチで、追加ダメージ（固定値 +500 × ステージ倍率）",
 		"levels": [
-			{"min_match": 4, "flat_damage": 500.0},
-			{"min_match": 4, "flat_damage": 750.0},
-			{"min_match": 4, "flat_damage": 1000.0},
-			{"min_match": 4, "flat_damage": 1250.0},
-			{"min_match": 4, "flat_damage": 1500.0}
+			{"min_match": 4, "base_damage": 500.0, "mult": 1.0},
+			{"min_match": 4, "base_damage": 500.0, "mult": 1.5},
+			{"min_match": 4, "base_damage": 500.0, "mult": 2.0},
+			{"min_match": 4, "base_damage": 500.0, "mult": 2.5},
+			{"min_match": 4, "base_damage": 500.0, "mult": 3.0}
 		]
 	},
 	"old_shield": {
@@ -135,8 +135,9 @@ static func get_description(id: String, level: int) -> String:
 			var db = int(round(float(p.get("damage_bonus", 0.20)) * 100.0))
 			return "連鎖が%d回以上続いたターン、与ダメージ +%d%%" % [mc, db]
 		"four_orb":
-			var fd = int(round(float(p.get("flat_damage", 500.0))))
-			return "4個以上のマッチで、追加ダメージ +%d" % [fd]
+			var mult = float(p.get("mult", 1.0))
+			var base_d = float(p.get("base_damage", 500.0))
+			return "4個以上のマッチで、追加ダメージ +%d × ステージ倍率" % int(round(base_d * mult))
 		"old_shield":
 			var dr = int(round(float(p.get("damage_reduction", 0.10)) * 100.0))
 			return "敵から受けるダメージ -%d%%" % [dr]
