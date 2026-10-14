@@ -3,6 +3,11 @@ class_name RelicSelectionUI
 
 signal selection_finished()
 
+const RELIC_WEIGHT_COMMON: float = 60.0
+const RELIC_WEIGHT_UNCOMMON: float = 30.0
+const RELIC_WEIGHT_RARE: float = 10.0
+const RELIC_OWNED_WEIGHT_MULT: float = 1.5
+
 var panel: Panel
 var title_label: Label
 var hbox: HBoxContainer
@@ -45,8 +50,8 @@ func _ready() -> void:
 	hbox = HBoxContainer.new()
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	hbox.add_theme_constant_override("separation", 40)
-	hbox.position = Vector2(0, 160)
-	hbox.size = Vector2(1400, 380)
+	hbox.position = Vector2(0, 150)
+	hbox.size = Vector2(1400, 400)
 	panel.add_child(hbox)
 	
 	skip_btn = Button.new()
@@ -68,73 +73,149 @@ func _populate_choices() -> void:
 		call_deferred("_on_skip_pressed")
 		return
 		
-	var all_relics = RelicDatabase.RELICS.keys()
-	var available = []
-	for r in all_relics:
-		if not rm.has_relic(r):
-			available.append(r)
+	# 候補プール: 最大レベル未満のレリックのみ
+	var pool: Array[String] = []
+	for r_id in RelicDatabase.RELICS.keys():
+		if not rm.is_max_level(r_id):
+			pool.append(r_id)
 			
-	available.shuffle()
-	var choices = available.slice(0, 3)
-	
-	if choices.is_empty():
-		var empty_lbl = Label.new()
-		empty_lbl.text = "すべてのレリックを取得済みです"
-		if CUSTOM_FONT: empty_lbl.add_theme_font_override("font", CUSTOM_FONT)
-		empty_lbl.add_theme_font_size_override("font_size", 40)
-		empty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		hbox.add_child(empty_lbl)
+	if pool.is_empty():
+		# 候補が0個なら画面を出さずに終了
+		call_deferred("_on_skip_pressed")
 		return
+		
+	var choices: Array[String] = []
+	var pool_copy = pool.duplicate()
+	var pick_count = mini(3, pool_copy.size())
+	
+	for _i in range(pick_count):
+		# 各候補の重みを計算
+		var weights: Array[float] = []
+		var total_weight: float = 0.0
+		for r_id in pool_copy:
+			var r_data = RelicDatabase.get_relic(r_id)
+			var rarity = r_data.get("rarity", "common")
+			var base_w = RELIC_WEIGHT_COMMON
+			if rarity == "uncommon":
+				base_w = RELIC_WEIGHT_UNCOMMON
+			elif rarity == "rare":
+				base_w = RELIC_WEIGHT_RARE
+				
+			var w = base_w
+			if rm.has_relic(r_id):
+				w *= RELIC_OWNED_WEIGHT_MULT
+			weights.append(w)
+			total_weight += w
+			
+		var roll = randf() * total_weight
+		var cumulative: float = 0.0
+		var chosen_idx: int = 0
+		for idx in range(pool_copy.size()):
+			cumulative += weights[idx]
+			if roll <= cumulative:
+				chosen_idx = idx
+				break
+				
+		choices.append(pool_copy[chosen_idx])
+		pool_copy.remove_at(chosen_idx)
 		
 	for c_id in choices:
 		var c_data = RelicDatabase.get_relic(c_id)
+		var cur_lvl = rm.get_level(c_id)
+		var next_lvl = cur_lvl + 1
+		
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(350, 350)
-		btn.size = Vector2(350, 350)
+		btn.custom_minimum_size = Vector2(380, 380)
+		btn.size = Vector2(380, 380)
+		
 		var b_style = StyleBoxFlat.new()
-		b_style.bg_color = Color(0.1, 0.1, 0.1, 1.0)
+		b_style.bg_color = Color(0.10, 0.10, 0.14, 0.98)
 		var rarity = c_data.get("rarity", "common")
-		if rarity == "uncommon": b_style.border_color = Color(0.2, 0.8, 0.2, 1.0)
-		elif rarity == "rare": b_style.border_color = Color(0.2, 0.4, 1.0, 1.0)
-		else: b_style.border_color = Color(0.6, 0.6, 0.6, 1.0)
-		b_style.set_border_width_all(6)
+		if rarity == "uncommon":
+			b_style.border_color = Color(0.2, 0.85, 0.3, 1.0)
+		elif rarity == "rare":
+			b_style.border_color = Color(0.3, 0.55, 1.0, 1.0)
+		else:
+			b_style.border_color = Color(0.7, 0.7, 0.7, 1.0)
+		b_style.set_border_width_all(5)
 		b_style.set_corner_radius_all(16)
 		btn.add_theme_stylebox_override("normal", b_style)
 		
 		var h_style = b_style.duplicate()
-		h_style.bg_color = Color(0.2, 0.2, 0.2, 1.0)
+		h_style.bg_color = Color(0.18, 0.18, 0.26, 1.0)
 		btn.add_theme_stylebox_override("hover", h_style)
 		
 		var vbox = VBoxContainer.new()
-		vbox.position = Vector2(15, 15)
-		vbox.size = Vector2(320, 320)
-		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		vbox.position = Vector2(16, 16)
+		vbox.size = Vector2(348, 348)
+		vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(vbox)
 		
+		# バッジ表示 (未所持: NEW, 所持中: LvX -> LvX+1)
+		var badge_label = RichTextLabel.new()
+		badge_label.bbcode_enabled = true
+		badge_label.fit_content = true
+		badge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if CUSTOM_FONT:
+			badge_label.add_theme_font_override("normal_font", CUSTOM_FONT)
+			badge_label.add_theme_font_override("bold_font", CUSTOM_FONT)
+		badge_label.add_theme_font_size_override("normal_font_size", 24)
+		badge_label.add_theme_font_size_override("bold_font_size", 24)
+		
+		if cur_lvl == 0:
+			badge_label.text = "[center][b][color=#00E5FF]★ NEW ★[/color][/b][/center]"
+		else:
+			badge_label.text = "[center][b][color=#76FF03]強化: Lv%d → Lv%d[/color][/b][/center]" % [cur_lvl, next_lvl]
+		vbox.add_child(badge_label)
+		
+		# レリック名
 		var r_label = Label.new()
 		r_label.text = c_data.get("name", "???")
 		r_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if CUSTOM_FONT:
 			r_label.add_theme_font_override("font", CUSTOM_FONT)
-		r_label.add_theme_font_size_override("font_size", 36)
-		if rarity == "uncommon": r_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
-		elif rarity == "rare": r_label.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
+		r_label.add_theme_font_size_override("font_size", 34)
+		if rarity == "uncommon":
+			r_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
+		elif rarity == "rare":
+			r_label.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
+		else:
+			r_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
 		vbox.add_child(r_label)
 		
-		# Spacer
+		# レアリティ表記
+		var rarity_label = Label.new()
+		rarity_label.text = rarity.to_upper()
+		rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if CUSTOM_FONT:
+			rarity_label.add_theme_font_override("font", CUSTOM_FONT)
+		rarity_label.add_theme_font_size_override("font_size", 18)
+		rarity_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		vbox.add_child(rarity_label)
+		
 		var spacer = Control.new()
-		spacer.custom_minimum_size = Vector2(0, 20)
+		spacer.custom_minimum_size = Vector2(0, 10)
 		vbox.add_child(spacer)
 		
+		# 説明文（未所持ならLv1説明、所持中なら現在値と強化後値の対比）
 		var d_label = RichTextLabel.new()
 		d_label.bbcode_enabled = true
-		d_label.text = "[center]" + c_data.get("description", "") + "[/center]"
-		d_label.custom_minimum_size = Vector2(320, 150)
+		d_label.custom_minimum_size = Vector2(348, 170)
 		if CUSTOM_FONT:
 			d_label.add_theme_font_override("normal_font", CUSTOM_FONT)
-		d_label.add_theme_font_size_override("normal_font_size", 24)
+			d_label.add_theme_font_override("bold_font", CUSTOM_FONT)
+		d_label.add_theme_font_size_override("normal_font_size", 22)
+		d_label.add_theme_font_size_override("bold_font_size", 22)
 		d_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		
+		if cur_lvl == 0:
+			var desc1 = RelicDatabase.get_description(c_id, 1)
+			d_label.text = "[center]%s[/center]" % desc1
+		else:
+			var desc_cur = RelicDatabase.get_description(c_id, cur_lvl)
+			var desc_next = RelicDatabase.get_description(c_id, next_lvl)
+			d_label.text = "[center][color=#888888]現在: %s[/color]\n\n[color=#FFD700]▼ 次のレベル ▼\n[b]%s[/b][/color][/center]" % [desc_cur, desc_next]
 		vbox.add_child(d_label)
 		
 		btn.pressed.connect(_on_choice_pressed.bind(c_id))
@@ -142,7 +223,8 @@ func _populate_choices() -> void:
 
 func _on_choice_pressed(id: String) -> void:
 	var rm = get_tree().get_root().find_child("RelicManager", true, false)
-	if rm: rm.add_relic(id)
+	if rm:
+		rm.add_relic(id)
 	
 	emit_signal("selection_finished")
 	queue_free()

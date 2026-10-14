@@ -21,11 +21,11 @@ func _ready() -> void:
 	info_panel = PanelContainer.new()
 	info_panel.visible = false
 	info_panel.position = Vector2(50, 100)
-	info_panel.size = Vector2(400, 150)
+	info_panel.size = Vector2(440, 160)
 	info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info_panel.z_index = 100
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.1, 0.95)
+	style.bg_color = Color(0.1, 0.1, 0.12, 0.96)
 	style.border_color = Color(0.8, 0.8, 0.8, 1.0)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(8)
@@ -47,13 +47,13 @@ func _ready() -> void:
 	if CUSTOM_FONT:
 		name_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 		name_label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		name_label.add_theme_font_size_override("normal_font_size", 32)
-		name_label.add_theme_font_size_override("bold_font_size", 32)
+		name_label.add_theme_font_size_override("normal_font_size", 30)
+		name_label.add_theme_font_size_override("bold_font_size", 30)
 	else:
 		name_label.add_theme_font_override("normal_font", sys_font)
 		name_label.add_theme_font_override("bold_font", sys_font)
-		name_label.add_theme_font_size_override("normal_font_size", 32)
-		name_label.add_theme_font_size_override("bold_font_size", 32)
+		name_label.add_theme_font_size_override("normal_font_size", 30)
+		name_label.add_theme_font_size_override("bold_font_size", 30)
 	vbox.add_child(name_label)
 	
 	desc_label = RichTextLabel.new()
@@ -62,6 +62,7 @@ func _ready() -> void:
 	desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if CUSTOM_FONT:
 		desc_label.add_theme_font_override("normal_font", CUSTOM_FONT)
+		desc_label.add_theme_font_override("bold_font", CUSTOM_FONT)
 	else:
 		desc_label.add_theme_font_override("normal_font", sys_font)
 	vbox.add_child(desc_label)
@@ -69,6 +70,7 @@ func _ready() -> void:
 	var rm = get_tree().get_root().find_child("RelicManager", true, false)
 	if rm:
 		rm.connect("relic_added", _on_relic_added)
+		rm.connect("relic_leveled_up", _on_relic_leveled_up)
 		rm.connect("relic_triggered", _on_relic_triggered)
 		for r_id in rm.get_relics():
 			_on_relic_added(r_id)
@@ -91,6 +93,7 @@ func _on_relic_added(id: String) -> void:
 	elif rarity == "uncommon": rect.color = Color(0.2, 0.8, 0.2)
 	elif rarity == "rare": rect.color = Color(0.2, 0.4, 1.0)
 	
+	# レリック頭文字ラベル
 	var lbl = Label.new()
 	lbl.text = r_data.get("name", "?").substr(0, 1)
 	lbl.position = Vector2.ZERO
@@ -104,6 +107,23 @@ func _on_relic_added(id: String) -> void:
 	lbl.add_theme_constant_override("outline_size", 4)
 	rect.add_child(lbl)
 	
+	# レベルラベル (Lv1は非表示、Lv2以上で表示)
+	var lvl_lbl = Label.new()
+	lvl_lbl.name = "LevelLabel"
+	var rm = get_tree().get_root().find_child("RelicManager", true, false)
+	var cur_lvl = rm.get_level(id) if rm else 1
+	lvl_lbl.text = ("Lv%d" % cur_lvl) if cur_lvl > 1 else ""
+	lvl_lbl.position = Vector2(24, 38)
+	lvl_lbl.size = Vector2(38, 24)
+	lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	if CUSTOM_FONT:
+		lvl_lbl.add_theme_font_override("font", CUSTOM_FONT)
+	lvl_lbl.add_theme_font_size_override("font_size", 18)
+	lvl_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
+	lvl_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	lvl_lbl.add_theme_constant_override("outline_size", 4)
+	rect.add_child(lvl_lbl)
+	
 	rect.gui_input.connect(_on_icon_gui_input.bind(id, rect))
 	rect.mouse_filter = Control.MOUSE_FILTER_STOP
 	rect.pivot_offset = Vector2(32, 32)
@@ -111,19 +131,53 @@ func _on_relic_added(id: String) -> void:
 	container.add_child(rect)
 	icon_nodes[id] = rect
 
+func _on_relic_leveled_up(id: String, new_level: int) -> void:
+	if not icon_nodes.has(id):
+		_on_relic_added(id)
+	
+	var rect = icon_nodes[id]
+	var lvl_lbl = rect.get_node_or_null("LevelLabel") as Label
+	if lvl_lbl:
+		lvl_lbl.text = "Lv%d" % new_level
+		
+	# レベルアップ時の発光アニメーション
+	if rect.has_meta("tw"):
+		var old_tw = rect.get_meta("tw")
+		if is_instance_valid(old_tw): old_tw.kill()
+		
+	var tw = create_tween()
+	rect.set_meta("tw", tw)
+	rect.modulate = Color(2.5, 2.5, 1.5, 1.0) # 黄金フラッシュ
+	tw.tween_property(rect, "scale", Vector2(1.4, 1.4), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(rect, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(rect, "modulate", Color.WHITE, 0.25)
+
 func _on_icon_gui_input(event: InputEvent, id: String, rect: ColorRect) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if info_panel.visible and info_panel.get_meta("current_id", "") == id:
 			info_panel.visible = false
 		else:
+			var rm = get_tree().get_root().find_child("RelicManager", true, false)
 			var r_data = RelicDatabase.get_relic(id)
+			var cur_lvl = rm.get_level(id) if rm else 1
+			var max_lvl = RelicDatabase.get_max_level(id)
+			var is_max = cur_lvl >= max_lvl
+			
 			var r_color = "#AAAAAA"
 			var rarity = r_data.get("rarity", "common")
 			if rarity == "uncommon": r_color = "#33CC33"
 			elif rarity == "rare": r_color = "#3366FF"
 			
-			name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + "[/color][/b]"
-			desc_label.text = "[font_size=24]" + r_data.get("description", "") + "[/font_size]"
+			var level_str = " (Lv%d/MAX)" % cur_lvl if is_max else " (Lv%d)" % cur_lvl
+			name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + level_str + "[/color][/b]"
+			
+			var desc_cur = RelicDatabase.get_description(id, cur_lvl)
+			if is_max:
+				desc_label.text = "[font_size=22][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % desc_cur
+			else:
+				var desc_next = RelicDatabase.get_description(id, cur_lvl + 1)
+				desc_label.text = "[font_size=20][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [desc_cur, cur_lvl + 1, desc_next]
+				
 			info_panel.set_meta("current_id", id)
 			info_panel.position = rect.global_position + Vector2(0, 70)
 			info_panel.visible = true

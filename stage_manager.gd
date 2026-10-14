@@ -7,6 +7,7 @@ signal stage_clear
 # --- ステージ＆敵データテーブル ---
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 const RELIC_SELECTION_UI_SCRIPT = preload("res://relic_selection_ui.gd")
+const RELIC_OFFER_BATTLE_INDICES: Array[int] = [2, 5]
 const STAGE_BACKGROUNDS: Array[String] = ["plane", "cave", "desert", "snow field", "castle"]
 const STAGE_BACKGROUND_TEXTURES: Array[Texture2D] = [
 	preload("res://Texture/plane.jpeg"),
@@ -1147,13 +1148,19 @@ func _step_process() -> void:
 		if deadinterval == 100:
 			# ボス戦突入前・ボス戦中は絶対にショップを開かない
 			if not is_boss_battle():
-				# 敵撃破 → レリック選択 → ショップ＆「次へ進む」の順に表示
-				_open_relic_selection(func():
+				# RELIC_OFFER_BATTLE_INDICES (例: 2戦目) に該当する場合のみレリック選択画面を挟む
+				if stage_enemy in RELIC_OFFER_BATTLE_INDICES:
+					_open_relic_selection(func():
+						if choose_buff_rect: choose_buff_rect.visible = true
+						_set_buff_buttons_visible(true)
+						if move_front_btn: move_front_btn.visible = true
+						clicked = false
+					)
+				else:
 					if choose_buff_rect: choose_buff_rect.visible = true
 					_set_buff_buttons_visible(true)
 					if move_front_btn: move_front_btn.visible = true
 					clicked = false
-				)
 			else:
 				clicked = false
 		deadinterval += 1
@@ -1252,13 +1259,20 @@ func _process_stage_clear_sequence() -> void:
 		var kirikae = get_parent().get_node_or_null("stagekirikae")
 		if kirikae: kirikae.play()
 	elif clearinterval == 161:
-		_open_relic_selection(func():
+		if 5 in RELIC_OFFER_BATTLE_INDICES:
+			_open_relic_selection(func():
+				if choose_buff_rect: choose_buff_rect.visible = true
+				_set_buff_buttons_visible(true)
+				if sm:
+					var next_btn = sm.get_node_or_null("stagechangeb")
+					if next_btn: next_btn.visible = true
+			)
+		else:
 			if choose_buff_rect: choose_buff_rect.visible = true
 			_set_buff_buttons_visible(true)
 			if sm:
 				var next_btn = sm.get_node_or_null("stagechangeb")
 				if next_btn: next_btn.visible = true
-		)
 	clearinterval += 1
 
 ## レリック選択画面を開き、選択（またはスキップ）後に on_finished を呼ぶ
