@@ -218,6 +218,7 @@ const TEXTURE_FILE: Array[String] = ["shield_cut", "sword_cut", "coin_cut", "pot
 var divscorelabel: Array[RichTextLabel] = []
 var turn_element_counts: Dictionary = {}
 var turn_element_gain: Dictionary = {}
+var turn_sword_element_counts: Dictionary = {}
 var elem_labels: Array[RichTextLabel] = []
 var _popup_pool: Array[RichTextLabel] = []
 const MAX_POOLED_POPUPS: int = 16
@@ -681,6 +682,8 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 						var ratio = float(element_piece_counts[el]) / float(total_pieces)
 						var el_gain = int(gain * ratio)
 						turn_element_gain[att_type][el] = turn_element_gain[att_type].get(el, 0) + el_gain
+						if att_type == PieceType.SWORD:
+							turn_sword_element_counts[el] = int(turn_sword_element_counts.get(el, 0)) + int(element_piece_counts[el])
 
 ## 幅優先探索 (BFS) で同じ属性の連結したマッチ駒を探索
 func _collect_connected_match_cells(start_r: int, start_c: int, target_att: int, match_index: Array, grid_att: Array, visited: Array, out_cells: Array[Vector2i]) -> void:
@@ -1088,8 +1091,11 @@ func update_elem_labels() -> void:
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()
 	turn_element_gain.clear()
+	turn_sword_element_counts.clear()
 	update_elem_labels()
 
+func get_turn_sword_element_counts() -> Dictionary:
+	return turn_sword_element_counts.duplicate()
 
 func add_turn_element(el: int, amount: int) -> void:
 	turn_element_counts[el] = turn_element_counts.get(el, 0) + amount

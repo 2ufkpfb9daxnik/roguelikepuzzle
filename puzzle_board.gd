@@ -663,6 +663,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			if sm:
 				var shock_dmg = minf(sm.myhpmax * 0.05, 300.0) if sm.myhpmax > 0 else 300.0
 				sm.calchp(0.0, shock_dmg)
+				var rm_br = _get_relic_manager()
+				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
 			_spawn_shock_zap_effect(get_cell_position(row_idx, col_idx))
 			_redraw_board_effects()
 
@@ -1101,6 +1103,9 @@ func _detonate_specials(start_items: Array) -> void:
 			special_item[b.x][b.y] = SpecialItemType.NONE
 		if is_bomb.size() == GRID_ROWS:
 			is_bomb[b.x][b.y] = false
+
+		var rm_sp = _get_relic_manager()
+		if rm_sp: rm_sp.on_special_detonated(item_type)
 
 		var pos = get_cell_position(b.x, b.y)
 
@@ -3151,6 +3156,8 @@ func _start_breaking_animation() -> void:
 			if stage_mgr:
 				var shock_dmg = minf(stage_mgr.myhpmax * 0.05, 300.0) if stage_mgr.myhpmax > 0 else 300.0
 				stage_mgr.calchp(0.0, shock_dmg)
+				var rm_br = _get_relic_manager()
+				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
 			_spawn_shock_zap_effect(get_cell_position(cell.x, cell.y))
 
 		if grid_cursed.size() == GRID_ROWS and grid_cursed[cell.x][cell.y]:
@@ -3158,6 +3165,8 @@ func _start_breaking_animation() -> void:
 			if stage_mgr:
 				var curse_dmg = minf(stage_mgr.myhpmax * 0.08, 500.0) if stage_mgr.myhpmax > 0 else 500.0
 				stage_mgr.calchp(0.0, curse_dmg)
+				var rm_br = _get_relic_manager()
+				if rm_br: rm_br.on_backlash_damage("cursed", curse_dmg)
 			_spawn_curse_burst_effect(get_cell_position(cell.x, cell.y))
 
 	# 2. 隣接マッチによる氷割れ・石破壊・黄金像耐久減算・黒い霧解除
@@ -3169,14 +3178,21 @@ func _start_breaking_animation() -> void:
 			if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS:
 				if grid_ice.size() == GRID_ROWS and int(grid_ice[ar][ac]) > 0:
 					grid_ice[ar][ac] = int(grid_ice[ar][ac]) - 1
+					if int(grid_ice[ar][ac]) <= 0:
+						var rm_h = _get_relic_manager()
+						if rm_h: rm_h.on_hazard_destroyed("ice", 1)
 					_spawn_ice_break_effect(get_cell_position(ar, ac))
 				if grid_stones.size() == GRID_ROWS and grid_stones[ar][ac] > 0:
 					grid_stones[ar][ac] -= 1
 					if grid_stones[ar][ac] <= 0:
+						var rm_h = _get_relic_manager()
+						if rm_h: rm_h.on_hazard_destroyed("stone", 1)
 						_spawn_stone_break_effect(get_cell_position(ar, ac))
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[ar][ac] > 0:
 					grid_gold_statue[ar][ac] -= 1
 					if grid_gold_statue[ar][ac] <= 0:
+						var rm_h = _get_relic_manager()
+						if rm_h: rm_h.on_hazard_destroyed("gold_statue", 1)
 						_spawn_gold_shatter_effect(get_cell_position(ar, ac))
 						if sm and "totalScore" in sm:
 							sm.totalScore += 500
@@ -3987,9 +4003,9 @@ func moveswords() -> void:
 						def_el = ElementDataScript.get_element_from_enemy_string(jp_el)
 						
 					var mult = ElementDataScript.get_damage_multiplier(atk_el, def_el)
-					var final_dmg = base_dmg * mult
 					var rm = _get_relic_manager()
-					if rm: final_dmg = rm.modify_damage_dealt(final_dmg, {"element": atk_el})
+					var relic_dmg = rm.modify_damage_dealt(base_dmg, {"element": atk_el}) if rm else base_dmg
+					var final_dmg = relic_dmg * mult
 					sm.calchp(final_dmg, 0)
 					
 					var eff_str = "normal"
@@ -6030,3 +6046,28 @@ func _debug_apply_element_random(el: int) -> void:
 
 func _get_relic_manager() -> Node:
 	return get_tree().get_root().find_child("RelicManager", true, false)
+
+## 盤面状態の集計（水たまり数、炎上マス数、大木の有無）
+func get_board_state() -> Dictionary:
+	var w_cnt = 0
+	var f_cnt = 0
+	if grid_water.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_water[r][c]:
+					w_cnt += 1
+	if grid_fire.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_fire[r][c] > 0:
+					f_cnt += 1
+	var big_tree = false
+	for plant in plant_entities:
+		if plant.get("stage", 0) >= 2:
+			big_tree = true
+			break
+	return {
+		"water_count": w_cnt,
+		"fire_count": f_cnt,
+		"has_big_tree": big_tree
+	}

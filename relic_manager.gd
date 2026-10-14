@@ -94,6 +94,10 @@ func on_battle_start() -> void:
 func on_turn_start() -> void:
 	temp_state["chain_ring_active"] = false
 	temp_state["four_orb_damage"] = 0.0
+	temp_state["special_detonation_count"] = 0
+	temp_state["hazards_destroyed_count"] = 0
+	temp_state["hazard_destroyed_by_kind"] = {}
+	temp_state["backlash_damage_taken"] = 0.0
 	
 	if has_relic("healing_drop"):
 		var p = get_parent()
@@ -108,6 +112,27 @@ func on_turn_start() -> void:
 					var pb = p.get_node_or_null("PuzzleBoard")
 					if pb and pb.has_method("_emit_combat_event"):
 						pb._emit_combat_event("heal", "ally", "ally", heal_val)
+
+## --- ステップ3 追加フック ---
+func on_special_detonated(_type: int) -> void:
+	temp_state["special_detonation_count"] = int(temp_state.get("special_detonation_count", 0)) + 1
+
+func on_hazard_destroyed(kind: String, count: int = 1) -> void:
+	temp_state["hazards_destroyed_count"] = int(temp_state.get("hazards_destroyed_count", 0)) + count
+	var by_kind = temp_state.get("hazard_destroyed_by_kind", {}) as Dictionary
+	by_kind[kind] = int(by_kind.get(kind, 0)) + count
+	temp_state["hazard_destroyed_by_kind"] = by_kind
+
+func on_backlash_damage(_kind: String, amount: float) -> void:
+	temp_state["backlash_damage_taken"] = float(temp_state.get("backlash_damage_taken", 0.0)) + amount
+
+func get_board_state() -> Dictionary:
+	var p = get_parent()
+	if p:
+		var pb = p.get_node_or_null("PuzzleBoard")
+		if pb and pb.has_method("get_board_state"):
+			return pb.get_board_state()
+	return {"water_count": 0, "fire_count": 0, "has_big_tree": false}
 
 func _get_stage_scale() -> float:
 	var p = get_parent()
