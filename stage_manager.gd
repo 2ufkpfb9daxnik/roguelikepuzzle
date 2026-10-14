@@ -6,6 +6,7 @@ signal stage_clear
 
 # --- ステージ＆敵データテーブル ---
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
+const RELIC_SELECTION_UI_SCRIPT = preload("res://relic_selection_ui.gd")
 const STAGE_BACKGROUNDS: Array[String] = ["plane", "cave", "desert", "snow field", "castle"]
 const STAGE_BACKGROUND_TEXTURES: Array[Texture2D] = [
 	preload("res://Texture/plane.jpeg"),
@@ -306,6 +307,8 @@ func _ready() -> void:
 	if label != null and label2 != null:
 		stage_enemy = 1
 		stage += 1
+		var rm = _get_relic_manager()
+		if rm: rm.on_battle_start()
 		is_current_boss = false
 		label_control()
 		emit_signal("stage_clear")
@@ -325,6 +328,8 @@ func add_stage_label() -> void:
 	elif stage_enemy == 5:
 		isstageclear = true
 		clearinterval = 0
+		var rm = _get_relic_manager()
+		if rm: rm.on_stage_clear()
 	else:
 		stage_enemy += 1
 
@@ -1006,6 +1011,8 @@ func isdead() -> void:
 	elif is_current_boss or stage_enemy == 5:
 		isstageclear = true
 		clearinterval = 0
+		var rm = _get_relic_manager()
+		if rm: rm.on_stage_clear()
 ## フィーバータイム開始
 func fevertime() -> void:
 	if int(fevergage) >= 7000:
@@ -1140,10 +1147,15 @@ func _step_process() -> void:
 		if deadinterval == 100:
 			# ボス戦突入前・ボス戦中は絶対にショップを開かない
 			if not is_boss_battle():
-				if move_front_btn: move_front_btn.visible = true
-				if choose_buff_rect: choose_buff_rect.visible = true
-				_set_buff_buttons_visible(true)
-			clicked = false
+				# 敵撃破 → レリック選択 → ショップ＆「次へ進む」の順に表示
+				_open_relic_selection(func():
+					if choose_buff_rect: choose_buff_rect.visible = true
+					_set_buff_buttons_visible(true)
+					if move_front_btn: move_front_btn.visible = true
+					clicked = false
+				)
+			else:
+				clicked = false
 		deadinterval += 1
 		return
 
@@ -1233,18 +1245,31 @@ func _process_stage_clear_sequence() -> void:
 			for n in ["stageclear", "stageclearWhite2", "stageclearblack"]:
 				var node = sm.get_node_or_null(n)
 				if node: node.visible = true
-		if choose_buff_rect: choose_buff_rect.visible = true
-		_set_buff_buttons_visible(true)
+	
 		
 		var b_bgm = get_node_or_null("bossbgm")
 		if b_bgm: b_bgm.stop()
 		var kirikae = get_parent().get_node_or_null("stagekirikae")
 		if kirikae: kirikae.play()
-	elif clearinterval > 160:
-		if sm:
-			var next_btn = sm.get_node_or_null("stagechangeb")
-			if next_btn: next_btn.visible = true
+	elif clearinterval == 161:
+		_open_relic_selection(func():
+			if choose_buff_rect: choose_buff_rect.visible = true
+			_set_buff_buttons_visible(true)
+			if sm:
+				var next_btn = sm.get_node_or_null("stagechangeb")
+				if next_btn: next_btn.visible = true
+		)
 	clearinterval += 1
+
+## レリック選択画面を開き、選択（またはスキップ）後に on_finished を呼ぶ
+func _open_relic_selection(on_finished: Callable) -> void:
+	var p = get_parent()
+	if p == null:
+		on_finished.call()
+		return
+	var r_ui = RELIC_SELECTION_UI_SCRIPT.new()
+	r_ui.selection_finished.connect(on_finished, CONNECT_ONE_SHOT)
+	p.add_child(r_ui)
 
 ## フィーバー時の顔パーティクル演出
 func _process_fever_effects() -> void:
@@ -1333,6 +1358,8 @@ func _on_stagechangeb_pressed() -> void:
 	isstageclear = false
 	stage_enemy = 1
 	stage += 1
+	var rm = _get_relic_manager()
+	if rm: rm.on_battle_start()
 	is_current_boss = false
 	
 	label_control()
@@ -1534,3 +1561,6 @@ func play_single_idle_loop(enemy_index: int) -> void:
 		if is_instance_valid(spr):
 			spr.frame = clampi(f_idx, 0, total_f - 1)
 	, 0, total_f - 1, duration)
+
+func _get_relic_manager() -> Node:
+	return get_tree().get_root().find_child("RelicManager", true, false)

@@ -13,6 +13,14 @@ const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 @onready var return_title_btn: Button = get_node_or_null("returntitle")
 
 func _ready() -> void:
+	var rm_node = load("res://relic_manager.gd").new()
+	rm_node.name = "RelicManager"
+	add_child(rm_node)
+	
+	var rui_node = load("res://relic_ui_manager.gd").new()
+	rui_node.name = "RelicUIManager"
+	add_child(rui_node)
+	
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		var sys_font = SystemFont.new()
 		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])

@@ -1,4 +1,34 @@
 extends Node2D
+const ElementDataScript = preload("res://element_data.gd")
+var combat_ui_manager: Node2D
+
+signal combat_event(event_data: Dictionary)
+
+var turn_skill_log: Array = []
+const DEBUG_COMBAT_EVENTS = true
+
+
+func _emit_combat_event(type: String, source: String, target: Variant, amount: float, element: String = "", is_critical: bool = false, effectiveness: String = "normal", extra: Dictionary = {}) -> void:
+	var t_node = target
+	if typeof(target) == TYPE_STRING and target == "enemy":
+		var sm = _get_stage_manager()
+		if sm and "active_enemies" in sm and sm.active_enemies.size() > 0:
+			t_node = sm.active_enemies[randi() % sm.active_enemies.size()]["sprite"]
+			
+	var event = {
+		"type": type,
+		"source": source,
+		"target": t_node,
+		"amount": amount,
+		"element": element,
+		"is_critical": is_critical,
+		"effectiveness": effectiveness
+	}
+	for k in extra:
+		event[k] = extra[k]
+	emit_signal("combat_event", event)
+	if DEBUG_COMBAT_EVENTS:
+		print("[CombatEvent] ", event)
 
 const SkillVFXNode = preload("res://skill_vfx_node.gd")
 
@@ -69,6 +99,8 @@ const BOUNCE_HEIGHT: float = 33.0   # 上下運動の跳ね上がり高さ (px)
 
 # 攻撃フェーズで生成する剣・盾・食料・ポーションの最大上限数（描画負荷・ノード生成最適化。ダメージ・回復等は100%保持）
 const MAX_COMBAT_PROJECTILES: int = 24
+const ENEMY_ATTACK_MOTION_DURATION: float = 0.4
+const ENEMY_ATTACK_EFFECT_TIMING: float = 0.75
 
 # 外部ノードから参照されるプロパティ
 var grid_column: int = GRID_COLUMNS
@@ -171,6 +203,7 @@ var piececollid: Array = []  # CollisionShape2D等の1次元配列
 var grid_n: Array = []       # [row][col] -> 駒の種類 (0..4)
 var grid_i: Array = []       # [row][col] -> piece配列内のインデックス
 var grid_att: Array = []     # [row][col] -> 属性 (PieceType)
+var grid_element: Array = []
 var ismatched: Array = []    # [row][col] -> マッチフラグ
 
 # 操作用（ドラッグ＆ドロップ、および2クリック選択の両対応）
@@ -192,7 +225,8 @@ var mshisvalid: bool = false
 var flying_cells: Array[Dictionary] = []    # マッチしてスコア欄へ飛ぶ駒
 var flying_swords: Array[Dictionary] = []   # 剣
 var active_shields: Array[Dictionary] = []  # 展開シールド
-var current_total_shields: int = 0          # 生成総数（1000個制限後も被ダメージ軽減計算に使用）
+var current_total_shields: int = 0
+var current_shield_pools: Dictionary = {}          # 生成総数（1000個制限後も被ダメージ軽減計算に使用）
 var flying_foods: Array[Dictionary] = []    # 食料
 var flying_potions: Array[Dictionary] = []  # ポーション
 
@@ -240,16 +274,20 @@ func _update_board_element_flags() -> void:
 	elif grid_ice.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
+				var is_water: bool = grid_water.size() == GRID_ROWS and grid_water[r][c]
 				var is_stone: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
 				var is_animated: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
 				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
 				   (grid_ice[r][c] > 0) or \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
 				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
-				if is_stone or is_animated:
+				if is_stone or is_animated or is_water:
 					has_board_hazards = true
-				if is_animated:
+
+					has_board_hazards = true
+				if is_animated or is_water:
 					has_animated_board_hazards = true
+
 					break
 			if has_animated_board_hazards:
 				break
@@ -369,6 +407,12 @@ func _return_sprite_to_pool(s: Sprite2D) -> void:
 
 # --- POOLING END ---
 func _ready() -> void:
+	var CombatUIManager = load("res://combat_ui_manager.gd")
+	if CombatUIManager:
+		combat_ui_manager = CombatUIManager.new()
+		combat_ui_manager.name = "CombatUIManager"
+		add_child(combat_ui_manager)
+		combat_event.connect(combat_ui_manager._on_combat_event)
 	_init_pools()
 	score_manager = _get_score_manager()
 	if board_bg:
@@ -461,6 +505,7 @@ func _initialize_board(collid_template: Node) -> void:
 		var row_stones: Array[int] = []
 		var row_cursed: Array[bool] = []
 		var row_gold_statue: Array[int] = []
+		var row_element: Array[int] = []
 
 		for j in range(GRID_COLUMNS):
 			var can_set: Array[bool] = []
@@ -484,6 +529,7 @@ func _initialize_board(collid_template: Node) -> void:
 			row_i.append(piece_idx)
 			row_matched.append(false)
 			row_att.append(chosen_kind % 5)
+			row_element.append(ElementDataScript.Element.NONE)
 			row_bomb.append(false)
 			row_special.append(SpecialItemType.NONE)
 			row_charge.append(0)
@@ -503,6 +549,7 @@ func _initialize_board(collid_template: Node) -> void:
 			sprite.position = pos
 			sprite.scale = cellsize
 			sprite.modulate = Color.WHITE
+			_add_element_mark_to_sprite(sprite)
 			Profiler.add_child_count += 1; add_child(sprite)
 			piece.append(sprite)
 			piececollid.append(null)
@@ -511,6 +558,7 @@ func _initialize_board(collid_template: Node) -> void:
 		grid_i.append(row_i)
 		ismatched.append(row_matched)
 		grid_att.append(row_att)
+		grid_element.append(row_element)
 		is_bomb.append(row_bomb)
 		special_item.append(row_special)
 		special_charge.append(row_charge)
@@ -523,6 +571,8 @@ func _initialize_board(collid_template: Node) -> void:
 		grid_gold_statue.append(row_gold_statue)
 
 	current_state = BoardState.IDLE
+	var rm = _get_relic_manager()
+	if rm: rm.on_turn_start()
 	_spawn_turn_specials()
 	_redraw_board_effects()
 
@@ -802,6 +852,11 @@ func _swap_grid_data(r1: int, c1: int, r2: int, c2: int) -> void:
 	var tmp_n = grid_n[r1][c1]
 	grid_n[r1][c1] = grid_n[r2][c2]
 	grid_n[r2][c2] = tmp_n
+	if grid_element.size() == GRID_ROWS:
+		var tmp_el = grid_element[r1][c1]
+		grid_element[r1][c1] = grid_element[r2][c2]
+		grid_element[r2][c2] = tmp_el
+
 
 	var tmp_att = grid_att[r1][c1]
 	grid_att[r1][c1] = grid_att[r2][c2]
@@ -1049,6 +1104,40 @@ func _detonate_specials(start_items: Array) -> void:
 
 		var pos = get_cell_position(b.x, b.y)
 
+		var s_name = ""
+		var s_elem = ""
+		match item_type:
+			SpecialItemType.BOMB, SpecialItemType.CHARGE_BOMB, SpecialItemType.GEMINI_BOMB, SpecialItemType.CROSS_BOMB:
+				s_name = "bomb"
+				s_elem = "fire"
+			SpecialItemType.TORNADO, SpecialItemType.TREE_SPROUT:
+				s_name = "tornado"
+				s_elem = "wind"
+			SpecialItemType.LIGHTNING, SpecialItemType.MAGNET:
+				s_name = "lightning"
+				s_elem = "thunder"
+			SpecialItemType.AQUA_SPLASH:
+				s_name = "aqua_splash"
+				s_elem = "water"
+			SpecialItemType.DISCO_BALL, SpecialItemType.COLOR_CONVERTER:
+				s_name = "disco_ball"
+				s_elem = "light"
+			SpecialItemType.BLACK_HOLE:
+				s_name = "black_hole"
+				s_elem = "dark"
+		if s_name != "":
+			var sm_for_log = _get_score_manager()
+			if sm_for_log and sm_for_log.has_method("add_turn_element"):
+				var e_enum = ElementDataScript.get_element_from_name(s_elem)
+				if e_enum != ElementDataScript.Element.NONE:
+					sm_for_log.add_turn_element(e_enum, 1)
+			turn_skill_log.append({
+				"name": s_name,
+				"element": s_elem,
+				"source": Vector2(b.x, b.y),
+				"target": "all"
+			})
+		var pre_matched = ismatched.duplicate(true)
 		match item_type:
 			SpecialItemType.BOMB:
 				_trigger_bomb(b.x, b.y, pos, queue, exploded_items)
@@ -1076,6 +1165,15 @@ func _detonate_specials(start_items: Array) -> void:
 				_trigger_gemini_bomb(b.x, b.y, pos, queue, exploded_items)
 			_:
 				_trigger_bomb(b.x, b.y, pos, queue, exploded_items)
+
+		var e_enum = ElementDataScript.get_element_from_name(s_elem)
+		if e_enum != ElementDataScript.Element.NONE and grid_element.size() == GRID_ROWS:
+			for nr in range(GRID_ROWS):
+				for nc in range(GRID_COLUMNS):
+					if ismatched[nr][nc] and not pre_matched[nr][nc]:
+						if grid_i[nr][nc] != -1:
+							grid_element[nr][nc] = e_enum
+
 
 	if board_bg:
 		board_bg.queue_redraw()
@@ -1745,6 +1843,7 @@ func _process_turn_plants() -> void:
 	if sm:
 		if total_heal > 0.0:
 			sm.calchp(0.0, -total_heal)
+			_emit_combat_event("heal", "ally", "ally", total_heal)
 			var p = get_parent()
 			var se = p.get_node_or_null("kaihuku") if p else null
 			if se: se.play()
@@ -1800,6 +1899,9 @@ func _execute_wood_hp_drain(sm: Node2D, drain_plants: Array[Dictionary], stage_s
 		heal_enemy_amount = minf(total_drain, sm.ehpmax - sm.ehp)
 
 	sm.calchp(-heal_enemy_amount, total_drain)
+	_emit_combat_event("damage", "enemy", "ally", total_drain, "drain")
+	if heal_enemy_amount > 0.0:
+		_emit_combat_event("heal", "enemy", "enemy", heal_enemy_amount, "drain")
 
 	if sm.myhp <= 0:
 		var go_node = sm.get_node_or_null("gameover")
@@ -2877,6 +2979,37 @@ func _spawn_plant_damage_effect(pos: Vector2, _is_dead: bool) -> void:
 		l_tw.chain().tween_callback(leaf.queue_free)
 
 ## 植物回復ポップアップ数値演出（緑の「+〇〇〇」）
+
+func _spawn_floating_text(pos: Vector2, text: String, color: Color) -> void:
+	var effects_parent = get_node_or_null("Effects")
+	if effects_parent == null: effects_parent = self
+
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 45)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	lbl.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 1.0))
+	lbl.add_theme_constant_override("outline_size", 6)
+	
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	lbl.position = pos - Vector2(100.0, 50.0)
+	lbl.custom_minimum_size = Vector2(200.0, 100.0)
+	lbl.z_index = 50
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	
+	Profiler.add_child_count += 1; effects_parent.add_child(lbl)
+
+	var tw = create_tween().set_parallel(true)
+	lbl.scale = Vector2(0.5, 0.5)
+	lbl.pivot_offset = lbl.custom_minimum_size / 2.0
+	tw.tween_property(lbl, "scale", Vector2(1.0, 1.0), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "position:y", pos.y - 150.0, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.4).set_delay(0.4)
+	tw.chain().tween_callback(lbl.queue_free)
+
 func _spawn_heal_number_effect(pos: Vector2, amount: int) -> void:
 	var effects_parent = get_node_or_null("Effects")
 	if effects_parent == null: effects_parent = self
@@ -2955,6 +3088,8 @@ func _start_match_highlight() -> void:
 		sm.combocount += 1
 		sm.iscombo = true
 		sm.interval = 0
+		var rm = _get_relic_manager()
+		if rm: rm.on_cascade(sm.combocount)
 
 	var rensa_se = get_node_or_null("1rensa")
 	if rensa_se:
@@ -3002,7 +3137,7 @@ func _start_breaking_animation() -> void:
 	var copy_matched = ismatched.duplicate(true)
 	var sm = _get_score_manager()
 	if sm and sm.has_method("calcscore"):
-		sm.calcscore(copy_matched, grid_att)
+		sm.calcscore(copy_matched, grid_att, grid_element)
 
 	# 画面微細シェイクを発生（適度な振動に抑える）
 	if matched_cells_list.size() > 0:
@@ -3202,6 +3337,7 @@ func _start_continuous_falling() -> void:
 				"p_idx": p_idx,
 				"kind": (grid_n[r][c] if grid_n.size() == GRID_ROWS else 0) if p_idx != -1 else -1,
 				"att": (grid_att[r][c] if grid_att.size() == GRID_ROWS else 0) if p_idx != -1 else -1,
+					"element": grid_element[r][c] if grid_element.size() == GRID_ROWS and p_idx != -1 else ElementDataScript.Element.NONE,
 				"sp_item": special_item[r][c] if special_item.size() == GRID_ROWS and p_idx != -1 else 0,
 				"sp_charge": special_charge[r][c] if special_charge.size() == GRID_ROWS and p_idx != -1 else 0,
 				"is_bomb": is_bomb[r][c] if is_bomb.size() == GRID_ROWS and p_idx != -1 else false,
@@ -3255,6 +3391,7 @@ func _start_continuous_falling() -> void:
 					"p_idx": -2, # 新規フラグ
 					"kind": nval,
 					"att": nval % 5,
+					"element": ElementDataScript.Element.NONE,
 					"sp_item": spawned_sp,
 					"sp_charge": sp_ch,
 					"is_bomb": is_b,
@@ -3350,6 +3487,7 @@ func _start_continuous_falling() -> void:
 		new_sprite.position = spawn_item.start_pos
 		new_sprite.scale = cellsize
 		new_sprite.modulate = Color.WHITE
+		_add_element_mark_to_sprite(new_sprite)
 		Profiler.add_child_count += 1; add_child(new_sprite)
 		piece.append(new_sprite)
 
@@ -3375,6 +3513,7 @@ func _start_continuous_falling() -> void:
 			if grid_i.size() == GRID_ROWS: grid_i[r][c] = p_idx
 			if grid_n.size() == GRID_ROWS: grid_n[r][c] = final_cell.kind
 			if grid_att.size() == GRID_ROWS: grid_att[r][c] = final_cell.att
+			if grid_element.size() == GRID_ROWS: grid_element[r][c] = final_cell.get("element", ElementDataScript.Element.NONE)
 			if is_bomb.size() == GRID_ROWS:
 				is_bomb[r][c] = final_cell.is_bomb
 			if special_item.size() == GRID_ROWS:
@@ -3815,29 +3954,55 @@ func moveswords() -> void:
 			continue
 		var s: Sprite2D = item["node"]
 		var t: float = item["t"]
-		var rnd: float = item["rnd"]
-
+		
 		# 敵がすでに撃破されている場合は、無駄な飛翔を続けず即座に消去
 		if is_enemy_dead:
 			_return_sprite_to_pool(s)
 			continue
 
 		if t >= 0:
-			s.position.x += 10.0 + rnd
-			s.position.y = -pow(t, 2) + 5200.0
-
-		if s.position.y <= 2700.0 and not item.get("has_hit", false):
-			item["has_hit"] = true
-			if sm:
-				var dmg: float = item.get("damage", 100.0 * swordt)
-				sm.calchp(dmg, 0)
-			_spawn_hit_spark(s.position)
+			var progress = t / 50.0
+			var ease_p = progress
+			var sp = item.get("start_pos", Vector2(12300, 5200))
+			var tp = item.get("target_pos", Vector2(12300, 2700))
+			var cp = item.get("control_pos", Vector2((sp.x + tp.x)/2.0, sp.y - 2000.0))
 			
-			# 衝突音SEにインターバルを設けて再生（過度な重なり・騒音を防止）
-			if _sword_hit_sound_timer <= 0.0:
-				_play_sword_hit_sound()
-				_sword_hit_sound_timer = SWORD_HIT_SOUND_INTERVAL
-			# 着弾後も消去せず画面外まで貫通飛翔させる
+			var q0 = sp.lerp(cp, ease_p)
+			var q1 = cp.lerp(tp, ease_p)
+			s.position = q0.lerp(q1, ease_p)
+			
+			var next_q0 = sp.lerp(cp, ease_p + 0.05)
+			var next_q1 = cp.lerp(tp, ease_p + 0.05)
+			var next_pos = next_q0.lerp(next_q1, ease_p + 0.05)
+			s.rotation = (next_pos - s.position).angle() + PI/2.0
+			
+			if progress >= 1.0 and not item.get("has_hit", false):
+				item["has_hit"] = true
+				if sm:
+					var base_dmg: float = item.get("damage", 100.0 * swordt)
+					var atk_el = item.get("element", 0)
+					var def_el = 0
+					if sm.has_method("get_current_enemy_element"):
+						var jp_el = sm.get_current_enemy_element()
+						def_el = ElementDataScript.get_element_from_enemy_string(jp_el)
+						
+					var mult = ElementDataScript.get_damage_multiplier(atk_el, def_el)
+					var final_dmg = base_dmg * mult
+					var rm = _get_relic_manager()
+					if rm: final_dmg = rm.modify_damage_dealt(final_dmg, {"element": atk_el})
+					sm.calchp(final_dmg, 0)
+					
+					var eff_str = "normal"
+					if mult >= 1.2: eff_str = "weak"
+					elif mult <= 0.8: eff_str = "resist"
+					
+					var el_str = ElementDataScript.get_element_name(atk_el)
+					_emit_combat_event("damage", "ally", "enemy", final_dmg, el_str, false, eff_str)
+				_spawn_hit_spark(s.position)
+				if _sword_hit_sound_timer <= 0.0:
+					_play_sword_hit_sound()
+					_sword_hit_sound_timer = SWORD_HIT_SOUND_INTERVAL
+
 
 		item["t"] = t + 1.0
 
@@ -3904,10 +4069,9 @@ func movefoods() -> void:
 			continue
 		var s: Sprite2D = item["node"]
 		var t: float = item["t"]
-		var rnd: float = item["rnd"]
-
+		
 		if t >= 0:
-			s.position.x += 10.0 + rnd
+			s.position.x += 10.0 + item.get("rnd", 0.0)
 			s.position.y = -pow(t, 2) + 6800.0
 
 		item["t"] = t + 1.0
@@ -3915,7 +4079,10 @@ func movefoods() -> void:
 		if s.position.y <= 5000.0:
 			if sm:
 				var heal_val: float = item.get("heal", 100.0)
+				var rm = _get_relic_manager()
+				if rm: heal_val = rm.on_heal(heal_val)
 				sm.calchp(0, -heal_val)
+				_emit_combat_event("heal", "ally", "ally", heal_val)
 			var p = get_parent()
 			var se = p.get_node_or_null("kaihuku") if p else null
 			if se and not se.playing: se.play()
@@ -3935,10 +4102,9 @@ func movepotions() -> void:
 			continue
 		var s: Sprite2D = item["node"]
 		var t: float = item["t"]
-		var rnd: float = item["rnd"]
-
+		
 		if t >= 0:
-			s.position.x += 10.0 + rnd
+			s.position.x += 10.0 + item.get("rnd", 0.0)
 			s.position.y = -pow(t, 2) + 6800.0
 
 		item["t"] = t + 1.0
@@ -4006,7 +4172,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			var f_cnt = min(max_heal, int(score_mgr.divscore[PieceType.FOOD] / (foodt * 100.0)))
 			var max_gage = 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont))
 			var p_cnt = min(max_gage, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
-			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and sm.fevergage < 5000.0):
+			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and sm.fevergage < 5000.0) or turn_skill_log.size() > 0:
 				isattack = 1
 			var sh_cnt = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
 			if sh_cnt > 0:
@@ -4080,6 +4246,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 
 	if interval == base_time + 1 and isattack:
 		_spawn_attack_projectiles(sm, score_mgr)
+		_play_ally_attack_phase_effects(sm)
 
 	elif interval <= base_time + 144 and isattack:
 		# 敵が撃破された場合、残存発射物を即座に全消去してターン終了（死んだ敵への攻撃や無駄な待機を完全カット）
@@ -4136,6 +4303,20 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	if not score_mgr: return
 
 	# 剣（フリーズ対策・描画負荷最適化のため生成数を最大300個に制限。総ダメージは100%保持）
+	var original_sword_score = score_mgr.divscore[PieceType.SWORD]
+	var sword_element_pool = []
+	if "turn_element_gain" in score_mgr and score_mgr.turn_element_gain.has(PieceType.SWORD):
+		var total_allocated = 0
+		if original_sword_score > 0:
+			for el in score_mgr.turn_element_gain[PieceType.SWORD]:
+				var el_score = score_mgr.turn_element_gain[PieceType.SWORD][el]
+				var expected_cnt = min(int(sm.ehp / swordt), int(el_score / (swordt * 100.0))) if sm else 0
+				# Approximate proportion for visually spawning
+				var count = int(round(float(min(int(original_sword_score / (swordt * 100.0)), MAX_COMBAT_PROJECTILES)) * (float(el_score) / float(original_sword_score))))
+				for j in range(count):
+					sword_element_pool.append(el)
+				total_allocated += count
+	
 	var raw_sword_cnt: int = min(int((sm.ehp if sm else 0) / swordt), int(score_mgr.divscore[PieceType.SWORD] / (swordt * 100.0)))
 	score_mgr.divscore[PieceType.SWORD] -= int(raw_sword_cnt * swordt * 100.0)
 	var spawn_sword_cnt: int = clampi(raw_sword_cnt, 0, MAX_COMBAT_PROJECTILES)
@@ -4144,15 +4325,36 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	for i in range(spawn_sword_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SWORD]
-		s.position = Vector2(12300, 5300)
+		var target_pos = Vector2(12300.0 + float(randi() % 2000 - 1000), 2700.0)
+		var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
+		if not active_en.is_empty():
+			var e = active_en[randi() % active_en.size()]
+			var spr = e.get("sprite")
+			if is_instance_valid(spr):
+				target_pos = self.to_local(spr.global_position)
+		
+		var start_x = 12300.0
+		var start_y = 5300.0
+		var start_p = Vector2(start_x, start_y)
+		var mid_x = (start_p.x + target_pos.x) / 2.0
+		var mid_y = (start_p.y + target_pos.y) / 2.0
+		var bow_distance = 1500.0 + float(randi() % 4000)
+		var cp = Vector2(mid_x, mid_y + bow_distance)
+		var cp_x = cp.x
+		var cp_y = cp.y
+		
+		s.position = Vector2(start_x, start_y)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
 		flying_swords.append({
 			"node": s,
 			"t": -float(i * 70) / float(max(1, spawn_sword_cnt)),
-			"rnd": float(randi() % 120),
+			"start_pos": Vector2(start_x, start_y),
+			"target_pos": target_pos,
+			"control_pos": Vector2(cp_x, cp_y),
 			"has_hit": false,
-			"damage": dmg_per_sword
+			"damage": dmg_per_sword,
+			"element": sword_element_pool[i] if i < sword_element_pool.size() else 0
 		})
 		msisvalid = true
 
@@ -4198,6 +4400,25 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 ## シールド生成（描画負荷最適化のため生成数を最大24個に制限。防御力は全数保持）
 func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 	if not score_mgr: return
+	var original_shield_score = score_mgr.divscore[PieceType.SHIELD]
+	current_shield_pools.clear()
+	
+	if "turn_element_gain" in score_mgr and score_mgr.turn_element_gain.has(PieceType.SHIELD):
+		var total_allocated = 0
+		if original_shield_score > 0:
+			for el in score_mgr.turn_element_gain[PieceType.SHIELD]:
+				var el_score = score_mgr.turn_element_gain[PieceType.SHIELD][el]
+				var count = float(el_score) / (shieldt * 100.0)
+				current_shield_pools[el] = current_shield_pools.get(el, 0.0) + count
+				total_allocated += el_score
+		var remaining_score = max(0, original_shield_score - total_allocated)
+		if remaining_score > 0:
+			var r_count = float(remaining_score) / (shieldt * 100.0)
+			current_shield_pools[0] = current_shield_pools.get(0, 0.0) + r_count
+	else:
+		var count = float(original_shield_score) / (shieldt * 100.0)
+		current_shield_pools[0] = count
+		
 	var raw_shield_cnt: int = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
 	score_mgr.divscore[PieceType.SHIELD] -= int(raw_shield_cnt * shieldt * 100.0)
 	current_total_shields = raw_shield_cnt
@@ -4333,15 +4554,71 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if not has_anim:
 					var orig_pos = spr.position
 					var atk_tw = create_tween()
-					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-60, 0), 0.1)
-					atk_tw.tween_property(spr, "position", orig_pos, 0.2).set_delay(0.1)
+					# モーション：前に踏み込む（0.3倍の時間）→戻る（0.7倍の時間）
+					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), ENEMY_ATTACK_MOTION_DURATION * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					atk_tw.tween_property(spr, "position", orig_pos, ENEMY_ATTACK_MOTION_DURATION * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+					atk_tw.tween_callback(func(): if is_instance_valid(spr): spr.position = orig_pos)
+			)
+			
+			var effect_delay = ENEMY_ATTACK_MOTION_DURATION * ENEMY_ATTACK_EFFECT_TIMING
+			seq_tw.tween_interval(effect_delay)
+			
+			seq_tw.tween_callback(func():
+				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				
 				_play_pooled_se(ENEMY_ATTACK_SE, linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5)), 1.0)
-					
 				_spawn_slash_effect(spr.global_position + Vector2(-80, 0))
+				
+				var effective_shield_cnt: float = 0.0
+				for el in current_shield_pools:
+					effective_shield_cnt += current_shield_pools[el]
+			
+				effective_shield_cnt = maxf(effective_shield_cnt, float(active_shields.size()))
+			
+				var e_name = e.get("key", e.get("name", "slime"))
+				var atk_el = 0
+				if sm: atk_el = ElementDataScript.get_element_from_enemy_name(e_name, sm)
+			
+				var total_blocked = 0.0
+				var remaining_atk = float(atk)
+			
+				if effective_shield_cnt > 0.0:
+					var blocked_per_shield = (float(atk) - (float(atk) / (effective_shield_cnt + 1.0))) / effective_shield_cnt
+				
+					var shield_list = []
+					for el in current_shield_pools:
+						var count = current_shield_pools[el]
+						if count <= 0.0: continue
+						var mult = 1.0
+						if el != 0 and atk_el != 0:
+							mult = ElementDataScript.get_damage_multiplier(atk_el, el)
+						shield_list.append({"el": el, "count": count, "mult": mult})
+				
+					shield_list.sort_custom(func(a, b): return a["mult"] < b["mult"])
+				
+					for s_data in shield_list:
+						var el = s_data["el"]
+						var count = s_data["count"]
+						var mult = s_data["mult"]
 					
-				var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
-				var incoming_damage = atk / float(effective_shield_cnt + 1)
+						var capacity = count * blocked_per_shield / mult
+						var block_amount = min(remaining_atk, capacity)
+					
+						total_blocked += block_amount
+						remaining_atk -= block_amount
+					
+						var consumed = (block_amount * mult) / blocked_per_shield if blocked_per_shield > 0 else 0
+						current_shield_pools[el] -= consumed
+					
+						if remaining_atk <= 0.0:
+							break
+			
+				var incoming_damage = maxf(0.0, remaining_atk)
+				var rm = _get_relic_manager()
+				if rm:
+					incoming_damage = rm.modify_damage_taken(incoming_damage, {"element": atk_el})
+					if sm: incoming_damage = rm.check_fatal_damage(sm.myhp, incoming_damage)
+				var event_payload = {"blocked_amount": total_blocked}
 				
 				if incoming_damage > 0.0:
 					_play_pooled_se(UTU2_SE, linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5)), 1.0)
@@ -4349,8 +4626,11 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 					_trigger_screen_shake(20.0 + minf(incoming_damage * 0.05, 30.0))
 				
 				sm.calchp(0, incoming_damage)
+				_emit_combat_event("damage", "enemy", "ally", incoming_damage, "", false, "normal", event_payload)
 			)
-			seq_tw.tween_interval(0.3)
+			
+			seq_tw.tween_interval(ENEMY_ATTACK_MOTION_DURATION * (1.0 - ENEMY_ATTACK_EFFECT_TIMING) + 0.1)
+
 		else:
 			var key = e.get("key", "slime")
 			var is_boss = false
@@ -4377,8 +4657,9 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			seq_tw.tween_interval(0.8)
 			seq_tw.tween_callback(func():
 				if sm == null or sm.isdeadf or sm.ehp <= 0: return
-				_spawn_enemy_skill_beam_and_burst(sm, spr, elem_color, is_boss)
-				_apply_enemy_elemental_skill_effect(elem, is_boss)
+				var tgs = _apply_enemy_elemental_skill_effect(elem, is_boss)
+				_spawn_enemy_skill_beam_and_burst(sm, spr, elem_color, is_boss, tgs)
+
 			)
 			seq_tw.tween_interval(0.5)
 
@@ -4422,15 +4703,64 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 			
 			_play_pooled_se(ENEMY_ATTACK_SE, linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5)), 1.0)
 				
-			var effective_shield_cnt: int = max(current_total_shields, active_shields.size())
-			var incoming_damage = atk / float(effective_shield_cnt + 1)
+			var effective_shield_cnt: float = 0.0
+			for el in current_shield_pools:
+				effective_shield_cnt += current_shield_pools[el]
+			
+			effective_shield_cnt = maxf(effective_shield_cnt, float(active_shields.size()))
+			
+			var e_name = e.get("key", e.get("name", "slime"))
+			var atk_el = 0
+			if sm: atk_el = ElementDataScript.get_element_from_enemy_name(e_name, sm)
+			
+			var total_blocked = 0.0
+			var remaining_atk = float(atk)
+			
+			if effective_shield_cnt > 0.0:
+				var blocked_per_shield = (float(atk) - (float(atk) / (effective_shield_cnt + 1.0))) / effective_shield_cnt
+				
+				var shield_list = []
+				for el in current_shield_pools:
+					var count = current_shield_pools[el]
+					if count <= 0.0: continue
+					var mult = 1.0
+					if el != 0 and atk_el != 0:
+						mult = ElementDataScript.get_damage_multiplier(atk_el, el)
+					shield_list.append({"el": el, "count": count, "mult": mult})
+				
+				shield_list.sort_custom(func(a, b): return a["mult"] < b["mult"])
+				
+				for s_data in shield_list:
+					var el = s_data["el"]
+					var count = s_data["count"]
+					var mult = s_data["mult"]
+					
+					var capacity = count * blocked_per_shield / mult
+					var block_amount = min(remaining_atk, capacity)
+					
+					total_blocked += block_amount
+					remaining_atk -= block_amount
+					
+					var consumed = (block_amount * mult) / blocked_per_shield if blocked_per_shield > 0 else 0
+					current_shield_pools[el] -= consumed
+					
+					if remaining_atk <= 0.0:
+						break
+			
+			var incoming_damage = maxf(0.0, remaining_atk)
+			var rm = _get_relic_manager()
+			if rm:
+				incoming_damage = rm.modify_damage_taken(incoming_damage, {"element": atk_el})
+				if sm: incoming_damage = rm.check_fatal_damage(sm.myhp, incoming_damage)
+			var event_payload = {"blocked_amount": total_blocked}
 			
 			if incoming_damage > 0.0:
 				_play_pooled_se(UTU2_SE, linear_to_db(clampf(se_vol * 1.0, 0.001, 1.5)), 1.0)
 				_spawn_screen_flash(Color(0.8, 0.1, 0.1, 0.35), 0.3)
 				_trigger_screen_shake(20.0 + minf(incoming_damage * 0.05, 30.0))
 			
-			sm.calchp(0, incoming_damage)
+				sm.calchp(0, incoming_damage)
+				_emit_combat_event("damage", "enemy", "ally", incoming_damage, "", false, "normal", event_payload)
 		)
 		seq_tw.tween_interval(0.3)
 		
@@ -4666,7 +4996,8 @@ func _spawn_enemy_skill_beam_and_burst(sm: Node2D, enemy_sp: Sprite2D, elem_colo
 		
 		var beam_node = SkillVFXNode.new(SkillVFXNode.VFXMode.SPELL_BEAM, elem_col, 0.35)
 		beam_node.start_pos = enemy_sp.global_position
-		beam_node.target_pos = target_root_local
+		beam_node.target_pos = target_global
+		print("[DEBUG] Enemy global: ", enemy_sp.global_position, " Target local: ", target_local, " Target global: ", target_global, " Target root local: ", target_root_local)
 		var vc = root_node.get_node_or_null("VFXContainer")
 		if vc: Profiler.add_child_count += 1; vc.add_child(beam_node)
 		else: Profiler.add_child_count += 1; root_node.add_child(beam_node)
@@ -4775,6 +5106,7 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	for i in range(num):
 		var p = cands[i]
 		grid_water[p.x][p.y] = true
+		_spawn_floating_text(get_cell_position(p.x, p.y), "水没", Color(0.2, 0.8, 1.0))
 		_spawn_aqua_splash_effect(get_cell_position(p.x, p.y), 1)
 		_targets.append(get_cell_position(p.x, p.y))
 
@@ -4841,6 +5173,7 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 			_targets.append(get_cell_position(p.x, p.y))
 		else:
 			grid_ice[p.x][p.y] = ice_dur
+			_spawn_floating_text(get_cell_position(p.x, p.y), "氷結", Color(0.7, 0.9, 1.0))
 			_spawn_ice_break_effect(get_cell_position(p.x, p.y))
 			_targets.append(get_cell_position(p.x, p.y))
 
@@ -4871,6 +5204,7 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 			"speed": 5500.0,
 			"active": true
 		})
+		_targets.append(get_cell_position(GRID_ROWS / 2, col))
 
 		# 列上の非コマオブジェクト（木・アイテム・石・水たまり）を吹き飛ばす
 		for plant in plant_entities.duplicate():
@@ -4894,6 +5228,14 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 				grid_stones[r][col] = 0
 			if grid_water.size() == GRID_ROWS:
 				grid_water[r][col] = false
+			if grid_ice.size() == GRID_ROWS:
+				grid_ice[r][col] = 0
+			if grid_cursed.size() == GRID_ROWS:
+				grid_cursed[r][col] = false
+			if grid_electrified.size() == GRID_ROWS:
+				grid_electrified[r][col] = false
+			if grid_gold_statue.size() == GRID_ROWS:
+				grid_gold_statue[r][col] = 0
 
 	var rensa_se = get_node_or_null("1rensa")
 	if rensa_se: rensa_se.play()
@@ -4992,6 +5334,7 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 		var p = cands[i]
 		var stone_dur = (base_dur + 1) if i < heavy_stones else base_dur
 		grid_stones[p.x][p.y] = stone_dur
+		_spawn_floating_text(get_cell_position(p.x, p.y), "石化", Color(0.7, 0.7, 0.6))
 		_spawn_stone_break_effect(get_cell_position(p.x, p.y))
 		_targets.append(get_cell_position(p.x, p.y))
 
@@ -5048,6 +5391,7 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 				if (grid_stones.size() == GRID_ROWS and grid_stones[r][c] == 0) and \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] == 0):
 					grid_electrified[r][c] = true
+					_spawn_floating_text(get_cell_position(r, c), "帯電", Color(0.9, 1.0, 0.2))
 
 			_redraw_board_effects()
 		)
@@ -5091,6 +5435,7 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	for i in range(num):
 		var p = cands[i]
 		grid_cursed[p.x][p.y] = true
+		_spawn_floating_text(get_cell_position(p.x, p.y), "呪い", Color(0.8, 0.3, 0.9))
 		_targets.append(get_cell_position(p.x, p.y))
 
 	var anten_se = get_node_or_null("anten")
@@ -5136,6 +5481,7 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	for i in range(num):
 		var p = cands[i]
 		grid_gold_statue[p.x][p.y] = statue_dur
+		_spawn_floating_text(get_cell_position(p.x, p.y), "黄金化", Color(1.0, 0.9, 0.2))
 		_spawn_gold_shatter_effect(get_cell_position(p.x, p.y))
 		_targets.append(get_cell_position(p.x, p.y))
 
@@ -5145,6 +5491,7 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 		for j in range(extra_num):
 			var p2 = backup_cands[j]
 			grid_gold_statue[p2.x][p2.y] = statue_dur
+			_spawn_floating_text(get_cell_position(p2.x, p2.y), "黄金化", Color(1.0, 0.9, 0.2))
 			_targets.append(get_cell_position(p2.x, p2.y))
 
 	_redraw_board_effects()
@@ -5172,6 +5519,7 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		special_item[p.x][p.y] = SpecialItemType.BOMB
 		if is_bomb.size() == GRID_ROWS: is_bomb[p.x][p.y] = true
 		if grid_fire.size() == GRID_ROWS: grid_fire[p.x][p.y] = 1
+		_spawn_floating_text(get_cell_position(p.x, p.y), "炎上", Color(1.0, 0.4, 0.1))
 		_spawn_explosion_effect(get_cell_position(p.x, p.y))
 
 	_redraw_board_effects()
@@ -5422,6 +5770,10 @@ func _clear_all_combat_projectiles() -> void:
 	flying_cells.clear()
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	turn_skill_log.clear()
+	var _sm_for_reset = _get_score_manager()
+	if _sm_for_reset and _sm_for_reset.has_method("reset_turn_elements"):
+		_sm_for_reset.reset_turn_elements()
 	if sm and sm.has_method("stop_enemy_animation"):
 		sm.stop_enemy_animation()
 
@@ -5474,10 +5826,14 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	_spawn_turn_bombs()
 	_process_fire_spread()
 	_redraw_board_effects()
+	var rm = _get_relic_manager()
+	if rm: rm.on_turn_start()
 
 ## ゲームオーバー演出
 func _handle_gameover_sequence(sm: Node2D) -> void:
 	if interval <= 1:
+		var rm = _get_relic_manager()
+		if rm: rm.reset_run()
 		if sm:
 			var f_bgm = sm.get_node_or_null("feverbgm")
 			var fl_bgm = sm.get_node_or_null("fieldbgm")
@@ -5509,3 +5865,168 @@ func _handle_gameover_sequence(sm: Node2D) -> void:
 			ret_btn.position = Vector2(740, 700)
 			ret_btn.add_theme_font_size_override("font_size", 42)
 	interval += 1
+
+
+const SKILL_EFFECT_STAGGER = 0.15
+
+func _play_ally_attack_phase_effects(sm: Node2D) -> void:
+	if not is_instance_valid(sm):
+		turn_skill_log.clear()
+		return
+	var active_en = sm.active_enemies if "active_enemies" in sm else []
+	if active_en.is_empty():
+		turn_skill_log.clear()
+		return
+	
+	var score_mgr = _get_score_manager()
+	var counts = score_mgr.turn_element_counts if score_mgr and "turn_element_counts" in score_mgr else {}
+	
+	var elements_present = false
+	for el_enum in counts.keys():
+		if counts[el_enum] > 0:
+			elements_present = true
+			break
+			
+	if not elements_present:
+		turn_skill_log.clear()
+		return
+	
+	await get_tree().create_timer(0.85, false).timeout
+	
+	for el_enum in counts.keys():
+		var count = counts[el_enum]
+		if count <= 0: continue
+		var el_name = ElementDataScript.get_element_name(el_enum)
+		await _spawn_elemental_bombs(el_name, count, active_en)
+		
+	turn_skill_log.clear()
+
+func _spawn_elemental_bombs(elem: String, count: int, active_en: Array) -> void:
+	var num_large = count / 10
+	var remainder = count % 10
+	var num_medium = remainder / 5
+	var num_small = remainder % 5
+	
+	for i in range(num_large):
+		for e in active_en:
+			var spr = e.get("sprite")
+			if not is_instance_valid(spr): continue
+			_play_elemental_size(elem, 3, spr.global_position)
+		await get_tree().create_timer(0.4, false).timeout
+		
+	for i in range(num_medium):
+		for e in active_en:
+			var spr = e.get("sprite")
+			if not is_instance_valid(spr): continue
+			_play_elemental_size(elem, 2, spr.global_position)
+		await get_tree().create_timer(0.3, false).timeout
+		
+	for i in range(num_small):
+		for e in active_en:
+			var spr = e.get("sprite")
+			if not is_instance_valid(spr): continue
+			_play_elemental_size(elem, 1, spr.global_position)
+		await get_tree().create_timer(0.2, false).timeout
+
+func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2) -> void:
+	var local_pos = self.to_local(target_global_pos)
+	
+	
+	match elem:
+		"fire":
+			if size == 3: _spawn_mega_explosion_effect(local_pos, 2)
+			elif size == 2: _spawn_mega_explosion_effect(local_pos, 0)
+			else: _spawn_explosion_effect(local_pos)
+		"water":
+			if size == 3: _spawn_aqua_splash_effect(local_pos, 5)
+			elif size == 2: _spawn_aqua_splash_effect(local_pos, 3)
+			else: _spawn_aqua_splash_effect(local_pos, 1)
+		"wind":
+			if size == 3: _spawn_tornado_effect(local_pos, 3, 300)
+			elif size == 2: _spawn_tornado_effect(local_pos, 2, 150)
+			else: _spawn_tornado_effect(local_pos, 1, 50)
+		"thunder":
+			if size == 3:
+				for dx in [-200, -100, 0, 100, 200]:
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.2)
+				_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.5), 0.1)
+			elif size == 2:
+				for dx in [-100, 0, 100]:
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.1)
+			else:
+				_spawn_vertical_lightning_bolt(local_pos, 0.0)
+		"light":
+			if size == 3: _spawn_disco_effect(local_pos)
+			elif size == 2: _spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 600.0, 0.4)
+			else: _spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 300.0, 0.2)
+		"dark":
+			if size == 3: _spawn_black_hole_effect(local_pos, 3)
+			elif size == 2: _spawn_black_hole_effect(local_pos, 2)
+			else: _spawn_black_hole_effect(local_pos, 1)
+
+
+func _add_element_mark_to_sprite(sprite: Sprite2D) -> void:
+	if sprite.has_node("ElementMark"): return
+	var mark = Polygon2D.new()
+	mark.name = "ElementMark"
+	var pts = PackedVector2Array()
+	for p_i in range(16):
+		var ang = p_i * TAU / 16.0
+		pts.append(Vector2(cos(ang), sin(ang)) * 25.0)
+	mark.polygon = pts
+	mark.position = Vector2(20, -20)
+	mark.visible = false
+	mark.material = CanvasItemMaterial.new()
+	mark.material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	sprite.add_child(mark)
+
+func _update_piece_element_mark(p_idx: int, el: int) -> void:
+	if p_idx < 0 or p_idx >= piece.size(): return
+	var sp = piece[p_idx]
+	if not is_instance_valid(sp): return
+	var mark = sp.get_node_or_null("ElementMark")
+	if is_instance_valid(mark):
+		if el == ElementDataScript.Element.NONE:
+			mark.visible = false
+		else:
+			mark.visible = true
+			mark.color = ElementDataScript.ELEMENT_COLORS.get(el, Color.WHITE)
+
+
+const DEBUG_ELEMENT = true
+
+func _input(event: InputEvent) -> void:
+	if not DEBUG_ELEMENT: return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var el = ElementDataScript.Element.NONE
+		match event.keycode:
+			KEY_1: el = ElementDataScript.Element.FIRE
+			KEY_2: el = ElementDataScript.Element.WATER
+			KEY_3: el = ElementDataScript.Element.WIND
+			KEY_4: el = ElementDataScript.Element.THUNDER
+			KEY_5: el = ElementDataScript.Element.LIGHT
+			KEY_6: el = ElementDataScript.Element.DARK
+			
+		if el != ElementDataScript.Element.NONE:
+			_debug_apply_element_random(el)
+
+func _debug_apply_element_random(el: int) -> void:
+	if grid_element.size() != GRID_ROWS: return
+	var candidates = []
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var kind = grid_n[r][c]
+			if (kind == PieceType.SWORD or kind == PieceType.SHIELD) and grid_element[r][c] == ElementDataScript.Element.NONE:
+				candidates.append(Vector2i(r, c))
+				
+	candidates.shuffle()
+	var applied_count = 0
+	for cell in candidates:
+		if applied_count >= 10: break
+		grid_element[cell.x][cell.y] = el
+		_update_piece_element_mark(grid_i[cell.x][cell.y], el)
+		applied_count += 1
+	print("[DEBUG] Applied element ", ElementDataScript.get_element_name(el), " to ", applied_count, " pieces.")
+
+func _get_relic_manager() -> Node:
+	return get_tree().get_root().find_child("RelicManager", true, false)

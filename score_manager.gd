@@ -216,6 +216,9 @@ const TEXTURE_FILE: Array[String] = ["shield_cut", "sword_cut", "coin_cut", "pot
 @onready var template_score_label: RichTextLabel = get_node_or_null("RichTextLabel3")
 
 var divscorelabel: Array[RichTextLabel] = []
+var turn_element_counts: Dictionary = {}
+var turn_element_gain: Dictionary = {}
+var elem_labels: Array[RichTextLabel] = []
 var _popup_pool: Array[RichTextLabel] = []
 const MAX_POOLED_POPUPS: int = 16
 
@@ -265,6 +268,18 @@ func _ready() -> void:
 			score_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 			divscorelabel.append(score_lbl)
 	
+
+	if divscorelabel.size() > 0:
+		for k in range(1, 7):
+			var el_lbl = divscorelabel[0].duplicate()
+			el_lbl.name = "elem_score" + str(k)
+			el_lbl.offset_left += 450.0
+			el_lbl.offset_top += (k - 1) * 60.0
+			el_lbl.text = ""
+			add_child(el_lbl)
+			elem_labels.append(el_lbl)
+		update_elem_labels()
+
 	var pb = _get_puzzle_board()
 	var row_count: int = pb.grid_row if pb and "grid_row" in pb else 15
 	var col_count: int = pb.grid_column if pb and "grid_column" in pb else 15
@@ -461,8 +476,15 @@ func update_score_label() -> void:
 	for i in range(mini(5, divscorelabel.size())):
 		var formatted_val = _format_comma(divscore[i])
 		max_len = maxi(max_len, formatted_val.length())
-		divscorelabel[i].text = "[img=60]res://Texture/%s/%s.png[/img] [b][color=%s]%s[/color][/b]" % [
-			TEXTURE_DIR[i], TEXTURE_FILE[i], ATT_COLORS[i], formatted_val
+		var breakdown_text = ""
+		if i == 0 and turn_element_gain.has(0): # PieceType.SHIELD = 0
+			for el in turn_element_gain[0]:
+				var el_score = turn_element_gain[0][el]
+				if el_score > 0 and el != 0:
+					var el_color = ElementData.ELEMENT_COLORS[el].to_html(false)
+					breakdown_text += " [color=#%s]%s[/color]" % [el_color, _format_comma(el_score)]
+		divscorelabel[i].text = "[img=60]res://Texture/%s/%s.png[/img] [b][color=%s]%s[/color][/b][font_size=20]%s[/font_size]" % [
+			TEXTURE_DIR[i], TEXTURE_FILE[i], ATT_COLORS[i], formatted_val, breakdown_text
 		]
 
 	# 桁数に応じたステータス枠の横幅自動追従
@@ -557,12 +579,6 @@ func _spawn_score_popup(component_cells: Array[Vector2i], att_type: int, earned_
 	# グループの中心座標を計算（画面座標: セル中心は c * 50 + 450, r * 50 + 150）
 	var sum_x: float = 0.0
 	var sum_y: float = 0.0
-	for cell in component_cells:
-		sum_x += cell.y * 50.0 + 450.0
-		sum_y += cell.x * 50.0 + 150.0
-	var center_pos = Vector2(sum_x / float(count), sum_y / float(count))
-
-	popup.position = center_pos - popup.pivot_offset
 	popup.scale = Vector2(0.2, 0.2)
 	popup.modulate.a = 1.0
 	popup.visible = true
@@ -579,7 +595,7 @@ func _spawn_score_popup(component_cells: Array[Vector2i], att_type: int, earned_
 	p_tween.chain().tween_callback(func(): popup.visible = false)
 
 ## マッチした駒のスコアおよび属性ポイントを計算
-func calcscore(match_index: Array, grid_att: Array) -> void:
+func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) -> void:
 	var rows: int = match_index.size()
 	if rows == 0:
 		return
@@ -614,6 +630,8 @@ func calcscore(match_index: Array, grid_att: Array) -> void:
 				if count <= 0:
 					continue
 					
+					var rm = get_tree().get_root().find_child("RelicManager", true, false)
+					if rm: rm.on_match(count)
 				var base_score: int = maxi(count * 100, count * (count - 2) * 100)
 				
 				# レベルに応じて+〇 (1レベルにつき +100 * 消去コマ数の固定加算ボーナス)
@@ -626,6 +644,16 @@ func calcscore(match_index: Array, grid_att: Array) -> void:
 				totalScore += earned_score
 				
 				# スタイリッシュなスコアポップアップを生成
+
+
+
+				for cell in component_cells:
+					if grid_element.size() > cell.x and grid_element[cell.x].size() > cell.y:
+						var el = grid_element[cell.x][cell.y]
+						if el != 0:
+							turn_element_counts[el] = turn_element_counts.get(el, 0) + 1
+				update_elem_labels()
+
 				_spawn_score_popup(component_cells, att_type, earned_score, count, is_fever)
 				
 				# フィーバータイム時は属性獲得量が倍率アップ（通常2倍 ＋ バフによるボーナス）
@@ -633,6 +661,26 @@ func calcscore(match_index: Array, grid_att: Array) -> void:
 				var gain: int = int(earned_score * fv_rate)
 				if att_type < divscore.size():
 					divscore[att_type] += gain
+		
+				if not turn_element_gain.has(att_type):
+					turn_element_gain[att_type] = {}
+
+				var total_pieces = component_cells.size()
+				var element_piece_counts = {}
+				var has_element = false
+
+				for cell in component_cells:
+					if grid_element.size() > cell.x and grid_element[cell.x].size() > cell.y:
+						var el = grid_element[cell.x][cell.y]
+						if el != 0:
+							element_piece_counts[el] = element_piece_counts.get(el, 0) + 1
+							has_element = true
+
+				if has_element:
+					for el in element_piece_counts:
+						var ratio = float(element_piece_counts[el]) / float(total_pieces)
+						var el_gain = int(gain * ratio)
+						turn_element_gain[att_type][el] = turn_element_gain[att_type].get(el, 0) + el_gain
 
 ## 幅優先探索 (BFS) で同じ属性の連結したマッチ駒を探索
 func _collect_connected_match_cells(start_r: int, start_c: int, target_att: int, match_index: Array, grid_att: Array, visited: Array, out_cells: Array[Vector2i]) -> void:
@@ -1020,3 +1068,29 @@ func _on_buffselectbutton_4_pressed() -> void:
 
 func _on_buffselectbutton_5_pressed() -> void:
 	_purchase_buff(5)
+
+
+func update_elem_labels() -> void:
+	if elem_labels.size() == 0: return
+	for k in range(1, 7):
+		var count = turn_element_counts.get(k, 0)
+		var c = "FFFFFF"
+		var ename = ""
+		match k:
+			1: c = "FF6633"; ename = "FIRE"
+			2: c = "4C99FF"; ename = "WATER"
+			3: c = "66E666"; ename = "WIND"
+			4: c = "E6E633"; ename = "THUNDER"
+			5: c = "FFE699"; ename = "LIGHT"
+			6: c = "B34CE6"; ename = "DARK"
+		elem_labels[k-1].text = "[b][color=#%s]%s: %d[/color][/b]" % [c, ename, count]
+
+func reset_turn_elements() -> void:
+	turn_element_counts.clear()
+	turn_element_gain.clear()
+	update_elem_labels()
+
+
+func add_turn_element(el: int, amount: int) -> void:
+	turn_element_counts[el] = turn_element_counts.get(el, 0) + amount
+	update_elem_labels()
