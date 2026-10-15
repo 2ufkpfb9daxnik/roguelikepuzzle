@@ -3998,13 +3998,14 @@ func moveswords() -> void:
 					var base_dmg: float = item.get("damage", 100.0 * swordt)
 					var atk_el = item.get("element", 0)
 					var def_el = 0
+					var jp_el = ""
 					if sm.has_method("get_current_enemy_element"):
-						var jp_el = sm.get_current_enemy_element()
+						jp_el = sm.get_current_enemy_element()
 						def_el = ElementDataScript.get_element_from_enemy_string(jp_el)
 						
 					var mult = ElementDataScript.get_damage_multiplier(atk_el, def_el)
 					var rm = _get_relic_manager()
-					var relic_dmg = rm.modify_damage_dealt(base_dmg, {"element": atk_el}) if rm else base_dmg
+					var relic_dmg = rm.modify_damage_dealt(base_dmg, {"element": atk_el, "enemy_element": jp_el}) if rm else base_dmg
 					var final_dmg = relic_dmg * mult
 					sm.calchp(final_dmg, 0)
 					

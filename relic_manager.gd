@@ -65,8 +65,9 @@ func get_param(id: String, key: String, default_val = null) -> Variant:
 
 func reset_run() -> void:
 	owned_relics.clear()
-	for c in get_tree().get_nodes_in_group("relic_ui"):
-		c.queue_free()
+	if is_inside_tree() and get_tree():
+		for c in get_tree().get_nodes_in_group("relic_ui"):
+			c.queue_free()
 	temp_state.clear()
 
 # セーブ・ロード対応
@@ -113,12 +114,32 @@ func on_turn_start() -> void:
 					if pb and pb.has_method("_emit_combat_event"):
 						pb._emit_combat_event("heal", "ally", "ally", heal_val)
 
+	if has_relic("bloodstained_sword"):
+		var p = get_parent()
+		if p:
+			var sm = p.get_node_or_null("StageManager")
+			if sm and "myhpmax" in sm and sm.myhpmax > 0 and "myhp" in sm:
+				var self_pct = float(get_param("bloodstained_sword", "self_damage_percent", 0.03))
+				var raw_self_dmg = sm.myhpmax * self_pct
+				# 自傷ダメージではHP0にならず最低HP1で止まり、不屈の心の復活回数も消費しない
+				var actual_self_dmg = maxf(0.0, minf(raw_self_dmg, sm.myhp - 1.0))
+				if actual_self_dmg > 0.0:
+					sm.calchp(0, actual_self_dmg)
+				emit_signal("relic_triggered", "bloodstained_sword")
+
 ## --- ステップ3 追加フック ---
 func on_special_detonated(_type: int) -> void:
 	temp_state["special_detonation_count"] = int(temp_state.get("special_detonation_count", 0)) + 1
+	if has_relic("resonant_explosive") and int(temp_state["special_detonation_count"]) >= 2:
+		emit_signal("relic_triggered", "resonant_explosive")
 
 func on_hazard_destroyed(kind: String, count: int = 1) -> void:
-	temp_state["hazards_destroyed_count"] = int(temp_state.get("hazards_destroyed_count", 0)) + count
+	if count <= 0:
+		return
+	if kind in ["stone", "ice", "gold_statue"]:
+		temp_state["hazards_destroyed_count"] = int(temp_state.get("hazards_destroyed_count", 0)) + count
+		if has_relic("ruins_collector"):
+			emit_signal("relic_triggered", "ruins_collector")
 	var by_kind = temp_state.get("hazard_destroyed_by_kind", {}) as Dictionary
 	by_kind[kind] = int(by_kind.get(kind, 0)) + count
 	temp_state["hazard_destroyed_by_kind"] = by_kind
@@ -172,9 +193,65 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		
 	if has_relic("fire_shard"):
 		var target_el = int(get_param("fire_shard", "element", 1))
-		if context.get("element", 0) == target_el:
+		if int(context.get("element", 0)) == target_el:
 			bonus_mult += float(get_param("fire_shard", "damage_bonus", 0.15))
 			emit_signal("relic_triggered", "fire_shard")
+			
+	if has_relic("wetland_crown"):
+		var target_el = int(get_param("wetland_crown", "element", 4))
+		if int(context.get("element", 0)) == target_el:
+			var water_cnt = int(context.get("water_count", get_board_state().get("water_count", 0)))
+			if water_cnt > 0:
+				var per_w = float(get_param("wetland_crown", "per_water", 0.015))
+				var max_b = float(get_param("wetland_crown", "max_bonus", 0.30))
+				bonus_mult += minf(float(water_cnt) * per_w, max_b)
+				emit_signal("relic_triggered", "wetland_crown")
+				
+	if has_relic("ruins_collector"):
+		var hz_cnt = int(context.get("hazards_destroyed_count", temp_state.get("hazards_destroyed_count", 0)))
+		if hz_cnt > 0:
+			var per_h = float(get_param("ruins_collector", "per_hazard", 0.03))
+			var max_b = float(get_param("ruins_collector", "max_bonus", 0.30))
+			bonus_mult += minf(float(hz_cnt) * per_h, max_b)
+			emit_signal("relic_triggered", "ruins_collector")
+			
+	if has_relic("resonant_explosive"):
+		var det_cnt = int(context.get("special_detonation_count", temp_state.get("special_detonation_count", 0)))
+		var extra_cnt = maxi(0, det_cnt - 1)
+		if extra_cnt > 0:
+			var per_d = float(get_param("resonant_explosive", "per_extra_detonation", 0.10))
+			var max_b = float(get_param("resonant_explosive", "max_bonus", 0.40))
+			bonus_mult += minf(float(extra_cnt) * per_d, max_b)
+			emit_signal("relic_triggered", "resonant_explosive")
+			
+	if has_relic("bloodstained_sword"):
+		bonus_mult += float(get_param("bloodstained_sword", "damage_bonus", 0.30))
+		emit_signal("relic_triggered", "bloodstained_sword")
+		
+	if has_relic("desperate_banner"):
+		var hp_ratio = 1.0
+		if context.has("hp_ratio"):
+			hp_ratio = float(context["hp_ratio"])
+		else:
+			var p = get_parent()
+			var sm = p.get_node_or_null("StageManager") if p else null
+			if sm and "myhpmax" in sm and sm.myhpmax > 0 and "myhp" in sm:
+				hp_ratio = float(sm.myhp) / float(sm.myhpmax)
+		var threshold = float(get_param("desperate_banner", "hp_threshold", 0.30))
+		if hp_ratio <= threshold + 0.0001:
+			bonus_mult += float(get_param("desperate_banner", "damage_bonus", 0.35))
+			emit_signal("relic_triggered", "desperate_banner")
+			
+	if has_relic("excavator_pickaxe"):
+		var enemy_el_str = str(context.get("enemy_element", ""))
+		if enemy_el_str == "":
+			var p = get_parent()
+			var sm = p.get_node_or_null("StageManager") if p else null
+			if sm and sm.has_method("get_current_enemy_element"):
+				enemy_el_str = sm.get_current_enemy_element()
+		if enemy_el_str.contains("地") or enemy_el_str.contains("木") or enemy_el_str.contains("氷"):
+			bonus_mult += float(get_param("excavator_pickaxe", "damage_bonus", 0.20))
+			emit_signal("relic_triggered", "excavator_pickaxe")
 			
 	if has_relic("four_orb") and temp_state.get("four_orb_damage", 0.0) > 0.0:
 		flat_add += temp_state["four_orb_damage"]
