@@ -155,6 +155,16 @@ func get_board_state() -> Dictionary:
 			return pb.get_board_state()
 	return {"water_count": 0, "fire_count": 0, "has_big_tree": false}
 
+func get_turn_sword_element_counts() -> Dictionary:
+	if temp_state.has("sword_element_counts"):
+		return temp_state["sword_element_counts"]
+	var p = get_parent()
+	if p:
+		var score_mgr = p.get_node_or_null("ScoreManager")
+		if score_mgr and score_mgr.has_method("get_turn_sword_element_counts"):
+			return score_mgr.get_turn_sword_element_counts()
+	return {}
+
 func _get_stage_scale() -> float:
 	var p = get_parent()
 	if p:
@@ -252,6 +262,36 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		if enemy_el_str.contains("地") or enemy_el_str.contains("木") or enemy_el_str.contains("氷"):
 			bonus_mult += float(get_param("excavator_pickaxe", "damage_bonus", 0.20))
 			emit_signal("relic_triggered", "excavator_pickaxe")
+			
+	if has_relic("pure_oath"):
+		var atk_el = int(context.get("element", 0))
+		if atk_el > 0:
+			var sword_counts: Dictionary = context.get("sword_element_counts", get_turn_sword_element_counts())
+			var total_swords: int = 0
+			for k in sword_counts.keys():
+				var cnt = int(sword_counts[k])
+				if cnt > 0:
+					total_swords += cnt
+			if total_swords > 0:
+				var el_cnt = int(sword_counts.get(atk_el, 0))
+				var ratio = float(el_cnt) / float(total_swords)
+				var min_ratio = float(get_param("pure_oath", "min_ratio", 0.70))
+				if ratio + 0.0001 >= min_ratio:
+					bonus_mult += float(get_param("pure_oath", "damage_bonus", 0.25))
+					emit_signal("relic_triggered", "pure_oath")
+					
+	if has_relic("tome_of_four_elements"):
+		var sword_counts: Dictionary = context.get("sword_element_counts", get_turn_sword_element_counts())
+		var distinct_4: int = 0
+		for el_id in [1, 2, 3, 4]: # 1:炎, 2:水, 3:風, 4:雷
+			if int(sword_counts.get(el_id, 0)) > 0:
+				distinct_4 += 1
+		if distinct_4 >= 4:
+			bonus_mult += float(get_param("tome_of_four_elements", "bonus_4", 0.45))
+			emit_signal("relic_triggered", "tome_of_four_elements")
+		elif distinct_4 == 3:
+			bonus_mult += float(get_param("tome_of_four_elements", "bonus_3", 0.25))
+			emit_signal("relic_triggered", "tome_of_four_elements")
 			
 	if has_relic("four_orb") and temp_state.get("four_orb_damage", 0.0) > 0.0:
 		flat_add += temp_state["four_orb_damage"]

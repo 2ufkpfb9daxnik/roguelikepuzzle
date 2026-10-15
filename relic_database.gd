@@ -184,6 +184,33 @@ const RELICS: Dictionary = {
 			{"damage_bonus": 0.44},
 			{"damage_bonus": 0.52}
 		]
+	},
+	"pure_oath": {
+		"id": "pure_oath",
+		"name": "純色の誓い",
+		"rarity": "uncommon",
+		"max_level": 4,
+		"requires_element": true,
+		"description": "そのターンに消えた属性剣の70%以上が単一属性のとき、その属性の与ダメージ +25%",
+		"levels": [
+			{"min_ratio": 0.70, "damage_bonus": 0.25},
+			{"min_ratio": 0.70, "damage_bonus": 0.35},
+			{"min_ratio": 0.60, "damage_bonus": 0.45},
+			{"min_ratio": 0.60, "damage_bonus": 0.55}
+		]
+	},
+	"tome_of_four_elements": {
+		"id": "tome_of_four_elements",
+		"name": "四象の書",
+		"rarity": "rare",
+		"max_level": 3,
+		"requires_element": true,
+		"description": "1ターン内に消えた剣の属性（炎・水・風・雷）が3種で与ダメージ +25%、4種で +45%",
+		"levels": [
+			{"bonus_3": 0.25, "bonus_4": 0.45},
+			{"bonus_3": 0.32, "bonus_4": 0.58},
+			{"bonus_3": 0.40, "bonus_4": 0.70}
+		]
 	}
 }
 
@@ -260,5 +287,13 @@ static func get_description(id: String, level: int) -> String:
 		"excavator_pickaxe":
 			var db = int(round(float(p.get("damage_bonus", 0.20)) * 100.0))
 			return "地・木・氷属性の敵に対する与ダメージ +%d%%" % [db]
+		"pure_oath":
+			var mr = int(round(float(p.get("min_ratio", 0.70)) * 100.0))
+			var db = int(round(float(p.get("damage_bonus", 0.25)) * 100.0))
+			return "そのターンに消えた属性剣の%d%%以上が単一属性のとき、その属性の与ダメージ +%d%%" % [mr, db]
+		"tome_of_four_elements":
+			var b3 = int(round(float(p.get("bonus_3", 0.25)) * 100.0))
+			var b4 = int(round(float(p.get("bonus_4", 0.45)) * 100.0))
+			return "1ターン内に消えた剣の属性（炎・水・風・雷）が3種で与ダメージ +%d%%、4種で +%d%%" % [b3, b4]
 		_:
 			return r.get("description", "")
