@@ -211,6 +211,8 @@ var selected_cell: Vector2i = Vector2i(-1, -1)
 var selected_piece_idx: int = -1
 var is_holding: bool = false
 var press_start_cell: Vector2i = Vector2i(-1, -1)
+var hovered_swap_cell: Vector2i = Vector2i(-1, -1)
+var swap_guide_overlay: Node2D = null
 
 # 落下アニメーション管理
 var falling_pieces: Array[Dictionary] = [] # {"sprite": Sprite2D, "target_y": float, "velocity_y": float, "landed": bool}
@@ -433,6 +435,14 @@ func _ready() -> void:
 	ov.z_index = 15
 	mark_overlay = ov
 	Profiler.add_child_count += 1; add_child(mark_overlay)
+
+	# 隣接移動方向の強調表示レイヤー (z_index = 11、通常コマの上、ドラッグ中コマと同等)
+	var sg_ov = SwapGuideOverlayNode.new()
+	sg_ov.name = "SwapGuideOverlay"
+	sg_ov.board = self
+	sg_ov.z_index = 11
+	swap_guide_overlay = sg_ov
+	Profiler.add_child_count += 1; add_child(swap_guide_overlay)
 	
 	var rensa_se = get_node_or_null("1rensa")
 	if rensa_se:
@@ -614,7 +624,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if current_state != BoardState.IDLE:
 		return
 
-	var local_pos = to_local(mouse_event.position)
+	var local_pos = get_local_mouse_position()
 	var col_idx = int(floor((local_pos.x - 4250.0) / 500.0))
 	var row_idx = int(floor((local_pos.y - 1250.0) / 500.0))
 	var is_in_bounds: bool = (row_idx >= 0 and row_idx < GRID_ROWS and col_idx >= 0 and col_idx < GRID_COLUMNS)
@@ -707,12 +717,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		# マウスボタン解放
 		is_holding = false
 		if selected_cell.x != -1:
-			if is_in_bounds and (abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1):
+			var rel_pos = get_local_mouse_position()
+			var rel_col = int(floor((rel_pos.x - 4250.0) / 500.0))
+			var rel_row = int(floor((rel_pos.y - 1250.0) / 500.0))
+			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
+			
+			if rel_in_bounds and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) == 1):
 				# 隣接マスで離した (ドラッグ&ドロップ成立)
-				var r1 = selected_cell.x
-				var c1 = selected_cell.y
-				_execute_swap(r1, c1, row_idx, col_idx)
-			elif not is_in_bounds or (press_start_cell != Vector2i(row_idx, col_idx) and (abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) > 1)):
+				_execute_swap(selected_cell.x, selected_cell.y, rel_row, rel_col)
+			elif hovered_swap_cell.x != -1 and press_start_cell == selected_cell:
+				# 移動先として強調表示されていた隣接マスで離した (補正スワップ成立)
+				_execute_swap(selected_cell.x, selected_cell.y, hovered_swap_cell.x, hovered_swap_cell.y)
+			elif not rel_in_bounds or (press_start_cell != Vector2i(rel_row, rel_col) and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) > 1)):
 				# 盤面外や2マス以上離れた場所で離した (ドラッグ失敗・キャンセル)
 				_deselect_piece()
 			# (同じマスで離した場合は単なるクリック選択なので維持)
@@ -735,7 +751,9 @@ func _deselect_piece() -> void:
 	selected_piece_idx = -1
 	is_holding = false
 	press_start_cell = Vector2i(-1, -1)
+	hovered_swap_cell = Vector2i(-1, -1)
 	if board_bg: board_bg.queue_redraw()
+	if swap_guide_overlay: swap_guide_overlay.queue_redraw()
 
 ## 水浸しマスのプルプル揺れ演出（動かせないフィードバック）
 func _splash_water_jiggle(r: int, c: int) -> void:
@@ -813,7 +831,9 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	selected_piece_idx = -1
 	is_holding = false
 	press_start_cell = Vector2i(-1, -1)
+	hovered_swap_cell = Vector2i(-1, -1)
 	if board_bg: board_bg.queue_redraw()
+	if swap_guide_overlay: swap_guide_overlay.queue_redraw()
 
 	# 盤面データを仮交換
 	_swap_grid_data(r1, c1, r2, c2)
@@ -3676,12 +3696,22 @@ func _process(delta: float) -> void:
 	if current_state == BoardState.FALLING:
 		_update_falling_physics(delta)
 
-	# マウス操作中の追従 (盤面枠内に安全にクランプしつつマウス位置に追従)
-	if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
-		var local_mouse = to_local(get_global_mouse_position())
-		local_mouse.x = clampf(local_mouse.x, 4250.0, 11750.0)
-		local_mouse.y = clampf(local_mouse.y, 1250.0, 8750.0)
-		piece[selected_piece_idx].position = local_mouse
+	# マウス操作中の追従および移動方向強調のリアルタイム更新
+	if selected_cell.x != -1 and current_state == BoardState.IDLE:
+		var local_mouse = get_local_mouse_position()
+		if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
+			var clamped_mouse = local_mouse
+			clamped_mouse.x = clampf(clamped_mouse.x, 4250.0, 11750.0)
+			clamped_mouse.y = clampf(clamped_mouse.y, 1250.0, 8750.0)
+			piece[selected_piece_idx].position = clamped_mouse
+		_update_hovered_swap_direction(local_mouse)
+		if swap_guide_overlay:
+			swap_guide_overlay.queue_redraw()
+	else:
+		if hovered_swap_cell.x != -1:
+			hovered_swap_cell = Vector2i(-1, -1)
+			if swap_guide_overlay:
+				swap_guide_overlay.queue_redraw()
 
 	# 戦闘演出ターンおよび発射物シミュレーションのゲーム速度連動
 	var spd: float = maxf(0.1, _get_game_speed())
@@ -6139,3 +6169,148 @@ func get_board_state() -> Dictionary:
 		"fire_count": f_cnt,
 		"has_big_tree": big_tree
 	}
+
+## 指定マスがスワップ移動不可（障害物や固定マス）かどうかを判定
+func _is_cell_blocked_for_swap(r: int, c: int) -> bool:
+	if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+		return true
+	if _is_plant_cell(r, c):
+		return true
+	if grid_water.size() == GRID_ROWS and grid_water[r][c]:
+		return true
+	if grid_ice.size() == GRID_ROWS and grid_ice[r][c]:
+		return true
+	if grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0:
+		return true
+	if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0:
+		return true
+	return false
+
+## 現在のマウス座標に基づいて移動先（スワップ対象）となる隣接マスを判定・更新
+func _update_hovered_swap_direction(local_mouse: Vector2) -> void:
+	if selected_cell.x == -1 or current_state != BoardState.IDLE:
+		if hovered_swap_cell.x != -1:
+			hovered_swap_cell = Vector2i(-1, -1)
+			if swap_guide_overlay: swap_guide_overlay.queue_redraw()
+		return
+
+	var sel_pos = get_cell_position(selected_cell.x, selected_cell.y)
+	var diff = local_mouse - sel_pos
+	var target_cell = Vector2i(-1, -1)
+
+	# 1. マウスが直接乗っているマスをチェック（マンハッタン距離1の隣接マス）
+	var m_col = int(floor((local_mouse.x - 4250.0) / 500.0))
+	var m_row = int(floor((local_mouse.y - 1250.0) / 500.0))
+	if m_row >= 0 and m_row < GRID_ROWS and m_col >= 0 and m_col < GRID_COLUMNS:
+		if abs(m_row - selected_cell.x) + abs(m_col - selected_cell.y) == 1:
+			target_cell = Vector2i(m_row, m_col)
+
+	# 2. マウスが選択マスから一定距離（80px以上）動かされている場合、最も近い方向を判定
+	if target_cell.x == -1 and diff.length() >= 80.0:
+		if abs(diff.x) > abs(diff.y):
+			var step_c = 1 if diff.x > 0 else -1
+			target_cell = Vector2i(selected_cell.x, selected_cell.y + step_c)
+		else:
+			var step_r = 1 if diff.y > 0 else -1
+			target_cell = Vector2i(selected_cell.x + step_r, selected_cell.y)
+
+	# 3. ターゲットセルが盤面内かつ移動可能マスか検証
+	if target_cell.x >= 0 and target_cell.x < GRID_ROWS and target_cell.y >= 0 and target_cell.y < GRID_COLUMNS:
+		if not _is_cell_blocked_for_swap(target_cell.x, target_cell.y):
+			if hovered_swap_cell != target_cell:
+				hovered_swap_cell = target_cell
+				if swap_guide_overlay: swap_guide_overlay.queue_redraw()
+			return
+
+	if hovered_swap_cell.x != -1:
+		hovered_swap_cell = Vector2i(-1, -1)
+		if swap_guide_overlay: swap_guide_overlay.queue_redraw()
+
+## 移動可能隣接マスガイドおよび移動先方向の強調表示を描画
+func _draw_swap_guides_on_overlay(overlay: Node2D) -> void:
+	if overlay == null or selected_cell.x == -1 or current_state != BoardState.IDLE:
+		return
+
+	var sel_pos = get_cell_position(selected_cell.x, selected_cell.y)
+	const DIRS = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]
+
+	for d in DIRS:
+		var nr = selected_cell.x + d.x
+		var nc = selected_cell.y + d.y
+		if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
+			continue
+		if _is_cell_blocked_for_swap(nr, nc):
+			continue
+
+		var cell_pos = get_cell_position(nr, nc)
+		var rect = Rect2(cell_pos.x - 245.0, cell_pos.y - 245.0, 490.0, 490.0)
+
+		if hovered_swap_cell == Vector2i(nr, nc):
+			# === 現在向いている移動先マスの特大強調表示 ===
+			var time_pulse = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
+			var glow_col = Color(0.1, 0.9, 1.0, 0.35 + 0.15 * time_pulse)
+			overlay.draw_rect(rect, glow_col, true)
+			# 外側ネオンシアン枠
+			overlay.draw_rect(rect, Color(0.0, 0.95, 1.0, 0.95), false, 14.0)
+			# 内側ホワイトゴールド枠
+			overlay.draw_rect(rect.grow(-8.0), Color(1.0, 1.0, 0.8, 0.9), false, 4.0)
+
+			# ターゲットロックオンL字ブラケット
+			var arm = 60.0
+			var b_col = Color(1.0, 1.0, 1.0, 0.95)
+			# TL
+			overlay.draw_line(rect.position + Vector2(10, 10), rect.position + Vector2(10 + arm, 10), b_col, 8.0)
+			overlay.draw_line(rect.position + Vector2(10, 10), rect.position + Vector2(10, 10 + arm), b_col, 8.0)
+			# TR
+			overlay.draw_line(Vector2(rect.end.x - 10, rect.position.y + 10), Vector2(rect.end.x - 10 - arm, rect.position.y + 10), b_col, 8.0)
+			overlay.draw_line(Vector2(rect.end.x - 10, rect.position.y + 10), Vector2(rect.end.x - 10, rect.position.y + 10 + arm), b_col, 8.0)
+			# BL
+			overlay.draw_line(Vector2(rect.position.x + 10, rect.end.y - 10), Vector2(rect.position.x + 10 + arm, rect.end.y - 10), b_col, 8.0)
+			overlay.draw_line(Vector2(rect.position.x + 10, rect.end.y - 10), Vector2(rect.position.x + 10, rect.end.y - 10 - arm), b_col, 8.0)
+			# BR
+			overlay.draw_line(rect.end - Vector2(10, 10), rect.end - Vector2(10 + arm, 10), b_col, 8.0)
+			overlay.draw_line(rect.end - Vector2(10, 10), rect.end - Vector2(10, 10 + arm), b_col, 8.0)
+
+			# 選択コマから移動先マスへ向かう光のネオン矢印
+			_draw_direction_arrow(overlay, sel_pos, cell_pos)
+		else:
+			# === 移動可能隣接マスのガイド表示 ===
+			overlay.draw_rect(rect, Color(0.2, 0.8, 1.0, 0.08), true)
+			overlay.draw_rect(rect, Color(0.3, 0.85, 1.0, 0.50), false, 6.0)
+
+			# 小さな方向ドット/インジケーター
+			var mid_point = (sel_pos + cell_pos) * 0.5
+			overlay.draw_circle(mid_point, 16.0, Color(0.2, 0.85, 1.0, 0.65))
+			overlay.draw_circle(mid_point, 8.0, Color(1.0, 1.0, 1.0, 0.85))
+
+## ネオン矢印のポリゴン描画
+func _draw_direction_arrow(overlay: Node2D, from_pos: Vector2, to_pos: Vector2) -> void:
+	var dir = (to_pos - from_pos).normalized()
+	var normal = Vector2(-dir.y, dir.x)
+	var mid = (from_pos + to_pos) * 0.5
+	var tip = mid + dir * 140.0
+	var base = mid - dir * 110.0
+	var w1 = mid + normal * 75.0
+	var w2 = mid - normal * 75.0
+	var pts = PackedVector2Array([
+		tip,
+		w1,
+		mid + normal * 28.0 - dir * 15.0,
+		base + normal * 28.0,
+		base - normal * 28.0,
+		mid - normal * 28.0 - dir * 15.0,
+		w2
+	])
+	overlay.draw_colored_polygon(pts, Color(0.0, 0.95, 1.0, 0.95))
+	overlay.draw_polyline(PackedVector2Array([
+		tip, w1, mid + normal * 28.0 - dir * 15.0, base + normal * 28.0,
+		base - normal * 28.0, mid - normal * 28.0 - dir * 15.0, w2, tip
+	]), Color(1.0, 1.0, 1.0, 1.0), 6.0)
+
+## 移動方向ハイライト用のオーバーレイノード
+class SwapGuideOverlayNode extends Node2D:
+	var board: Node2D = null
+
+	func _draw() -> void:
+		if board != null and is_instance_valid(board):
+			board._draw_swap_guides_on_overlay(self)
