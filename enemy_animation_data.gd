@@ -33,25 +33,25 @@ const SHEETS: Dictionary = {
 			"path": "res://Texture/enemy/cursedmummy-iso_custom_attack1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.15
+			"scale_mult": 1.20
 		},
 		"skill": {
 			"path": "res://Texture/enemy/cursedmummy-iso_custom_skill_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.15
+			"scale_mult": 1.20
 		},
 		"idle": {
 			"path": "res://Texture/enemy/cursedmummy-iso_custom_idle1_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": false,
-			"scale_mult": 1.15
+			"scale_mult": 1.20
 		},
 		"damaged": {
 			"path": "res://Texture/enemy/cursedmummy-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
-			"scale_mult": 1.15
+			"flip_h": false,
+			"scale_mult": 1.20
 		},
 	},
 	"enemy3": {
@@ -615,6 +615,12 @@ const SHEETS: Dictionary = {
 		},
 		"idle": {
 			"path": "res://Texture/enemy/wolf-idle1.png",
+			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
+			"flip_h": true,
+			"scale_mult": 1.51
+		},
+		"damaged": {
+			"path": "res://Texture/enemy/wolf-damaged.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
 			"flip_h": true,
 			"scale_mult": 1.51
