@@ -213,6 +213,8 @@ var is_holding: bool = false
 var press_start_cell: Vector2i = Vector2i(-1, -1)
 var hovered_swap_cell: Vector2i = Vector2i(-1, -1)
 var swap_guide_overlay: Node2D = null
+var drag_offset: Vector2 = Vector2.ZERO
+var _current_local_mouse: Vector2 = Vector2.ZERO
 
 # 落下アニメーション管理
 var falling_pieces: Array[Dictionary] = [] # {"sprite": Sprite2D, "target_y": float, "velocity_y": float, "landed": bool}
@@ -589,6 +591,19 @@ func _initialize_board(collid_template: Node) -> void:
 # --- マウス入力とスワップ処理 ---
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		_current_local_mouse = to_local(event.position)
+		if selected_cell.x != -1 and current_state == BoardState.IDLE:
+			if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
+				var clamped_pos = _current_local_mouse + drag_offset
+				clamped_pos.x = clampf(clamped_pos.x, 4250.0, 11750.0)
+				clamped_pos.y = clampf(clamped_pos.y, 1250.0, 8750.0)
+				piece[selected_piece_idx].position = clamped_pos
+			_update_hovered_swap_direction(_current_local_mouse)
+			if swap_guide_overlay:
+				swap_guide_overlay.queue_redraw()
+		return
+
 	if not (event is InputEventMouseButton):
 		return
 
@@ -624,7 +639,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if current_state != BoardState.IDLE:
 		return
 
-	var local_pos = get_local_mouse_position()
+	var local_pos = to_local(mouse_event.position)
+	_current_local_mouse = local_pos
 	var col_idx = int(floor((local_pos.x - 4250.0) / 500.0))
 	var row_idx = int(floor((local_pos.y - 1250.0) / 500.0))
 	var is_in_bounds: bool = (row_idx >= 0 and row_idx < GRID_ROWS and col_idx >= 0 and col_idx < GRID_COLUMNS)
@@ -678,7 +694,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_spawn_shock_zap_effect(get_cell_position(row_idx, col_idx))
 			_redraw_board_effects()
 
-
 		# 爆弾・特殊アイテムのクリック即時起爆（1手消費）
 		var has_special_at_click: bool = false
 		if is_in_bounds:
@@ -700,9 +715,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
 					selected_cell = Vector2i(row_idx, col_idx)
 					selected_piece_idx = p_idx
+					drag_offset = piece[p_idx].position - local_pos
 					piece[p_idx].z_index = 10
 					piece[p_idx].scale = cellsize * 1.2
+					_update_hovered_swap_direction(local_pos)
 					if board_bg: board_bg.queue_redraw()
+					if swap_guide_overlay: swap_guide_overlay.queue_redraw()
 					var se2 = get_node_or_null("AudioStreamPlayer2")
 					if se2: se2.play()
 		else:
@@ -711,13 +729,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				var r1 = selected_cell.x
 				var c1 = selected_cell.y
 				_execute_swap(r1, c1, row_idx, col_idx)
+			elif is_in_bounds and row_idx == selected_cell.x and col_idx == selected_cell.y:
+				# 同じコマを再クリックした場合はドラッグ再開
+				drag_offset = piece[selected_piece_idx].position - local_pos
 			else:
 				_deselect_piece()
 	else:
 		# マウスボタン解放
 		is_holding = false
 		if selected_cell.x != -1:
-			var rel_pos = get_local_mouse_position()
+			var rel_pos = to_local(mouse_event.position)
 			var rel_col = int(floor((rel_pos.x - 4250.0) / 500.0))
 			var rel_row = int(floor((rel_pos.y - 1250.0) / 500.0))
 			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
@@ -731,7 +752,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif not rel_in_bounds or (press_start_cell != Vector2i(rel_row, rel_col) and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) > 1)):
 				# 盤面外や2マス以上離れた場所で離した (ドラッグ失敗・キャンセル)
 				_deselect_piece()
-			# (同じマスで離した場合は単なるクリック選択なので維持)
+			else:
+				# 同じマスで離した（タップ操作）: 駒を中心位置に戻して選択を維持
+				if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
+					var orig_pos = get_cell_position(selected_cell.x, selected_cell.y)
+					var tw = create_tween()
+					tw.tween_property(piece[selected_piece_idx], "position", orig_pos, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				_update_hovered_swap_direction(_current_local_mouse)
+				if swap_guide_overlay: swap_guide_overlay.queue_redraw()
 
 func _on_area_2d_input_event(_viewport: Node, _event: InputEvent, _shape_idx: int) -> void:
 	# _unhandled_input で確実に処理するためシグナル側はパス
@@ -750,6 +778,7 @@ func _deselect_piece() -> void:
 	selected_cell = Vector2i(-1, -1)
 	selected_piece_idx = -1
 	is_holding = false
+	drag_offset = Vector2.ZERO
 	press_start_cell = Vector2i(-1, -1)
 	hovered_swap_cell = Vector2i(-1, -1)
 	if board_bg: board_bg.queue_redraw()
@@ -830,6 +859,7 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	selected_cell = Vector2i(-1, -1)
 	selected_piece_idx = -1
 	is_holding = false
+	drag_offset = Vector2.ZERO
 	press_start_cell = Vector2i(-1, -1)
 	hovered_swap_cell = Vector2i(-1, -1)
 	if board_bg: board_bg.queue_redraw()
@@ -3698,9 +3728,11 @@ func _process(delta: float) -> void:
 
 	# マウス操作中の追従および移動方向強調のリアルタイム更新
 	if selected_cell.x != -1 and current_state == BoardState.IDLE:
-		var local_mouse = get_local_mouse_position()
-		if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
-			var clamped_mouse = local_mouse
+		var local_mouse = _current_local_mouse
+		if local_mouse == Vector2.ZERO and get_viewport() != null:
+			local_mouse = to_local(get_viewport().get_mouse_position())
+		if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
+			var clamped_mouse = local_mouse + drag_offset
 			clamped_mouse.x = clampf(clamped_mouse.x, 4250.0, 11750.0)
 			clamped_mouse.y = clampf(clamped_mouse.y, 1250.0, 8750.0)
 			piece[selected_piece_idx].position = clamped_mouse
