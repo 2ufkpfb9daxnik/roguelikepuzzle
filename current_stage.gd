@@ -44,7 +44,17 @@ func _ready() -> void:
 				bg.scale = Vector2(scale_val, scale_val)
 				bg.position = Vector2(960, 540)
 
-	# ゲーム画面左下に「⚙ 設定」ボタンを配置
+	# ゲーム画面左下に「⚙ 設定」ボタンを配置（CanvasLayer で確実なヒットテストとスケーリングを保証）
+	var ui_canvas = CanvasLayer.new()
+	ui_canvas.layer = 15
+	add_child(ui_canvas)
+
+	var ui_root = Control.new()
+	ui_root.name = "InGameUIRoot"
+	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_canvas.add_child(ui_root)
+
 	var settings_btn = Button.new()
 	settings_btn.name = "InGameSettingsButton"
 	settings_btn.text = "⚙ 設定"
@@ -53,10 +63,19 @@ func _ready() -> void:
 	settings_btn.add_theme_constant_override("outline_size", 6)
 	settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	settings_btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	settings_btn.position = Vector2(38, 980)
 	settings_btn.size = Vector2(160, 56)
 	settings_btn.custom_minimum_size = Vector2(160, 56)
-	settings_btn.z_index = 30
+
+	var update_settings_btn_pos = func():
+		var vp_sz = ui_root.size
+		if vp_sz.x <= 0 or vp_sz.y <= 0:
+			var vp = ui_root.get_viewport()
+			if vp: vp_sz = vp.get_visible_rect().size
+		if vp_sz.x <= 0: vp_sz = Vector2(1920, 1080)
+		settings_btn.position = Vector2(38, vp_sz.y - 100)
+
+	update_settings_btn_pos.call()
+	ui_root.resized.connect(update_settings_btn_pos)
 
 	var style_normal = StyleBoxFlat.new()
 	style_normal.bg_color = Color(0.12, 0.12, 0.22, 0.90)
@@ -78,7 +97,7 @@ func _ready() -> void:
 		if sm_autoload:
 			sm_autoload.open_settings()
 	)
-	add_child(settings_btn)
+	ui_root.add_child(settings_btn)
 
 ## タイトルへ戻るボタン押下時
 func _on_returntitle_pressed() -> void:

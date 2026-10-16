@@ -590,9 +590,16 @@ func _initialize_board(collid_template: Node) -> void:
 
 # --- マウス入力とスワップ処理 ---
 
+func _get_mouse_local() -> Vector2:
+	if is_inside_tree():
+		return get_local_mouse_position()
+	elif get_viewport() != null:
+		return to_local(get_viewport().get_mouse_position())
+	return Vector2.ZERO
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		_current_local_mouse = to_local(event.position)
+		_current_local_mouse = _get_mouse_local()
 		if selected_cell.x != -1 and current_state == BoardState.IDLE:
 			if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
 				var clamped_pos = _current_local_mouse + drag_offset
@@ -639,7 +646,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if current_state != BoardState.IDLE:
 		return
 
-	var local_pos = to_local(mouse_event.position)
+	var local_pos = _get_mouse_local()
 	_current_local_mouse = local_pos
 	var col_idx = int(floor((local_pos.x - 4250.0) / 500.0))
 	var row_idx = int(floor((local_pos.y - 1250.0) / 500.0))
@@ -738,7 +745,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# マウスボタン解放
 		is_holding = false
 		if selected_cell.x != -1:
-			var rel_pos = to_local(mouse_event.position)
+			var rel_pos = _get_mouse_local()
 			var rel_col = int(floor((rel_pos.x - 4250.0) / 500.0))
 			var rel_row = int(floor((rel_pos.y - 1250.0) / 500.0))
 			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
@@ -3728,9 +3735,8 @@ func _process(delta: float) -> void:
 
 	# マウス操作中の追従および移動方向強調のリアルタイム更新
 	if selected_cell.x != -1 and current_state == BoardState.IDLE:
-		var local_mouse = _current_local_mouse
-		if local_mouse == Vector2.ZERO and get_viewport() != null:
-			local_mouse = to_local(get_viewport().get_mouse_position())
+		var local_mouse = _get_mouse_local()
+		_current_local_mouse = local_mouse
 		if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
 			var clamped_mouse = local_mouse + drag_offset
 			clamped_mouse.x = clampf(clamped_mouse.x, 4250.0, 11750.0)
