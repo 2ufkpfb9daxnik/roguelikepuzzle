@@ -7,7 +7,7 @@ signal stage_clear
 # --- ステージ＆敵データテーブル ---
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 const RELIC_SELECTION_UI_SCRIPT = preload("res://relic_selection_ui.gd")
-const RELIC_OFFER_BATTLE_INDICES: Array[int] = [2, 5]
+const RELIC_OFFER_BATTLE_INDICES: Array[int] = [1, 2, 3, 4, 5]
 const STAGE_BACKGROUNDS: Array[String] = ["plane", "cave", "desert", "snow field", "castle"]
 const STAGE_BACKGROUND_TEXTURES: Array[Texture2D] = [
 	preload("res://Texture/plane.jpeg"),
