@@ -13,14 +13,16 @@ func _ready() -> void:
 	layer = 50 # High above board
 
 	container = HFlowContainer.new()
-	container.position = Vector2(20, 20)
-	container.size = Vector2(1000, 200)
+	container.position = Vector2(220, 976)
+	container.size = Vector2(1150, 90)
+	container.add_theme_constant_override("h_separation", 8)
+	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(container)
 	
 	info_panel = PanelContainer.new()
 	info_panel.visible = false
-	info_panel.position = Vector2(50, 100)
+	info_panel.position = Vector2(220, 790)
 	info_panel.size = Vector2(440, 160)
 	info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info_panel.z_index = 100
@@ -179,7 +181,9 @@ func _on_icon_gui_input(event: InputEvent, id: String, rect: ColorRect) -> void:
 				desc_label.text = "[font_size=20][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [desc_cur, cur_lvl + 1, desc_next]
 				
 			info_panel.set_meta("current_id", id)
-			info_panel.position = rect.global_position + Vector2(0, 70)
+			var panel_x = clampf(rect.global_position.x, 20.0, 1920.0 - info_panel.size.x - 20.0)
+			var panel_y = maxf(20.0, rect.global_position.y - info_panel.size.y - 12.0)
+			info_panel.position = Vector2(panel_x, panel_y)
 			info_panel.visible = true
 			get_viewport().set_input_as_handled()
 
