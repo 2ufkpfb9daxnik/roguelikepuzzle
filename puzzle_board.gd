@@ -4395,10 +4395,11 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 			"heal": heal_per_food
 		})
 
-	# ポーション（生成数最大24個制限・ゲージ量100%保持）
-	var max_gage_cap: int = 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont))
+	# ポーション（生成数最大24個制限・ゲージ量100%保持、余剰ポーションはスキルツリー用に保持）
+	var max_gage_cap: int = 0 if (sm and sm.isfevertime) else maxi(0, 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont)))
 	var raw_potion_cnt: int = min(max_gage_cap, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
-	score_mgr.divscore[PieceType.POTION] -= int(raw_potion_cnt * potiont * 100.0)
+	var consume_potion_score: int = int(raw_potion_cnt * potiont * 50.0)
+	score_mgr.divscore[PieceType.POTION] = maxi(0, score_mgr.divscore[PieceType.POTION] - consume_potion_score)
 	var potion_cnt: int = clampi(raw_potion_cnt, 0, MAX_COMBAT_PROJECTILES)
 	var gage_per_potion: float = (float(raw_potion_cnt) / float(max(1, potion_cnt))) * 100.0
 	for i in range(potion_cnt):
@@ -5886,6 +5887,8 @@ func _handle_gameover_sequence(sm: Node2D) -> void:
 
 const SKILL_EFFECT_STAGGER = 0.15
 
+var _attack_phase_elem_played: Dictionary = {}
+
 func _play_ally_attack_phase_effects(sm: Node2D) -> void:
 	if not is_instance_valid(sm):
 		turn_skill_log.clear()
@@ -5896,11 +5899,11 @@ func _play_ally_attack_phase_effects(sm: Node2D) -> void:
 		return
 	
 	var score_mgr = _get_score_manager()
-	var counts = score_mgr.turn_element_counts if score_mgr and "turn_element_counts" in score_mgr else {}
+	var counts: Dictionary = (score_mgr.turn_element_counts.duplicate() if score_mgr and "turn_element_counts" in score_mgr else {})
 	
 	var elements_present = false
 	for el_enum in counts.keys():
-		if counts[el_enum] > 0:
+		if int(counts[el_enum]) > 0:
 			elements_present = true
 			break
 			
@@ -5908,78 +5911,142 @@ func _play_ally_attack_phase_effects(sm: Node2D) -> void:
 		turn_skill_log.clear()
 		return
 	
-	await get_tree().create_timer(0.85, false).timeout
+	# 各攻撃フェーズにつき各属性1度だけ再生するためのガード
+	_attack_phase_elem_played.clear()
+	
+	await get_tree().create_timer(0.45, false).timeout
+	if not is_instance_valid(sm) or sm.isdeadf:
+		turn_skill_log.clear()
+		return
 	
 	for el_enum in counts.keys():
-		var count = counts[el_enum]
-		if count <= 0: continue
+		if not is_instance_valid(sm) or sm.isdeadf:
+			break
+		var count: int = int(counts[el_enum])
+		if count <= 0:
+			continue
+		if _attack_phase_elem_played.get(el_enum, false):
+			continue
+		_attack_phase_elem_played[el_enum] = true
 		var el_name = ElementDataScript.get_element_name(el_enum)
-		await _spawn_elemental_bombs(el_name, count, active_en)
+		var cur_enemies = sm.active_enemies if "active_enemies" in sm else []
+		if cur_enemies.is_empty():
+			break
+		_spawn_elemental_bombs(el_name, count, cur_enemies)
+		await get_tree().create_timer(SKILL_EFFECT_STAGGER, false).timeout
 		
 	turn_skill_log.clear()
 
-func _spawn_elemental_bombs(elem: String, count: int, active_en: Array) -> void:
-	var num_large = count / 10
-	var remainder = count % 10
-	var num_medium = remainder / 5
-	var num_small = remainder % 5
-	
-	for i in range(num_large):
-		for e in active_en:
-			var spr = e.get("sprite")
-			if not is_instance_valid(spr): continue
-			_play_elemental_size(elem, 3, spr.global_position)
-		await get_tree().create_timer(0.4, false).timeout
-		
-	for i in range(num_medium):
-		for e in active_en:
-			var spr = e.get("sprite")
-			if not is_instance_valid(spr): continue
-			_play_elemental_size(elem, 2, spr.global_position)
-		await get_tree().create_timer(0.3, false).timeout
-		
-	for i in range(num_small):
-		for e in active_en:
-			var spr = e.get("sprite")
-			if not is_instance_valid(spr): continue
-			_play_elemental_size(elem, 1, spr.global_position)
-		await get_tree().create_timer(0.2, false).timeout
+## 属性値(count)の大きさに応じた強度段階(1〜5)を算出し、各属性1回だけエフェクトを発生させる
+func _get_elemental_effect_intensity(count: int) -> int:
+	if count >= 150:
+		return 5
+	elif count >= 80:
+		return 4
+	elif count >= 30:
+		return 3
+	elif count >= 10:
+		return 2
+	return 1
 
-func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2) -> void:
+func _spawn_elemental_bombs(elem: String, count: int, active_en: Array) -> void:
+	var intensity: int = _get_elemental_effect_intensity(count)
+	for e in active_en:
+		var spr = e.get("sprite")
+		if not is_instance_valid(spr):
+			continue
+		_play_elemental_size(elem, intensity, spr.global_position, count)
+
+func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2, raw_count: int = 1) -> void:
 	var local_pos = self.to_local(target_global_pos)
-	
+	var power_ratio: float = clampf(float(raw_count) / 200.0, 0.0, 2.0)
 	
 	match elem:
 		"fire":
-			if size == 3: _spawn_mega_explosion_effect(local_pos, 2)
-			elif size == 2: _spawn_mega_explosion_effect(local_pos, 0)
-			else: _spawn_explosion_effect(local_pos)
+			if size >= 5:
+				_spawn_mega_explosion_effect(local_pos, 5)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.35, 0.05, 0.95), 1100.0 + power_ratio * 250.0, 0.45)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.9, 0.3, 0.9), 800.0 + power_ratio * 150.0, 0.35)
+			elif size == 4:
+				_spawn_mega_explosion_effect(local_pos, 3)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.45, 0.1, 0.92), 850.0, 0.40)
+			elif size == 3:
+				_spawn_mega_explosion_effect(local_pos, 2)
+			elif size == 2:
+				_spawn_mega_explosion_effect(local_pos, 0)
+			else:
+				_spawn_explosion_effect(local_pos)
 		"water":
-			if size == 3: _spawn_aqua_splash_effect(local_pos, 5)
-			elif size == 2: _spawn_aqua_splash_effect(local_pos, 3)
-			else: _spawn_aqua_splash_effect(local_pos, 1)
+			if size >= 5:
+				_spawn_aqua_splash_effect(local_pos, 8)
+				_spawn_shockwave_ring(local_pos, Color(0.1, 0.85, 1.0, 0.95), 1050.0, 0.45)
+			elif size == 4:
+				_spawn_aqua_splash_effect(local_pos, 6)
+				_spawn_shockwave_ring(local_pos, Color(0.2, 0.8, 1.0, 0.9), 800.0, 0.38)
+			elif size == 3:
+				_spawn_aqua_splash_effect(local_pos, 5)
+			elif size == 2:
+				_spawn_aqua_splash_effect(local_pos, 3)
+			else:
+				_spawn_aqua_splash_effect(local_pos, 1)
 		"wind":
-			if size == 3: _spawn_tornado_effect(local_pos, 3, 300)
-			elif size == 2: _spawn_tornado_effect(local_pos, 2, 150)
-			else: _spawn_tornado_effect(local_pos, 1, 50)
+			if size >= 5:
+				_spawn_tornado_effect(local_pos, 5, 450)
+				_spawn_shockwave_ring(local_pos, Color(0.2, 1.0, 0.7, 0.95), 1000.0, 0.42)
+			elif size == 4:
+				_spawn_tornado_effect(local_pos, 4, 380)
+			elif size == 3:
+				_spawn_tornado_effect(local_pos, 3, 300)
+			elif size == 2:
+				_spawn_tornado_effect(local_pos, 2, 150)
+			else:
+				_spawn_tornado_effect(local_pos, 1, 50)
 		"thunder":
-			if size == 3:
+			if size >= 5:
+				for dx in [-320, -200, -100, 0, 100, 200, 320]:
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.12)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.95, 0.2, 0.95), 1050.0, 0.42)
+				_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.6), 0.16)
+			elif size == 4:
+				for dx in [-240, -120, 0, 120, 240]:
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.12)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.95, 0.2, 0.9), 800.0, 0.36)
+				_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.5), 0.12)
+			elif size == 3:
 				for dx in [-200, -100, 0, 100, 200]:
-					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.2)
-				_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.5), 0.1)
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.12)
+				_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.45), 0.1)
 			elif size == 2:
 				for dx in [-100, 0, 100]:
-					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.1)
+					_spawn_vertical_lightning_bolt(local_pos + Vector2(dx, 0), randf() * 0.08)
 			else:
 				_spawn_vertical_lightning_bolt(local_pos, 0.0)
 		"light":
-			if size == 3: _spawn_disco_effect(local_pos)
-			elif size == 2: _spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 600.0, 0.4)
-			else: _spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 300.0, 0.2)
+			if size >= 5:
+				_spawn_disco_effect(local_pos)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.95, 0.5, 0.95), 1150.0, 0.45)
+			elif size == 4:
+				_spawn_disco_effect(local_pos)
+				_spawn_shockwave_ring(local_pos, Color(1.0, 0.95, 0.5, 0.9), 850.0, 0.38)
+			elif size == 3:
+				_spawn_disco_effect(local_pos)
+			elif size == 2:
+				_spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 600.0, 0.4)
+			else:
+				_spawn_shockwave_ring(local_pos, Color(1.0, 1.0, 0.5, 0.9), 300.0, 0.2)
 		"dark":
-			if size == 3: _spawn_black_hole_effect(local_pos, 3)
-			elif size == 2: _spawn_black_hole_effect(local_pos, 2)
-			else: _spawn_black_hole_effect(local_pos, 1)
+			if size >= 5:
+				_spawn_black_hole_effect(local_pos, 4)
+				_spawn_shockwave_ring(local_pos, Color(0.65, 0.15, 1.0, 0.95), 1100.0, 0.45)
+			elif size == 4:
+				_spawn_black_hole_effect(local_pos, 3)
+				_spawn_shockwave_ring(local_pos, Color(0.65, 0.15, 1.0, 0.9), 850.0, 0.38)
+			elif size == 3:
+				_spawn_black_hole_effect(local_pos, 3)
+			elif size == 2:
+				_spawn_black_hole_effect(local_pos, 2)
+			else:
+				_spawn_black_hole_effect(local_pos, 1)
 
 
 func _add_element_mark_to_sprite(sprite: Sprite2D) -> void:

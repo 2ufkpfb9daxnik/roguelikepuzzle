@@ -11,6 +11,8 @@ enum PieceType {
 	FOOD = 4,
 }
 
+signal skill_upgraded(skill_id: String, sp_type: int, new_level: int)
+
 # --- 公開プロパティ（他ノードから参照される変数） ---
 var totalScore: int = 0
 var divscore: Array = [0, 0, 0, 0, 0] # [SHIELD, SWORD, COIN, POTION, FOOD]
@@ -19,22 +21,35 @@ var iscombo: bool = false
 var gridscore: Array = []
 
 # バフ購入に必要なコインコスト（後方互換用）
-var currentshieldcoin: int = 5000
-var currentswordcoin: int = 5000
-var currentcoincoin: int = 5000
-var currentfoodcoin: int = 5000
+var currentshieldcoin: int = 3000
+var currentswordcoin: int = 3000
+var currentcoincoin: int = 3000
+var currentfoodcoin: int = 3000
 var currentfevercoin: int = 3000
+var currenthpcoin: int = 4000
 var currentbombcoin: int = 5000
 var fever_boost_level: int = 0
+var hp_boost_level: int = 0
 var bomb_buff_level: int = 0
 
-# ショップページ管理
+# ショップ＆スキルツリーUI管理
 var current_shop_page: int = 0
+var current_view_mode: int = 0 # 0: ショップ(コイン購入), 1: スキルツリー(余剰ポーション)
 var is_shop_open: bool = false
 var shop_page_container: HBoxContainer = null
 var prev_page_btn: Button = null
 var next_page_btn: Button = null
 var page_indicator_lbl: Label = null
+
+var shop_root_panel: Panel = null
+var shop_tab_btn: Button = null
+var skill_tab_btn: Button = null
+var coin_currency_lbl: RichTextLabel = null
+var potion_currency_lbl: RichTextLabel = null
+var shop_view_container: Control = null
+var skill_tree_container: Control = null
+var shop_card_refs: Array[Dictionary] = []
+var skill_node_refs: Array[Dictionary] = []
 
 # パフォーマンス最適化用キャッシュ変数
 var _cached_jp_font: SystemFont = null
@@ -55,137 +70,297 @@ var _last_shop_page: int = -1
 # 全バフ・特殊アイテムのカタログ定義
 var stat_levels: Array[int] = [0, 0, 0, 0, 0] # 属性ごとのレベル [SHIELD, SWORD, COIN, POTION, FOOD]
 
+# ショップ購入アイテム（コイン使用：獲得スコア強化・体力強化）
 var shop_items: Array[Dictionary] = [
-	# --- ページ 1: 基本ステータス（レベルに応じて+〇） ---
 	{
 		"id": "shield",
 		"type": "stat_shield",
-		"name": "シールド\n+100",
-		"desc": "消去時のシールド獲得量が上昇",
+		"name": "シールド強化",
+		"subtitle": "獲得スコア上昇",
+		"desc": "シールド消去時の基礎獲得スコアが1コマあたり+100上昇します。",
+		"icon_path": "res://Texture/shield/shield_cut.png",
 		"color": Color("#00E5FF"),
-		"cost": 5000,
+		"cost": 3000,
 		"level": 0
 	},
 	{
 		"id": "sword",
 		"type": "stat_sword",
-		"name": "攻撃\n+100",
-		"desc": "消去時の敵ダメージが上昇",
+		"name": "攻撃スコア強化",
+		"subtitle": "獲得スコア上昇",
+		"desc": "剣消去時の基礎獲得スコア（攻撃力）が1コマあたり+100上昇します。",
+		"icon_path": "res://Texture/sword/sword_cut.png",
 		"color": Color("#FF5252"),
-		"cost": 5000,
+		"cost": 3000,
 		"level": 0
 	},
 	{
 		"id": "food",
 		"type": "stat_food",
-		"name": "回復\n+100",
-		"desc": "消去時のHP回復量が上昇",
+		"name": "回復スコア強化",
+		"subtitle": "獲得スコア上昇",
+		"desc": "パン消去時の基礎獲得スコア（HP回復量）が1コマあたり+100上昇します。",
+		"icon_path": "res://Texture/food/bread_cut.png",
 		"color": Color("#76FF03"),
-		"cost": 5000,
+		"cost": 3000,
 		"level": 0
 	},
 	{
 		"id": "coin",
 		"type": "stat_coin",
-		"name": "お金\n+100",
-		"desc": "消去時のコイン獲得量が上昇",
+		"name": "コイン獲得強化",
+		"subtitle": "獲得スコア上昇",
+		"desc": "コイン消去時の基礎獲得スコア（獲得資金）が1コマあたり+100上昇します。",
+		"icon_path": "res://Texture/coin/coin_cut.png",
 		"color": Color("#FFD700"),
-		"cost": 5000,
+		"cost": 3000,
 		"level": 0
 	},
 	{
 		"id": "fever",
 		"type": "stat_fever",
-		"name": "フィーバー\n+10%",
-		"desc": "フィーバースコア倍率が増加",
+		"name": "フィーバー強化",
+		"subtitle": "獲得スコア倍率上昇",
+		"desc": "フィーバータイム中の全属性獲得スコア倍率が+0.5倍上昇します。",
+		"icon_path": "res://Texture/potion/potion_cut.png",
 		"color": Color("#FF2E93"),
 		"cost": 3000,
 		"level": 0
 	},
 	{
-		"id": "bomb",
-		"type": "special_bomb",
-		"name": "フレイムボム\n業火爆破",
-		"desc": "炎: Lvで3x3➔5x5➔7x7拡大",
-		"color": Color("#FF9100"),
-		"cost": 10000,
-		"level": 0
-	},
-
-	# --- ページ 2: 元素ケミストリー＆属性スペル ---
-	{
-		"id": "tornado",
-		"type": "special_tornado",
-		"name": "つむじ風/竜巻\n直進巻き上げ",
-		"desc": "風: 直進してコマ一掃(木の耐久-1/-2)",
+		"id": "max_hp",
+		"type": "stat_hp",
+		"name": "最大体力強化",
+		"subtitle": "体力上限＆即時回復",
+		"desc": "プレイヤーの最大HPを大幅に増加させ、増加分だけ即座に回復します。",
+		"icon_path": "res://Texture/food/bread_cut.png",
 		"color": Color("#00E676"),
-		"cost": 20000,
+		"cost": 4000,
 		"level": 0
-	},
+	}
+]
+
+# スキルツリー定義（余剰ポーション使用：スキル獲得・強化）
+var skill_tree_items: Array[Dictionary] = [
+	# --- Branch 0: 炎・爆破系 ---
 	{
-		"id": "lightning",
-		"type": "special_lightning",
-		"name": "ライトニング\n落雷＆感電",
-		"desc": "雷: 3➔5➔8発落雷(水たまり全体へ感電拡散)",
-		"color": Color("#FFEA00"),
-		"cost": 25000,
-		"level": 0
-	},
-	{
-		"id": "aqua_splash",
-		"type": "special_aqua_splash",
-		"name": "アクアスプラッシュ\n水浸し展開",
-		"desc": "水: 周囲を水浸しに(雷感電＆苗の糧)",
-		"color": Color("#00B0FF"),
-		"cost": 18000,
-		"level": 0
-	},
-	{
-		"id": "tree_sprout",
-		"type": "special_tree_sprout",
-		"name": "生命の苗木\n吸水大木進化",
-		"desc": "地: 水を吸って3x3大木へ進化＆毎ターン回復",
-		"color": Color("#76FF03"),
-		"cost": 30000,
-		"level": 0
+		"id": "bomb",
+		"sp_type": 1,
+		"branch": 0,
+		"tier": 0,
+		"req_id": "",
+		"name": "フレイムボム",
+		"short_label": "爆",
+		"desc_lv": [
+			"周囲3×3マスを業火で爆破消去",
+			"周囲5×5マスを大爆破消去",
+			"周囲7×7マスを超広範囲爆破"
+		],
+		"color": Color("#FF9100"),
+		"cost": 1000,
+		"level": 0,
+		"max_level": 3
 	},
 	{
 		"id": "cross_bomb",
-		"type": "special_cross_bomb",
-		"name": "クロスブレイズ\n十文字業火",
-		"desc": "炎: 十字貫通火柱(木に引火で大延焼)",
+		"sp_type": 2,
+		"branch": 0,
+		"tier": 1,
+		"req_id": "bomb",
+		"name": "クロスブレイズ",
+		"short_label": "十",
+		"desc_lv": [
+			"縦横1列を貫通する十文字火柱",
+			"縦横3列の極太火柱で一掃",
+			"縦横3列＋斜めX字の全方位火柱"
+		],
 		"color": Color("#FF3D00"),
-		"cost": 35000,
-		"level": 0
+		"cost": 2500,
+		"level": 0,
+		"max_level": 3
+	},
+	{
+		"id": "gemini_bomb",
+		"sp_type": 12,
+		"branch": 0,
+		"tier": 2,
+		"req_id": "cross_bomb",
+		"name": "ジェミニボム",
+		"short_label": "双",
+		"desc_lv": [
+			"双子爆弾が共鳴爆破(半径1)",
+			"共鳴爆破(半径2)＋直線上消去",
+			"超共鳴爆破(半径3)＋極太レーザー"
+		],
+		"color": Color("#FF1744"),
+		"cost": 5000,
+		"level": 0,
+		"max_level": 3
+	},
+	# --- Branch 1: 水・自然系 ---
+	{
+		"id": "aqua_splash",
+		"sp_type": 6,
+		"branch": 1,
+		"tier": 0,
+		"req_id": "",
+		"name": "アクアスプラッシュ",
+		"short_label": "水",
+		"desc_lv": [
+			"周囲を水浸しに(雷感電＆苗成長)",
+			"広範囲(半径2)を水浸し＆消去",
+			"超広範囲(半径3)を大洪水で水浸し"
+		],
+		"color": Color("#00B0FF"),
+		"cost": 1000,
+		"level": 0,
+		"max_level": 3
+	},
+	{
+		"id": "tree_sprout",
+		"sp_type": 7,
+		"branch": 1,
+		"tier": 1,
+		"req_id": "aqua_splash",
+		"name": "生命の苗木",
+		"short_label": "樹",
+		"desc_lv": [
+			"盤面に苗木出現・吸水で3×3大木進化",
+			"大木進化時の回復・果実恩恵が強化",
+			"世界樹へ進化し毎ターン大回復＆恩恵"
+		],
+		"color": Color("#76FF03"),
+		"cost": 2500,
+		"level": 0,
+		"max_level": 3
 	},
 	{
 		"id": "color_converter",
-		"type": "special_color_converter",
-		"name": "フローラスプレー\n同色染め上げ",
-		"desc": "地: 周囲を同一属性に塗り替える",
+		"sp_type": 4,
+		"branch": 1,
+		"tier": 2,
+		"req_id": "tree_sprout",
+		"name": "フローラスプレー",
+		"short_label": "染",
+		"desc_lv": [
+			"周囲8マスを同一属性に染め上げる",
+			"周囲5×5マスを同一属性に染め上げる",
+			"周囲7×7マスを同一属性に染め上げる"
+		],
 		"color": Color("#69F0AE"),
-		"cost": 22000,
-		"level": 0
+		"cost": 5000,
+		"level": 0,
+		"max_level": 3
 	},
-
-	# --- ページ 3: 究極奇跡スペル ---
+	# --- Branch 2: 風・雷電系 ---
+	{
+		"id": "tornado",
+		"sp_type": 3,
+		"branch": 2,
+		"tier": 0,
+		"req_id": "",
+		"name": "つむじ風・竜巻",
+		"short_label": "風",
+		"desc_lv": [
+			"直進する竜巻で1列を一掃",
+			"幅3マスの巨大竜巻で一掃",
+			"縦横2方向へ巨大竜巻が同時突進"
+		],
+		"color": Color("#00E676"),
+		"cost": 1000,
+		"level": 0,
+		"max_level": 3
+	},
+	{
+		"id": "lightning",
+		"sp_type": 5,
+		"branch": 2,
+		"tier": 1,
+		"req_id": "tornado",
+		"name": "ライトニング",
+		"short_label": "雷",
+		"desc_lv": [
+			"盤面に3発落雷(水たまりへ感電連鎖)",
+			"5発落雷＋周囲衝撃波(水たまり感電)",
+			"8発落雷＋大衝撃波(水たまり感電)"
+		],
+		"color": Color("#FFEA00"),
+		"cost": 2500,
+		"level": 0,
+		"max_level": 3
+	},
+	{
+		"id": "magnet",
+		"sp_type": 10,
+		"branch": 2,
+		"tier": 2,
+		"req_id": "lightning",
+		"name": "マグネットストーム",
+		"short_label": "磁",
+		"desc_lv": [
+			"同色8個を磁力で中央へ引き寄せ連結",
+			"同色12個を強力に引き寄せ大塊化",
+			"盤面中の同色18個を超磁力で集結"
+		],
+		"color": Color("#40C4FF"),
+		"cost": 5000,
+		"level": 0,
+		"max_level": 3
+	},
+	# --- Branch 3: 時空・究極系 ---
+	{
+		"id": "charge_bomb",
+		"sp_type": 11,
+		"branch": 3,
+		"tier": 0,
+		"req_id": "",
+		"name": "チャージボム",
+		"short_label": "蓄",
+		"desc_lv": [
+			"隣接消去で蓄電しカウント0で大爆発",
+			"蓄電効率UP＆爆発半径拡大",
+			"超蓄電バーストで画面広域を大掃討"
+		],
+		"color": Color("#FFAB00"),
+		"cost": 1500,
+		"level": 0,
+		"max_level": 3
+	},
 	{
 		"id": "black_hole",
-		"type": "special_black_hole",
-		"name": "ブラックホール\n重力渦巻吸引",
-		"desc": "闇: 周囲を渦状に吸い込んで大消滅",
+		"sp_type": 9,
+		"branch": 3,
+		"tier": 1,
+		"req_id": "charge_bomb",
+		"name": "ブラックホール",
+		"short_label": "闇",
+		"desc_lv": [
+			"周囲5×5マスを重力渦に吸引消滅",
+			"周囲7×7マスを重力渦に吸引消滅",
+			"周囲9×9マスを超重力で吸引消滅"
+		],
 		"color": Color("#7C4DFF"),
-		"cost": 100000,
-		"level": 0
+		"cost": 4000,
+		"level": 0,
+		"max_level": 3
 	},
 	{
 		"id": "disco_ball",
-		"type": "special_disco_ball",
-		"name": "スターオーブ\n同色全滅奇跡",
-		"desc": "星: 画面中の同色全コマ一斉破壊",
+		"sp_type": 8,
+		"branch": 3,
+		"tier": 2,
+		"req_id": "black_hole",
+		"name": "スターオーブ",
+		"short_label": "星",
+		"desc_lv": [
+			"画面内の最多属性コマを一斉破壊",
+			"最多属性を一斉破壊＋ボーナス倍率UP",
+			"画面内の最多2属性を一斉破壊する奇跡"
+		],
 		"color": Color("#E040FB"),
-		"cost": 200000,
-		"level": 0
+		"cost": 8000,
+		"level": 0,
+		"max_level": 3
 	}
 ]
 
@@ -500,6 +675,9 @@ func update_score_label() -> void:
 	if combo_label != null:
 		combo_label.text = "[center][b][color=#00E5FF]COMBO[/color][/b][/center]"
 
+	if is_shop_open:
+		_update_buff_button_labels()
+
 ## スコアポップアップのオブジェクトプール初期化（実行時の動的生成・破棄スパイク完全排除）
 func _init_score_popup_pool() -> void:
 	if template_score_label == null:
@@ -644,10 +822,6 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 				
 				totalScore += earned_score
 				
-				# スタイリッシュなスコアポップアップを生成
-
-
-
 				for cell in component_cells:
 					if grid_element.size() > cell.x and grid_element[cell.x].size() > cell.y:
 						var el = grid_element[cell.x][cell.y]
@@ -799,157 +973,662 @@ func _process(_delta: float) -> void:
 	combo()
 	_update_popup_labels()
 
-## ショップUIのページ送りコントロール生成
+## 獲得済みスキル一覧を返すヘルパー（画面下部UI等で利用）
+func get_unlocked_skills() -> Array[Dictionary]:
+	var res: Array[Dictionary] = []
+	for s in skill_tree_items:
+		if int(s.get("level", 0)) > 0:
+			res.append(s)
+	return res
+
+func get_skill_by_id(skill_id: String) -> Dictionary:
+	for s in skill_tree_items:
+		if s.get("id", "") == skill_id:
+			return s
+	return {}
+
+## リッチな大型ショップ＆スキルツリーUIの生成 (1696 x 874)
 func _setup_shop_page_controls() -> void:
 	var parent = get_parent()
-	if parent == null: return
+	if parent == null:
+		return
+
+	# 旧バフボタン群を常時非表示に固定
+	for i in range(6):
+		var old_btn = parent.get_node_or_null("buffselectbutton" + str(i))
+		if old_btn:
+			old_btn.visible = false
+
+	var sc_btn = get_node_or_null("stagechangeb") as Button
+	if sc_btn:
+		sc_btn.position = Vector2(1724, 770)
+		sc_btn.size = Vector2(188, 77)
+		sc_btn.z_index = 35
+
+	if shop_root_panel != null:
+		return
 
 	var jp_font = _get_jp_font()
 
-	if shop_page_container == null:
-		shop_page_container = HBoxContainer.new()
-		# ショップ欄の幅 (0〜1170px) の中央に配置し、価格表示 (y=853〜936) 直下の y=955 に配置
-		shop_page_container.position = Vector2(0, 955)
-		shop_page_container.size = Vector2(1170, 60)
-		shop_page_container.alignment = BoxContainer.ALIGNMENT_CENTER
-		shop_page_container.add_theme_constant_override("separation", 24)
-		shop_page_container.z_index = 25
-		shop_page_container.visible = false
-		shop_page_container.mouse_filter = Control.MOUSE_FILTER_PASS
-		parent.add_child.call_deferred(shop_page_container)
+	shop_root_panel = Panel.new()
+	shop_root_panel.name = "ShopAndSkillTreePanel"
+	shop_root_panel.position = Vector2(16, 10)
+	shop_root_panel.size = Vector2(1696, 874)
+	shop_root_panel.z_index = 30
+	shop_root_panel.visible = false
 
-	if prev_page_btn == null:
-		prev_page_btn = Button.new()
-		prev_page_btn.text = "◀ 前のページ"
-		prev_page_btn.custom_minimum_size = Vector2(180, 56)
-		prev_page_btn.add_theme_font_override("font", jp_font)
-		prev_page_btn.add_theme_font_size_override("font_size", 22)
-		prev_page_btn.pressed.connect(_on_prev_page_pressed)
-		shop_page_container.add_child(prev_page_btn)
+	var root_style = StyleBoxFlat.new()
+	root_style.bg_color = Color(0.06, 0.08, 0.14, 0.98)
+	root_style.border_color = Color(0.88, 0.72, 0.28, 0.98)
+	root_style.set_border_width_all(3)
+	root_style.set_corner_radius_all(18)
+	root_style.shadow_color = Color(0, 0, 0, 0.72)
+	root_style.shadow_size = 18
+	shop_root_panel.add_theme_stylebox_override("panel", root_style)
+	parent.add_child.call_deferred(shop_root_panel)
 
-	if page_indicator_lbl == null:
-		page_indicator_lbl = Label.new()
-		page_indicator_lbl.text = "ページ 1 / 3"
-		page_indicator_lbl.custom_minimum_size = Vector2(160, 56)
-		page_indicator_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		page_indicator_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		page_indicator_lbl.add_theme_font_override("font", jp_font)
-		page_indicator_lbl.add_theme_font_size_override("font_size", 26)
-		page_indicator_lbl.add_theme_color_override("font_color", Color("#FFD700"))
-		page_indicator_lbl.add_theme_constant_override("outline_size", 6)
-		page_indicator_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-		shop_page_container.add_child(page_indicator_lbl)
+	# --- 上部ヘッダーバー ---
+	var header_bg = Panel.new()
+	header_bg.position = Vector2(18, 12)
+	header_bg.size = Vector2(1660, 80)
+	var hdr_style = StyleBoxFlat.new()
+	hdr_style.bg_color = Color(0.10, 0.13, 0.22, 0.96)
+	hdr_style.border_color = Color(0.35, 0.42, 0.62, 0.75)
+	hdr_style.set_border_width_all(2)
+	hdr_style.set_corner_radius_all(14)
+	header_bg.add_theme_stylebox_override("panel", hdr_style)
+	shop_root_panel.add_child(header_bg)
 
-	if next_page_btn == null:
-		next_page_btn = Button.new()
-		next_page_btn.text = "次のページ ▶"
-		next_page_btn.custom_minimum_size = Vector2(180, 56)
-		next_page_btn.add_theme_font_override("font", jp_font)
-		next_page_btn.add_theme_font_size_override("font_size", 22)
-		next_page_btn.pressed.connect(_on_next_page_pressed)
-		shop_page_container.add_child(next_page_btn)
+	shop_tab_btn = Button.new()
+	shop_tab_btn.position = Vector2(32, 20)
+	shop_tab_btn.size = Vector2(450, 64)
+	shop_tab_btn.text = "🪙 ショップ (コイン購入)"
+	shop_tab_btn.add_theme_font_override("font", jp_font)
+	shop_tab_btn.add_theme_font_size_override("font_size", 26)
+	shop_tab_btn.pressed.connect(func(): _switch_shop_view_mode(0))
+	shop_root_panel.add_child(shop_tab_btn)
+
+	skill_tab_btn = Button.new()
+	skill_tab_btn.position = Vector2(498, 20)
+	skill_tab_btn.size = Vector2(470, 64)
+	skill_tab_btn.text = "🌿 スキルツリー (余剰ポーション)"
+	skill_tab_btn.add_theme_font_override("font", jp_font)
+	skill_tab_btn.add_theme_font_size_override("font_size", 26)
+	skill_tab_btn.pressed.connect(func(): _switch_shop_view_mode(1))
+	shop_root_panel.add_child(skill_tab_btn)
+
+	# 所持コイン＆余剰ポーション表示ボックス
+	var coin_box = Panel.new()
+	coin_box.position = Vector2(990, 20)
+	coin_box.size = Vector2(332, 64)
+	var cbox_style = StyleBoxFlat.new()
+	cbox_style.bg_color = Color(0.14, 0.12, 0.05, 0.96)
+	cbox_style.border_color = Color(1.0, 0.84, 0.0, 0.9)
+	cbox_style.set_border_width_all(2)
+	cbox_style.set_corner_radius_all(12)
+	coin_box.add_theme_stylebox_override("panel", cbox_style)
+	shop_root_panel.add_child(coin_box)
+
+	coin_currency_lbl = RichTextLabel.new()
+	coin_currency_lbl.bbcode_enabled = true
+	coin_currency_lbl.scroll_active = false
+	coin_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coin_currency_lbl.position = Vector2(10, 6)
+	coin_currency_lbl.size = Vector2(312, 54)
+	coin_currency_lbl.add_theme_font_override("normal_font", jp_font)
+	coin_currency_lbl.add_theme_font_override("bold_font", jp_font)
+	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
+	coin_currency_lbl.add_theme_font_size_override("bold_font_size", 24)
+	coin_box.add_child(coin_currency_lbl)
+
+	var potion_box = Panel.new()
+	potion_box.position = Vector2(1334, 20)
+	potion_box.size = Vector2(332, 64)
+	var pbox_style = StyleBoxFlat.new()
+	pbox_style.bg_color = Color(0.16, 0.06, 0.14, 0.96)
+	pbox_style.border_color = Color(1.0, 0.25, 0.65, 0.9)
+	pbox_style.set_border_width_all(2)
+	pbox_style.set_corner_radius_all(12)
+	potion_box.add_theme_stylebox_override("panel", pbox_style)
+	shop_root_panel.add_child(potion_box)
+
+	potion_currency_lbl = RichTextLabel.new()
+	potion_currency_lbl.bbcode_enabled = true
+	potion_currency_lbl.scroll_active = false
+	potion_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	potion_currency_lbl.position = Vector2(10, 6)
+	potion_currency_lbl.size = Vector2(312, 54)
+	potion_currency_lbl.add_theme_font_override("normal_font", jp_font)
+	potion_currency_lbl.add_theme_font_override("bold_font", jp_font)
+	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
+	potion_currency_lbl.add_theme_font_size_override("bold_font_size", 24)
+	potion_box.add_child(potion_currency_lbl)
+
+	# --- 1. ショップビュー（コイン購入：獲得スコア・体力強化） ---
+	shop_view_container = Control.new()
+	shop_view_container.position = Vector2(18, 98)
+	shop_view_container.size = Vector2(1660, 764)
+	shop_root_panel.add_child(shop_view_container)
+
+	var shop_banner = Label.new()
+	shop_banner.position = Vector2(8, 0)
+	shop_banner.size = Vector2(1644, 32)
+	shop_banner.text = "✨ コインを消費して、各属性の獲得スコアや最大HP（体力上限）を永続強化します"
+	shop_banner.add_theme_font_override("font", jp_font)
+	shop_banner.add_theme_font_size_override("font_size", 21)
+	shop_banner.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
+	shop_view_container.add_child(shop_banner)
+
+	shop_card_refs.clear()
+	var card_w: float = 538.0
+	var card_h: float = 350.0
+	var gap_x: float = 23.0
+	var gap_y: float = 20.0
+
+	for i in range(shop_items.size()):
+		var item = shop_items[i]
+		var col_idx: int = i % 3
+		var row_idx: int = int(i / 3)
+		var card = Panel.new()
+		card.position = Vector2(col_idx * (card_w + gap_x), 36.0 + row_idx * (card_h + gap_y))
+		card.size = Vector2(card_w, card_h)
+
+		var c_style = StyleBoxFlat.new()
+		c_style.bg_color = Color(0.11, 0.14, 0.22, 0.98)
+		c_style.border_color = item["color"].darkened(0.12)
+		c_style.set_border_width_all(2)
+		c_style.border_width_top = 7
+		c_style.set_corner_radius_all(16)
+		c_style.shadow_color = Color(0, 0, 0, 0.45)
+		c_style.shadow_size = 8
+		card.add_theme_stylebox_override("panel", c_style)
+		shop_view_container.add_child(card)
+
+		# アイコン背景枠
+		var icon_frame = Panel.new()
+		icon_frame.position = Vector2(22, 20)
+		icon_frame.size = Vector2(86, 86)
+		var if_style = StyleBoxFlat.new()
+		if_style.bg_color = item["color"].darkened(0.72)
+		if_style.border_color = item["color"]
+		if_style.set_border_width_all(2)
+		if_style.set_corner_radius_all(14)
+		icon_frame.add_theme_stylebox_override("panel", if_style)
+		card.add_child(icon_frame)
+
+		var tex_rect = TextureRect.new()
+		tex_rect.position = Vector2(9, 9)
+		tex_rect.size = Vector2(68, 68)
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		if ResourceLoader.exists(item.get("icon_path", "")):
+			tex_rect.texture = load(item["icon_path"])
+		icon_frame.add_child(tex_rect)
+
+		var sub_lbl = Label.new()
+		sub_lbl.position = Vector2(124, 20)
+		sub_lbl.size = Vector2(240, 26)
+		sub_lbl.text = item.get("subtitle", "ステータス強化")
+		sub_lbl.add_theme_font_override("font", jp_font)
+		sub_lbl.add_theme_font_size_override("font_size", 17)
+		sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.80, 0.92))
+		card.add_child(sub_lbl)
+
+		var lvl_badge = Label.new()
+		lvl_badge.position = Vector2(390, 18)
+		lvl_badge.size = Vector2(126, 32)
+		lvl_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lvl_badge.add_theme_font_override("font", jp_font)
+		lvl_badge.add_theme_font_size_override("font_size", 24)
+		lvl_badge.add_theme_color_override("font_color", Color("#FFD700"))
+		lvl_badge.add_theme_constant_override("outline_size", 5)
+		lvl_badge.add_theme_color_override("font_outline_color", Color.BLACK)
+		card.add_child(lvl_badge)
+
+		var title_lbl = Label.new()
+		title_lbl.position = Vector2(124, 48)
+		title_lbl.size = Vector2(392, 48)
+		title_lbl.text = item["name"]
+		title_lbl.add_theme_font_override("font", jp_font)
+		title_lbl.add_theme_font_size_override("font_size", 30)
+		title_lbl.add_theme_color_override("font_color", item["color"].lightened(0.25))
+		title_lbl.add_theme_constant_override("outline_size", 6)
+		title_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		card.add_child(title_lbl)
+
+		var desc_lbl = Label.new()
+		desc_lbl.position = Vector2(22, 114)
+		desc_lbl.size = Vector2(494, 52)
+		desc_lbl.text = item["desc"]
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.add_theme_font_override("font", jp_font)
+		desc_lbl.add_theme_font_size_override("font_size", 18)
+		desc_lbl.add_theme_color_override("font_color", Color(0.90, 0.92, 0.96))
+		card.add_child(desc_lbl)
+
+		var stat_box = Panel.new()
+		stat_box.position = Vector2(22, 170)
+		stat_box.size = Vector2(494, 88)
+		var sb_style = StyleBoxFlat.new()
+		sb_style.bg_color = Color(0.06, 0.08, 0.13, 0.94)
+		sb_style.border_color = Color(0.28, 0.36, 0.52, 0.85)
+		sb_style.set_border_width_all(1)
+		sb_style.set_corner_radius_all(10)
+		stat_box.add_theme_stylebox_override("panel", sb_style)
+		card.add_child(stat_box)
+
+		var stat_lbl = RichTextLabel.new()
+		stat_lbl.bbcode_enabled = true
+		stat_lbl.scroll_active = false
+		stat_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stat_lbl.position = Vector2(14, 10)
+		stat_lbl.size = Vector2(466, 70)
+		stat_lbl.add_theme_font_override("normal_font", jp_font)
+		stat_lbl.add_theme_font_override("bold_font", jp_font)
+		stat_lbl.add_theme_font_size_override("normal_font_size", 20)
+		stat_lbl.add_theme_font_size_override("bold_font_size", 21)
+		stat_box.add_child(stat_lbl)
+
+		var buy_btn = Button.new()
+		buy_btn.position = Vector2(22, 268)
+		buy_btn.size = Vector2(494, 66)
+		buy_btn.add_theme_font_override("font", jp_font)
+		buy_btn.add_theme_font_size_override("font_size", 24)
+		buy_btn.add_theme_constant_override("outline_size", 5)
+		buy_btn.add_theme_color_override("font_outline_color", Color.BLACK)
+		var slot_idx = i
+		buy_btn.pressed.connect(func(): _purchase_buff(slot_idx))
+		card.add_child(buy_btn)
+
+		shop_card_refs.append({
+			"card": card,
+			"lvl_badge": lvl_badge,
+			"stat_lbl": stat_lbl,
+			"buy_btn": buy_btn
+		})
+
+	# --- 2. スキルツリービュー（余剰ポーション使用：スキル獲得・強化） ---
+	skill_tree_container = Control.new()
+	skill_tree_container.position = Vector2(18, 98)
+	skill_tree_container.size = Vector2(1660, 764)
+	skill_tree_container.visible = false
+	shop_root_panel.add_child(skill_tree_container)
+
+	var skill_banner = Label.new()
+	skill_banner.position = Vector2(8, 0)
+	skill_banner.size = Vector2(1644, 32)
+	skill_banner.text = "🌿 余剰ポーションを消費してスキルを解放・強化（最大Lv3）します。上段の解放で下段が解禁されます"
+	skill_banner.add_theme_font_override("font", jp_font)
+	skill_banner.add_theme_font_size_override("font_size", 21)
+	skill_banner.add_theme_color_override("font_color", Color(0.95, 0.65, 1.0))
+	skill_tree_container.add_child(skill_banner)
+
+	var branch_titles = [
+		"🔥 炎・爆破系",
+		"💧 水・自然系",
+		"⚡ 風・雷電系",
+		"✨ 時空・究極系"
+	]
+	var branch_colors = [
+		Color("#FF6D00"),
+		Color("#00B0FF"),
+		Color("#00E676"),
+		Color("#E040FB")
+	]
+
+	var col_w: float = 397.0
+	var col_gap: float = 24.0
+
+	for b in range(4):
+		var bx: float = b * (col_w + col_gap)
+		var bhdr = Panel.new()
+		bhdr.position = Vector2(bx, 34)
+		bhdr.size = Vector2(col_w, 42)
+		var bh_style = StyleBoxFlat.new()
+		bh_style.bg_color = branch_colors[b].darkened(0.68)
+		bh_style.border_color = branch_colors[b]
+		bh_style.set_border_width_all(2)
+		bh_style.set_corner_radius_all(10)
+		bhdr.add_theme_stylebox_override("panel", bh_style)
+		skill_tree_container.add_child(bhdr)
+
+		var b_lbl = Label.new()
+		b_lbl.size = Vector2(col_w, 42)
+		b_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		b_lbl.text = branch_titles[b]
+		b_lbl.add_theme_font_override("font", jp_font)
+		b_lbl.add_theme_font_size_override("font_size", 22)
+		b_lbl.add_theme_color_override("font_color", branch_colors[b].lightened(0.35))
+		b_lbl.add_theme_constant_override("outline_size", 5)
+		b_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		bhdr.add_child(b_lbl)
+
+		# ツリー接続矢印 (Tier 0->1, Tier 1->2)
+		for t in range(2):
+			var arrow_lbl = Label.new()
+			arrow_lbl.position = Vector2(bx, 286 + t * 232)
+			arrow_lbl.size = Vector2(col_w, 24)
+			arrow_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			arrow_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			arrow_lbl.text = "▼"
+			arrow_lbl.add_theme_font_override("font", jp_font)
+			arrow_lbl.add_theme_font_size_override("font_size", 20)
+			arrow_lbl.add_theme_color_override("font_color", branch_colors[b].lightened(0.25))
+			skill_tree_container.add_child(arrow_lbl)
+
+	skill_node_refs.clear()
+	for s_idx in range(skill_tree_items.size()):
+		var s_item = skill_tree_items[s_idx]
+		var branch: int = int(s_item["branch"])
+		var tier: int = int(s_item["tier"])
+		var nx: float = branch * (col_w + col_gap)
+		var ny: float = 82.0 + tier * 232.0
+
+		var node_card = Panel.new()
+		node_card.position = Vector2(nx, ny)
+		node_card.size = Vector2(col_w, 204)
+		skill_tree_container.add_child(node_card)
+
+		# スキル象徴アイコン枠
+		var badge = Panel.new()
+		badge.position = Vector2(14, 14)
+		badge.size = Vector2(54, 54)
+		var b_style = StyleBoxFlat.new()
+		b_style.bg_color = s_item["color"].darkened(0.55)
+		b_style.border_color = s_item["color"]
+		b_style.set_border_width_all(2)
+		b_style.set_corner_radius_all(12)
+		badge.add_theme_stylebox_override("panel", b_style)
+		node_card.add_child(badge)
+
+		var badge_lbl = Label.new()
+		badge_lbl.size = Vector2(54, 54)
+		badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		badge_lbl.text = s_item.get("short_label", "技")
+		badge_lbl.add_theme_font_override("font", jp_font)
+		badge_lbl.add_theme_font_size_override("font_size", 28)
+		badge_lbl.add_theme_color_override("font_color", Color.WHITE)
+		badge_lbl.add_theme_constant_override("outline_size", 5)
+		badge_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		badge.add_child(badge_lbl)
+
+		var s_title = Label.new()
+		s_title.position = Vector2(78, 12)
+		s_title.size = Vector2(306, 30)
+		s_title.text = s_item["name"]
+		s_title.add_theme_font_override("font", jp_font)
+		s_title.add_theme_font_size_override("font_size", 22)
+		s_title.add_theme_color_override("font_color", s_item["color"].lightened(0.25))
+		s_title.add_theme_constant_override("outline_size", 5)
+		s_title.add_theme_color_override("font_outline_color", Color.BLACK)
+		node_card.add_child(s_title)
+
+		var s_lvl = Label.new()
+		s_lvl.position = Vector2(78, 42)
+		s_lvl.size = Vector2(306, 26)
+		s_lvl.add_theme_font_override("font", jp_font)
+		s_lvl.add_theme_font_size_override("font_size", 17)
+		s_lvl.add_theme_constant_override("outline_size", 4)
+		s_lvl.add_theme_color_override("font_outline_color", Color.BLACK)
+		node_card.add_child(s_lvl)
+
+		var s_desc = RichTextLabel.new()
+		s_desc.bbcode_enabled = true
+		s_desc.scroll_active = false
+		s_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		s_desc.position = Vector2(14, 72)
+		s_desc.size = Vector2(col_w - 28, 72)
+		s_desc.add_theme_font_override("normal_font", jp_font)
+		s_desc.add_theme_font_override("bold_font", jp_font)
+		s_desc.add_theme_font_size_override("normal_font_size", 16)
+		s_desc.add_theme_font_size_override("bold_font_size", 16)
+		node_card.add_child(s_desc)
+
+		var s_btn = Button.new()
+		s_btn.position = Vector2(14, 146)
+		s_btn.size = Vector2(col_w - 28, 46)
+		s_btn.add_theme_font_override("font", jp_font)
+		s_btn.add_theme_font_size_override("font_size", 19)
+		s_btn.add_theme_constant_override("outline_size", 4)
+		s_btn.add_theme_color_override("font_outline_color", Color.BLACK)
+		var bind_idx = s_idx
+		s_btn.pressed.connect(func(): _purchase_skill(bind_idx))
+		node_card.add_child(s_btn)
+
+		skill_node_refs.append({
+			"card": node_card,
+			"s_lvl": s_lvl,
+			"s_desc": s_desc,
+			"s_btn": s_btn
+		})
+
+	_switch_shop_view_mode(0)
+
+func _switch_shop_view_mode(mode: int) -> void:
+	current_view_mode = mode
+	if shop_view_container:
+		shop_view_container.visible = (mode == 0)
+	if skill_tree_container:
+		skill_tree_container.visible = (mode == 1)
+
+	var click_se = get_parent().get_node_or_null("click") if get_parent() else null
+	if click_se and is_shop_open:
+		click_se.play()
+	_update_buff_button_labels()
 
 func _on_prev_page_pressed() -> void:
-	var total_pages = int(ceil(float(shop_items.size()) / 6.0))
-	current_shop_page = (current_shop_page - 1 + total_pages) % total_pages
-	_update_buff_button_labels()
-	var click_se = get_parent().get_node_or_null("click")
-	if click_se: click_se.play()
+	_switch_shop_view_mode(0)
 
 func _on_next_page_pressed() -> void:
-	var total_pages = int(ceil(float(shop_items.size()) / 6.0))
-	current_shop_page = (current_shop_page + 1) % total_pages
-	_update_buff_button_labels()
-	var click_se = get_parent().get_node_or_null("click")
-	if click_se: click_se.play()
+	_switch_shop_view_mode(1)
 
 func set_shop_ui_visible(is_vis: bool) -> void:
 	is_shop_open = is_vis
-	if shop_page_container: shop_page_container.visible = is_vis
-	if prev_page_btn: prev_page_btn.visible = is_vis
-	if page_indicator_lbl: page_indicator_lbl.visible = is_vis
-	if next_page_btn: next_page_btn.visible = is_vis
+	if shop_root_panel == null:
+		_setup_shop_page_controls()
+	if shop_root_panel:
+		shop_root_panel.visible = is_vis
 	var parent = get_parent()
 	if parent:
 		for i in range(6):
 			var btn = parent.get_node_or_null("buffselectbutton" + str(i))
 			if btn:
-				if not is_vis:
-					btn.visible = false
-				else:
-					var item_idx = current_shop_page * 6 + i
-					btn.visible = (item_idx < shop_items.size())
+				btn.visible = false
 	_update_buff_button_labels()
 
-## バフ選択ボタンのラベル更新
+## ショップ＆スキルツリーUIの表示内容を最新状態に更新
 func _update_buff_button_labels() -> void:
 	var parent = get_parent()
-	if parent == null:
-		return
-
-	if not is_shop_open:
+	if parent:
 		for i in range(6):
 			var btn = parent.get_node_or_null("buffselectbutton" + str(i))
 			if btn:
 				btn.visible = false
+
+	if not is_shop_open or shop_root_panel == null:
 		return
 
-	var total_pages = int(ceil(float(shop_items.size()) / 6.0))
-	if page_indicator_lbl:
-		page_indicator_lbl.text = "ページ %d / %d" % [current_shop_page + 1, total_pages]
+	var coins: int = int(divscore[PieceType.COIN]) if divscore.size() > PieceType.COIN else 0
+	var potions: int = int(divscore[PieceType.POTION]) if divscore.size() > PieceType.POTION else 0
 
-	var label_names = ["shieldlabel2", "swordlabel2", "foodlabel2", "coinlabel2", "feverlabel2", "bomblabel2"]
-	var desc_names = ["shieldlabel", "swordlabel", "foodlabel", "coinlabel", "feverlabel", "bomblabel"]
+	if coin_currency_lbl:
+		coin_currency_lbl.text = "[center][color=#CCCCCC][font_size=14]所持コイン[/font_size][/color]\n[img=28]res://Texture/coin/coin_cut.png[/img] [b][color=#FFD700]%s[/color][/b][/center]" % _format_comma(coins)
+	if potion_currency_lbl:
+		potion_currency_lbl.text = "[center][color=#CCCCCC][font_size=14]余剰ポーション[/font_size][/color]\n[img=28]res://Texture/potion/potion_cut.png[/img] [b][color=#FF66B3]%s[/color][/b][/center]" % _format_comma(potions)
 
-	var jp_font = _get_jp_font()
+	# タブボタンのスタイル更新
+	if shop_tab_btn and skill_tab_btn:
+		var active_shop = (current_view_mode == 0)
+		var st_shop = StyleBoxFlat.new()
+		st_shop.bg_color = Color(0.24, 0.20, 0.06, 1.0) if active_shop else Color(0.10, 0.12, 0.18, 0.85)
+		st_shop.border_color = Color(1.0, 0.84, 0.0, 1.0) if active_shop else Color(0.3, 0.35, 0.45, 0.6)
+		st_shop.set_border_width_all(3 if active_shop else 1)
+		st_shop.set_corner_radius_all(10)
+		shop_tab_btn.add_theme_stylebox_override("normal", st_shop)
+		shop_tab_btn.add_theme_stylebox_override("hover", st_shop)
+		shop_tab_btn.add_theme_color_override("font_color", Color("#FFD700") if active_shop else Color(0.7, 0.75, 0.85))
 
-	for i in range(6):
-		var btn = parent.get_node_or_null("buffselectbutton" + str(i))
-		if btn == null:
-			continue
+		var st_skill = StyleBoxFlat.new()
+		st_skill.bg_color = Color(0.24, 0.08, 0.22, 1.0) if not active_shop else Color(0.10, 0.12, 0.18, 0.85)
+		st_skill.border_color = Color(1.0, 0.35, 0.75, 1.0) if not active_shop else Color(0.3, 0.35, 0.45, 0.6)
+		st_skill.set_border_width_all(3 if not active_shop else 1)
+		st_skill.set_corner_radius_all(10)
+		skill_tab_btn.add_theme_stylebox_override("normal", st_skill)
+		skill_tab_btn.add_theme_stylebox_override("hover", st_skill)
+		skill_tab_btn.add_theme_color_override("font_color", Color("#FF80CC") if not active_shop else Color(0.7, 0.75, 0.85))
 
-		var item_idx = current_shop_page * 6 + i
-		if item_idx >= shop_items.size():
-			btn.visible = false
-			continue
+	# 1. ショップカードの更新
+	var sm = _get_stage_manager()
+	var stage_num: int = sm.stage if sm and "stage" in sm else 1
+	var hp_step: int = int(1000.0 * pow(10.0, maxf(0.0, float(stage_num - 1))))
 
-		# ショップが開いているときのみ表示
-		btn.visible = true
+	for i in range(mini(shop_items.size(), shop_card_refs.size())):
+		var item = shop_items[i]
+		var ref = shop_card_refs[i]
+		var cur_lvl: int = int(item["level"])
+		var cost_val: int = int(item["cost"])
+		var can_buy: bool = (coins >= cost_val)
 
-		var item = shop_items[item_idx]
+		ref["lvl_badge"].text = "Lv.%d" % cur_lvl
 
-		var desc_lbl = btn.get_node_or_null(desc_names[i]) as Label
-		if desc_lbl:
-			desc_lbl.add_theme_font_override("font", jp_font)
-			desc_lbl.add_theme_font_size_override("font_size", 30)
-			desc_lbl.add_theme_constant_override("outline_size", 8)
-			desc_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-			desc_lbl.add_theme_color_override("font_color", item["color"])
-			desc_lbl.position = Vector2(0, 155)
-			desc_lbl.size = Vector2(390, 145)
-			desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			
-			var title_text = item["name"]
-			if item["id"] in ["shield", "sword", "food", "coin"]:
-				var base_name = {"shield": "シールド", "sword": "攻撃", "food": "回復", "coin": "お金"}[item["id"]]
-				var cur_lvl: int = item["level"]
-				title_text = "%s\n+%d" % [base_name, (cur_lvl + 1) * 100]
-				if cur_lvl > 0:
-					title_text += " (Lv%d)" % cur_lvl
-			elif item["level"] > 0:
-				title_text += " (Lv%d)" % item["level"]
-			desc_lbl.text = title_text
+		var stat_text = ""
+		match item["id"]:
+			"shield", "sword", "food", "coin":
+				var cur_bonus = cur_lvl * 100
+				var next_bonus = (cur_lvl + 1) * 100
+				stat_text = "[color=#B0BEC5]現在ボーナス:[/color] [b][color=#FFFFFF]+%s / 1コマ[/color][/b]\n[color=#FFD700]強化後 (Lv.%d):[/color] [b][color=#00E676]+%s / 1コマ[/color][/b]" % [
+					_format_comma(cur_bonus), cur_lvl + 1, _format_comma(next_bonus)
+				]
+			"fever":
+				var cur_m: float = 2.0 + cur_lvl * 0.5
+				var next_m: float = 2.0 + (cur_lvl + 1) * 0.5
+				stat_text = "[color=#B0BEC5]現在倍率:[/color] [b][color=#FFFFFF]%.1f倍[/color][/b]\n[color=#FFD700]強化後 (Lv.%d):[/color] [b][color=#00E676]%.1f倍[/color][/b]" % [
+					cur_m, cur_lvl + 1, next_m
+				]
+			"max_hp":
+				var cur_max_hp: int = int(sm.myhpmax) if sm and "myhpmax" in sm else 5000
+				stat_text = "[color=#B0BEC5]現在最大HP:[/color] [b][color=#FFFFFF]%s[/color][/b]\n[color=#FFD700]強化効果:[/color] [b][color=#00E676]最大HP +%s ＆ 即回復[/color][/b]" % [
+					_format_comma(cur_max_hp), _format_comma(hp_step)
+				]
+		ref["stat_lbl"].text = stat_text
 
-		var lbl = btn.get_node_or_null(label_names[i]) as RichTextLabel
-		if lbl:
-			if not lbl.has_theme_font_override("normal_font"):
-				lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
-				lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
-				lbl.add_theme_constant_override("outline_size", 6)
-				lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-				lbl.add_theme_font_size_override("normal_font_size", 28)
-				lbl.add_theme_font_size_override("bold_font_size", 28)
-			lbl.text = "[center][img=45]res://Texture/coin/coin_cut.png[/img] [b][color=#FFD700]%s[/color][/b][/center]" % _format_comma(item["cost"])
+		var btn: Button = ref["buy_btn"]
+		btn.disabled = not can_buy
+		btn.text = "🪙 %s コインで強化" % _format_comma(cost_val)
+
+		var btn_style = StyleBoxFlat.new()
+		if can_buy:
+			btn_style.bg_color = Color(0.16, 0.36, 0.20, 0.98)
+			btn_style.border_color = Color(1.0, 0.84, 0.2, 1.0)
+			btn.add_theme_color_override("font_color", Color(1.0, 0.96, 0.75))
+		else:
+			btn_style.bg_color = Color(0.15, 0.16, 0.20, 0.85)
+			btn_style.border_color = Color(0.35, 0.38, 0.45, 0.6)
+			btn.add_theme_color_override("font_color", Color(0.55, 0.58, 0.65))
+		btn_style.set_border_width_all(2)
+		btn_style.set_corner_radius_all(10)
+		btn.add_theme_stylebox_override("normal", btn_style)
+		var hover_style = btn_style.duplicate()
+		if can_buy:
+			hover_style.bg_color = Color(0.22, 0.48, 0.28, 1.0)
+		btn.add_theme_stylebox_override("hover", hover_style)
+		btn.add_theme_stylebox_override("disabled", btn_style)
+
+	# 2. スキルツリーノードの更新
+	for s_idx in range(mini(skill_tree_items.size(), skill_node_refs.size())):
+		var s_item = skill_tree_items[s_idx]
+		var s_ref = skill_node_refs[s_idx]
+		var cur_lvl: int = int(s_item["level"])
+		var max_lvl: int = int(s_item.get("max_level", 3))
+		var is_max: bool = (cur_lvl >= max_lvl)
+		var cost_val: int = int(s_item["cost"])
+
+		var req_id: String = s_item.get("req_id", "")
+		var req_met: bool = true
+		var req_name: String = ""
+		if req_id != "":
+			var req_skill = get_skill_by_id(req_id)
+			req_met = (int(req_skill.get("level", 0)) > 0)
+			req_name = req_skill.get("name", "")
+
+		var card_style = StyleBoxFlat.new()
+		if cur_lvl > 0:
+			card_style.bg_color = Color(0.13, 0.16, 0.26, 0.98)
+			card_style.border_color = s_item["color"] if not is_max else Color("#FFD700")
+			card_style.set_border_width_all(2)
+			card_style.border_width_left = 6
+		elif req_met:
+			card_style.bg_color = Color(0.10, 0.12, 0.19, 0.95)
+			card_style.border_color = s_item["color"].darkened(0.35)
+			card_style.set_border_width_all(2)
+		else:
+			card_style.bg_color = Color(0.07, 0.08, 0.12, 0.88)
+			card_style.border_color = Color(0.28, 0.30, 0.38, 0.6)
+			card_style.set_border_width_all(1)
+		card_style.set_corner_radius_all(12)
+		s_ref["card"].add_theme_stylebox_override("panel", card_style)
+
+		if is_max:
+			s_ref["s_lvl"].text = "★ Lv.%d / %d (MAX)" % [cur_lvl, max_lvl]
+			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#FFD700"))
+		elif cur_lvl > 0:
+			s_ref["s_lvl"].text = "習得済: Lv.%d / %d" % [cur_lvl, max_lvl]
+			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#00E676"))
+		elif req_met:
+			s_ref["s_lvl"].text = "未習得 (解放可能)"
+			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#80D8FF"))
+		else:
+			s_ref["s_lvl"].text = "🔒 未解禁 (要:%s)" % req_name
+			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#9E9E9E"))
+
+		var desc_arr: Array = s_item["desc_lv"]
+		if is_max:
+			s_ref["s_desc"].text = "[color=#FFD700][b]【最大強化】[/b][/color]\n[color=#FFFFFF]%s[/color]" % desc_arr[max_lvl - 1]
+		elif cur_lvl == 0:
+			s_ref["s_desc"].text = "[color=#B0BEC5]解放効果 (Lv.1):[/color]\n[color=#FFFFFF]%s[/color]" % desc_arr[0]
+		else:
+			s_ref["s_desc"].text = "[color=#B0BEC5]現在: %s[/color]\n[color=#FFD700]次(Lv.%d): %s[/color]" % [
+				desc_arr[cur_lvl - 1], cur_lvl + 1, desc_arr[cur_lvl]
+			]
+
+		var s_btn: Button = s_ref["s_btn"]
+		var can_upgrade: bool = (not is_max) and req_met and (potions >= cost_val)
+		s_btn.disabled = not can_upgrade
+
+		var sb_style = StyleBoxFlat.new()
+		sb_style.set_corner_radius_all(8)
+		sb_style.set_border_width_all(2)
+
+		if is_max:
+			s_btn.text = "★ MAX (Lv.3) ★"
+			sb_style.bg_color = Color(0.28, 0.22, 0.06, 0.95)
+			sb_style.border_color = Color("#FFD700")
+			s_btn.add_theme_color_override("font_color", Color("#FFD700"))
+		elif not req_met:
+			s_btn.text = "🔒 前提スキル未習得"
+			sb_style.bg_color = Color(0.12, 0.12, 0.16, 0.85)
+			sb_style.border_color = Color(0.3, 0.3, 0.38, 0.6)
+			s_btn.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58))
+		else:
+			var act_word = "スキル解放" if cur_lvl == 0 else ("Lv.%dへ強化" % (cur_lvl + 1))
+			s_btn.text = "🧪 %s で%s" % [_format_comma(cost_val), act_word]
+			if can_upgrade:
+				sb_style.bg_color = Color(0.32, 0.10, 0.28, 0.98)
+				sb_style.border_color = Color(1.0, 0.4, 0.8, 1.0)
+				s_btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.98))
+			else:
+				sb_style.bg_color = Color(0.15, 0.14, 0.18, 0.85)
+				sb_style.border_color = Color(0.38, 0.32, 0.42, 0.6)
+				s_btn.add_theme_color_override("font_color", Color(0.58, 0.55, 0.62))
+
+		s_btn.add_theme_stylebox_override("normal", sb_style)
+		var sb_hover = sb_style.duplicate()
+		if can_upgrade:
+			sb_hover.bg_color = Color(0.45, 0.14, 0.38, 1.0)
+		s_btn.add_theme_stylebox_override("hover", sb_hover)
+		s_btn.add_theme_stylebox_override("disabled", sb_style)
 
 ## スコアポップアップのアニメーションおよびフェード処理
 func _update_popup_labels() -> void:
@@ -975,24 +1654,22 @@ func _update_popup_labels() -> void:
 			
 	labelarr = remaining_labels
 
-## バフ購入の共通処理
+## ショップ購入処理（コイン使用：獲得スコア強化・体力強化）
 func _purchase_buff(slot_idx: int) -> void:
-	var item_idx = current_shop_page * 6 + slot_idx
-	if item_idx < 0 or item_idx >= shop_items.size():
+	if slot_idx < 0 or slot_idx >= shop_items.size():
 		return
 
-	var item = shop_items[item_idx]
-	var cost_ref: int = item["cost"]
-	var coin_amount = divscore[PieceType.COIN]
+	var item = shop_items[slot_idx]
+	var cost_ref: int = int(item["cost"])
+	var coin_amount: int = int(divscore[PieceType.COIN])
 	var parent = get_parent()
 	var pb = _get_puzzle_board()
 
 	if coin_amount >= cost_ref:
 		divscore[PieceType.COIN] -= cost_ref
-		item["cost"] = int(cost_ref * 1.3) # 購入ごとに1.3倍
+		item["cost"] = int(cost_ref * 1.35)
 		item["level"] += 1
 
-		# 各タイプごとの適用およびレベル反映
 		match item["type"]:
 			"stat_shield":
 				currentshieldcoin = item["cost"]
@@ -1009,40 +1686,79 @@ func _purchase_buff(slot_idx: int) -> void:
 			"stat_fever":
 				currentfevercoin = item["cost"]
 				fever_boost_level += 1
-				if pb: pb.fever_bonus_multiplier = fever_boost_level * 0.5
-				update_fever_label3()
-			"special_bomb":
-				currentbombcoin = item["cost"]
-				bomb_buff_level += 1
-				if pb: pb.special_levels[pb.SpecialItemType.BOMB] = item["level"]
-			"special_cross_bomb":
-				if pb: pb.special_levels[pb.SpecialItemType.CROSS_BOMB] = item["level"]
-			"special_tornado":
-				if pb: pb.special_levels[pb.SpecialItemType.TORNADO] = item["level"]
-			"special_lightning":
-				if pb: pb.special_levels[pb.SpecialItemType.LIGHTNING] = item["level"]
-			"special_aqua_splash":
-				if pb: pb.special_levels[pb.SpecialItemType.AQUA_SPLASH] = item["level"]
-			"special_tree_sprout":
 				if pb:
-					pb.special_levels[pb.SpecialItemType.TREE_SPROUT] = item["level"]
-					if pb.has_method("_plant_sprout_on_board"):
-						pb._plant_sprout_on_board()
-			"special_color_converter":
-				if pb: pb.special_levels[pb.SpecialItemType.COLOR_CONVERTER] = item["level"]
-			"special_black_hole":
-				if pb: pb.special_levels[pb.SpecialItemType.BLACK_HOLE] = item["level"]
-			"special_disco_ball":
-				if pb: pb.special_levels[pb.SpecialItemType.DISCO_BALL] = item["level"]
-			"special_magnet":
-				if pb: pb.special_levels[pb.SpecialItemType.MAGNET] = item["level"]
+					pb.fever_bonus_multiplier = fever_boost_level * 0.5
+				update_fever_label3()
+			"stat_hp":
+				currenthpcoin = item["cost"]
+				hp_boost_level += 1
+				var sm = _get_stage_manager()
+				if sm:
+					var stage_scale: float = pow(10.0, maxf(0.0, float(sm.stage - 1)))
+					var hp_gain: float = 1000.0 * stage_scale
+					sm.myhpmax += hp_gain
+					sm.myhp = minf(sm.myhpmax, sm.myhp + hp_gain)
 
 		var sound = parent.get_node_or_null("coinsound") if parent else null
-		if sound: sound.play()
+		if sound:
+			sound.play()
 		_update_buff_button_labels()
 	else:
 		var cancel_sound = parent.get_node_or_null("cancel") if parent else null
-		if cancel_sound: cancel_sound.play()
+		if cancel_sound:
+			cancel_sound.play()
+
+## スキルツリーの解放・強化処理（余剰ポーション使用）
+func _purchase_skill(skill_idx: int) -> void:
+	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
+		return
+
+	var s_item = skill_tree_items[skill_idx]
+	var cur_lvl: int = int(s_item["level"])
+	var max_lvl: int = int(s_item.get("max_level", 3))
+	var parent = get_parent()
+	if cur_lvl >= max_lvl:
+		var cancel_s = parent.get_node_or_null("cancel") if parent else null
+		if cancel_s: cancel_s.play()
+		return
+
+	var req_id: String = s_item.get("req_id", "")
+	if req_id != "":
+		var req_skill = get_skill_by_id(req_id)
+		if int(req_skill.get("level", 0)) <= 0:
+			var cancel_s = parent.get_node_or_null("cancel") if parent else null
+			if cancel_s: cancel_s.play()
+			return
+
+	var cost_ref: int = int(s_item["cost"])
+	var potion_amount: int = int(divscore[PieceType.POTION])
+
+	if potion_amount >= cost_ref:
+		divscore[PieceType.POTION] -= cost_ref
+		var new_lvl: int = cur_lvl + 1
+		s_item["level"] = new_lvl
+		s_item["cost"] = int(cost_ref * 1.8)
+
+		var sp_type: int = int(s_item["sp_type"])
+		var pb = _get_puzzle_board()
+		if pb and "special_levels" in pb:
+			pb.special_levels[sp_type] = new_lvl
+			if sp_type == 7 and pb.has_method("_plant_sprout_on_board"):
+				pb._plant_sprout_on_board()
+
+		if s_item["id"] == "bomb":
+			bomb_buff_level = new_lvl
+
+		emit_signal("skill_upgraded", s_item["id"], sp_type, new_lvl)
+
+		var sound = parent.get_node_or_null("coinsound") if parent else null
+		if sound:
+			sound.play()
+		_update_buff_button_labels()
+	else:
+		var cancel_sound = parent.get_node_or_null("cancel") if parent else null
+		if cancel_sound:
+			cancel_sound.play()
 
 func update_fever_label3() -> void:
 	var fv_lbl3 = get_node_or_null("feverlabel3") as RichTextLabel
@@ -1053,7 +1769,7 @@ func update_fever_label3() -> void:
 		else:
 			fv_lbl3.text = "[center][b][color=#FFD700]スコア%.1f倍[/color][/b][/center]" % mult
 
-# シーン側から接続されるボタンイベントハンドラ
+# シーン側から接続されるボタンイベントハンドラ（後方互換維持）
 func _on_buffselectbutton_0_pressed() -> void:
 	_purchase_buff(0)
 

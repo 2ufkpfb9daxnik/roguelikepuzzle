@@ -300,10 +300,25 @@ func _ready() -> void:
 		danger_label.text = "[center][b][color=#FF1744]⚠ 危険 ⚠[/color][/b][/center]"
 
 	if move_front_btn != null:
+		move_front_btn.z_index = 35
 		move_front_btn.add_theme_font_override("font", CUSTOM_FONT)
 		move_front_btn.add_theme_font_size_override("font_size", 30)
 		move_front_btn.add_theme_constant_override("outline_size", 6)
 		move_front_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		move_front_btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 1.0))
+		var mf_style = StyleBoxFlat.new()
+		mf_style.bg_color = Color(0.14, 0.36, 0.22, 0.96)
+		mf_style.border_color = Color(0.4, 1.0, 0.6, 1.0)
+		mf_style.set_border_width_all(3)
+		mf_style.set_corner_radius_all(12)
+		move_front_btn.add_theme_stylebox_override("normal", mf_style)
+		var mf_hover = mf_style.duplicate()
+		mf_hover.bg_color = Color(0.20, 0.48, 0.30, 1.0)
+		move_front_btn.add_theme_stylebox_override("hover", mf_hover)
+
+	if choose_buff_rect != null and choose_buff_rect is ColorRect:
+		choose_buff_rect.color = Color(0, 0, 0, 0)
+		choose_buff_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	if label != null and label2 != null:
 		stage_enemy = 1
@@ -1354,10 +1369,10 @@ func _update_background() -> void:
 ## バフボタンの一括表示切り替え
 func _set_buff_buttons_visible(is_vis: bool) -> void:
 	var parent = get_parent()
-	if not parent: return
-	for i in range(6):
-		var btn = parent.get_node_or_null("buffselectbutton" + str(i))
-		if btn: btn.visible = is_vis
+	if parent:
+		for i in range(6):
+			var btn = parent.get_node_or_null("buffselectbutton" + str(i))
+			if btn: btn.visible = false
 	var sm = _get_score_manager()
 	if sm and sm.has_method("set_shop_ui_visible"):
 		sm.set_shop_ui_visible(is_vis)
