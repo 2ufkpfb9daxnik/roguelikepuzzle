@@ -251,10 +251,23 @@ func _on_relic_added(id: String) -> void:
 	rect.size = Vector2(56, 56)
 	
 	var rarity = r_data.get("rarity", "common")
-	if rarity == "common": rect.color = Color(0.5, 0.52, 0.56)
-	elif rarity == "uncommon": rect.color = Color(0.18, 0.72, 0.25)
-	elif rarity == "rare": rect.color = Color(0.22, 0.42, 0.95)
-	
+	if rarity == "legendary": rect.color = Color(0.85, 0.65, 0.08)
+	elif rarity == "epic": rect.color = Color(0.60, 0.18, 0.82)
+	elif rarity == "rare": rect.color = Color(0.18, 0.45, 0.92)
+	elif rarity == "uncommon": rect.color = Color(0.16, 0.68, 0.24)
+	else: rect.color = Color(0.48, 0.50, 0.54)
+
+	var border = ReferenceRect.new()
+	border.size = Vector2(56, 56)
+	if rarity == "legendary": border.border_color = Color(1.0, 0.92, 0.35, 1.0); border.border_width = 3.0
+	elif rarity == "epic": border.border_color = Color(0.9, 0.5, 1.0, 1.0); border.border_width = 2.5
+	elif rarity == "rare": border.border_color = Color(0.45, 0.75, 1.0, 1.0); border.border_width = 2.0
+	elif rarity == "uncommon": border.border_color = Color(0.4, 0.95, 0.5, 1.0); border.border_width = 2.0
+	else: border.border_color = Color(0.75, 0.78, 0.82, 0.8); border.border_width = 1.5
+	border.editor_only = false
+	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.add_child(border)
+
 	var sys_font = _get_sys_font()
 	# レリック頭文字ラベル
 	var lbl = Label.new()
@@ -327,13 +340,24 @@ func _show_relic_tooltip(id: String, rect: ColorRect) -> void:
 	var max_lvl = RelicDatabase.get_max_level(id)
 	var is_max = cur_lvl >= max_lvl
 	
-	var r_color = "#CCCCCC"
+	var r_color = "#B0BEC5"
 	var rarity = r_data.get("rarity", "common")
-	if rarity == "uncommon": r_color = "#33CC33"
-	elif rarity == "rare": r_color = "#6699FF"
+	var rarity_tag = "COMMON"
+	if rarity == "legendary":
+		r_color = "#FFD700"
+		rarity_tag = "★ LEGENDARY ★"
+	elif rarity == "epic":
+		r_color = "#E040FB"
+		rarity_tag = "◆ EPIC ◆"
+	elif rarity == "rare":
+		r_color = "#29B6F6"
+		rarity_tag = "RARE"
+	elif rarity == "uncommon":
+		r_color = "#4CAF50"
+		rarity_tag = "UNCOMMON"
 	
 	var level_str = " (Lv%d/MAX)" % cur_lvl if is_max else " (Lv%d/%d)" % [cur_lvl, max_lvl]
-	name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + level_str + "[/color][/b]"
+	name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + " [" + rarity_tag + "]" + level_str + "[/color][/b]"
 	
 	var desc_cur = RelicDatabase.get_description(id, cur_lvl)
 	if is_max:

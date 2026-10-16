@@ -3,9 +3,11 @@ class_name RelicSelectionUI
 
 signal selection_finished()
 
-const RELIC_WEIGHT_COMMON: float = 60.0
-const RELIC_WEIGHT_UNCOMMON: float = 30.0
-const RELIC_WEIGHT_RARE: float = 10.0
+const RELIC_WEIGHT_COMMON: float = 42.0
+const RELIC_WEIGHT_UNCOMMON: float = 28.0
+const RELIC_WEIGHT_RARE: float = 16.0
+const RELIC_WEIGHT_EPIC: float = 10.0
+const RELIC_WEIGHT_LEGENDARY: float = 4.0
 const RELIC_OWNED_WEIGHT_MULT: float = 1.5
 
 var panel: Panel
@@ -100,6 +102,10 @@ func _populate_choices() -> void:
 				base_w = RELIC_WEIGHT_UNCOMMON
 			elif rarity == "rare":
 				base_w = RELIC_WEIGHT_RARE
+			elif rarity == "epic":
+				base_w = RELIC_WEIGHT_EPIC
+			elif rarity == "legendary":
+				base_w = RELIC_WEIGHT_LEGENDARY
 				
 			var w = base_w
 			if rm.has_relic(r_id):
@@ -131,12 +137,16 @@ func _populate_choices() -> void:
 		var b_style = StyleBoxFlat.new()
 		b_style.bg_color = Color(0.10, 0.10, 0.14, 0.98)
 		var rarity = c_data.get("rarity", "common")
-		if rarity == "uncommon":
-			b_style.border_color = Color(0.2, 0.85, 0.3, 1.0)
+		if rarity == "legendary":
+			b_style.border_color = Color(1.0, 0.84, 0.1, 1.0)
+		elif rarity == "epic":
+			b_style.border_color = Color(0.78, 0.28, 0.98, 1.0)
 		elif rarity == "rare":
-			b_style.border_color = Color(0.3, 0.55, 1.0, 1.0)
+			b_style.border_color = Color(0.25, 0.65, 1.0, 1.0)
+		elif rarity == "uncommon":
+			b_style.border_color = Color(0.25, 0.85, 0.35, 1.0)
 		else:
-			b_style.border_color = Color(0.7, 0.7, 0.7, 1.0)
+			b_style.border_color = Color(0.68, 0.72, 0.76, 1.0)
 		b_style.set_border_width_all(5)
 		b_style.set_corner_radius_all(16)
 		btn.add_theme_stylebox_override("normal", b_style)
@@ -176,22 +186,39 @@ func _populate_choices() -> void:
 		if CUSTOM_FONT:
 			r_label.add_theme_font_override("font", CUSTOM_FONT)
 		r_label.add_theme_font_size_override("font_size", 34)
-		if rarity == "uncommon":
-			r_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
+		if rarity == "legendary":
+			r_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
+		elif rarity == "epic":
+			r_label.add_theme_color_override("font_color", Color(0.85, 0.45, 1.0))
 		elif rarity == "rare":
 			r_label.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
+		elif rarity == "uncommon":
+			r_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
 		else:
 			r_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
 		vbox.add_child(r_label)
 		
 		# レアリティ表記
 		var rarity_label = Label.new()
-		rarity_label.text = rarity.to_upper()
+		if rarity == "legendary":
+			rarity_label.text = "★ LEGENDARY ★"
+			rarity_label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.1))
+		elif rarity == "epic":
+			rarity_label.text = "◆ EPIC ◆"
+			rarity_label.add_theme_color_override("font_color", Color(0.85, 0.45, 1.0))
+		elif rarity == "rare":
+			rarity_label.text = "RARE"
+			rarity_label.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
+		elif rarity == "uncommon":
+			rarity_label.text = "UNCOMMON"
+			rarity_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+		else:
+			rarity_label.text = "COMMON"
+			rarity_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if CUSTOM_FONT:
 			rarity_label.add_theme_font_override("font", CUSTOM_FONT)
 		rarity_label.add_theme_font_size_override("font_size", 18)
-		rarity_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		vbox.add_child(rarity_label)
 		
 		var spacer = Control.new()

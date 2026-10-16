@@ -809,8 +809,12 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 				if count <= 0:
 					continue
 					
-					var rm = get_tree().get_root().find_child("RelicManager", true, false)
-					if rm: rm.on_match(count)
+				var rm = get_tree().get_root().find_child("RelicManager", true, false)
+				if rm:
+					rm.on_match(count)
+					if att_type == PieceType.POTION:
+						rm.on_potions_cleared(count)
+
 				var base_score: int = maxi(count * 100, count * (count - 2) * 100)
 				
 				# レベルに応じて+〇 (1レベルにつき +100 * 消去コマ数の固定加算ボーナス)
@@ -834,6 +838,8 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 				# フィーバータイム時は属性獲得量が倍率アップ（通常2倍 ＋ バフによるボーナス）
 				var fv_rate: float = (2.0 + fever_boost_level * 0.5) if is_fever else 1.0
 				var gain: int = int(earned_score * fv_rate)
+				if att_type == PieceType.COIN and rm and rm.has_method("modify_coin_gain"):
+					gain = int(rm.modify_coin_gain(float(gain)))
 				if att_type < divscore.size():
 					divscore[att_type] += gain
 		

@@ -91,6 +91,7 @@ func deserialize_relics(data: Variant) -> void:
 
 func on_battle_start() -> void:
 	temp_state["indomitable_heart_used_count"] = 0
+	temp_state["soul_harvest_stacks"] = 0
 
 func on_turn_start() -> void:
 	temp_state["chain_ring_active"] = false
@@ -99,6 +100,7 @@ func on_turn_start() -> void:
 	temp_state["hazards_destroyed_count"] = 0
 	temp_state["hazard_destroyed_by_kind"] = {}
 	temp_state["backlash_damage_taken"] = 0.0
+	temp_state["potions_cleared_this_turn"] = 0
 	
 	if has_relic("healing_drop"):
 		var p = get_parent()
@@ -146,6 +148,49 @@ func on_hazard_destroyed(kind: String, count: int = 1) -> void:
 
 func on_backlash_damage(_kind: String, amount: float) -> void:
 	temp_state["backlash_damage_taken"] = float(temp_state.get("backlash_damage_taken", 0.0)) + amount
+
+func on_enemy_defeated() -> void:
+	if has_relic("soul_harvester"):
+		var cur_stk = int(temp_state.get("soul_harvest_stacks", 0)) + 1
+		temp_state["soul_harvest_stacks"] = cur_stk
+		emit_signal("relic_triggered", "soul_harvester")
+		var p = get_parent()
+		var sm = p.get_node_or_null("StageManager") if p else null
+		if sm and "myhpmax" in sm and sm.myhpmax > 0:
+			var heal_pct = float(get_param("soul_harvester", "heal_pct", 0.10))
+			var heal_val = sm.myhpmax * heal_pct
+			if heal_val > 0:
+				sm.calchp(0, -heal_val)
+				var pb = p.get_node_or_null("PuzzleBoard")
+				if pb and pb.has_method("_emit_combat_event"):
+					pb._emit_combat_event("heal", "ally", "ally", heal_val)
+
+func on_fever_started() -> void:
+	if has_relic("fever_overdrive"):
+		var extra = int(get_param("fever_overdrive", "extra_fever_turns", 1))
+		var p = get_parent()
+		var sm = p.get_node_or_null("StageManager") if p else null
+		if sm and "fevercount" in sm:
+			sm.fevercount += extra
+			emit_signal("relic_triggered", "fever_overdrive")
+
+func on_potions_cleared(count: int) -> void:
+	temp_state["potions_cleared_this_turn"] = int(temp_state.get("potions_cleared_this_turn", 0)) + count
+
+func modify_coin_gain(base_coins: float) -> float:
+	if has_relic("midas_chalice"):
+		var bonus = float(get_param("midas_chalice", "coin_bonus", 0.50))
+		emit_signal("relic_triggered", "midas_chalice")
+		return base_coins * (1.0 + bonus)
+	return base_coins
+
+func is_all_weak_active(combo_or_cascade: int = 0) -> bool:
+	if has_relic("crown_of_origin"):
+		var min_th = int(get_param("crown_of_origin", "min_threshold", 5))
+		if combo_or_cascade >= min_th:
+			emit_signal("relic_triggered", "crown_of_origin")
+			return true
+	return false
 
 func get_board_state() -> Dictionary:
 	var p = get_parent()
@@ -293,6 +338,88 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 			bonus_mult += float(get_param("tome_of_four_elements", "bonus_3", 0.25))
 			emit_signal("relic_triggered", "tome_of_four_elements")
 			
+	if has_relic("counter_blade"):
+		var p = get_parent()
+		var pb = p.get_node_or_null("PuzzleBoard") if p else null
+		var s_cnt: float = 0.0
+		if pb and "current_total_shields" in pb:
+			s_cnt = float(pb.current_total_shields)
+		elif pb and "active_shields" in pb:
+			s_cnt = float(pb.active_shields.size())
+		if s_cnt > 0.0:
+			var per_s = float(get_param("counter_blade", "per_shield", 0.02))
+			var max_b = float(get_param("counter_blade", "max_bonus", 0.30))
+			bonus_mult += minf(s_cnt * per_s, max_b)
+			emit_signal("relic_triggered", "counter_blade")
+
+	if has_relic("alchemy_flask"):
+		var pot_cnt: float = float(context.get("potion_count", temp_state.get("potions_cleared_this_turn", 0)))
+		if pot_cnt > 0.0:
+			var per_p = float(get_param("alchemy_flask", "per_potion", 0.015))
+			var max_b = float(get_param("alchemy_flask", "max_bonus", 0.30))
+			bonus_mult += minf(pot_cnt * per_p, max_b)
+			emit_signal("relic_triggered", "alchemy_flask")
+
+	if has_relic("executioner_brand"):
+		var p = get_parent()
+		var sm = p.get_node_or_null("StageManager") if p else null
+		var f_enemy = sm.get_focused_enemy() if sm and sm.has_method("get_focused_enemy") else {}
+		if not f_enemy.is_empty():
+			var t_hp = float(f_enemy.get("hp", 1.0))
+			var t_max = float(f_enemy.get("max_hp", 1.0))
+			var th = float(get_param("executioner_brand", "hp_threshold", 0.50))
+			if t_max > 0.0 and (t_hp / t_max) <= th:
+				bonus_mult += float(get_param("executioner_brand", "damage_bonus", 0.30))
+				emit_signal("relic_triggered", "executioner_brand")
+
+	if has_relic("soul_harvester"):
+		var stacks = int(temp_state.get("soul_harvest_stacks", 0))
+		if stacks > 0:
+			var per_stack = float(get_param("soul_harvester", "stack_bonus", 0.15))
+			var max_b = float(get_param("soul_harvester", "max_bonus", 0.90))
+			bonus_mult += minf(float(stacks) * per_stack, max_b)
+			emit_signal("relic_triggered", "soul_harvester")
+
+	if has_relic("fever_overdrive"):
+		var p = get_parent()
+		var sm = p.get_node_or_null("StageManager") if p else null
+		if sm and "isfevertime" in sm and sm.isfevertime:
+			bonus_mult += float(get_param("fever_overdrive", "fever_damage_bonus", 0.40))
+			emit_signal("relic_triggered", "fever_overdrive")
+
+	if has_relic("prismatic_resonator"):
+		var p = get_parent()
+		var score_mgr = p.get_node_or_null("ScoreManager") if p else null
+		var el_counts = score_mgr.turn_element_counts if score_mgr and "turn_element_counts" in score_mgr else {}
+		var diff_el_count = 0
+		for el in el_counts:
+			if int(el_counts[el]) > 0:
+				diff_el_count += 1
+		if diff_el_count >= int(get_param("prismatic_resonator", "min_elements", 2)):
+			bonus_mult += float(get_param("prismatic_resonator", "damage_bonus", 0.35))
+			emit_signal("relic_triggered", "prismatic_resonator")
+
+	if has_relic("crown_of_origin"):
+		var p = get_parent()
+		var score_mgr = p.get_node_or_null("ScoreManager") if p else null
+		var combo = int(score_mgr.combocount) if score_mgr and "combocount" in score_mgr else 0
+		var cascade = int(context.get("cascade_count", 0))
+		var min_th = int(get_param("crown_of_origin", "min_threshold", 5))
+		if combo >= min_th or cascade >= min_th:
+			bonus_mult += float(get_param("crown_of_origin", "damage_bonus", 0.50))
+			emit_signal("relic_triggered", "crown_of_origin")
+
+	if has_relic("midas_chalice"):
+		var p = get_parent()
+		var score_mgr = p.get_node_or_null("ScoreManager") if p else null
+		var total_sc = float(score_mgr.totalScore) if score_mgr and "totalScore" in score_mgr else 0.0
+		var per_sc = float(get_param("midas_chalice", "per_score", 10000))
+		var step = float(get_param("midas_chalice", "dmg_per_step", 0.01))
+		var max_b = float(get_param("midas_chalice", "max_dmg_bonus", 0.50))
+		if total_sc > 0.0 and per_sc > 0.0:
+			bonus_mult += minf(floorf(total_sc / per_sc) * step, max_b)
+			emit_signal("relic_triggered", "midas_chalice")
+
 	if has_relic("four_orb") and temp_state.get("four_orb_damage", 0.0) > 0.0:
 		flat_add += temp_state["four_orb_damage"]
 		temp_state["four_orb_damage"] = 0.0

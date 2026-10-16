@@ -3981,6 +3981,11 @@ func moveswords() -> void:
 			var ease_p = progress
 			var sp = item.get("start_pos", Vector2(12300, 5200))
 			var tp = item.get("target_pos", Vector2(12300, 2700))
+			if sm and sm.has_method("get_focused_enemy"):
+				var f_enemy = sm.get_focused_enemy()
+				var spr = f_enemy.get("sprite") if not f_enemy.is_empty() else null
+				if is_instance_valid(spr):
+					tp = self.to_local(spr.global_position) + item.get("target_offset", Vector2.ZERO)
 			var cp = item.get("control_pos", Vector2((sp.x + tp.x)/2.0, sp.y - 2000.0))
 			
 			var q0 = sp.lerp(cp, ease_p)
@@ -4005,6 +4010,10 @@ func moveswords() -> void:
 						
 					var mult = ElementDataScript.get_damage_multiplier(atk_el, def_el)
 					var rm = _get_relic_manager()
+					var score_mgr = _get_score_manager()
+					var cur_combo = int(score_mgr.combocount) if score_mgr and "combocount" in score_mgr else 0
+					if rm and rm.has_method("is_all_weak_active") and rm.is_all_weak_active(cur_combo):
+						mult = maxf(mult, 1.5)
 					var relic_dmg = rm.modify_damage_dealt(base_dmg, {"element": atk_el, "enemy_element": jp_el}) if rm else base_dmg
 					var final_dmg = relic_dmg * mult
 					sm.calchp(final_dmg, 0)
@@ -4342,13 +4351,16 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	for i in range(spawn_sword_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SWORD]
-		var target_pos = Vector2(12300.0 + float(randi() % 2000 - 1000), 2700.0)
-		var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
-		if not active_en.is_empty():
-			var e = active_en[randi() % active_en.size()]
-			var spr = e.get("sprite")
-			if is_instance_valid(spr):
-				target_pos = self.to_local(spr.global_position)
+		var target_offset = Vector2(randf_range(-700.0, 700.0), randf_range(-250.0, 250.0))
+		var target_pos = Vector2(12300.0, 2700.0) + target_offset
+		var f_enemy = sm.get_focused_enemy() if sm and sm.has_method("get_focused_enemy") else {}
+		var spr = f_enemy.get("sprite") if not f_enemy.is_empty() else null
+		if not is_instance_valid(spr):
+			var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
+			if not active_en.is_empty():
+				spr = active_en[0].get("sprite")
+		if is_instance_valid(spr):
+			target_pos = self.to_local(spr.global_position) + target_offset
 		
 		var start_x = 12300.0
 		var start_y = 5300.0
@@ -4368,6 +4380,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 			"t": -float(i * 70) / float(max(1, spawn_sword_cnt)),
 			"start_pos": Vector2(start_x, start_y),
 			"target_pos": target_pos,
+			"target_offset": target_offset,
 			"control_pos": Vector2(cp_x, cp_y),
 			"has_hit": false,
 			"damage": dmg_per_sword,
@@ -4564,6 +4577,8 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		if action == "attack":
 			seq_tw.tween_callback(func():
 				if not is_instance_valid(spr): return
+				if sm and sm.has_method("zoom_on_attacking_enemy"):
+					sm.zoom_on_attacking_enemy(i)
 				
 				var has_anim = false
 				if sm.has_method("play_single_enemy_animation"):
@@ -4663,6 +4678,8 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var elem_color = s_info["color"]
 			
 			seq_tw.tween_callback(func():
+				if sm and sm.has_method("zoom_on_attacking_enemy"):
+					sm.zoom_on_attacking_enemy(i)
 				_play_enemy_skill_se(is_boss)
 				_show_enemy_skill_banner(s_name, elem_color, is_boss)
 				
@@ -4682,6 +4699,8 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			seq_tw.tween_interval(0.5)
 
 	seq_tw.tween_callback(func():
+		if sm and sm.has_method("reset_enemy_zoom"):
+			sm.reset_enemy_zoom()
 		for item in active_shields:
 			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
 		active_shields.clear()
@@ -5794,6 +5813,8 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		_sm_for_reset.reset_turn_elements()
 	if sm and sm.has_method("stop_enemy_animation"):
 		sm.stop_enemy_animation()
+	if sm and sm.has_method("reset_enemy_zoom"):
+		sm.reset_enemy_zoom(0.0)
 
 	# 敵スキル演出ノードを安全に消去
 	if get_tree():

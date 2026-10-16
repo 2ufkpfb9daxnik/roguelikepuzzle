@@ -228,6 +228,10 @@ var _cached_settings_manager: Node = null
 var _cached_score_manager: Node2D = null
 var _cached_puzzle_board: Node2D = null
 var _vfx_container: Node2D = null
+var _enemy_viewport_clip: Control = null
+var _enemy_zoom_root: Node2D = null
+var _enemy_zoom_tween: Tween = null
+var target_enemy_index: int = 0
 
 func _format_comma(value: int) -> String:
 	var s = str(absi(value))
@@ -260,10 +264,36 @@ func _get_puzzle_board() -> Node2D:
 		_cached_puzzle_board = get_parent().get_node_or_null("PuzzleBoard") if get_parent() else null
 	return _cached_puzzle_board
 
+func _setup_enemy_viewport_container() -> void:
+	if _enemy_viewport_clip != null and is_instance_valid(_enemy_viewport_clip):
+		return
+	_enemy_viewport_clip = Control.new()
+	_enemy_viewport_clip.name = "EnemyViewportClip"
+	_enemy_viewport_clip.position = Vector2(1194, 13)
+	_enemy_viewport_clip.size = Vector2(717, 394)
+	_enemy_viewport_clip.clip_contents = true
+	_enemy_viewport_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_enemy_viewport_clip)
+
+	_enemy_zoom_root = Node2D.new()
+	_enemy_zoom_root.name = "EnemyZoomRoot"
+	_enemy_zoom_root.position = Vector2(-1194, -13)
+	_enemy_zoom_root.scale = Vector2.ONE
+	_enemy_viewport_clip.add_child(_enemy_zoom_root)
+
+	for bg_name in STAGE_BACKGROUNDS:
+		var bg_node = get_node_or_null(bg_name)
+		if bg_node and bg_node.get_parent() == self:
+			bg_node.reparent(_enemy_zoom_root)
+
 func _ready() -> void:
+	_setup_enemy_viewport_container()
 	_vfx_container = Node2D.new()
 	_vfx_container.name = "VFXContainer"
-	add_child(_vfx_container)
+	if _enemy_zoom_root:
+		_enemy_zoom_root.add_child(_vfx_container)
+	else:
+		add_child(_vfx_container)
 
 	_cached_settings_manager = get_node_or_null("/root/SettingsManager")
 	_cached_score_manager = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
@@ -363,12 +393,63 @@ func is_boss_battle() -> bool:
 func is_boss_monster() -> bool:
 	return is_boss_battle()
 
+func get_focused_enemy_index() -> int:
+	if active_enemies.is_empty():
+		return -1
+	return clampi(target_enemy_index, 0, active_enemies.size() - 1)
+
+func get_focused_enemy() -> Dictionary:
+	var idx = get_focused_enemy_index()
+	if idx >= 0 and idx < active_enemies.size():
+		return active_enemies[idx]
+	return {}
+
+func set_focused_enemy_index(idx: int) -> void:
+	if active_enemies.is_empty():
+		target_enemy_index = 0
+		return
+	target_enemy_index = clampi(idx, 0, active_enemies.size() - 1)
+	_update_target_indicator()
+
+func _update_target_indicator() -> void:
+	var focused_idx = get_focused_enemy_index()
+	for j in range(active_enemies.size()):
+		var e = active_enemies[j]
+		var is_focus = (j == focused_idx)
+		if e.has("target_badge") and is_instance_valid(e["target_badge"]):
+			e["target_badge"].visible = is_focus
+		if e.has("target_frame") and is_instance_valid(e["target_frame"]):
+			e["target_frame"].visible = is_focus
+		if is_focus and is_instance_valid(e.get("sprite")):
+			enemy = e["sprite"]
+			current_enemy_key = e.get("key", "")
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var mpos = event.position
+		# 敵表示エリア枠: x in [1190, 1915], y in [10, 410]
+		if mpos.x >= 1190.0 and mpos.x <= 1915.0 and mpos.y >= 10.0 and mpos.y <= 410.0:
+			var best_idx = -1
+			var best_dist = 999999.0
+			for j in range(active_enemies.size()):
+				var spr = active_enemies[j].get("sprite")
+				if is_instance_valid(spr):
+					var dist = absf(spr.global_position.x - mpos.x)
+					if dist < best_dist and dist <= 160.0:
+						best_dist = dist
+						best_idx = j
+			if best_idx != -1 and best_idx != target_enemy_index:
+				set_focused_enemy_index(best_idx)
+
 func get_current_enemy_element() -> String:
-	var sp_data = ENEMY_SPECIES.get(current_enemy_key, {})
+	var f_enemy = get_focused_enemy()
+	var sp_data = f_enemy.get("sp_data", {})
+	if sp_data.is_empty():
+		sp_data = ENEMY_SPECIES.get(current_enemy_key, {})
 	var elem = sp_data.get("element", sp_data.get("race", "無属性"))
 	if typeof(elem) == TYPE_ARRAY:
 		if elem.size() > 0:
-			return elem[randi() % elem.size()]
+			return elem[0]
 		else:
 			return "無属性"
 	return str(elem)
@@ -379,6 +460,8 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	stop_enemy_animation()
 	_anim_original_texture = null
 	_cleanup_battle_camera()
+	_setup_enemy_viewport_container()
+	reset_enemy_zoom(0.0)
 	var is_boss: bool = spawn_as_boss or (stage_enemy == 5)
 	is_current_boss = is_boss
 	if is_boss: stage_enemy = 5
@@ -408,6 +491,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	var stage_mult: float = pow(10.0, max(0, stage - 1))
 	var stage_idx: int = clampi(stage - 1, 0, STAGE_ENEMIES.size() - 1)
 	var enemy_info = STAGE_ENEMIES[stage_idx]
+	var parent_node: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
 	
 	for i in range(initial_spawn_count):
 		var e_idx: int = 5 if is_boss else (randi() % 5)
@@ -443,7 +527,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			if initial_spawn_count == 2: base_x = 1425 + i * 250
 			if initial_spawn_count == 3: base_x = 1310 + i * 240
 			en.position = Vector2(base_x, 250)
-			add_child(en)
+			parent_node.add_child(en)
 			if ENEMY_ANIMATION_SHEETS.has(ename):
 				var anims = ENEMY_ANIMATION_SHEETS[ename]
 				for a_key in anims:
@@ -464,18 +548,45 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			bar_bg.color = Color(0, 0, 0, 0.5)
 			bar_bg.size = Vector2(100, 10)
 			bar_bg.position = en.position + Vector2(-50, -100)
-			add_child(bar_bg)
+			parent_node.add_child(bar_bg)
 			var bar_red = ColorRect.new()
 			bar_red.color = Color(1.0, 0.2, 0.2, 1.0)
 			bar_red.size = Vector2(100, 10)
 			bar_red.position = bar_bg.position
-			add_child(bar_red)
+			parent_node.add_child(bar_red)
 			var bar_green = ColorRect.new()
 			bar_green.color = Color(0.2, 1.0, 0.2, 1.0)
 			bar_green.size = Vector2(100, 10)
 			bar_green.position = bar_bg.position
-			add_child(bar_green)
+			parent_node.add_child(bar_green)
 			
+			var target_frame = ReferenceRect.new()
+			target_frame.size = Vector2(108, 18)
+			target_frame.position = bar_bg.position + Vector2(-4, -4)
+			target_frame.border_color = Color(1.0, 0.2, 0.2, 0.95)
+			target_frame.border_width = 2.5
+			target_frame.editor_only = false
+			target_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			target_frame.visible = (i == 0)
+			parent_node.add_child(target_frame)
+
+			var target_badge = RichTextLabel.new()
+			target_badge.bbcode_enabled = true
+			target_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			target_badge.fit_content = true
+			target_badge.scroll_active = false
+			target_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
+			target_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
+			target_badge.add_theme_font_size_override("normal_font_size", 14)
+			target_badge.add_theme_font_size_override("bold_font_size", 14)
+			target_badge.add_theme_constant_override("outline_size", 4)
+			target_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+			target_badge.size = Vector2(160, 24)
+			target_badge.position = bar_bg.position + Vector2(-30, -20)
+			target_badge.text = "[center][b][color=#FF1744]🎯 TARGET[/color][/b][/center]"
+			target_badge.visible = (i == 0)
+			parent_node.add_child(target_badge)
+
 			var lbl = RichTextLabel.new()
 			lbl.bbcode_enabled = true
 			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -494,7 +605,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			var c_color = sp_data.get("color", "#FFFFFF")
 			var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color]\n" if is_boss else ""
 			lbl.text = "[center]" + boss_tag + "[color=" + c_color + "]" + elem_str + "[/color] " + sp_data["name"] + "[/center]"
-			add_child(lbl)
+			parent_node.add_child(lbl)
 			var hp_lbl = RichTextLabel.new()
 			hp_lbl.bbcode_enabled = true
 			hp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -507,12 +618,16 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			hp_lbl.size = Vector2(240, 20)
 			hp_lbl.position = bar_bg.position + Vector2(-70, 12)
 			hp_lbl.text = "[center][color=#FFFFFF]" + str(int(e_hp)) + " / " + str(int(e_hp)) + "[/color][/center]"
-			add_child(hp_lbl)
+			parent_node.add_child(hp_lbl)
 			
 			active_enemies.append({
 				"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
-				"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl, "sp_data": sp_data
+				"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
+				"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data
 			})
+
+	target_enemy_index = 0
+	_update_target_indicator()
 
 	if active_enemies.size() > 0:
 		enemy = active_enemies[0]["sprite"]
@@ -801,13 +916,99 @@ func stop_enemy_animation() -> void:
 			
 	if not isdeadf:
 		start_enemy_idle_animation()
-## HP計算（ダメージ適用）
+## 敵攻撃時の敵エリア専用ズームイン演出（敵がいる画面だけ攻撃する敵にズーム）
+func zoom_on_attacking_enemy(enemy_index: int, duration: float = 0.20) -> void:
+	if _enemy_zoom_root == null or not is_instance_valid(_enemy_zoom_root):
+		return
+	if enemy_index < 0 or enemy_index >= active_enemies.size():
+		return
+		
+	if _enemy_zoom_tween and _enemy_zoom_tween.is_valid():
+		_enemy_zoom_tween.kill()
+		_enemy_zoom_tween = null
+		
+	var attacking_e = active_enemies[enemy_index]
+	var spr: Sprite2D = attacking_e.get("sprite")
+	if not is_instance_valid(spr):
+		return
+		
+	var focus_pos = spr.get_meta("anim_orig_pos", spr.position)
+	var focus_center = Vector2(focus_pos.x, 215.0)
+	var Z: float = 1.42
+	var local_center = Vector2(717.0 * 0.5, 394.0 * 0.5)
+	var unclamped_target_pos = local_center - focus_center * Z
+	
+	# 背景画像が敵ウィンドウ枠から外れないよう安全クランプ
+	var min_x = 717.0 - 1920.0 * Z * 0.98
+	var max_x = -1180.0 * Z * 1.01
+	var target_x = clampf(unclamped_target_pos.x, min_x, max_x)
+	var target_y = clampf(unclamped_target_pos.y, -360.0, -10.0)
+	var target_pos = Vector2(target_x, target_y)
+	
+	if duration <= 0.0:
+		_enemy_zoom_root.scale = Vector2(Z, Z)
+		_enemy_zoom_root.position = target_pos
+		for j in range(active_enemies.size()):
+			var e_spr = active_enemies[j].get("sprite")
+			if is_instance_valid(e_spr):
+				if j == enemy_index:
+					e_spr.z_index = 5
+					e_spr.modulate = Color.WHITE
+				else:
+					e_spr.z_index = 0
+					e_spr.modulate = Color(0.40, 0.40, 0.48, 0.50)
+		return
+
+	_enemy_zoom_tween = create_tween().set_parallel(true)
+	_enemy_zoom_tween.tween_property(_enemy_zoom_root, "scale", Vector2(Z, Z), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_enemy_zoom_tween.tween_property(_enemy_zoom_root, "position", target_pos, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	
+	for j in range(active_enemies.size()):
+		var e_spr = active_enemies[j].get("sprite")
+		if is_instance_valid(e_spr):
+			if j == enemy_index:
+				e_spr.z_index = 5
+				_enemy_zoom_tween.tween_property(e_spr, "modulate", Color.WHITE, duration * 0.8)
+			else:
+				e_spr.z_index = 0
+				_enemy_zoom_tween.tween_property(e_spr, "modulate", Color(0.40, 0.40, 0.48, 0.50), duration * 0.8)
+
+## 敵エリアズーム演出のリセット
+func reset_enemy_zoom(duration: float = 0.18) -> void:
+	if _enemy_zoom_root == null or not is_instance_valid(_enemy_zoom_root):
+		return
+	if _enemy_zoom_tween and _enemy_zoom_tween.is_valid():
+		_enemy_zoom_tween.kill()
+		_enemy_zoom_tween = null
+		
+	if duration <= 0.0:
+		_enemy_zoom_root.scale = Vector2.ONE
+		_enemy_zoom_root.position = Vector2(-1194, -13)
+		for j in range(active_enemies.size()):
+			var e_spr = active_enemies[j].get("sprite")
+			if is_instance_valid(e_spr):
+				e_spr.z_index = 0
+				e_spr.modulate = Color.WHITE
+		return
+
+	_enemy_zoom_tween = create_tween().set_parallel(true)
+	_enemy_zoom_tween.tween_property(_enemy_zoom_root, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_enemy_zoom_tween.tween_property(_enemy_zoom_root, "position", Vector2(-1194, -13), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	
+	for j in range(active_enemies.size()):
+		var e_spr = active_enemies[j].get("sprite")
+		if is_instance_valid(e_spr):
+			e_spr.z_index = 0
+			_enemy_zoom_tween.tween_property(e_spr, "modulate", Color.WHITE, duration)
+
+## HP計算（ダメージ適用：集中攻撃ターゲットへダメージを優先適用）
 func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 	myhp = clampf(myhp - damage_to_player, 0.0, myhpmax)
 	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
 	
 	if damage_to_enemy > 0.0 and active_enemies.size() > 0:
-		var target_idx = randi() % active_enemies.size()
+		var target_idx = get_focused_enemy_index()
+		if target_idx < 0: target_idx = 0
 		var e_data = active_enemies[target_idx]
 		if e_data["hp"] > 0:
 			e_data["hp"] -= damage_to_enemy
@@ -832,9 +1033,16 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 				if e_data.has("bar_fg") and is_instance_valid(e_data["bar_fg"]): e_data["bar_fg"].queue_free()
 				if is_instance_valid(e_data["lbl"]): e_data["lbl"].queue_free()
 				if is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
+				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
+				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
 				active_enemies.remove_at(target_idx)
+				target_enemy_index = clampi(target_enemy_index, 0, max(0, active_enemies.size() - 1))
+				_update_target_indicator()
+				var rm = _get_relic_manager()
+				if rm and rm.has_method("on_enemy_defeated"):
+					rm.on_enemy_defeated()
 		if active_enemies.size() > 0:
-			enemy = active_enemies[0]["sprite"]
+			enemy = active_enemies[get_focused_enemy_index()]["sprite"]
 		else:
 			enemy = null
 		if _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged") and _current_custom_anim != "attack" and _current_custom_anim != "skill":
@@ -1036,6 +1244,10 @@ func fevertime() -> void:
 		fevergage = 0
 		appeartime = 0
 		isfevertime = true
+		
+		var rm = _get_relic_manager()
+		if rm and rm.has_method("on_fever_started"):
+			rm.on_fever_started()
 		
 		var field_bgm = get_node_or_null("fieldbgm")
 		if field_bgm: field_bgm.stop()
@@ -1341,7 +1553,10 @@ func _update_background() -> void:
 
 	# 1. 敵エリアの背景スプライト更新
 	for i in range(STAGE_BACKGROUNDS.size()):
-		var bg_node = get_node_or_null(STAGE_BACKGROUNDS[i])
+		var bg_name = STAGE_BACKGROUNDS[i]
+		var bg_node = _enemy_zoom_root.get_node_or_null(bg_name) if _enemy_zoom_root else get_node_or_null(bg_name)
+		if bg_node == null:
+			bg_node = get_node_or_null(bg_name)
 		if bg_node:
 			bg_node.visible = (i == cur_idx)
 			bg_node.texture = cur_texture

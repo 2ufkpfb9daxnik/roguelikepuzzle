@@ -2,15 +2,19 @@ class_name RelicDatabase
 extends RefCounted
 
 const RARITY_WEIGHTS: Dictionary = {
-	"common": 60,
-	"uncommon": 30,
-	"rare": 10
+	"common": 42,
+	"uncommon": 28,
+	"rare": 16,
+	"epic": 10,
+	"legendary": 4
 }
 
 const RARITY_MAX_LEVELS: Dictionary = {
 	"common": 5,
 	"uncommon": 4,
-	"rare": 3
+	"rare": 3,
+	"epic": 3,
+	"legendary": 2
 }
 
 const RELICS: Dictionary = {
@@ -188,28 +192,131 @@ const RELICS: Dictionary = {
 	"pure_oath": {
 		"id": "pure_oath",
 		"name": "純色の誓い",
-		"rarity": "uncommon",
-		"max_level": 4,
+		"rarity": "rare",
+		"max_level": 3,
 		"requires_element": true,
-		"description": "そのターンに消えた属性剣の70%以上が単一属性のとき、その属性の与ダメージ +25%",
+		"description": "そのターンに消えた属性剣の70%以上が単一属性のとき、その属性の与ダメージ +30%",
 		"levels": [
-			{"min_ratio": 0.70, "damage_bonus": 0.25},
-			{"min_ratio": 0.70, "damage_bonus": 0.35},
-			{"min_ratio": 0.60, "damage_bonus": 0.45},
-			{"min_ratio": 0.60, "damage_bonus": 0.55}
+			{"min_ratio": 0.70, "damage_bonus": 0.30},
+			{"min_ratio": 0.65, "damage_bonus": 0.45},
+			{"min_ratio": 0.60, "damage_bonus": 0.60}
 		]
 	},
 	"tome_of_four_elements": {
 		"id": "tome_of_four_elements",
 		"name": "四象の書",
-		"rarity": "rare",
+		"rarity": "epic",
 		"max_level": 3,
 		"requires_element": true,
-		"description": "1ターン内に消えた剣の属性（炎・水・風・雷）が3種で与ダメージ +25%、4種で +45%",
+		"description": "1ターン内に消えた剣の属性（炎・水・風・雷）が3種で与ダメージ +30%、4種で +60%",
 		"levels": [
-			{"bonus_3": 0.25, "bonus_4": 0.45},
-			{"bonus_3": 0.32, "bonus_4": 0.58},
-			{"bonus_3": 0.40, "bonus_4": 0.70}
+			{"bonus_3": 0.30, "bonus_4": 0.60},
+			{"bonus_3": 0.40, "bonus_4": 0.80},
+			{"bonus_3": 0.55, "bonus_4": 1.05}
+		]
+	},
+	"counter_blade": {
+		"id": "counter_blade",
+		"name": "反撃の刃",
+		"rarity": "uncommon",
+		"max_level": 4,
+		"requires_element": false,
+		"description": "ターン開始時やマッチで所持しているシールド1個につき、そのターンの与ダメージ +2%（上限 +30%）",
+		"levels": [
+			{"per_shield": 0.02, "max_bonus": 0.30},
+			{"per_shield": 0.025, "max_bonus": 0.40},
+			{"per_shield": 0.03, "max_bonus": 0.50},
+			{"per_shield": 0.04, "max_bonus": 0.65}
+		]
+	},
+	"alchemy_flask": {
+		"id": "alchemy_flask",
+		"name": "錬金術のフラスコ",
+		"rarity": "uncommon",
+		"max_level": 4,
+		"requires_element": false,
+		"description": "消去したポーション駒1個につき、そのターンの与ダメージ +1.5%（上限 +30%）",
+		"levels": [
+			{"per_potion": 0.015, "max_bonus": 0.30},
+			{"per_potion": 0.020, "max_bonus": 0.40},
+			{"per_potion": 0.025, "max_bonus": 0.50},
+			{"per_potion": 0.030, "max_bonus": 0.60}
+		]
+	},
+	"executioner_brand": {
+		"id": "executioner_brand",
+		"name": "断罪の刻印",
+		"rarity": "rare",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "狙っているターゲット敵のHPが50%以下のとき、与ダメージ +30%",
+		"levels": [
+			{"hp_threshold": 0.50, "damage_bonus": 0.30},
+			{"hp_threshold": 0.50, "damage_bonus": 0.45},
+			{"hp_threshold": 0.55, "damage_bonus": 0.65}
+		]
+	},
+	"soul_harvester": {
+		"id": "soul_harvester",
+		"name": "魂の刈り取り",
+		"rarity": "rare",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "敵撃破時、最大HPの10%回復＆戦闘中の与ダメージ +15%（累積可、上限+90%）",
+		"levels": [
+			{"heal_pct": 0.10, "stack_bonus": 0.15, "max_bonus": 0.90},
+			{"heal_pct": 0.15, "stack_bonus": 0.22, "max_bonus": 0.90},
+			{"heal_pct": 0.20, "stack_bonus": 0.30, "max_bonus": 0.90}
+		]
+	},
+	"fever_overdrive": {
+		"id": "fever_overdrive",
+		"name": "狂熱の心臓",
+		"rarity": "epic",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "フィーバータイム中、与ダメージ +40%。さらにフィーバー突入時に残り手数 +1回",
+		"levels": [
+			{"fever_damage_bonus": 0.40, "extra_fever_turns": 1},
+			{"fever_damage_bonus": 0.60, "extra_fever_turns": 2},
+			{"fever_damage_bonus": 0.85, "extra_fever_turns": 3}
+		]
+	},
+	"prismatic_resonator": {
+		"id": "prismatic_resonator",
+		"name": "万象の共鳴器",
+		"rarity": "epic",
+		"max_level": 3,
+		"requires_element": true,
+		"description": "1ターン内に2種類以上の属性マッチを達成したとき、与ダメージ +35%",
+		"levels": [
+			{"min_elements": 2, "damage_bonus": 0.35},
+			{"min_elements": 2, "damage_bonus": 0.55},
+			{"min_elements": 2, "damage_bonus": 0.75}
+		]
+	},
+	"crown_of_origin": {
+		"id": "crown_of_origin",
+		"name": "始源の神冠",
+		"rarity": "legendary",
+		"max_level": 2,
+		"requires_element": false,
+		"description": "連鎖数5以上またはコンボ5以上のとき、全剣攻撃が弱点属性化し与ダメージ +50%",
+		"levels": [
+			{"min_threshold": 5, "damage_bonus": 0.50},
+			{"min_threshold": 4, "damage_bonus": 0.85}
+		]
+	},
+	"midas_chalice": {
+		"id": "midas_chalice",
+		"name": "ミダスの杯",
+		"rarity": "legendary",
+		"max_level": 2,
+		"requires_element": false,
+		"description": "コイン獲得スコア +50%。累計スコア10,000ごとに与ダメージ +1%（上限 +50%）",
+		"levels": [
+			{"coin_bonus": 0.50, "per_score": 10000, "dmg_per_step": 0.01, "max_dmg_bonus": 0.50},
+			{"coin_bonus": 1.00, "per_score": 10000, "dmg_per_step": 0.015, "max_dmg_bonus": 1.00}
 		]
 	}
 }
@@ -292,8 +399,39 @@ static func get_description(id: String, level: int) -> String:
 			var db = int(round(float(p.get("damage_bonus", 0.25)) * 100.0))
 			return "そのターンに消えた属性剣の%d%%以上が単一属性のとき、その属性の与ダメージ +%d%%" % [mr, db]
 		"tome_of_four_elements":
-			var b3 = int(round(float(p.get("bonus_3", 0.25)) * 100.0))
-			var b4 = int(round(float(p.get("bonus_4", 0.45)) * 100.0))
+			var b3 = int(round(float(p.get("bonus_3", 0.30)) * 100.0))
+			var b4 = int(round(float(p.get("bonus_4", 0.60)) * 100.0))
 			return "1ターン内に消えた剣の属性（炎・水・風・雷）が3種で与ダメージ +%d%%、4種で +%d%%" % [b3, b4]
+		"counter_blade":
+			var ps = float(p.get("per_shield", 0.02)) * 100.0
+			var mb = int(round(float(p.get("max_bonus", 0.30)) * 100.0))
+			return "所持シールド1個につき、そのターンの与ダメージ +%.1f%%（上限 +%d%%）" % [ps, mb]
+		"alchemy_flask":
+			var pp = float(p.get("per_potion", 0.015)) * 100.0
+			var mb = int(round(float(p.get("max_bonus", 0.30)) * 100.0))
+			return "消去したポーション駒1個につき、そのターンの与ダメージ +%.1f%%（上限 +%d%%）" % [pp, mb]
+		"executioner_brand":
+			var th = int(round(float(p.get("hp_threshold", 0.50)) * 100.0))
+			var db = int(round(float(p.get("damage_bonus", 0.30)) * 100.0))
+			return "ターゲット敵のHPが%d%%以下のとき、与ダメージ +%d%%" % [th, db]
+		"soul_harvester":
+			var hp = int(round(float(p.get("heal_pct", 0.10)) * 100.0))
+			var sb = int(round(float(p.get("stack_bonus", 0.15)) * 100.0))
+			return "敵撃破時、最大HPの%d%%回復＆戦闘中の与ダメージ +%d%%（累積可）" % [hp, sb]
+		"fever_overdrive":
+			var fdb = int(round(float(p.get("fever_damage_bonus", 0.40)) * 100.0))
+			var ext = int(p.get("extra_fever_turns", 1))
+			return "フィーバー中、与ダメージ +%d%%。突入時に残り手数 +%d回" % [fdb, ext]
+		"prismatic_resonator":
+			var db = int(round(float(p.get("damage_bonus", 0.35)) * 100.0))
+			return "1ターン内に2属性以上のマッチ達成で、与ダメージ +%d%%" % [db]
+		"crown_of_origin":
+			var th = int(p.get("min_threshold", 5))
+			var db = int(round(float(p.get("damage_bonus", 0.50)) * 100.0))
+			return "連鎖数%d以上またはコンボ%d以上のとき、全攻撃が弱点化＆与ダメージ +%d%%" % [th, th, db]
+		"midas_chalice":
+			var cb = int(round(float(p.get("coin_bonus", 0.50)) * 100.0))
+			var mb = int(round(float(p.get("max_dmg_bonus", 0.50)) * 100.0))
+			return "コイン獲得スコア +%d%%。累計1万スコア毎に与ダメージ +1%%（上限 +%d%%）" % [cb, mb]
 		_:
 			return r.get("description", "")
