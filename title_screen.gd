@@ -28,6 +28,14 @@ func _ready() -> void:
 	# 次のステージシーン（current_stage.tscn）をバックグラウンドで非同期先読み開始
 	ResourceLoader.load_threaded_request("res://current_stage.tscn")
 
+	var bg_sprite = get_node_or_null("Sprite2D") as Sprite2D
+	if bg_sprite and bg_sprite.texture:
+		var tex_size = bg_sprite.texture.get_size()
+		if tex_size.x > 0 and tex_size.y > 0:
+			var scale_val = maxf(1920.0 / tex_size.x, 1080.0 / tex_size.y)
+			bg_sprite.scale = Vector2(scale_val, scale_val)
+			bg_sprite.position = Vector2(960, 540)
+
 	if title_label != null:
 		title_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 		title_label.add_theme_font_override("bold_font", CUSTOM_FONT)
