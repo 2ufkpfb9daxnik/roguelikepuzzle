@@ -364,39 +364,96 @@ func _create_settings_dialog() -> void:
 		spd_val_lbl.text = "%.1fx" % v
 	)
 	
-	# --- 4. 「タイトルへ戻る」＆「閉じる」ボタン ---
-	var bottom_btn_w = 320.0
-	var btn_gap = 50.0
-	var start_btn_x = panel_x + (panel_w - (bottom_btn_w * 2.0 + btn_gap)) / 2.0
+	# --- 4. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
+	var current_scene_name = ""
+	var tree = _get_tree_safe()
+	if tree and tree.current_scene:
+		current_scene_name = tree.current_scene.name
+	var is_on_title = (current_scene_name == "TitleScreen")
+
 	var btn_y = panel_y + panel_h - 85.0
 
-	var title_btn = Button.new()
-	title_btn.text = "タイトルへ戻る"
-	title_btn.add_theme_font_override("font", CUSTOM_FONT)
-	title_btn.add_theme_font_size_override("font_size", 28)
-	title_btn.add_theme_constant_override("outline_size", 6)
-	title_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	title_btn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
-	title_btn.position = Vector2(start_btn_x, btn_y)
-	title_btn.size = Vector2(bottom_btn_w, 58)
-	title_btn.pressed.connect(func():
-		close_settings()
-		Engine.time_scale = 1.0
-		var t = _get_tree_safe()
-		if t:
-			t.change_scene_to_file("res://title_screen.tscn")
-	)
-	_dialog_canvas.add_child(title_btn)
+	if is_on_title:
+		# タイトル画面時: 「ゲーム終了」と「閉じる」の2ボタン
+		var t_btn_w = 340.0
+		var t_gap = 40.0
+		var t_start_x = panel_x + (panel_w - (t_btn_w * 2.0 + t_gap)) / 2.0
 
-	var close_btn = Button.new()
-	close_btn.text = "閉じる (CLOSE)"
-	close_btn.add_theme_font_override("font", CUSTOM_FONT)
-	close_btn.add_theme_font_size_override("font_size", 28)
-	close_btn.add_theme_constant_override("outline_size", 6)
-	close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	close_btn.position = Vector2(start_btn_x + bottom_btn_w + btn_gap, btn_y)
-	close_btn.size = Vector2(bottom_btn_w, 58)
-	close_btn.pressed.connect(func():
-		close_settings()
-	)
-	_dialog_canvas.add_child(close_btn)
+		var quit_btn = Button.new()
+		quit_btn.text = "✕ ゲーム終了 (QUIT)"
+		quit_btn.add_theme_font_override("font", CUSTOM_FONT)
+		quit_btn.add_theme_font_size_override("font_size", 26)
+		quit_btn.add_theme_constant_override("outline_size", 6)
+		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+		quit_btn.position = Vector2(t_start_x, btn_y)
+		quit_btn.size = Vector2(t_btn_w, 58)
+		quit_btn.pressed.connect(func():
+			var t = _get_tree_safe()
+			if t: t.quit()
+		)
+		_dialog_canvas.add_child(quit_btn)
+
+		var close_btn = Button.new()
+		close_btn.text = "閉じる (CLOSE)"
+		close_btn.add_theme_font_override("font", CUSTOM_FONT)
+		close_btn.add_theme_font_size_override("font_size", 26)
+		close_btn.add_theme_constant_override("outline_size", 6)
+		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		close_btn.position = Vector2(t_start_x + t_btn_w + t_gap, btn_y)
+		close_btn.size = Vector2(t_btn_w, 58)
+		close_btn.pressed.connect(func():
+			close_settings()
+		)
+		_dialog_canvas.add_child(close_btn)
+	else:
+		# インゲーム時: 「タイトルへ戻る」「ゲーム終了」「閉じる」の3ボタン
+		var g_btn_w = 226.0
+		var g_gap = 20.0
+		var g_start_x = panel_x + (panel_w - (g_btn_w * 3.0 + g_gap * 2.0)) / 2.0
+
+		var title_btn = Button.new()
+		title_btn.text = "タイトルへ戻る"
+		title_btn.add_theme_font_override("font", CUSTOM_FONT)
+		title_btn.add_theme_font_size_override("font_size", 22)
+		title_btn.add_theme_constant_override("outline_size", 6)
+		title_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		title_btn.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
+		title_btn.position = Vector2(g_start_x, btn_y)
+		title_btn.size = Vector2(g_btn_w, 58)
+		title_btn.pressed.connect(func():
+			close_settings()
+			Engine.time_scale = 1.0
+			var t = _get_tree_safe()
+			if t:
+				t.change_scene_to_file("res://title_screen.tscn")
+		)
+		_dialog_canvas.add_child(title_btn)
+
+		var quit_btn = Button.new()
+		quit_btn.text = "✕ ゲーム終了"
+		quit_btn.add_theme_font_override("font", CUSTOM_FONT)
+		quit_btn.add_theme_font_size_override("font_size", 22)
+		quit_btn.add_theme_constant_override("outline_size", 6)
+		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+		quit_btn.position = Vector2(g_start_x + (g_btn_w + g_gap), btn_y)
+		quit_btn.size = Vector2(g_btn_w, 58)
+		quit_btn.pressed.connect(func():
+			var t = _get_tree_safe()
+			if t: t.quit()
+		)
+		_dialog_canvas.add_child(quit_btn)
+
+		var close_btn = Button.new()
+		close_btn.text = "閉じる (CLOSE)"
+		close_btn.add_theme_font_override("font", CUSTOM_FONT)
+		close_btn.add_theme_font_size_override("font_size", 22)
+		close_btn.add_theme_constant_override("outline_size", 6)
+		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		close_btn.position = Vector2(g_start_x + (g_btn_w + g_gap) * 2.0, btn_y)
+		close_btn.size = Vector2(g_btn_w, 58)
+		close_btn.pressed.connect(func():
+			close_settings()
+		)
+		_dialog_canvas.add_child(close_btn)
