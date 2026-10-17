@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://ifsp0dwpm78g"]
+[gd_scene load_steps=15 format=3 uid="uid://ifsp0dwpm78g"]
 
 [ext_resource type="Script" uid="uid://dvo26517nvfrt" path="res://puzzle_board.gd" id="1_2mien"]
 [ext_resource type="Script" uid="uid://banbof3wc0yga" path="res://board_background.gd" id="2_board_bg"]
@@ -55,7 +55,6 @@ script = ExtResource("2_board_bg")
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("20_de3dv")
 volume_db = -7.5
-max_polyphony = 1
 parameters/looping = false
 
 [node name="AudioStreamPlayer2" type="AudioStreamPlayer" parent="."]

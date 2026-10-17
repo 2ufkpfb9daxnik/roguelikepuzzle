@@ -4295,7 +4295,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
 		elif interval > end_wait_fast:
-			if sm and sm.is_playing_custom_animation:
+			if is_enemy_turn_in_progress or (sm and sm.is_enemy_animating()):
 				return
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
@@ -4374,8 +4374,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			sm.fevertime()
 
 	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
-		# 敵のアニメーション（攻撃モーションまたはスキルモーション）が再生中の場合は完了を必ず待つ
-		if sm and sm.is_playing_custom_animation:
+		# 敵のアクションまたはアニメーション（攻撃モーションまたはスキルモーション）が再生中の場合は完了を必ず待つ
+		if is_enemy_turn_in_progress or (sm and sm.is_enemy_animating()):
 			return
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
@@ -4567,6 +4567,8 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 
 ## 敵の攻撃処理（物理攻撃・爪斬撃演出・ダメージ計算）
 var _enemy_turn_actions: Array = []
+var is_enemy_turn_in_progress: bool = false
+var _enemy_turn_tween: Tween = null
 
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
@@ -4616,12 +4618,16 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 	if sm_autoload and "se_volume" in sm_autoload:
 		se_vol = clampf(sm_autoload.se_volume, 0.001, 1.0)
 
-
-
 	if not ("active_enemies" in sm) or sm.active_enemies.size() == 0:
+		is_enemy_turn_in_progress = false
 		return
 
+	is_enemy_turn_in_progress = true
+	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
+		_enemy_turn_tween.kill()
+
 	var seq_tw = create_tween()
+	_enemy_turn_tween = seq_tw
 	
 	for i in range(sm.active_enemies.size()):
 		var e = sm.active_enemies[i]
@@ -4635,7 +4641,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				
 				var has_anim = false
 				if sm.has_method("play_single_enemy_animation"):
-					has_anim = sm.play_single_enemy_animation(i, "attack")
+					has_anim = sm.play_single_enemy_animation(spr, "attack")
 					
 				if not has_anim:
 					var orig_pos = spr.position
@@ -4731,12 +4737,19 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var elem_color = s_info["color"]
 			
 			seq_tw.tween_callback(func():
+				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				_play_enemy_skill_se(is_boss)
 				_show_enemy_skill_banner(s_name, elem_color, is_boss)
 				
 				var has_anim = false
 				if sm.has_method("play_single_enemy_animation"):
-					has_anim = sm.play_single_enemy_animation(i, "skill")
+					has_anim = sm.play_single_enemy_animation(spr, "skill")
+				
+				if not has_anim and is_instance_valid(spr):
+					var orig_s = spr.get_meta("anim_orig_scale", spr.scale)
+					var sk_tw = create_tween()
+					sk_tw.tween_property(spr, "scale", orig_s * 1.25, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 					
 				_spawn_enemy_skill_chant_vfx(sm, spr, elem_color, is_boss)
 			)
@@ -4750,6 +4763,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			seq_tw.tween_interval(0.5)
 
 	seq_tw.tween_callback(func():
+		is_enemy_turn_in_progress = false
 		for item in active_shields:
 			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
 		active_shields.clear()
@@ -5856,6 +5870,10 @@ func _clear_all_combat_projectiles() -> void:
 	flying_cells.clear()
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	is_enemy_turn_in_progress = false
+	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
+		_enemy_turn_tween.kill()
+		_enemy_turn_tween = null
 	turn_skill_log.clear()
 	var _sm_for_reset = _get_score_manager()
 	if _sm_for_reset and _sm_for_reset.has_method("reset_turn_elements"):

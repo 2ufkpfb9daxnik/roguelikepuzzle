@@ -386,9 +386,14 @@ const TEXTURE_FILE: Array[String] = ["shield_cut", "sword_cut", "coin_cut", "pot
 @onready var label2: RichTextLabel = get_node_or_null("RichTextLabel2")
 @onready var status_rect: Control = get_node_or_null("status")
 @onready var status2_rect: Control = get_node_or_null("status2")
+@onready var elem_status_rect: Control = get_node_or_null("elem_status")
+@onready var elem_status2_rect: Control = get_node_or_null("elem_status2")
 @onready var combo_label: RichTextLabel = get_node_or_null("combo")
 @onready var combocount_label: RichTextLabel = get_node_or_null("combocount")
 @onready var template_score_label: RichTextLabel = get_node_or_null("RichTextLabel3")
+
+const ELEM_KEYS: Array[String] = ["fire", "water", "wind", "thunder", "light", "dark"]
+const ELEM_COLORS: Array[String] = ["FF6633", "4C99FF", "66E666", "E6E633", "FFE699", "B34CE6"]
 
 var divscorelabel: Array[RichTextLabel] = []
 var turn_element_counts: Dictionary = {}
@@ -445,12 +450,35 @@ func _ready() -> void:
 			divscorelabel.append(score_lbl)
 	
 
+	# 属性ステータスパネルの初期化（未配置の場合は自動生成）
+	if elem_status_rect == null:
+		elem_status_rect = ColorRect.new()
+		elem_status_rect.name = "elem_status"
+		elem_status_rect.z_index = -10
+		elem_status_rect.offset_left = 1430.0
+		elem_status_rect.offset_top = 472.0
+		elem_status_rect.size = Vector2(125.0, 295.0)
+		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		elem_status_rect.color = Color(0.960784, 1, 0.0901961, 1)
+		add_child(elem_status_rect)
+
+	if elem_status2_rect == null:
+		elem_status2_rect = ColorRect.new()
+		elem_status2_rect.name = "elem_status2"
+		elem_status2_rect.z_index = -10
+		elem_status2_rect.offset_left = 1432.0
+		elem_status2_rect.offset_top = 474.0
+		elem_status2_rect.size = Vector2(121.0, 291.0)
+		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		elem_status2_rect.color = Color(0, 0, 0, 1)
+		add_child(elem_status2_rect)
+
 	if divscorelabel.size() > 0:
-		for k in range(1, 7):
+		for k in range(6):
 			var el_lbl = divscorelabel[0].duplicate()
-			el_lbl.name = "elem_score" + str(k)
-			el_lbl.offset_left += 450.0
-			el_lbl.offset_top += (k - 1) * 60.0
+			el_lbl.name = "elem_score" + str(k + 1)
+			el_lbl.offset_left = 1440.0
+			el_lbl.offset_top = 474.0 + float(k) * 48.0
 			el_lbl.text = ""
 			add_child(el_lbl)
 			elem_labels.append(el_lbl)
@@ -1797,18 +1825,21 @@ func _on_buffselectbutton_5_pressed() -> void:
 
 func update_elem_labels() -> void:
 	if elem_labels.size() == 0: return
+	var max_len: int = 0
 	for k in range(1, 7):
 		var count = turn_element_counts.get(k, 0)
-		var c = "FFFFFF"
-		var ename = ""
-		match k:
-			1: c = "FF6633"; ename = "FIRE"
-			2: c = "4C99FF"; ename = "WATER"
-			3: c = "66E666"; ename = "WIND"
-			4: c = "E6E633"; ename = "THUNDER"
-			5: c = "FFE699"; ename = "LIGHT"
-			6: c = "B34CE6"; ename = "DARK"
-		elem_labels[k-1].text = "[b][color=#%s]%s: %d[/color][/b]" % [c, ename, count]
+		var val_str = _format_comma(count)
+		max_len = maxi(max_len, val_str.length())
+		var img_path = "res://Texture/element/%s.png" % ELEM_KEYS[k - 1]
+		var c = ELEM_COLORS[k - 1]
+		elem_labels[k - 1].text = "[img=60]%s[/img] [b][color=#%s]%s[/color][/b]" % [img_path, c, val_str]
+
+	# 桁数に応じた属性ステータス枠の横幅自動追従（剣欄と同じロジック）
+	var frame_width = maxf(120.0 + 22.0 * float(max_len), 120.0)
+	if elem_status_rect != null:
+		elem_status_rect.size = Vector2(frame_width + 5.0, 295.0)
+	if elem_status2_rect != null:
+		elem_status2_rect.size = Vector2(frame_width, 291.0)
 
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()

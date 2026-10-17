@@ -126,6 +126,7 @@ var _rush_tween: Tween = null
 var _idle_tween: Tween = null
 var is_playing_custom_animation: bool = false
 var _current_custom_anim: String = ""
+var _active_single_anims: Dictionary = {}
 var _edge_fade_material: ShaderMaterial = null
 var _battle_camera: Camera2D = null
 var _zoom_tween: Tween = null
@@ -752,6 +753,8 @@ func _play_idle_loop() -> void:
 		if not is_playing_custom_animation:
 			for e in active_enemies:
 				var spr = e["sprite"]
+				if _active_single_anims.has(spr):
+					continue
 				if is_instance_valid(spr) and spr.has_meta("anim_total_f"):
 					var e_total_f = spr.get_meta("anim_total_f")
 					# 各敵のフレーム数に合わせてループさせる（フレーム数が違っても対応）
@@ -871,7 +874,7 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	return true
 ## 敵のアニメーションが動作中か判定
 func is_enemy_animating() -> bool:
-	return is_playing_custom_animation or (_idle_tween != null and _idle_tween.is_valid())
+	return is_playing_custom_animation or _active_single_anims.size() > 0 or (_anim_tween != null and _anim_tween.is_valid())
 
 ## 敵攻撃時の疾走突進効果音の再生
 func _play_enemy_attack_rush_se() -> void:
@@ -892,6 +895,7 @@ func _play_enemy_attack_rush_se() -> void:
 func stop_enemy_animation() -> void:
 	is_playing_custom_animation = false
 	_current_custom_anim = ""
+	_active_single_anims.clear()
 	if _anim_tween and _anim_tween.is_valid():
 		_anim_tween.kill()
 		_anim_tween = null
@@ -904,15 +908,22 @@ func stop_enemy_animation() -> void:
 
 	for e in active_enemies:
 		var spr = e["sprite"]
-		if is_instance_valid(spr) and spr.has_meta("anim_orig_tex"):
-			spr.texture = spr.get_meta("anim_orig_tex")
-			spr.hframes = 1
-			spr.vframes = 1
-			spr.frame = 0
-			spr.scale = spr.get_meta("anim_orig_scale")
-			spr.flip_h = false
-			spr.position = spr.get_meta("anim_orig_pos")
-			spr.material = null
+		if is_instance_valid(spr):
+			if spr.has_meta("anim_tween"):
+				var atw = spr.get_meta("anim_tween")
+				if is_instance_valid(atw) and atw is Tween and atw.is_valid(): atw.kill()
+			if spr.has_meta("rush_tween"):
+				var rtw = spr.get_meta("rush_tween")
+				if is_instance_valid(rtw) and rtw is Tween and rtw.is_valid(): rtw.kill()
+			if spr.has_meta("anim_orig_tex"):
+				spr.texture = spr.get_meta("anim_orig_tex")
+				spr.hframes = 1
+				spr.vframes = 1
+				spr.frame = 0
+				spr.scale = spr.get_meta("anim_orig_scale")
+				spr.flip_h = false
+				spr.position = spr.get_meta("anim_orig_pos")
+				spr.material = null
 			
 	if not isdeadf:
 		start_enemy_idle_animation()
@@ -1045,8 +1056,13 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 			enemy = active_enemies[get_focused_enemy_index()]["sprite"]
 		else:
 			enemy = null
-		if _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged") and _current_custom_anim != "attack" and _current_custom_anim != "skill":
-			play_enemy_animation("damaged")
+		var any_combat_anim: bool = (_current_custom_anim == "attack" or _current_custom_anim == "skill")
+		for a in _active_single_anims.values():
+			if a == "attack" or a == "skill":
+				any_combat_anim = true
+				break
+		if not any_combat_anim and _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged"):
+			play_single_enemy_animation(target_idx, "damaged")
 			_damaged_anim_timer = DAMAGED_ANIM_INTERVAL
 
 	var sum_hp = 0.0
@@ -1650,10 +1666,28 @@ func _on_movefront_pressed() -> void:
 			clicked = true
 			deadinterval = 0
 
-func play_single_enemy_animation(enemy_index: int, anim_name: String, on_complete: Callable = Callable()) -> bool:
-	if enemy_index < 0 or enemy_index >= active_enemies.size():
+func play_single_enemy_animation(target, anim_name: String, on_complete: Callable = Callable()) -> bool:
+	var e = null
+	var enemy_index: int = -1
+	if target is Sprite2D:
+		for idx in range(active_enemies.size()):
+			if active_enemies[idx].get("sprite") == target:
+				e = active_enemies[idx]
+				enemy_index = idx
+				break
+	elif typeof(target) == TYPE_INT:
+		if target >= 0 and target < active_enemies.size():
+			e = active_enemies[target]
+			enemy_index = target
+	elif target is Dictionary and target.has("sprite"):
+		e = target
+		for idx in range(active_enemies.size()):
+			if active_enemies[idx] == target:
+				enemy_index = idx
+				break
+
+	if e == null or not is_instance_valid(e.get("sprite")):
 		return false
-	var e = active_enemies[enemy_index]
 	var spr: Sprite2D = e["sprite"]
 	var e_key = e["key"]
 	var e_anims = ENEMY_ANIMATION_SHEETS.get(e_key, {})
@@ -1709,6 +1743,11 @@ func play_single_enemy_animation(enemy_index: int, anim_name: String, on_complet
 	spr.flip_h = should_flip
 	spr.position = orig_p + offset_pos
 	spr.material = _get_or_create_edge_fade_material()
+	spr.set_meta("anim_total_f", total_f)
+
+	_active_single_anims[spr] = anim_name
+	is_playing_custom_animation = true
+	_current_custom_anim = anim_name
 
 	var duration = float(total_f) / maxf(1.0, fps)
 	
@@ -1733,6 +1772,19 @@ func play_single_enemy_animation(enemy_index: int, anim_name: String, on_complet
 	, 0, total_f - 1, duration)
 	
 	tw.tween_callback(func():
+		_active_single_anims.erase(spr)
+		if _active_single_anims.is_empty():
+			is_playing_custom_animation = false
+			_current_custom_anim = ""
+		else:
+			_current_custom_anim = ""
+			for a in _active_single_anims.values():
+				if a == "attack" or a == "skill":
+					_current_custom_anim = a
+					break
+			if _current_custom_anim == "":
+				_current_custom_anim = _active_single_anims.values()[0]
+
 		if is_instance_valid(spr):
 			spr.texture = orig_tex
 			spr.hframes = 1
@@ -1742,16 +1794,26 @@ func play_single_enemy_animation(enemy_index: int, anim_name: String, on_complet
 			spr.flip_h = false
 			spr.position = orig_p
 			spr.material = null
-			play_single_idle_loop(enemy_index)
+			play_single_idle_loop(spr)
 		if on_complete:
 			on_complete.call()
 	)
 	return true
 
-func play_single_idle_loop(enemy_index: int) -> void:
-	if enemy_index < 0 or enemy_index >= active_enemies.size():
+func play_single_idle_loop(target) -> void:
+	var e = null
+	if target is Sprite2D:
+		for item in active_enemies:
+			if item.get("sprite") == target:
+				e = item
+				break
+	elif typeof(target) == TYPE_INT:
+		if target >= 0 and target < active_enemies.size():
+			e = active_enemies[target]
+	elif target is Dictionary and target.has("sprite"):
+		e = target
+	if e == null:
 		return
-	var e = active_enemies[enemy_index]
 	var spr: Sprite2D = e["sprite"]
 	var e_key = e["key"]
 	var e_anims = ENEMY_ANIMATION_SHEETS.get(e_key, {})
@@ -1796,6 +1858,7 @@ func play_single_idle_loop(enemy_index: int) -> void:
 	spr.flip_h = should_flip
 	spr.position = orig_p + offset_pos
 	spr.material = _get_or_create_edge_fade_material()
+	spr.set_meta("anim_total_f", total_f)
 
 	var duration = float(total_f) / maxf(1.0, fps)
 	var tw = create_tween().set_loops()
