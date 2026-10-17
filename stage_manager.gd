@@ -335,7 +335,9 @@ func _ready() -> void:
 	if label != null:
 		label.add_theme_font_override("normal_font", CUSTOM_FONT)
 		label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		label.add_theme_constant_override("outline_size", 10)
+		label.add_theme_font_size_override("normal_font_size", 48)
+		label.add_theme_font_size_override("bold_font_size", 48)
+		label.add_theme_constant_override("outline_size", 6)
 		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	if label2 != null:
 		label2.text = ""

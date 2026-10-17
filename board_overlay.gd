@@ -7,14 +7,14 @@ class_name BoardOverlay
 
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 
-const GRID_COLS: int = 10
-const GRID_ROWS: int = 10
-const CELL_PITCH: float = 750.0
+const GRID_COLS: int = 13
+const GRID_ROWS: int = 13
+const CELL_PITCH: float = 700.0
 
-const BOARD_LEFT: float = 4250.0
-const BOARD_TOP: float = 1250.0
-const BOARD_WIDTH: float = 7500.0
-const BOARD_HEIGHT: float = 7500.0
+const BOARD_LEFT: float = 2550.0
+const BOARD_TOP: float = 850.0
+const BOARD_WIDTH: float = 9100.0
+const BOARD_HEIGHT: float = 9100.0
 
 func _ready() -> void:
 	z_index = 8 # コマ(0~3)より手前、UIより奥

@@ -431,14 +431,13 @@ func _ready() -> void:
 		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# スコアラベルのフォント＆アウトライン設定
+	# スコアラベルの非表示化（得点表示消去）
 	if label != null:
-		label.add_theme_font_override("normal_font", CUSTOM_FONT)
-		label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		label.add_theme_constant_override("outline_size", 10)
-		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		label.text = ""
+		label.visible = false
 	if label2 != null:
 		label2.text = ""
+		label2.visible = false
 
 	for i in range(5):
 		var score_lbl = get_node_or_null("score" + str(i)) as RichTextLabel
@@ -512,8 +511,8 @@ func _ready() -> void:
 		combocount_label.z_index = 2
 		combocount_label.add_theme_font_override("normal_font", combo_font)
 		combocount_label.add_theme_font_override("bold_font", combo_font)
-		combocount_label.add_theme_font_size_override("normal_font_size", 68)
-		combocount_label.add_theme_font_size_override("bold_font_size", 68)
+		combocount_label.add_theme_font_size_override("normal_font_size", 60)
+		combocount_label.add_theme_font_size_override("bold_font_size", 60)
 		combocount_label.add_theme_constant_override("outline_size", 6)
 		combocount_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 
@@ -671,10 +670,12 @@ func update_score_label() -> void:
 	for i in range(mini(5, divscore.size())):
 		_last_divscore[i] = divscore[i]
 		
-	# 洗練されたゴールド＋ホワイトのスコア表示（漢字「得点」）
-	label.text = "[b][color=#FFD700]得点 [/color][color=#FFFFFF]%s[/color][/b]" % _format_comma(totalScore)
+	# 得点表示は消去・非表示
+	label.text = ""
+	label.visible = false
 	if label2 != null:
 		label2.text = ""
+		label2.visible = false
 	
 	var max_len: int = 0
 	for i in range(mini(5, divscorelabel.size())):

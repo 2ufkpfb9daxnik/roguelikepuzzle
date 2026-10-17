@@ -59,12 +59,19 @@ enum BoardState {
 }
 
 # --- 盤面設定・定数 ---
-const GRID_COLUMNS: int = 10
-const GRID_ROWS: int = 10
+const GRID_COLUMNS: int = 13
+const GRID_ROWS: int = 13
 const CELL_KINDS: int = 5
-const OFFSET_X: float = 4000.0
-const OFFSET_Y: float = 1000.0
-const CELL_PITCH: float = 750.0
+const CELL_PITCH: float = 700.0
+
+const BOARD_LEFT: float = 2550.0
+const BOARD_TOP: float = 850.0
+const BOARD_WIDTH: float = 9100.0   # 13 * 700
+const BOARD_HEIGHT: float = 9100.0  # 13 * 700
+const BOARD_RIGHT: float = BOARD_LEFT + BOARD_WIDTH
+const BOARD_BOTTOM: float = BOARD_TOP + BOARD_HEIGHT
+const OFFSET_X: float = BOARD_LEFT
+const OFFSET_Y: float = BOARD_TOP
 
 # 落下物理パラメータ
 const GRAVITY: float = 45000.0        # 落下加速度
@@ -200,7 +207,7 @@ var isgameover: bool = false
 # 内部変数
 var current_state: BoardState = BoardState.IDLE
 
-var cellsize: Vector2 = Vector2(1.5, 1.5)
+var cellsize: Vector2 = Vector2(1.4, 1.4)
 var piece: Array = []        # Sprite2Dの1次元配列
 var piececollid: Array = []  # CollisionShape2D等の1次元配列
 
@@ -342,7 +349,7 @@ func _get_score_manager() -> Node2D:
 
 ## セルのローカル座標を取得
 func get_cell_position(r: int, c: int) -> Vector2:
-	return Vector2(4250.0 + (float(c) + 0.5) * CELL_PITCH, 1250.0 + (float(r) + 0.5) * CELL_PITCH)
+	return Vector2(BOARD_LEFT + (float(c) + 0.5) * CELL_PITCH, BOARD_TOP + (float(r) + 0.5) * CELL_PITCH)
 
 ## スコア欄ラベルをゲーム開始時の初期位置に厳密に復帰
 func _restore_score_label_positions() -> void:
@@ -607,8 +614,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if selected_cell.x != -1 and current_state == BoardState.IDLE:
 			if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
 				var clamped_pos = _current_local_mouse + drag_offset
-				clamped_pos.x = clampf(clamped_pos.x, 4250.0, 11750.0)
-				clamped_pos.y = clampf(clamped_pos.y, 1250.0, 8750.0)
+				clamped_pos.x = clampf(clamped_pos.x, BOARD_LEFT, BOARD_RIGHT)
+				clamped_pos.y = clampf(clamped_pos.y, BOARD_TOP, BOARD_BOTTOM)
 				piece[selected_piece_idx].position = clamped_pos
 			_update_hovered_swap_direction(_current_local_mouse)
 			if swap_guide_overlay:
@@ -652,8 +659,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var local_pos = _get_mouse_local()
 	_current_local_mouse = local_pos
-	var col_idx = int(floor((local_pos.x - 4250.0) / CELL_PITCH))
-	var row_idx = int(floor((local_pos.y - 1250.0) / CELL_PITCH))
+	var col_idx = int(floor((local_pos.x - BOARD_LEFT) / CELL_PITCH))
+	var row_idx = int(floor((local_pos.y - BOARD_TOP) / CELL_PITCH))
 	var is_in_bounds: bool = (row_idx >= 0 and row_idx < GRID_ROWS and col_idx >= 0 and col_idx < GRID_COLUMNS)
 
 	if mouse_event.pressed:
@@ -750,8 +757,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		is_holding = false
 		if selected_cell.x != -1:
 			var rel_pos = _get_mouse_local()
-			var rel_col = int(floor((rel_pos.x - 4250.0) / CELL_PITCH))
-			var rel_row = int(floor((rel_pos.y - 1250.0) / CELL_PITCH))
+			var rel_col = int(floor((rel_pos.x - BOARD_LEFT) / CELL_PITCH))
+			var rel_row = int(floor((rel_pos.y - BOARD_TOP) / CELL_PITCH))
 			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
 			
 			if rel_in_bounds and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) == 1):
@@ -3743,8 +3750,8 @@ func _process(delta: float) -> void:
 		_current_local_mouse = local_mouse
 		if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
 			var clamped_mouse = local_mouse + drag_offset
-			clamped_mouse.x = clampf(clamped_mouse.x, 4250.0, 11750.0)
-			clamped_mouse.y = clampf(clamped_mouse.y, 1250.0, 8750.0)
+			clamped_mouse.x = clampf(clamped_mouse.x, BOARD_LEFT, BOARD_RIGHT)
+			clamped_mouse.y = clampf(clamped_mouse.y, BOARD_TOP, BOARD_BOTTOM)
 			piece[selected_piece_idx].position = clamped_mouse
 		_update_hovered_swap_direction(local_mouse)
 		if swap_guide_overlay:
@@ -5128,7 +5135,7 @@ func _spawn_enemy_skill_beam_and_burst(sm: Node2D, enemy_sp: Sprite2D, elem_colo
 	var root_node = p if p != null else self
 
 	if targets.is_empty():
-		targets.append(Vector2(7500.0 / 2.0, 7500.0 / 2.0)) # Board center local approx
+		targets.append(Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, BOARD_TOP + BOARD_HEIGHT * 0.5))
 
 	_play_spell_beam_se()
 	
@@ -5348,7 +5355,7 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	for col in cols:
 		active_wind_tornadoes.append({
 			"col": col,
-			"y": 1250.0,
+			"y": BOARD_TOP,
 			"speed": 5500.0,
 			"active": true
 		})
@@ -6303,8 +6310,8 @@ func _update_hovered_swap_direction(local_mouse: Vector2) -> void:
 	var target_cell = Vector2i(-1, -1)
 
 	# 1. マウスが直接乗っているマスをチェック（マンハッタン距離1の隣接マス）
-	var m_col = int(floor((local_mouse.x - 4250.0) / CELL_PITCH))
-	var m_row = int(floor((local_mouse.y - 1250.0) / CELL_PITCH))
+	var m_col = int(floor((local_mouse.x - BOARD_LEFT) / CELL_PITCH))
+	var m_row = int(floor((local_mouse.y - BOARD_TOP) / CELL_PITCH))
 	if m_row >= 0 and m_row < GRID_ROWS and m_col >= 0 and m_col < GRID_COLUMNS:
 		if abs(m_row - selected_cell.x) + abs(m_col - selected_cell.y) == 1:
 			target_cell = Vector2i(m_row, m_col)

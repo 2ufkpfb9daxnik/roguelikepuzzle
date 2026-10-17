@@ -561,6 +561,7 @@ script = ExtResource("1_ycm5o")
 script = ExtResource("2_0elqe")
 
 [node name="RichTextLabel" type="RichTextLabel" parent="ScoreManager"]
+visible = false
 offset_right = 2000.0
 offset_bottom = 2000.0
 mouse_filter = 2
@@ -576,6 +577,7 @@ tab_size = 10
 script = SubResource("GDScript_t23u5")
 
 [node name="RichTextLabel2" type="RichTextLabel" parent="ScoreManager"]
+visible = false
 z_index = -1
 offset_left = -5.0
 offset_top = 5.0
@@ -828,16 +830,16 @@ script = SubResource("GDScript_t23u5")
 
 [node name="combo" type="RichTextLabel" parent="ScoreManager"]
 z_index = 2
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 280.0
-offset_right = 368.0
-offset_bottom = 360.0
+offset_right = 212.0
+offset_bottom = 355.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 48
-theme_override_font_sizes/italics_font_size = 48
-theme_override_font_sizes/mono_font_size = 48
-theme_override_font_sizes/normal_font_size = 48
-theme_override_font_sizes/bold_font_size = 48
+theme_override_font_sizes/bold_italics_font_size = 38
+theme_override_font_sizes/italics_font_size = 38
+theme_override_font_sizes/mono_font_size = 38
+theme_override_font_sizes/normal_font_size = 38
+theme_override_font_sizes/bold_font_size = 38
 bbcode_enabled = true
 text = "[center]COMBO[/center]"
 tab_size = 10
@@ -845,16 +847,16 @@ script = SubResource("GDScript_t23u5")
 
 [node name="combocount" type="RichTextLabel" parent="ScoreManager"]
 z_index = 2
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 350.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 465.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 72
-theme_override_font_sizes/italics_font_size = 72
-theme_override_font_sizes/mono_font_size = 72
-theme_override_font_sizes/normal_font_size = 72
-theme_override_font_sizes/bold_font_size = 72
+theme_override_font_sizes/bold_italics_font_size = 64
+theme_override_font_sizes/italics_font_size = 64
+theme_override_font_sizes/mono_font_size = 64
+theme_override_font_sizes/normal_font_size = 64
+theme_override_font_sizes/bold_font_size = 64
 bbcode_enabled = true
 text = "[center]0[/center]"
 tab_size = 10
@@ -862,18 +864,18 @@ script = SubResource("GDScript_t23u5")
 
 [node name="comborect1" type="ColorRect" parent="ScoreManager"]
 z_index = -10
-offset_left = 34.0
+offset_left = 26.0
 offset_top = 266.0
-offset_right = 372.0
+offset_right = 216.0
 offset_bottom = 478.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="comborect2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 270.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 474.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
@@ -913,9 +915,9 @@ color = Color(0.02, 0.02, 0.06, 0.88)
 [node name="feverrect" type="ColorRect" parent="ScoreManager"]
 visible = false
 z_index = 8
-offset_left = 34.0
+offset_left = 26.0
 offset_top = 490.0
-offset_right = 372.0
+offset_right = 216.0
 offset_bottom = 740.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
@@ -923,9 +925,9 @@ color = Color(0.960784, 1, 0.0901961, 1)
 [node name="feverrect2" type="ColorRect" parent="ScoreManager"]
 visible = false
 z_index = 8
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 494.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 736.0
 mouse_filter = 2
 color = Color(0, 0, 0, 0.85)
@@ -933,34 +935,34 @@ color = Color(0, 0, 0, 0.85)
 [node name="feverlabel2" type="RichTextLabel" parent="ScoreManager"]
 visible = false
 z_index = 9
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 502.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 548.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 24
-theme_override_font_sizes/italics_font_size = 24
-theme_override_font_sizes/mono_font_size = 24
-theme_override_font_sizes/normal_font_size = 24
-theme_override_font_sizes/bold_font_size = 24
+theme_override_font_sizes/bold_italics_font_size = 18
+theme_override_font_sizes/italics_font_size = 18
+theme_override_font_sizes/mono_font_size = 18
+theme_override_font_sizes/normal_font_size = 18
+theme_override_font_sizes/bold_font_size = 18
 bbcode_enabled = true
-text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]★ フィーバータイム ★[/wave][/rainbow][/center]"
+text = "[center][rainbow freq=0.5 sat=2 val=20][wave amp=100 freq=5]★ FEVER ★[/wave][/rainbow][/center]"
 tab_size = 10
 script = SubResource("GDScript_t23u5")
 
 [node name="feverlabel3" type="RichTextLabel" parent="ScoreManager"]
 visible = false
 z_index = 9
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 546.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 592.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 24
-theme_override_font_sizes/italics_font_size = 24
-theme_override_font_sizes/mono_font_size = 24
-theme_override_font_sizes/normal_font_size = 24
-theme_override_font_sizes/bold_font_size = 24
+theme_override_font_sizes/bold_italics_font_size = 20
+theme_override_font_sizes/italics_font_size = 20
+theme_override_font_sizes/mono_font_size = 20
+theme_override_font_sizes/normal_font_size = 20
+theme_override_font_sizes/bold_font_size = 20
 bbcode_enabled = true
 text = "[center][b][color=#FFD700]スコア2倍[/color][/b][/center]"
 tab_size = 10
@@ -969,16 +971,16 @@ script = SubResource("GDScript_t23u5")
 [node name="fevertime" type="RichTextLabel" parent="ScoreManager"]
 visible = false
 z_index = 9
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 590.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 630.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 22
-theme_override_font_sizes/italics_font_size = 22
-theme_override_font_sizes/mono_font_size = 22
-theme_override_font_sizes/normal_font_size = 22
-theme_override_font_sizes/bold_font_size = 22
+theme_override_font_sizes/bold_italics_font_size = 18
+theme_override_font_sizes/italics_font_size = 18
+theme_override_font_sizes/mono_font_size = 18
+theme_override_font_sizes/normal_font_size = 18
+theme_override_font_sizes/bold_font_size = 18
 bbcode_enabled = true
 text = "[center][b][color=#FFFFFF]残り手数[/color][/b][/center]"
 tab_size = 10
@@ -987,16 +989,16 @@ script = SubResource("GDScript_t23u5")
 [node name="fevertimecount" type="RichTextLabel" parent="ScoreManager"]
 visible = false
 z_index = 9
-offset_left = 38.0
+offset_left = 30.0
 offset_top = 628.0
-offset_right = 368.0
+offset_right = 212.0
 offset_bottom = 725.0
 mouse_filter = 2
-theme_override_font_sizes/bold_italics_font_size = 52
-theme_override_font_sizes/italics_font_size = 52
-theme_override_font_sizes/mono_font_size = 52
-theme_override_font_sizes/normal_font_size = 52
-theme_override_font_sizes/bold_font_size = 54
+theme_override_font_sizes/bold_italics_font_size = 46
+theme_override_font_sizes/italics_font_size = 46
+theme_override_font_sizes/mono_font_size = 46
+theme_override_font_sizes/normal_font_size = 46
+theme_override_font_sizes/bold_font_size = 46
 bbcode_enabled = true
 text = "[center][b][color=#FF1744]0[/color][/b][/center]"
 tab_size = 10
@@ -1058,30 +1060,30 @@ color = Color(0, 0, 0, 1)
 script = ExtResource("3_tkwor")
 
 [node name="StageLabel" type="RichTextLabel" parent="StageManager"]
-offset_left = 7.0
-offset_top = 138.0
-offset_right = 411.0
-offset_bottom = 234.0
-theme_override_font_sizes/bold_italics_font_size = 80
-theme_override_font_sizes/italics_font_size = 80
-theme_override_font_sizes/mono_font_size = 80
-theme_override_font_sizes/normal_font_size = 80
-theme_override_font_sizes/bold_font_size = 80
+offset_left = 20.0
+offset_top = 150.0
+offset_right = 230.0
+offset_bottom = 240.0
+theme_override_font_sizes/bold_italics_font_size = 48
+theme_override_font_sizes/italics_font_size = 48
+theme_override_font_sizes/mono_font_size = 48
+theme_override_font_sizes/normal_font_size = 48
+theme_override_font_sizes/bold_font_size = 48
 bbcode_enabled = true
 text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 "
 
 [node name="StageLabel2" type="RichTextLabel" parent="StageManager"]
 z_index = -1
-offset_left = 7.0
-offset_top = 138.0
-offset_right = 411.0
-offset_bottom = 234.0
-theme_override_font_sizes/bold_italics_font_size = 80
-theme_override_font_sizes/italics_font_size = 80
-theme_override_font_sizes/mono_font_size = 80
-theme_override_font_sizes/normal_font_size = 80
-theme_override_font_sizes/bold_font_size = 80
+offset_left = 20.0
+offset_top = 150.0
+offset_right = 230.0
+offset_bottom = 240.0
+theme_override_font_sizes/bold_italics_font_size = 48
+theme_override_font_sizes/italics_font_size = 48
+theme_override_font_sizes/mono_font_size = 48
+theme_override_font_sizes/normal_font_size = 48
+theme_override_font_sizes/bold_font_size = 48
 bbcode_enabled = true
 text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 "
