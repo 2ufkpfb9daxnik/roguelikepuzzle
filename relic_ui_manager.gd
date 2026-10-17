@@ -284,6 +284,7 @@ func _on_relic_added(id: String) -> void:
 	elif rarity == "epic": rect.color = Color(0.60, 0.18, 0.82)
 	elif rarity == "rare": rect.color = Color(0.18, 0.45, 0.92)
 	elif rarity == "uncommon": rect.color = Color(0.16, 0.68, 0.24)
+	elif rarity == "cursed": rect.color = Color(0.55, 0.06, 0.16)
 	else: rect.color = Color(0.48, 0.50, 0.54)
 
 	var border = ReferenceRect.new()
@@ -292,6 +293,7 @@ func _on_relic_added(id: String) -> void:
 	elif rarity == "epic": border.border_color = Color(0.9, 0.5, 1.0, 1.0); border.border_width = 2.5
 	elif rarity == "rare": border.border_color = Color(0.45, 0.75, 1.0, 1.0); border.border_width = 2.0
 	elif rarity == "uncommon": border.border_color = Color(0.4, 0.95, 0.5, 1.0); border.border_width = 2.0
+	elif rarity == "cursed": border.border_color = Color(1.0, 0.20, 0.38, 1.0); border.border_width = 3.0
 	else: border.border_color = Color(0.75, 0.78, 0.82, 0.8); border.border_width = 1.5
 	border.editor_only = false
 	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -384,6 +386,9 @@ func _show_relic_tooltip(id: String, rect: ColorRect) -> void:
 	elif rarity == "uncommon":
 		r_color = "#4CAF50"
 		rarity_tag = "UNCOMMON"
+	elif rarity == "cursed":
+		r_color = "#FF1744"
+		rarity_tag = "☠ CURSED (呪い) ☠"
 	
 	var level_str = " (Lv%d/MAX)" % cur_lvl if is_max else " (Lv%d/%d)" % [cur_lvl, max_lvl]
 	name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + " [" + rarity_tag + "]" + level_str + "[/color][/b]"

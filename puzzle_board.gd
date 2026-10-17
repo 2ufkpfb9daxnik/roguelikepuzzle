@@ -192,6 +192,10 @@ var special_levels: Dictionary = {
 	SpecialItemType.GEMINI_BOMB: 0
 }
 
+var last_swap_cells: Array = []
+var pending_special_spawns: Dictionary = {} # Vector2i -> int (SpecialItemType)
+var steady_spark_triggered_this_turn: bool = false
+
 # 演出用状態
 var encolor: float = 1.0
 var isattack: int = 0
@@ -866,6 +870,8 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 		return
 
 	current_state = BoardState.SWAPPING
+	last_swap_cells = [Vector2i(r1, c1), Vector2i(r2, c2)]
+	steady_spark_triggered_this_turn = false
 
 	var idx1 = grid_i[r1][c1]
 	var idx2 = grid_i[r2][c2]
@@ -908,9 +914,11 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	# スワップ後にマッチが存在するか判定
 	var has_match = _check_matches_exist()
 	if has_match:
+		_detect_and_spawn_special_from_matches()
 		_check_and_trigger_bomb_reactions()
 		_start_match_highlight()
 	else:
+		last_swap_cells.clear()
 		# マッチ不成立：元に戻すアニメーション
 		var revert_tween = create_tween().set_parallel(true)
 		if p1: revert_tween.tween_property(p1, "position", pos1, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -1033,42 +1041,224 @@ func _get_dominant_attribute() -> int:
 			max_att = i
 	return max_att
 
-## 落下時の特殊アイテム抽選
+## 同色コマのn個消し（4消し、5個直線、交差、6個、7個以上）によるスキルコマ手動生成解析
+func _detect_and_spawn_special_from_matches() -> void:
+	pending_special_spawns.clear()
+
+	# 水平マッチセグメントと垂直マッチセグメントの収集
+	var segments: Array[Dictionary] = []
+
+	# 1. 水平セグメント
+	for r in range(GRID_ROWS):
+		var c = 0
+		while c < GRID_COLUMNS:
+			var kind = grid_n[r][c]
+			if kind < 0:
+				c += 1
+				continue
+			var match_len = 1
+			while c + match_len < GRID_COLUMNS and grid_n[r][c + match_len] == kind:
+				match_len += 1
+			if match_len >= 3:
+				var c_list: Array[Vector2i] = []
+				for k in range(c, c + match_len):
+					c_list.append(Vector2i(r, k))
+				segments.append({
+					"kind": kind,
+					"dir": "H",
+					"len": match_len,
+					"cells": c_list
+				})
+			c += match_len
+
+	# 2. 垂直セグメント
+	for c in range(GRID_COLUMNS):
+		var r = 0
+		while r < GRID_ROWS:
+			var kind = grid_n[r][c]
+			if kind < 0:
+				r += 1
+				continue
+			var match_len = 1
+			while r + match_len < GRID_ROWS and grid_n[r + match_len][c] == kind:
+				match_len += 1
+			if match_len >= 3:
+				var c_list: Array[Vector2i] = []
+				for k in range(r, r + match_len):
+					c_list.append(Vector2i(k, c))
+				segments.append({
+					"kind": kind,
+					"dir": "V",
+					"len": match_len,
+					"cells": c_list
+				})
+			r += match_len
+
+	if segments.is_empty():
+		return
+
+	# 3. 同色セグメント同士の連結グループ化 (Connected Components)
+	var num_segs = segments.size()
+	var parent_arr: Array[int] = []
+	for i in range(num_segs):
+		parent_arr.append(i)
+
+	var find_root = func(x: int, f_ref: Callable) -> int:
+		if parent_arr[x] == x:
+			return x
+		parent_arr[x] = f_ref.call(parent_arr[x], f_ref)
+		return parent_arr[x]
+
+	for i in range(num_segs):
+		for j in range(i + 1, num_segs):
+			if segments[i]["kind"] == segments[j]["kind"]:
+				var shares = false
+				for cell_i in segments[i]["cells"]:
+					if segments[j]["cells"].has(cell_i):
+						shares = true
+						break
+				if shares:
+					var root_i = find_root.call(i, find_root)
+					var root_j = find_root.call(j, find_root)
+					if root_i != root_j:
+						parent_arr[root_i] = root_j
+
+	var groups: Dictionary = {}
+	for i in range(num_segs):
+		var r_idx = find_root.call(i, find_root)
+		if not groups.has(r_idx):
+			groups[r_idx] = []
+		groups[r_idx].append(segments[i])
+
+	# 4. 各グループごとにスキル判定
+	for g_root in groups:
+		var g_segs: Array = groups[g_root]
+		var kind: int = g_segs[0]["kind"]
+		var all_cells_dict: Dictionary = {}
+		var intersections: Array[Vector2i] = []
+		var max_h: int = 0
+		var max_v: int = 0
+		var longest_seg_cells: Array[Vector2i] = []
+
+		for s in g_segs:
+			if s["dir"] == "H":
+				if s["len"] > max_h:
+					max_h = s["len"]
+					if s["len"] > longest_seg_cells.size():
+						longest_seg_cells = s["cells"]
+			else:
+				if s["len"] > max_v:
+					max_v = s["len"]
+					if s["len"] > longest_seg_cells.size():
+						longest_seg_cells = s["cells"]
+			for cell in s["cells"]:
+				if all_cells_dict.has(cell):
+					if not intersections.has(cell):
+						intersections.append(cell)
+				else:
+					all_cells_dict[cell] = true
+
+		var unique_cells: Array[Vector2i] = []
+		for c_pos in all_cells_dict:
+			unique_cells.append(c_pos)
+		var total_count = unique_cells.size()
+		var max_line = maxi(max_h, max_v)
+
+		# スキルレシピの選定（優先順位: 7消し > 6消し > 交差 > 5個直線 > 4個消し）
+		var target_sp: int = SpecialItemType.NONE
+
+		# Priority 1: 7個以上同時消し -> スターオーブ (DISCO_BALL = 3)
+		if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
+			target_sp = SpecialItemType.DISCO_BALL
+		# Priority 2: 6個同時消し -> ジェミニボム (GEMINI_BOMB = 12)
+		elif total_count >= 6 and special_levels.get(SpecialItemType.GEMINI_BOMB, 0) > 0:
+			target_sp = SpecialItemType.GEMINI_BOMB
+		# Priority 3: 交差消し (T/L/十字) -> クロスブレイズ (CROSS_BOMB = 2)
+		elif intersections.size() > 0 and special_levels.get(SpecialItemType.CROSS_BOMB, 0) > 0:
+			target_sp = SpecialItemType.CROSS_BOMB
+		# Priority 4: 5個一直線消し (max_line >= 5)
+		elif max_line >= 5:
+			match kind:
+				PieceType.SWORD: # 剣 -> LIGHTNING
+					if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0:
+						target_sp = SpecialItemType.LIGHTNING
+					elif special_levels.get(SpecialItemType.BOMB, 0) > 0:
+						target_sp = SpecialItemType.BOMB
+				PieceType.SHIELD: # 盾 -> COLOR_CONVERTER
+					if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
+						target_sp = SpecialItemType.COLOR_CONVERTER
+					elif special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
+						target_sp = SpecialItemType.CHARGE_BOMB
+				PieceType.COIN: # コイン -> MAGNET
+					if special_levels.get(SpecialItemType.MAGNET, 0) > 0:
+						target_sp = SpecialItemType.MAGNET
+					elif special_levels.get(SpecialItemType.TORNADO, 0) > 0:
+						target_sp = SpecialItemType.TORNADO
+				PieceType.POTION: # ポーション -> BLACK_HOLE
+					if special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
+						target_sp = SpecialItemType.BLACK_HOLE
+					elif special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
+						target_sp = SpecialItemType.AQUA_SPLASH
+				PieceType.FOOD: # パン -> COLOR_CONVERTER
+					if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
+						target_sp = SpecialItemType.COLOR_CONVERTER
+					elif special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
+						target_sp = SpecialItemType.TREE_SPROUT
+
+		# Priority 5: 4個消し (total_count >= 4 or max_line >= 4) または上位スキル未解放時のフォールバック
+		if target_sp == SpecialItemType.NONE and (total_count >= 4 or max_line >= 4 or intersections.size() > 0):
+			match kind:
+				PieceType.SWORD: # 剣 -> BOMB
+					if special_levels.get(SpecialItemType.BOMB, 0) > 0:
+						target_sp = SpecialItemType.BOMB
+				PieceType.SHIELD: # 盾 -> CHARGE_BOMB
+					if special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
+						target_sp = SpecialItemType.CHARGE_BOMB
+				PieceType.COIN: # コイン -> TORNADO
+					if special_levels.get(SpecialItemType.TORNADO, 0) > 0:
+						target_sp = SpecialItemType.TORNADO
+				PieceType.POTION: # ポーション -> AQUA_SPLASH
+					if special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
+						target_sp = SpecialItemType.AQUA_SPLASH
+				PieceType.FOOD: # パン -> TREE_SPROUT
+					if special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
+						target_sp = SpecialItemType.TREE_SPROUT
+
+		# スキル未解放ならコマは生成しない
+		if target_sp == SpecialItemType.NONE:
+			continue
+
+		# ピボットセル（生成位置）の選定
+		var pivot: Vector2i = Vector2i(-1, -1)
+		if intersections.size() > 0:
+			pivot = intersections[0]
+		else:
+			for swap_pos in last_swap_cells:
+				if unique_cells.has(swap_pos):
+					pivot = swap_pos
+					break
+			if pivot == Vector2i(-1, -1):
+				if longest_seg_cells.size() > 0:
+					pivot = longest_seg_cells[longest_seg_cells.size() / 2]
+				else:
+					pivot = unique_cells[unique_cells.size() / 2]
+
+		if pivot != Vector2i(-1, -1):
+			pending_special_spawns[pivot] = target_sp
+
+			# Lv3ボーナス: 2個同時生成アビリティ解放
+			var sp_lvl = special_levels.get(target_sp, 0)
+			if sp_lvl >= 3:
+				for extra_cell in unique_cells:
+					if extra_cell != pivot and not pending_special_spawns.has(extra_cell):
+						pending_special_spawns[extra_cell] = target_sp
+						break
+
+## 落下時の特殊アイテム抽選（仕様刷新：スキルコマは同じコマのn個消しのみで生成され、自動落下・自動湧きは完全廃止）
 func _roll_falling_special() -> int:
-	var unlocked: Array[int] = []
-	var total_levels: int = 0
-	for item_type in special_levels:
-		var lvl: int = special_levels[item_type]
-		if lvl > 0:
-			unlocked.append(item_type)
-			total_levels += lvl
+	return SpecialItemType.NONE
 
-	if unlocked.is_empty() or total_levels <= 0:
-		return SpecialItemType.NONE
-
-	# 落下確率は未解放時 0% 〜 解放レベルに応じて微増し最大 3% (0.03) に厳格制限
-	var chance: float = clampf(float(total_levels) * 0.005, 0.0, 0.03)
-	if randf() >= chance:
-		return SpecialItemType.NONE
-
-	# 内訳の加重ランダム抽選（ディスコボール等の強すぎるアイテムは極小ウェイト）
-	var total_weight: float = 0.0
-	for item_type in unlocked:
-		total_weight += SPECIAL_DROP_WEIGHTS.get(item_type, 10.0)
-
-	if total_weight <= 0.0:
-		return unlocked[0]
-
-	var roll: float = randf() * total_weight
-	var accumulated: float = 0.0
-	for item_type in unlocked:
-		accumulated += SPECIAL_DROP_WEIGHTS.get(item_type, 10.0)
-		if roll <= accumulated:
-			return item_type
-
-	return unlocked[0]
-
-## 毎ターン開始時の特殊アイテム生成およびチャージ進行
+## 毎ターン開始時の特殊アイテム処理（仕様刷新：自動湧き廃止、植物処理と既存蓄電のみ進行）
 func _spawn_turn_specials() -> void:
 	if special_item.size() != GRID_ROWS:
 		return
@@ -1082,37 +1272,6 @@ func _spawn_turn_specials() -> void:
 			if special_item[r][c] == SpecialItemType.CHARGE_BOMB:
 				special_charge[r][c] = mini(3, special_charge[r][c] + 1)
 
-	# 2. 空きマス候補の収集
-	var candidates: Array[Vector2i] = []
-	for r in range(GRID_ROWS):
-		for c in range(GRID_COLUMNS):
-			if grid_i[r][c] != -1 and special_item[r][c] == SpecialItemType.NONE and not is_bomb[r][c]:
-				candidates.append(Vector2i(r, c))
-
-	candidates.shuffle()
-
-	# 3. 解放済みアイテムの生成
-	var cand_idx: int = 0
-	for item_type in special_levels:
-		var lvl: int = special_levels[item_type]
-		if lvl <= 0:
-			continue
-
-		var spawn_num: int = 1
-		if lvl >= 3:
-			spawn_num = 2 # Lv3以上なら毎ターン2個生成
-
-		for k in range(spawn_num):
-			if cand_idx >= candidates.size():
-				break
-			var pos = candidates[cand_idx]
-			cand_idx += 1
-			special_item[pos.x][pos.y] = item_type
-			if is_bomb.size() == GRID_ROWS:
-				is_bomb[pos.x][pos.y] = true
-			if item_type == SpecialItemType.CHARGE_BOMB:
-				special_charge[pos.x][pos.y] = 1
-
 	_redraw_board_effects()
 
 func _spawn_turn_bombs() -> void:
@@ -1120,6 +1279,8 @@ func _spawn_turn_bombs() -> void:
 
 ## クリックによる即時起爆（1手消費）
 func _detonate_special_by_click(r: int, c: int) -> void:
+	steady_spark_triggered_this_turn = false
+	last_swap_cells.clear()
 	var sm = _get_stage_manager()
 	if sm and sm.isfevertime:
 		sm.fevercount -= 1
@@ -3315,14 +3476,30 @@ func _start_breaking_animation() -> void:
 			var p = piece[idx]
 			var kind = grid_n[cell.x][cell.y]
 
-			# 放射状破片パーティクルを生成
-			_spawn_burst_particles(p.position, kind)
+			if pending_special_spawns.has(cell):
+				# ピボットセル: 破壊消滅させず、特殊アイテムへの変身・残留アニメーション
+				var sp_type = pending_special_spawns[cell]
+				special_item[cell.x][cell.y] = sp_type
+				if is_bomb.size() == GRID_ROWS:
+					is_bomb[cell.x][cell.y] = true
+				if sp_type == SpecialItemType.CHARGE_BOMB:
+					special_charge[cell.x][cell.y] = 1
+				ismatched[cell.x][cell.y] = false
 
-			# コマ自体のポップ＆バースト消滅
-			var rand_rot = randf_range(-0.4, 0.4)
-			tween.tween_property(p, "scale", Vector2.ZERO, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-			tween.tween_property(p, "rotation", rand_rot, 0.18)
-			tween.tween_property(p, "modulate:a", 0.0, 0.18)
+				# ポップ＆弾む変身アニメーション
+				tween.tween_property(p, "scale", cellsize * 1.35, 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				tween.chain().tween_property(p, "scale", cellsize, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				_spawn_floating_text(p.position, "SKILL CREATED!", Color(1.0, 0.9, 0.3))
+				_spawn_special_sparkle_effect(p.position)
+			else:
+				# 放射状破片パーティクルを生成
+				_spawn_burst_particles(p.position, kind)
+
+				# コマ自体のポップ＆バースト消滅
+				var rand_rot = randf_range(-0.4, 0.4)
+				tween.tween_property(p, "scale", Vector2.ZERO, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+				tween.tween_property(p, "rotation", rand_rot, 0.18)
+				tween.tween_property(p, "modulate:a", 0.0, 0.18)
 
 			# 右側のステータス枠に向かって飛ぶエフェクト（確実に属性に対応したテクスチャを使用）
 			var fly_sprite: Sprite2D = _get_sprite_from_pool()
@@ -3338,14 +3515,18 @@ func _start_breaking_animation() -> void:
 
 	# 「すべてが消えるまで待つ」
 	if has_breaking:
-			var _t_aw_tween_finished = Time.get_ticks_usec()
-			await tween.finished
-			print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
+		var _t_aw_tween_finished = Time.get_ticks_usec()
+		await tween.finished
+		print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 	else:
 		tween.kill()
 
 	# スプライトを破棄し、マスを空にする
 	for cell in matched_cells_list:
+		if pending_special_spawns.has(cell):
+			# 生成されたスキルコマは破棄せずそのまま盤面に残留
+			continue
+
 		var idx = grid_i[cell.x][cell.y]
 		if idx >= 0 and idx < piece.size() and piece[idx] != null:
 			piece[idx].queue_free(); Profiler.queue_free_count += 1
@@ -3368,6 +3549,7 @@ func _start_breaking_animation() -> void:
 		if grid_cursed.size() == GRID_ROWS:
 			grid_cursed[cell.x][cell.y] = false
 
+	pending_special_spawns.clear()
 	_redraw_board_effects()
 	_compact_piece_arrays()
 	_start_continuous_falling()
@@ -3721,13 +3903,105 @@ func _check_cascade() -> void:
 
 	var has_match = _check_matches_exist()
 	if has_match:
+		_detect_and_spawn_special_from_matches()
 		_check_and_trigger_bomb_reactions()
 		_start_match_highlight()
 	else:
+		# 定常状態（マッチ連鎖終了）：定常状態レリック（共鳴の点火石）の起爆判定
+		if not steady_spark_triggered_this_turn:
+			steady_spark_triggered_this_turn = true
+			var rm = _get_relic_manager()
+			if rm and rm.trigger_steady_state_relics(self):
+				return
 		# 盤面が安定したらターン演出へ
 		current_state = BoardState.TURN_SEQUENCE
 		endbreak = true
 		interval = 0
+
+## 共鳴の点火石レリック：定常状態突入時の自動起爆
+func trigger_random_specials_for_spark(det_count: int) -> bool:
+	if special_item.size() != GRID_ROWS:
+		return false
+	var specials: Array[Vector2i] = []
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_i[r][c] != -1:
+				var sp = special_item[r][c]
+				var b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
+				if sp != SpecialItemType.NONE or b:
+					specials.append(Vector2i(r, c))
+	if specials.is_empty():
+		return false
+	specials.shuffle()
+	var to_detonate: Array = []
+	for i in range(mini(det_count, specials.size())):
+		var pos = specials[i]
+		to_detonate.append(pos)
+		_spawn_floating_text(get_cell_position(pos.x, pos.y), "共鳴起爆！", Color(1.0, 0.65, 0.15))
+	_detonate_specials(to_detonate)
+	_start_match_highlight()
+	return true
+
+## 暴食の聖杯レリック：毎ターン開始時の障害物（石・氷・呪い）生成
+func spawn_random_hazard_for_curse() -> void:
+	if grid_i.size() != GRID_ROWS:
+		return
+	var cands: Array[Vector2i] = []
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_i[r][c] != -1 and not _is_plant_cell(r, c):
+				var has_stone = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
+				var has_ice = (grid_ice.size() == GRID_ROWS and grid_ice[r][c] > 0)
+				var has_statue = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0)
+				if not has_stone and not has_ice and not has_statue:
+					cands.append(Vector2i(r, c))
+	if cands.is_empty():
+		return
+	cands.shuffle()
+	var p = cands[0]
+	var r_type = randi() % 3
+	if r_type == 0 and grid_stones.size() == GRID_ROWS:
+		grid_stones[p.x][p.y] = 2
+		_spawn_floating_text(get_cell_position(p.x, p.y), "呪石", Color(0.6, 0.4, 0.7))
+		_spawn_stone_break_effect(get_cell_position(p.x, p.y))
+	elif r_type == 1 and grid_ice.size() == GRID_ROWS:
+		grid_ice[p.x][p.y] = 2
+		_spawn_floating_text(get_cell_position(p.x, p.y), "呪氷", Color(0.4, 0.7, 0.9))
+		_spawn_ice_break_effect(get_cell_position(p.x, p.y))
+	else:
+		if grid_cursed.size() == GRID_ROWS:
+			grid_cursed[p.x][p.y] = true
+			_spawn_floating_text(get_cell_position(p.x, p.y), "呪禍", Color(0.8, 0.2, 0.4))
+			_spawn_curse_burst_effect(get_cell_position(p.x, p.y))
+	if board_bg:
+		board_bg.queue_redraw()
+	_redraw_board_effects()
+
+## スキルコマ生成時のキラキラ輝き演出
+func _spawn_special_sparkle_effect(pos: Vector2) -> void:
+	var effects_parent = get_node_or_null("Effects")
+	if not effects_parent: effects_parent = self
+	var p = CPUParticles2D.new()
+	p.position = pos
+	p.emitting = true
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.amount = 16
+	p.lifetime = 0.4
+	p.direction = Vector2.ZERO
+	p.spread = 180.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 120.0
+	p.initial_velocity_max = 280.0
+	p.scale_amount_min = 6.0
+	p.scale_amount_max = 14.0
+	p.color = Color(1.2, 1.1, 0.4, 1.0)
+	effects_parent.add_child(p)
+	get_tree().create_timer(0.45).timeout.connect(p.queue_free)
+	var se2 = get_node_or_null("AudioStreamPlayer2")
+	if se2:
+		se2.pitch_scale = 1.4
+		se2.play()
 
 ## piece 配列の null 詰め
 func _compact_piece_arrays() -> void:
@@ -6303,14 +6577,24 @@ func _debug_apply_element_random(el: int) -> void:
 	print("[DEBUG] Applied element ", ElementDataScript.get_element_name(el), " to ", applied_count, " pieces.")
 
 func _get_relic_manager() -> Node:
-	return get_tree().get_root().find_child("RelicManager", true, false)
+	var p = get_parent()
+	if p:
+		var rm = p.get_node_or_null("RelicManager")
+		if rm: return rm
+	var tree = get_tree()
+	if tree and tree.get_root():
+		return tree.get_root().find_child("RelicManager", true, false)
+	return null
 
 func _get_relic_ui_manager() -> Node:
 	var p = get_parent()
 	if p:
 		var r_ui = p.get_node_or_null("RelicUIManager")
 		if r_ui: return r_ui
-	return get_tree().get_root().find_child("RelicUIManager", true, false)
+	var tree = get_tree()
+	if tree and tree.get_root():
+		return tree.get_root().find_child("RelicUIManager", true, false)
+	return null
 
 func _hide_cell_hover_tooltip() -> void:
 	_last_hovered_cell = Vector2i(-1, -1)

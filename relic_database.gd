@@ -2,11 +2,12 @@ class_name RelicDatabase
 extends RefCounted
 
 const RARITY_WEIGHTS: Dictionary = {
-	"common": 42,
-	"uncommon": 28,
-	"rare": 16,
+	"common": 38,
+	"uncommon": 25,
+	"rare": 15,
 	"epic": 10,
-	"legendary": 4
+	"legendary": 4,
+	"cursed": 8
 }
 
 const RARITY_MAX_LEVELS: Dictionary = {
@@ -14,7 +15,8 @@ const RARITY_MAX_LEVELS: Dictionary = {
 	"uncommon": 4,
 	"rare": 3,
 	"epic": 3,
-	"legendary": 2
+	"legendary": 2,
+	"cursed": 3
 }
 
 const RELICS: Dictionary = {
@@ -318,6 +320,58 @@ const RELICS: Dictionary = {
 			{"coin_bonus": 0.50, "per_score": 10000, "dmg_per_step": 0.01, "max_dmg_bonus": 0.50},
 			{"coin_bonus": 1.00, "per_score": 10000, "dmg_per_step": 0.015, "max_dmg_bonus": 1.00}
 		]
+	},
+	"resonant_spark": {
+		"id": "resonant_spark",
+		"name": "共鳴の点火石",
+		"rarity": "rare",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "連鎖終了の定常状態に入った時、場にあるランダムなスキルコマを自動起爆する",
+		"levels": [
+			{"detonate_count": 1},
+			{"detonate_count": 2},
+			{"detonate_count": 3}
+		]
+	},
+	"cursed_shura_sword": {
+		"id": "cursed_shura_sword",
+		"name": "修羅の魔剣",
+		"rarity": "cursed",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "【呪い】剣攻撃力が2.5倍になるが、最大HPが半分になる",
+		"levels": [
+			{"sword_multiplier": 2.5, "hp_multiplier": 0.5},
+			{"sword_multiplier": 3.0, "hp_multiplier": 0.5},
+			{"sword_multiplier": 3.5, "hp_multiplier": 0.5}
+		]
+	},
+	"cursed_gluttony_grail": {
+		"id": "cursed_gluttony_grail",
+		"name": "暴食の聖杯",
+		"rarity": "cursed",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "【呪い】回復量が3倍になるが、毎ターン盤面1マスに動かせない障害物が発生する",
+		"levels": [
+			{"heal_multiplier": 3.0, "hazard_count": 1},
+			{"heal_multiplier": 3.5, "hazard_count": 1},
+			{"heal_multiplier": 4.0, "hazard_count": 1}
+		]
+	},
+	"cursed_midas_touch": {
+		"id": "cursed_midas_touch",
+		"name": "黄金のミダスタッチ",
+		"rarity": "cursed",
+		"max_level": 3,
+		"requires_element": false,
+		"description": "【呪い】コイン獲得量が3倍になるが、敵の攻撃力も+30%上昇する",
+		"levels": [
+			{"coin_multiplier": 3.0, "enemy_atk_mult": 1.3},
+			{"coin_multiplier": 3.5, "enemy_atk_mult": 1.3},
+			{"coin_multiplier": 4.0, "enemy_atk_mult": 1.3}
+		]
 	}
 }
 
@@ -433,5 +487,17 @@ static func get_description(id: String, level: int) -> String:
 			var cb = int(round(float(p.get("coin_bonus", 0.50)) * 100.0))
 			var mb = int(round(float(p.get("max_dmg_bonus", 0.50)) * 100.0))
 			return "コイン獲得スコア +%d%%。累計1万スコア毎に与ダメージ +1%%（上限 +%d%%）" % [cb, mb]
+		"resonant_spark":
+			var dc = int(p.get("detonate_count", 1))
+			return "手番終了の定常状態に入った時、場にあるスキルコマをランダムに%d個自動起爆する" % [dc]
+		"cursed_shura_sword":
+			var sm = float(p.get("sword_multiplier", 2.5))
+			return "【呪い】剣攻撃力が%.1f倍になるが、最大HPが半分（-50%%）になる" % [sm]
+		"cursed_gluttony_grail":
+			var hm = float(p.get("heal_multiplier", 3.0))
+			return "【呪い】ポーション/パン回復量が%.1f倍になるが、毎ターン盤面に障害物（石・氷・呪い）が1マス発生する" % [hm]
+		"cursed_midas_touch":
+			var cm = float(p.get("coin_multiplier", 3.0))
+			return "【呪い】コイン獲得量が%.1f倍になるが、敵の攻撃力も+30%%上昇する" % [cm]
 		_:
 			return r.get("description", "")

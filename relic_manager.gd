@@ -27,6 +27,13 @@ func add_relic(id: String) -> void:
 	if not owned_relics.has(id):
 		owned_relics[id] = 1
 		print("Relic Added: ", id, " (Lv1)")
+		if id == "cursed_shura_sword":
+			var p = get_parent()
+			var sm = p.get_node_or_null("StageManager") if p else null
+			if sm and "myhpmax" in sm and sm.myhpmax > 0:
+				sm.myhpmax = maxf(100.0, sm.myhpmax * 0.5)
+				sm.myhp = minf(sm.myhp, sm.myhpmax)
+				sm.myhppar = sm.myhp / sm.myhpmax
 		emit_signal("relic_added", id)
 	else:
 		if owned_relics[id] < max_l:
@@ -129,6 +136,14 @@ func on_turn_start() -> void:
 					sm.calchp(0, actual_self_dmg)
 				emit_signal("relic_triggered", "bloodstained_sword")
 
+	if has_relic("cursed_gluttony_grail"):
+		var p = get_parent()
+		if p:
+			var pb = p.get_node_or_null("PuzzleBoard")
+			if pb and pb.has_method("spawn_random_hazard_for_curse"):
+				pb.spawn_random_hazard_for_curse()
+				emit_signal("relic_triggered", "cursed_gluttony_grail")
+
 ## --- ステップ3 追加フック ---
 func on_special_detonated(_type: int) -> void:
 	temp_state["special_detonation_count"] = int(temp_state.get("special_detonation_count", 0)) + 1
@@ -178,11 +193,16 @@ func on_potions_cleared(count: int) -> void:
 	temp_state["potions_cleared_this_turn"] = int(temp_state.get("potions_cleared_this_turn", 0)) + count
 
 func modify_coin_gain(base_coins: float) -> float:
+	var mult = 1.0
 	if has_relic("midas_chalice"):
 		var bonus = float(get_param("midas_chalice", "coin_bonus", 0.50))
+		mult += bonus
 		emit_signal("relic_triggered", "midas_chalice")
-		return base_coins * (1.0 + bonus)
-	return base_coins
+	if has_relic("cursed_midas_touch"):
+		var c_mult = float(get_param("cursed_midas_touch", "coin_multiplier", 3.0))
+		mult *= c_mult
+		emit_signal("relic_triggered", "cursed_midas_touch")
+	return base_coins * mult
 
 func is_all_weak_active(combo_or_cascade: int = 0) -> bool:
 	if has_relic("crown_of_origin"):
@@ -282,6 +302,11 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 	if has_relic("bloodstained_sword"):
 		bonus_mult += float(get_param("bloodstained_sword", "damage_bonus", 0.30))
 		emit_signal("relic_triggered", "bloodstained_sword")
+
+	if has_relic("cursed_shura_sword"):
+		var sm_mult = float(get_param("cursed_shura_sword", "sword_multiplier", 2.5))
+		base_dmg *= sm_mult
+		emit_signal("relic_triggered", "cursed_shura_sword")
 		
 	if has_relic("desperate_banner"):
 		var hp_ratio = 1.0
@@ -439,10 +464,34 @@ func modify_damage_taken(base_dmg: float, _context: Dictionary) -> float:
 		
 	# 上限適用 (50%)
 	reduction = minf(reduction, RELIC_DAMAGE_REDUCTION_CAP)
-	return base_dmg * (1.0 - reduction)
+	var final_dmg = base_dmg * (1.0 - reduction)
+
+	if has_relic("cursed_midas_touch"):
+		var em = float(get_param("cursed_midas_touch", "enemy_atk_mult", 1.3))
+		final_dmg *= em
+		emit_signal("relic_triggered", "cursed_midas_touch")
+
+	return final_dmg
 
 func on_heal(amount: float) -> float:
+	if has_relic("cursed_gluttony_grail"):
+		var hm = float(get_param("cursed_gluttony_grail", "heal_multiplier", 3.0))
+		amount *= hm
+		emit_signal("relic_triggered", "cursed_gluttony_grail")
 	return amount
+
+## 定常状態（連鎖終了時）に入った時に発動するレリック処理
+func trigger_steady_state_relics(pb: Node2D) -> bool:
+	if not is_instance_valid(pb):
+		return false
+	if has_relic("resonant_spark"):
+		var det_count = int(get_param("resonant_spark", "detonate_count", 1))
+		if pb.has_method("trigger_random_specials_for_spark"):
+			var triggered = pb.trigger_random_specials_for_spark(det_count)
+			if triggered:
+				emit_signal("relic_triggered", "resonant_spark")
+				return true
+	return false
 
 func check_fatal_damage(hp: float, incoming_damage: float) -> float:
 	if owned_relics.is_empty():

@@ -8,6 +8,7 @@ const RELIC_WEIGHT_UNCOMMON: float = 28.0
 const RELIC_WEIGHT_RARE: float = 16.0
 const RELIC_WEIGHT_EPIC: float = 10.0
 const RELIC_WEIGHT_LEGENDARY: float = 4.0
+const RELIC_WEIGHT_CURSED: float = 8.0
 const RELIC_OWNED_WEIGHT_MULT: float = 1.5
 
 var panel: Panel
@@ -106,6 +107,8 @@ func _populate_choices() -> void:
 				base_w = RELIC_WEIGHT_EPIC
 			elif rarity == "legendary":
 				base_w = RELIC_WEIGHT_LEGENDARY
+			elif rarity == "cursed":
+				base_w = RELIC_WEIGHT_CURSED
 				
 			var w = base_w
 			if rm.has_relic(r_id):
@@ -145,6 +148,9 @@ func _populate_choices() -> void:
 			b_style.border_color = Color(0.25, 0.65, 1.0, 1.0)
 		elif rarity == "uncommon":
 			b_style.border_color = Color(0.25, 0.85, 0.35, 1.0)
+		elif rarity == "cursed":
+			b_style.border_color = Color(1.0, 0.15, 0.35, 1.0)
+			b_style.bg_color = Color(0.16, 0.04, 0.08, 0.98)
 		else:
 			b_style.border_color = Color(0.68, 0.72, 0.76, 1.0)
 		b_style.set_border_width_all(5)
@@ -194,6 +200,8 @@ func _populate_choices() -> void:
 			r_label.add_theme_color_override("font_color", Color(0.45, 0.75, 1.0))
 		elif rarity == "uncommon":
 			r_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
+		elif rarity == "cursed":
+			r_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.45))
 		else:
 			r_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
 		vbox.add_child(r_label)
@@ -212,6 +220,9 @@ func _populate_choices() -> void:
 		elif rarity == "uncommon":
 			rarity_label.text = "UNCOMMON"
 			rarity_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5))
+		elif rarity == "cursed":
+			rarity_label.text = "☠ CURSED (呪い) ☠"
+			rarity_label.add_theme_color_override("font_color", Color(1.0, 0.15, 0.35))
 		else:
 			rarity_label.text = "COMMON"
 			rarity_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
