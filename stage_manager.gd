@@ -475,6 +475,33 @@ func _input(event: InputEvent) -> void:
 					_update_target_indicator()
 					_play_target_se(true)
 
+func get_enemy_element(target_specifier = null) -> String:
+	var target_dict = {}
+	if target_specifier is Sprite2D:
+		for e in active_enemies:
+			if e.get("sprite") == target_specifier:
+				target_dict = e
+				break
+	elif typeof(target_specifier) == TYPE_INT and target_specifier >= 0 and target_specifier < active_enemies.size():
+		target_dict = active_enemies[target_specifier]
+	elif target_specifier is Dictionary:
+		target_dict = target_specifier
+	
+	if target_dict.is_empty():
+		return get_current_enemy_element()
+
+	var sp_data = target_dict.get("sp_data", {})
+	if sp_data.is_empty():
+		var e_key = target_dict.get("key", current_enemy_key)
+		sp_data = ENEMY_SPECIES.get(e_key, {})
+	var elem = sp_data.get("element", sp_data.get("race", "無属性"))
+	if typeof(elem) == TYPE_ARRAY:
+		if elem.size() > 0:
+			return elem[0]
+		else:
+			return "無属性"
+	return str(elem)
+
 func get_current_enemy_element() -> String:
 	var f_enemy = get_focused_enemy()
 	var sp_data = f_enemy.get("sp_data", {})
@@ -905,8 +932,21 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 			on_complete.call()
 	)
 	return true
-## 敵のアニメーションが動作中か判定
 func is_enemy_animating() -> bool:
+	if active_enemies.is_empty():
+		_active_single_anims.clear()
+		is_playing_custom_animation = false
+		_current_custom_anim = ""
+		return false
+	var invalid_keys = []
+	for k in _active_single_anims.keys():
+		if not is_instance_valid(k):
+			invalid_keys.append(k)
+	for k in invalid_keys:
+		_active_single_anims.erase(k)
+	if _active_single_anims.is_empty() and (_anim_tween == null or not _anim_tween.is_valid()):
+		is_playing_custom_animation = false
+		_current_custom_anim = ""
 	return is_playing_custom_animation or _active_single_anims.size() > 0 or (_anim_tween != null and _anim_tween.is_valid())
 
 ## 敵攻撃時の疾走突進効果音の再生
@@ -1045,18 +1085,36 @@ func reset_enemy_zoom(duration: float = 0.18) -> void:
 			e_spr.z_index = 0
 			_enemy_zoom_tween.tween_property(e_spr, "modulate", Color.WHITE, duration)
 
-## HP計算（ダメージ適用：集中攻撃ターゲットへダメージを優先適用）
-func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
+## HP計算（ダメージ適用：指定された敵、または集中攻撃ターゲットへダメージを適用）
+func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = null) -> void:
 	myhp = clampf(myhp - damage_to_player, 0.0, myhpmax)
 	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
 	
 	if damage_to_enemy > 0.0 and active_enemies.size() > 0:
-		var target_idx = get_focused_enemy_index()
-		if target_idx < 0: target_idx = 0
+		var target_idx: int = -1
+		if target_specifier is Sprite2D:
+			for idx in range(active_enemies.size()):
+				if active_enemies[idx].get("sprite") == target_specifier:
+					target_idx = idx
+					break
+		elif typeof(target_specifier) == TYPE_INT and target_specifier >= 0 and target_specifier < active_enemies.size():
+			target_idx = target_specifier
+		elif target_specifier is Dictionary:
+			for idx in range(active_enemies.size()):
+				if active_enemies[idx] == target_specifier:
+					target_idx = idx
+					break
+		
+		# 指定敵が見つからない場合は、フォーカス敵（または0番目）
+		if target_idx < 0:
+			target_idx = get_focused_enemy_index()
+			if target_idx < 0 or target_idx >= active_enemies.size():
+				target_idx = 0
+
 		var e_data = active_enemies[target_idx]
 		if e_data["hp"] > 0:
 			e_data["hp"] -= damage_to_enemy
-			if is_instance_valid(e_data["sprite"]):
+			if is_instance_valid(e_data.get("sprite")):
 				var spr = e_data["sprite"]
 				if spr.has_meta("dmg_tw"):
 					var old_tw = spr.get_meta("dmg_tw")
@@ -1067,34 +1125,45 @@ func calchp(damage_to_enemy: float, damage_to_player: float) -> void:
 				spr.modulate = Color(2.0, 1.8, 1.8, 1.0)
 				tw.tween_property(spr, "modulate", Color.WHITE, 0.12)
 			if e_data["hp"] <= 0:
-				if is_instance_valid(e_data["sprite"]):
+				if is_instance_valid(e_data.get("sprite")):
+					var dead_spr = e_data["sprite"]
+					if _active_single_anims.has(dead_spr):
+						_active_single_anims.erase(dead_spr)
 					var die_tw = create_tween()
-					die_tw.tween_property(e_data["sprite"], "scale", Vector2.ZERO, 0.2)
-					die_tw.tween_callback(e_data["sprite"].queue_free)
-				if is_instance_valid(e_data["bar_bg"]): e_data["bar_bg"].queue_free()
+					die_tw.tween_property(dead_spr, "scale", Vector2.ZERO, 0.2)
+					die_tw.tween_callback(dead_spr.queue_free)
+				if e_data.has("bar_bg") and is_instance_valid(e_data["bar_bg"]): e_data["bar_bg"].queue_free()
 				if e_data.has("bar_red") and is_instance_valid(e_data["bar_red"]): e_data["bar_red"].queue_free()
 				if e_data.has("bar_green") and is_instance_valid(e_data["bar_green"]): e_data["bar_green"].queue_free()
 				if e_data.has("bar_fg") and is_instance_valid(e_data["bar_fg"]): e_data["bar_fg"].queue_free()
-				if is_instance_valid(e_data["lbl"]): e_data["lbl"].queue_free()
-				if is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
+				if e_data.has("lbl") and is_instance_valid(e_data["lbl"]): e_data["lbl"].queue_free()
+				if e_data.has("hp_lbl") and is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
 				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
 				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
 				active_enemies.remove_at(target_idx)
-				target_enemy_index = clampi(target_enemy_index, 0, max(0, active_enemies.size() - 1))
+				if target_enemy_index >= 0:
+					target_enemy_index = clampi(target_enemy_index, 0, max(0, active_enemies.size() - 1))
 				_update_target_indicator()
 				var rm = _get_relic_manager()
 				if rm and rm.has_method("on_enemy_defeated"):
 					rm.on_enemy_defeated()
 		if active_enemies.size() > 0:
-			enemy = active_enemies[get_focused_enemy_index()]["sprite"]
+			var cur_focus = get_focused_enemy_index()
+			if cur_focus >= 0 and cur_focus < active_enemies.size():
+				enemy = active_enemies[cur_focus]["sprite"]
+			else:
+				enemy = active_enemies[0]["sprite"]
 		else:
 			enemy = null
+			_active_single_anims.clear()
+			is_playing_custom_animation = false
+			_current_custom_anim = ""
 		var any_combat_anim: bool = (_current_custom_anim == "attack" or _current_custom_anim == "skill")
 		for a in _active_single_anims.values():
 			if a == "attack" or a == "skill":
 				any_combat_anim = true
 				break
-		if not any_combat_anim and _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged"):
+		if not any_combat_anim and _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged") and target_idx < active_enemies.size():
 			play_single_enemy_animation(target_idx, "damaged")
 			_damaged_anim_timer = DAMAGED_ANIM_INTERVAL
 
@@ -1903,4 +1972,8 @@ func play_single_idle_loop(target) -> void:
 	, 0, total_f - 1, duration)
 
 func _get_relic_manager() -> Node:
-	return get_tree().get_root().find_child("RelicManager", true, false)
+	if not is_inside_tree() or get_tree() == null:
+		return null
+	var r = get_tree().get_root()
+	if r == null: return null
+	return r.find_child("RelicManager", true, false)

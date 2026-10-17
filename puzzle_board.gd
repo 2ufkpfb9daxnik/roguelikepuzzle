@@ -13,7 +13,11 @@ func _emit_combat_event(type: String, source: String, target: Variant, amount: f
 	if typeof(target) == TYPE_STRING and target == "enemy":
 		var sm = _get_stage_manager()
 		if sm and "active_enemies" in sm and sm.active_enemies.size() > 0:
-			t_node = sm.active_enemies[randi() % sm.active_enemies.size()]["sprite"]
+			var f_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else 0
+			if f_idx >= 0 and f_idx < sm.active_enemies.size():
+				t_node = sm.active_enemies[f_idx]["sprite"]
+			else:
+				t_node = sm.active_enemies[0]["sprite"]
 			
 	var event = {
 		"type": type,
@@ -4065,9 +4069,23 @@ func moveswords() -> void:
 				if sm:
 					var base_dmg: float = item.get("damage", 100.0 * swordt)
 					var atk_el = item.get("element", 0)
+					var target_spr = item.get("target_sprite")
+					var active_en = sm.active_enemies if "active_enemies" in sm else []
+					
+					# 狙っていた敵が撃破されていた場合は、現在生存しているフォーカス敵（または0番目）にフォールバック
+					if not is_instance_valid(target_spr) and not active_en.is_empty():
+						var f_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else 0
+						if f_idx >= 0 and f_idx < active_en.size():
+							target_spr = active_en[f_idx].get("sprite")
+						else:
+							target_spr = active_en[0].get("sprite")
+							
 					var def_el = 0
 					var jp_el = ""
-					if sm.has_method("get_current_enemy_element"):
+					if sm.has_method("get_enemy_element"):
+						jp_el = sm.get_enemy_element(target_spr)
+						def_el = ElementDataScript.get_element_from_enemy_string(jp_el)
+					elif sm.has_method("get_current_enemy_element"):
 						jp_el = sm.get_current_enemy_element()
 						def_el = ElementDataScript.get_element_from_enemy_string(jp_el)
 						
@@ -4075,14 +4093,18 @@ func moveswords() -> void:
 					var rm = _get_relic_manager()
 					var relic_dmg = rm.modify_damage_dealt(base_dmg, {"element": atk_el, "enemy_element": jp_el}) if rm else base_dmg
 					var final_dmg = relic_dmg * mult
-					sm.calchp(final_dmg, 0)
+					
+					# 実際に着弾した特定の敵にダメージを適用
+					sm.calchp(final_dmg, 0, target_spr)
 					
 					var eff_str = "normal"
 					if mult >= 1.2: eff_str = "weak"
 					elif mult <= 0.8: eff_str = "resist"
 					
 					var el_str = ElementDataScript.get_element_name(atk_el)
-					_emit_combat_event("damage", "ally", "enemy", final_dmg, el_str, false, eff_str)
+					# ダメージポップアップを、着弾した敵スプライトの位置に直接表示！
+					var hit_target_node = target_spr if is_instance_valid(target_spr) else "enemy"
+					_emit_combat_event("damage", "ally", hit_target_node, final_dmg, el_str, false, eff_str)
 				_spawn_hit_spark(s.position)
 				if _sword_hit_sound_timer <= 0.0:
 					_play_sword_hit_sound()
@@ -4295,8 +4317,14 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
 		elif interval > end_wait_fast:
-			if is_enemy_turn_in_progress or (sm and sm.is_enemy_animating()):
+			var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
+			if is_anim and interval < end_wait_fast + 60:
+				interval += 1
 				return
+			
+			if is_anim and sm and sm.has_method("stop_enemy_animation"):
+				sm.stop_enemy_animation()
+			is_enemy_turn_in_progress = false
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
 			return
@@ -4374,9 +4402,15 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			sm.fevertime()
 
 	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
-		# 敵のアクションまたはアニメーション（攻撃モーションまたはスキルモーション）が再生中の場合は完了を必ず待つ
-		if is_enemy_turn_in_progress or (sm and sm.is_enemy_animating()):
+		var wait_threshold = base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock
+		var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
+		if is_anim and interval < wait_threshold + 75:
+			interval += 1
 			return
+		
+		if is_anim and sm and sm.has_method("stop_enemy_animation"):
+			sm.stop_enemy_animation()
+		is_enemy_turn_in_progress = false
 		_reset_turn(sm, score_mgr)
 		current_state = BoardState.IDLE
 		return
@@ -4412,15 +4446,19 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		s.texture = PIECE_TEXTURES[PieceType.SWORD]
 		var target_pos = Vector2(12300.0 + float(randi() % 2000 - 1000), 2700.0)
 		var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
+		var target_e = null
+		var target_spr = null
 		if not active_en.is_empty():
-			var target_e = null
 			var focus_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1
 			if focus_idx >= 0 and focus_idx < active_en.size():
+				# ターゲット指定あり：指定した敵へ集中
 				target_e = active_en[focus_idx]
 			else:
-				target_e = active_en[0]
+				# ターゲットなし：生存している敵全体へ均等に分散
+				target_e = active_en[i % active_en.size()]
 			var spr = target_e.get("sprite")
 			if is_instance_valid(spr):
+				target_spr = spr
 				target_pos = self.to_local(spr.global_position)
 		
 		var start_x = 12300.0
@@ -4444,7 +4482,9 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 			"control_pos": Vector2(cp_x, cp_y),
 			"has_hit": false,
 			"damage": dmg_per_sword,
-			"element": sword_element_pool[i] if i < sword_element_pool.size() else 0
+			"element": sword_element_pool[i] if i < sword_element_pool.size() else 0,
+			"target_sprite": target_spr,
+			"target_enemy": target_e
 		})
 		msisvalid = true
 
