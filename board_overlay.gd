@@ -12,7 +12,7 @@ const GRID_ROWS: int = 13
 const CELL_PITCH: float = 700.0
 
 const BOARD_LEFT: float = 2550.0
-const BOARD_TOP: float = 850.0
+const BOARD_TOP: float = 220.0
 const BOARD_WIDTH: float = 9100.0
 const BOARD_HEIGHT: float = 9100.0
 

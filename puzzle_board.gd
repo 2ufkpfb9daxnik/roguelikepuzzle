@@ -65,7 +65,7 @@ const CELL_KINDS: int = 5
 const CELL_PITCH: float = 700.0
 
 const BOARD_LEFT: float = 2550.0
-const BOARD_TOP: float = 850.0
+const BOARD_TOP: float = 220.0
 const BOARD_WIDTH: float = 9100.0   # 13 * 700
 const BOARD_HEIGHT: float = 9100.0  # 13 * 700
 const BOARD_RIGHT: float = BOARD_LEFT + BOARD_WIDTH
