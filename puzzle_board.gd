@@ -4322,8 +4322,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			if sm and not sm.isfevertime:
 				sm.fevertime()
 		elif interval > end_wait_fast:
-			var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
-			if is_anim and interval < end_wait_fast + 90:
+			var is_anim = is_enemy_turn_in_progress or (_enemy_turn_tween != null and _enemy_turn_tween.is_valid()) or (sm and sm.is_enemy_animating())
+			if is_anim and interval < end_wait_fast + 240:
 				interval += 1
 				return
 			
@@ -4408,8 +4408,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 
 	elif interval > base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock:
 		var wait_threshold = base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock
-		var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
-		if is_anim and interval < wait_threshold + 90:
+		var is_anim = is_enemy_turn_in_progress or (_enemy_turn_tween != null and _enemy_turn_tween.is_valid()) or (sm and sm.is_enemy_animating())
+		if is_anim and interval < wait_threshold + 240:
 			interval += 1
 			return
 		
@@ -4621,14 +4621,23 @@ var is_enemy_turn_in_progress: bool = false
 var _enemy_turn_tween: Tween = null
 
 func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
-	var enemy_cnt = 1
-	if sm and "active_enemies" in sm:
-		enemy_cnt = max(1, sm.active_enemies.size())
+	if sm == null or not ("active_enemies" in sm) or sm.active_enemies.is_empty():
+		return 60
 	
-	# スキル時は1体あたり約85フレーム(約1.4秒)、通常攻撃時は1体あたり約35フレーム(約0.6秒)
-	# 全体のタメと余韻として +30フレーム
-	var per_enemy = 85 if is_skill_turn else 35
-	return enemy_cnt * per_enemy + 30
+	var total_seconds = 0.0
+	for i in range(sm.active_enemies.size()):
+		var e = sm.active_enemies[i]
+		var action = _enemy_turn_actions[i] if i < _enemy_turn_actions.size() else ("skill" if is_skill_turn else "attack")
+		var spr = e.get("sprite")
+		if action == "skill":
+			var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
+			total_seconds += maxf(sk_dur, 1.2) + 0.2
+		else:
+			var atk_dur = sm.get_enemy_animation_duration(spr, "attack") if sm.has_method("get_enemy_animation_duration") else 0.5
+			total_seconds += maxf(atk_dur, 0.5) + 0.2
+			
+	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +60フレーム (1.0秒) を付加
+	return int(ceil(total_seconds * 60.0)) + 60
 
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
@@ -4696,6 +4705,11 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		var atk = e["atk"]
 		
 		if action == "attack":
+			var anim_dur = sm.get_enemy_animation_duration(spr, "attack") if (sm and sm.has_method("get_enemy_animation_duration")) else ENEMY_ATTACK_MOTION_DURATION
+			anim_dur = maxf(anim_dur, 0.45)
+			var effect_delay = minf(0.24, anim_dur * 0.4)
+			var after_delay = maxf(0.15, anim_dur - effect_delay + 0.1)
+
 			seq_tw.tween_callback(func():
 				if not is_instance_valid(spr): return
 				
@@ -4706,13 +4720,14 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if not has_anim:
 					var orig_pos = spr.position
 					var atk_tw = create_tween()
+					atk_tw.bind_node(spr)
+					spr.set_meta("rush_tween", atk_tw)
 					# モーション：前に踏み込む（0.3倍の時間）→戻る（0.7倍の時間）
-					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), ENEMY_ATTACK_MOTION_DURATION * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-					atk_tw.tween_property(spr, "position", orig_pos, ENEMY_ATTACK_MOTION_DURATION * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), anim_dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					atk_tw.tween_property(spr, "position", orig_pos, anim_dur * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 					atk_tw.tween_callback(func(): if is_instance_valid(spr): spr.position = orig_pos)
 			)
 			
-			var effect_delay = ENEMY_ATTACK_MOTION_DURATION * ENEMY_ATTACK_EFFECT_TIMING
 			seq_tw.tween_interval(effect_delay)
 			
 			seq_tw.tween_callback(func():
@@ -4778,7 +4793,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				_emit_combat_event("damage", "enemy", "ally", incoming_damage, "", false, "normal", event_payload)
 			)
 			
-			seq_tw.tween_interval(ENEMY_ATTACK_MOTION_DURATION * (1.0 - ENEMY_ATTACK_EFFECT_TIMING) + 0.1)
+			seq_tw.tween_interval(after_delay)
 
 		else:
 			var key = e.get("key", "slime")
@@ -4793,6 +4808,11 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var s_name = s_info["name"]
 			var elem_color = s_info["color"]
 			
+			var sk_anim_dur = sm.get_enemy_animation_duration(spr, "skill") if (sm and sm.has_method("get_enemy_animation_duration")) else 1.2
+			sk_anim_dur = maxf(sk_anim_dur, 1.2)
+			var chant_delay = 0.8
+			var after_skill_delay = maxf(0.5, sk_anim_dur - chant_delay + 0.1)
+
 			seq_tw.tween_callback(func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				_play_enemy_skill_se(is_boss)
@@ -4805,19 +4825,21 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if not has_anim and is_instance_valid(spr):
 					var orig_s = spr.get_meta("anim_orig_scale", spr.scale)
 					var sk_tw = create_tween()
+					sk_tw.bind_node(spr)
+					spr.set_meta("rush_tween", sk_tw)
 					sk_tw.tween_property(spr, "scale", orig_s * 1.25, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 					sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 					
 				_spawn_enemy_skill_chant_vfx(sm, spr, elem_color, is_boss)
 			)
-			seq_tw.tween_interval(0.8)
+			seq_tw.tween_interval(chant_delay)
 			seq_tw.tween_callback(func():
 				if sm == null or sm.isdeadf or sm.ehp <= 0: return
 				var tgs = _apply_enemy_elemental_skill_effect(elem, is_boss)
 				_spawn_enemy_skill_beam_and_burst(sm, spr, elem_color, is_boss, tgs)
 
 			)
-			seq_tw.tween_interval(0.5)
+			seq_tw.tween_interval(after_skill_delay)
 
 	seq_tw.tween_callback(func():
 		is_enemy_turn_in_progress = false

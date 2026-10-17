@@ -1904,6 +1904,32 @@ func play_single_enemy_animation(target, anim_name: String, on_complete: Callabl
 	)
 	return true
 
+## 敵のアニメーション所要時間（秒）を正確に取得（スプライトシートのアニメーション長さに完全準拠）
+func get_enemy_animation_duration(target, anim_name: String) -> float:
+	var e = null
+	if target is Sprite2D:
+		for item in active_enemies:
+			if item.get("sprite") == target:
+				e = item
+				break
+	elif typeof(target) == TYPE_INT and target >= 0 and target < active_enemies.size():
+		e = active_enemies[target]
+	elif target is Dictionary and target.has("sprite"):
+		e = target
+	if e == null:
+		return 0.45
+
+	var e_key = e.get("key", current_enemy_key)
+	var e_anims = ENEMY_ANIMATION_SHEETS.get(e_key, {})
+	if not e_anims.has(anim_name):
+		return 0.45
+
+	var anim_info = e_anims[anim_name]
+	var total_f: int = anim_info.get("total_frames", 1)
+	var fps: float = anim_info.get("fps", 1.0)
+	var duration = float(total_f) / maxf(1.0, fps)
+	return maxf(0.45, duration)
+
 func play_single_idle_loop(target) -> void:
 	var e = null
 	if target is Sprite2D:

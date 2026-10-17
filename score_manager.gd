@@ -937,14 +937,14 @@ func combo() -> void:
 	if interval <= 36:
 		var bounce: float = float((interval - 18) * (interval - 18)) / 10.0 - 33.0
 		if combo_label != null:
-			combo_label.position.y = 280.0 + bounce * 0.6
+			combo_label.position.y = 130.0 + bounce * 0.6
 		if combocount_label != null:
-			combocount_label.position.y = 350.0 + bounce * 0.6
+			combocount_label.position.y = 195.0 + bounce * 0.6
 	else:
 		iscombo = false
 		interval = 0
-		if combo_label != null: combo_label.position.y = 280.0
-		if combocount_label != null: combocount_label.position.y = 350.0
+		if combo_label != null: combo_label.position.y = 130.0
+		if combocount_label != null: combocount_label.position.y = 195.0
 	interval += 1
 
 ## 特大コンボ・アチーブメント演出（中央カットインバースト）
