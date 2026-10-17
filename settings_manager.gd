@@ -60,6 +60,47 @@ func _ready() -> void:
 		
 	apply_all_settings()
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_SIZE_CHANGED:
+		_check_and_fix_maximized_window()
+
+## Windows での最大化時に発生するタイトルバーオフセットバグを物理的に回避
+func _check_and_fix_maximized_window() -> void:
+	var mode = DisplayServer.window_get_mode()
+	if mode == DisplayServer.WINDOW_MODE_MAXIMIZED:
+		call_deferred("_apply_fullscreen_fix")
+
+func _apply_fullscreen_fix() -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F11:
+			toggle_fullscreen()
+			if get_viewport(): get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ENTER and event.alt_pressed:
+			toggle_fullscreen()
+			if get_viewport(): get_viewport().set_input_as_handled()
+
+## 画面表示モードの変更
+func set_fullscreen(enabled: bool) -> void:
+	if enabled:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		DisplayServer.window_set_size(Vector2i(1600, 900))
+		var screen_rect = DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+		var center_x = screen_rect.position.x + (screen_rect.size.x - 1600) / 2
+		var center_y = screen_rect.position.y + (screen_rect.size.y - 900) / 2
+		DisplayServer.window_set_position(Vector2i(center_x, center_y))
+
+func is_fullscreen() -> bool:
+	var mode = DisplayServer.window_get_mode()
+	return mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+
+func toggle_fullscreen() -> void:
+	set_fullscreen(not is_fullscreen())
+
 func _on_node_added(node: Node) -> void:
 	if node is AudioStreamPlayer or node is AudioStreamPlayer2D:
 		_apply_settings_to_node(node)
@@ -225,8 +266,8 @@ func _create_settings_dialog() -> void:
 	root_ctrl.add_child(blocker)
 	
 	# 中央モーダルパネル（カジノ風ダークゴールドフレーム）
-	var panel_w = 820.0
-	var panel_h = 640.0
+	var panel_w = 860.0
+	var panel_h = 750.0
 	var modal = Control.new()
 	modal.name = "ModalPanel"
 	modal.size = Vector2(panel_w, panel_h)
@@ -268,27 +309,27 @@ func _create_settings_dialog() -> void:
 	title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	title_lbl.add_theme_font_size_override("normal_font_size", 42)
 	title_lbl.add_theme_font_size_override("bold_font_size", 42)
-	title_lbl.position = Vector2(0, 24)
-	title_lbl.size = Vector2(panel_w, 60)
+	title_lbl.position = Vector2(0, 20)
+	title_lbl.size = Vector2(panel_w, 56)
 	title_lbl.text = "[center][b][color=#FFD700]⚙ 設定 - SETTINGS ⚙[/color][/b][/center]"
 	modal.add_child(title_lbl)
 	
 	# --- 1. BGM 音量 ---
-	var cur_y = 110.0
+	var cur_y = 96.0
 	var bgm_title = Label.new()
 	bgm_title.text = "🎵 BGM 音量"
 	bgm_title.add_theme_font_override("font", CUSTOM_FONT)
-	bgm_title.add_theme_font_size_override("font_size", 26)
+	bgm_title.add_theme_font_size_override("font_size", 24)
 	bgm_title.position = Vector2(50, cur_y)
 	modal.add_child(bgm_title)
 	
 	var bgm_val_lbl = Label.new()
 	bgm_val_lbl.text = "%d%%" % int(bgm_volume * 100)
 	bgm_val_lbl.add_theme_font_override("font", CUSTOM_FONT)
-	bgm_val_lbl.add_theme_font_size_override("font_size", 26)
+	bgm_val_lbl.add_theme_font_size_override("font_size", 24)
 	bgm_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	bgm_val_lbl.position = Vector2(panel_w - 180, cur_y)
-	bgm_val_lbl.size = Vector2(130, 36)
+	bgm_val_lbl.size = Vector2(130, 32)
 	modal.add_child(bgm_val_lbl)
 	
 	var bgm_slider = HSlider.new()
@@ -296,8 +337,8 @@ func _create_settings_dialog() -> void:
 	bgm_slider.max_value = 100.0
 	bgm_slider.step = 1.0
 	bgm_slider.value = bgm_volume * 100.0
-	bgm_slider.position = Vector2(50, cur_y + 38)
-	bgm_slider.size = Vector2(panel_w - 100, 32)
+	bgm_slider.position = Vector2(50, cur_y + 34)
+	bgm_slider.size = Vector2(panel_w - 100, 30)
 	bgm_slider.value_changed.connect(func(v):
 		set_bgm_volume(v / 100.0)
 		bgm_val_lbl.text = "%d%%" % int(v)
@@ -305,21 +346,21 @@ func _create_settings_dialog() -> void:
 	modal.add_child(bgm_slider)
 	
 	# --- 2. SE（効果音）音量 ---
-	cur_y += 95.0
+	cur_y += 84.0
 	var se_title = Label.new()
 	se_title.text = "🔔 SE (効果音) 音量"
 	se_title.add_theme_font_override("font", CUSTOM_FONT)
-	se_title.add_theme_font_size_override("font_size", 26)
+	se_title.add_theme_font_size_override("font_size", 24)
 	se_title.position = Vector2(50, cur_y)
 	modal.add_child(se_title)
 	
 	var se_val_lbl = Label.new()
 	se_val_lbl.text = "%d%%" % int(se_volume * 100)
 	se_val_lbl.add_theme_font_override("font", CUSTOM_FONT)
-	se_val_lbl.add_theme_font_size_override("font_size", 26)
+	se_val_lbl.add_theme_font_size_override("font_size", 24)
 	se_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	se_val_lbl.position = Vector2(panel_w - 180, cur_y)
-	se_val_lbl.size = Vector2(130, 36)
+	se_val_lbl.size = Vector2(130, 32)
 	modal.add_child(se_val_lbl)
 	
 	var se_slider = HSlider.new()
@@ -327,31 +368,87 @@ func _create_settings_dialog() -> void:
 	se_slider.max_value = 100.0
 	se_slider.step = 1.0
 	se_slider.value = se_volume * 100.0
-	se_slider.position = Vector2(50, cur_y + 38)
-	se_slider.size = Vector2(panel_w - 100, 32)
+	se_slider.position = Vector2(50, cur_y + 34)
+	se_slider.size = Vector2(panel_w - 100, 30)
 	se_slider.value_changed.connect(func(v):
 		set_se_volume(v / 100.0)
 		se_val_lbl.text = "%d%%" % int(v)
 	)
 	modal.add_child(se_slider)
 	
-	# --- 3. ゲーム速度（全体速度 ＆ BGM/SE速度連動） ---
-	cur_y += 95.0
+	# --- 3. 画面表示モード (フルスクリーン / ウィンドウ) ---
+	cur_y += 84.0
+	var screen_title = Label.new()
+	screen_title.text = "🖥 画面表示モード (F11 / Alt+Enter で即時切替可)"
+	screen_title.add_theme_font_override("font", CUSTOM_FONT)
+	screen_title.add_theme_font_size_override("font_size", 24)
+	screen_title.position = Vector2(50, cur_y)
+	modal.add_child(screen_title)
+	
+	var fs_btn_w = (panel_w - 100.0 - 24.0) / 2.0
+	var fs_btn = Button.new()
+	var win_btn = Button.new()
+	
+	var update_screen_btns_visual = func():
+		var is_fs = is_fullscreen()
+		fs_btn.text = "🖥 全画面 (フルスクリーン - 推奨)" if is_fs else "🖥 全画面にする"
+		win_btn.text = "🪟 ウィンドウにする" if is_fs else "🪟 ウィンドウ (1600x900)"
+		
+		# スタイル適用
+		var style_active = StyleBoxFlat.new()
+		style_active.bg_color = Color(0.15, 0.28, 0.45, 0.96)
+		style_active.border_color = Color(0.0, 0.9, 1.0, 1.0)
+		style_active.set_border_width_all(3)
+		style_active.set_corner_radius_all(10)
+		
+		var style_inactive = StyleBoxFlat.new()
+		style_inactive.bg_color = Color(0.12, 0.14, 0.20, 0.85)
+		style_inactive.border_color = Color(0.4, 0.45, 0.55, 0.8)
+		style_inactive.set_border_width_all(2)
+		style_inactive.set_corner_radius_all(10)
+		
+		fs_btn.add_theme_stylebox_override("normal", style_active if is_fs else style_inactive)
+		win_btn.add_theme_stylebox_override("normal", style_inactive if is_fs else style_active)
+	
+	fs_btn.add_theme_font_override("font", CUSTOM_FONT)
+	fs_btn.add_theme_font_size_override("font_size", 20)
+	fs_btn.position = Vector2(50, cur_y + 36)
+	fs_btn.size = Vector2(fs_btn_w, 44)
+	fs_btn.pressed.connect(func():
+		set_fullscreen(true)
+		update_screen_btns_visual.call()
+	)
+	modal.add_child(fs_btn)
+	
+	win_btn.add_theme_font_override("font", CUSTOM_FONT)
+	win_btn.add_theme_font_size_override("font_size", 20)
+	win_btn.position = Vector2(50 + fs_btn_w + 24.0, cur_y + 36)
+	win_btn.size = Vector2(fs_btn_w, 44)
+	win_btn.pressed.connect(func():
+		set_fullscreen(false)
+		update_screen_btns_visual.call()
+	)
+	modal.add_child(win_btn)
+	
+	update_screen_btns_visual.call()
+	
+	# --- 4. ゲーム速度（全体速度 ＆ BGM/SE速度連動） ---
+	cur_y += 100.0
 	var spd_title = Label.new()
 	spd_title.text = "⚡ ゲーム＆サウンド速度"
 	spd_title.add_theme_font_override("font", CUSTOM_FONT)
-	spd_title.add_theme_font_size_override("font_size", 26)
+	spd_title.add_theme_font_size_override("font_size", 24)
 	spd_title.position = Vector2(50, cur_y)
 	modal.add_child(spd_title)
 	
 	var spd_val_lbl = Label.new()
 	spd_val_lbl.text = "%.1fx" % game_speed
 	spd_val_lbl.add_theme_font_override("font", CUSTOM_FONT)
-	spd_val_lbl.add_theme_font_size_override("font_size", 26)
+	spd_val_lbl.add_theme_font_size_override("font_size", 24)
 	spd_val_lbl.add_theme_color_override("font_color", Color(0.0, 0.9, 1.0))
 	spd_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	spd_val_lbl.position = Vector2(panel_w - 180, cur_y)
-	spd_val_lbl.size = Vector2(130, 36)
+	spd_val_lbl.size = Vector2(130, 32)
 	modal.add_child(spd_val_lbl)
 	
 	var spd_slider = HSlider.new()
@@ -359,13 +456,13 @@ func _create_settings_dialog() -> void:
 	spd_slider.max_value = 3.0
 	spd_slider.step = 0.1
 	spd_slider.value = game_speed
-	spd_slider.position = Vector2(50, cur_y + 38)
-	spd_slider.size = Vector2(panel_w - 100, 32)
+	spd_slider.position = Vector2(50, cur_y + 34)
+	spd_slider.size = Vector2(panel_w - 100, 30)
 	modal.add_child(spd_slider)
 	
 	# 速度プリセットボタン [0.5x] [1.0x] [1.5x] [2.0x] [3.0x]
 	var presets = [0.5, 1.0, 1.5, 2.0, 3.0]
-	var btn_w = 120.0
+	var btn_w = 126.0
 	var btn_pitch = (panel_w - 100.0 - btn_w * presets.size()) / (presets.size() - 1)
 	for i in range(presets.size()):
 		var p_val = presets[i]
@@ -373,8 +470,8 @@ func _create_settings_dialog() -> void:
 		p_btn.text = "%.1fx" % p_val
 		p_btn.add_theme_font_override("font", CUSTOM_FONT)
 		p_btn.add_theme_font_size_override("font_size", 20)
-		p_btn.position = Vector2(50 + (btn_w + btn_pitch) * i, cur_y + 80)
-		p_btn.size = Vector2(btn_w, 40)
+		p_btn.position = Vector2(50 + (btn_w + btn_pitch) * i, cur_y + 74)
+		p_btn.size = Vector2(btn_w, 38)
 		p_btn.pressed.connect(func():
 			spd_slider.value = p_val
 			set_game_speed(p_val)
@@ -387,18 +484,18 @@ func _create_settings_dialog() -> void:
 		spd_val_lbl.text = "%.1fx" % v
 	)
 	
-	# --- 4. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
+	# --- 5. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
 	var current_scene_name = ""
 	var tree = _get_tree_safe()
 	if tree and tree.current_scene:
 		current_scene_name = tree.current_scene.name
 	var is_on_title = (current_scene_name == "TitleScreen")
 
-	var btn_y = panel_h - 85.0
+	var btn_y = panel_h - 80.0
 
 	if is_on_title:
 		# タイトル画面時: 「ゲーム終了」と「閉じる」の2ボタン
-		var t_btn_w = 340.0
+		var t_btn_w = 350.0
 		var t_gap = 40.0
 		var t_start_x = (panel_w - (t_btn_w * 2.0 + t_gap)) / 2.0
 
@@ -410,7 +507,7 @@ func _create_settings_dialog() -> void:
 		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 		quit_btn.position = Vector2(t_start_x, btn_y)
-		quit_btn.size = Vector2(t_btn_w, 58)
+		quit_btn.size = Vector2(t_btn_w, 56)
 		quit_btn.pressed.connect(func():
 			var t = _get_tree_safe()
 			if t: t.quit()
@@ -424,15 +521,15 @@ func _create_settings_dialog() -> void:
 		close_btn.add_theme_constant_override("outline_size", 6)
 		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		close_btn.position = Vector2(t_start_x + t_btn_w + t_gap, btn_y)
-		close_btn.size = Vector2(t_btn_w, 58)
+		close_btn.size = Vector2(t_btn_w, 56)
 		close_btn.pressed.connect(func():
 			close_settings()
 		)
 		modal.add_child(close_btn)
 	else:
 		# インゲーム時: 「タイトルへ戻る」「ゲーム終了」「閉じる」の3ボタン
-		var g_btn_w = 226.0
-		var g_gap = 20.0
+		var g_btn_w = 236.0
+		var g_gap = 24.0
 		var g_start_x = (panel_w - (g_btn_w * 3.0 + g_gap * 2.0)) / 2.0
 
 		var title_btn = Button.new()
@@ -443,7 +540,7 @@ func _create_settings_dialog() -> void:
 		title_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		title_btn.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
 		title_btn.position = Vector2(g_start_x, btn_y)
-		title_btn.size = Vector2(g_btn_w, 58)
+		title_btn.size = Vector2(g_btn_w, 56)
 		title_btn.pressed.connect(func():
 			close_settings()
 			Engine.time_scale = 1.0
@@ -461,7 +558,7 @@ func _create_settings_dialog() -> void:
 		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 		quit_btn.position = Vector2(g_start_x + (g_btn_w + g_gap), btn_y)
-		quit_btn.size = Vector2(g_btn_w, 58)
+		quit_btn.size = Vector2(g_btn_w, 56)
 		quit_btn.pressed.connect(func():
 			var t = _get_tree_safe()
 			if t: t.quit()
@@ -475,9 +572,10 @@ func _create_settings_dialog() -> void:
 		close_btn.add_theme_constant_override("outline_size", 6)
 		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		close_btn.position = Vector2(g_start_x + (g_btn_w + g_gap) * 2.0, btn_y)
-		close_btn.size = Vector2(g_btn_w, 58)
+		close_btn.size = Vector2(g_btn_w, 56)
 		close_btn.pressed.connect(func():
 			close_settings()
 		)
 		modal.add_child(close_btn)
+
 
