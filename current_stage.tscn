@@ -631,7 +631,7 @@ z_index = -10
 offset_left = 1430.0
 offset_top = 472.0
 offset_right = 1555.0
-offset_bottom = 767.0
+offset_bottom = 747.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
@@ -640,7 +640,7 @@ z_index = -10
 offset_left = 1432.0
 offset_top = 474.0
 offset_right = 1550.0
-offset_bottom = 765.0
+offset_bottom = 745.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 

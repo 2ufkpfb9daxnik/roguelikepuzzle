@@ -456,7 +456,7 @@ func _ready() -> void:
 		elem_status_rect.z_index = -10
 		elem_status_rect.offset_left = 1430.0
 		elem_status_rect.offset_top = 472.0
-		elem_status_rect.size = Vector2(125.0, 295.0)
+		elem_status_rect.size = Vector2(125.0, 275.0)
 		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		elem_status_rect.color = Color(0.960784, 1, 0.0901961, 1)
 		add_child(elem_status_rect)
@@ -467,7 +467,7 @@ func _ready() -> void:
 		elem_status2_rect.z_index = -10
 		elem_status2_rect.offset_left = 1432.0
 		elem_status2_rect.offset_top = 474.0
-		elem_status2_rect.size = Vector2(121.0, 291.0)
+		elem_status2_rect.size = Vector2(121.0, 271.0)
 		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		elem_status2_rect.color = Color(0, 0, 0, 1)
 		add_child(elem_status2_rect)
@@ -477,7 +477,7 @@ func _ready() -> void:
 			var el_lbl = divscorelabel[0].duplicate()
 			el_lbl.name = "elem_score" + str(k + 1)
 			el_lbl.offset_left = 1440.0
-			el_lbl.offset_top = 474.0 + float(k) * 48.0
+			el_lbl.offset_top = 475.0 + float(k) * 43.5
 			el_lbl.text = ""
 			add_child(el_lbl)
 			elem_labels.append(el_lbl)
@@ -578,62 +578,62 @@ func _ready() -> void:
 		style_hover.set_corner_radius_all(14)
 		gc_btn.add_theme_stylebox_override("hover", style_hover)
 
-	# フィーバータイム欄をコンボ欄（x: 34..372, y: 266..478）の真下に美しく配置
+	# フィーバータイム欄をコンボ欄（x: 26..216, y: 118..310）の真下（x: 26..216, y: 320..560）に美しく配置
 	var fv_rect = get_node_or_null("feverrect") as ColorRect
 	if fv_rect:
-		fv_rect.position = Vector2(34, 490)
-		fv_rect.size = Vector2(338, 250)
+		fv_rect.position = Vector2(26, 320)
+		fv_rect.size = Vector2(190, 240)
 	var fv_rect2 = get_node_or_null("feverrect2") as ColorRect
 	if fv_rect2:
-		fv_rect2.position = Vector2(38, 494)
-		fv_rect2.size = Vector2(330, 242)
+		fv_rect2.position = Vector2(30, 324)
+		fv_rect2.size = Vector2(182, 232)
 
 	var fv_lbl2 = get_node_or_null("feverlabel2") as RichTextLabel
 	if fv_lbl2:
 		fv_lbl2.add_theme_font_override("normal_font", CUSTOM_FONT)
 		fv_lbl2.add_theme_font_override("bold_font", CUSTOM_FONT)
-		fv_lbl2.add_theme_constant_override("outline_size", 8)
+		fv_lbl2.add_theme_constant_override("outline_size", 6)
 		fv_lbl2.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		fv_lbl2.add_theme_font_size_override("normal_font_size", 24)
-		fv_lbl2.add_theme_font_size_override("bold_font_size", 24)
-		fv_lbl2.position = Vector2(38, 502)
-		fv_lbl2.size = Vector2(330, 44)
-		fv_lbl2.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ フィーバータイム ★[/rainbow][/b][/center]"
+		fv_lbl2.add_theme_font_size_override("normal_font_size", 18)
+		fv_lbl2.add_theme_font_size_override("bold_font_size", 18)
+		fv_lbl2.position = Vector2(30, 330)
+		fv_lbl2.size = Vector2(182, 42)
+		fv_lbl2.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ FEVER ★[/rainbow][/b][/center]"
 
 	var fv_lbl3 = get_node_or_null("feverlabel3") as RichTextLabel
 	if fv_lbl3:
 		fv_lbl3.add_theme_font_override("normal_font", CUSTOM_FONT)
 		fv_lbl3.add_theme_font_override("bold_font", CUSTOM_FONT)
-		fv_lbl3.add_theme_constant_override("outline_size", 8)
+		fv_lbl3.add_theme_constant_override("outline_size", 6)
 		fv_lbl3.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		fv_lbl3.add_theme_font_size_override("normal_font_size", 24)
-		fv_lbl3.add_theme_font_size_override("bold_font_size", 24)
-		fv_lbl3.position = Vector2(38, 546)
-		fv_lbl3.size = Vector2(330, 42)
+		fv_lbl3.add_theme_font_size_override("normal_font_size", 20)
+		fv_lbl3.add_theme_font_size_override("bold_font_size", 20)
+		fv_lbl3.position = Vector2(30, 372)
+		fv_lbl3.size = Vector2(182, 40)
 		update_fever_label3()
 
 	var fv_time = get_node_or_null("fevertime") as RichTextLabel
 	if fv_time:
 		fv_time.add_theme_font_override("normal_font", CUSTOM_FONT)
 		fv_time.add_theme_font_override("bold_font", CUSTOM_FONT)
-		fv_time.add_theme_constant_override("outline_size", 8)
+		fv_time.add_theme_constant_override("outline_size", 6)
 		fv_time.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		fv_time.add_theme_font_size_override("normal_font_size", 22)
-		fv_time.add_theme_font_size_override("bold_font_size", 22)
-		fv_time.position = Vector2(38, 590)
-		fv_time.size = Vector2(330, 38)
+		fv_time.add_theme_font_size_override("normal_font_size", 18)
+		fv_time.add_theme_font_size_override("bold_font_size", 18)
+		fv_time.position = Vector2(30, 412)
+		fv_time.size = Vector2(182, 40)
 		fv_time.text = "[center][b][color=#FFFFFF]残り手数[/color][/b][/center]"
 
 	var fv_cnt = get_node_or_null("fevertimecount") as RichTextLabel
 	if fv_cnt:
 		fv_cnt.add_theme_font_override("normal_font", CUSTOM_FONT)
 		fv_cnt.add_theme_font_override("bold_font", CUSTOM_FONT)
-		fv_cnt.add_theme_constant_override("outline_size", 10)
+		fv_cnt.add_theme_constant_override("outline_size", 8)
 		fv_cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		fv_cnt.add_theme_font_size_override("normal_font_size", 52)
-		fv_cnt.add_theme_font_size_override("bold_font_size", 52)
-		fv_cnt.position = Vector2(38, 628)
-		fv_cnt.size = Vector2(330, 95)
+		fv_cnt.add_theme_font_size_override("normal_font_size", 46)
+		fv_cnt.add_theme_font_size_override("bold_font_size", 46)
+		fv_cnt.position = Vector2(30, 452)
+		fv_cnt.size = Vector2(182, 96)
 
 	var sc_btn = get_node_or_null("stagechangeb") as Button
 	if sc_btn:
@@ -1835,14 +1835,14 @@ func update_elem_labels() -> void:
 		max_len = maxi(max_len, val_str.length())
 		var img_path = "res://Texture/element/%s.png" % ELEM_KEYS[k - 1]
 		var c = ELEM_COLORS[k - 1]
-		elem_labels[k - 1].text = "[img=60]%s[/img] [b][color=#%s]%s[/color][/b]" % [img_path, c, val_str]
+		elem_labels[k - 1].text = "[img=52]%s[/img] [b][color=#%s]%s[/color][/b]" % [img_path, c, val_str]
 
-	# 桁数に応じた属性ステータス枠の横幅自動追従（剣欄と同じロジック）
+	# 桁数に応じた属性ステータス枠の横幅自動追従（剣欄と同じロジック、高さ275/271で各値欄と上下完全同期）
 	var frame_width = maxf(120.0 + 22.0 * float(max_len), 120.0)
 	if elem_status_rect != null:
-		elem_status_rect.size = Vector2(frame_width + 5.0, 295.0)
+		elem_status_rect.size = Vector2(frame_width + 5.0, 275.0)
 	if elem_status2_rect != null:
-		elem_status2_rect.size = Vector2(frame_width, 291.0)
+		elem_status2_rect.size = Vector2(frame_width, 271.0)
 
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()

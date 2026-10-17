@@ -24,13 +24,13 @@ func _ready() -> void:
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 40~910, y: 970), 右側 = 所持レリック欄 (x: 940~1884, y: 970) ---
-	# 盤面下端 (y=944) より下に配置し、盤面との被りを完全解消
+	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 220~930, y: 970), 右側 = 所持レリック欄 (x: 950~1880, y: 970) ---
+	# 設定ボタン (x: 38..198, y: 980..1036) および盤面下端 (y=944) との被りを完全解消
 
 	# 左側: 【スキル】
 	var skill_tag = Label.new()
 	skill_tag.text = "【スキル】"
-	skill_tag.position = Vector2(40, 984)
+	skill_tag.position = Vector2(220, 984)
 	skill_tag.size = Vector2(104, 36)
 	skill_tag.add_theme_font_override("font", sys_font)
 	skill_tag.add_theme_font_size_override("font_size", 18)
@@ -40,8 +40,8 @@ func _ready() -> void:
 	add_child(skill_tag)
 
 	skill_container = HFlowContainer.new()
-	skill_container.position = Vector2(150, 970)
-	skill_container.size = Vector2(760, 70)
+	skill_container.position = Vector2(330, 970)
+	skill_container.size = Vector2(600, 70)
 	skill_container.add_theme_constant_override("h_separation", 8)
 	skill_container.add_theme_constant_override("v_separation", 8)
 	skill_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -50,7 +50,7 @@ func _ready() -> void:
 	# 右側: 【レリック】
 	var relic_tag = Label.new()
 	relic_tag.text = "【レリック】"
-	relic_tag.position = Vector2(940, 984)
+	relic_tag.position = Vector2(950, 984)
 	relic_tag.size = Vector2(104, 36)
 	relic_tag.add_theme_font_override("font", sys_font)
 	relic_tag.add_theme_font_size_override("font_size", 18)
@@ -60,8 +60,8 @@ func _ready() -> void:
 	add_child(relic_tag)
 
 	container = HFlowContainer.new()
-	container.position = Vector2(1054, 970)
-	container.size = Vector2(830, 70)
+	container.position = Vector2(1060, 970)
+	container.size = Vector2(820, 70)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
