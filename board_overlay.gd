@@ -376,55 +376,76 @@ func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
 			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌱 苗木", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.4, 1.0, 0.6))
 
 	elif st == 1:
-		# 若木（1マス）: 太い樹幹 ＋ 青々とした若葉の茂み
-		# 樹幹
-		draw_line(center + Vector2(0.0, 150.0), center + Vector2(0.0, -40.0), Color(0.38, 0.22, 0.12, 0.98), 55.0)
-		# 茂み（手前に豊かに広がる円群）
-		draw_circle(center + Vector2(-80.0, -60.0), 110.0, Color(0.12, 0.58, 0.22, 0.95))
-		draw_circle(center + Vector2(80.0, -60.0), 110.0, Color(0.15, 0.64, 0.25, 0.95))
-		draw_circle(center + Vector2(0.0, -120.0), 130.0, Color(0.20, 0.78, 0.32, 0.98))
-		draw_circle(center + Vector2(0.0, -130.0), 95.0, Color(0.35, 0.90, 0.45, 0.75 * pulse))
+		# 若木（1マス）: 太い樹幹 ＋ 茂み（敵植樹時は妖魔の紫茂み）
+		var trunk_col = Color(0.25, 0.10, 0.22, 0.98) if is_enemy else Color(0.38, 0.22, 0.12, 0.98)
+		draw_line(center + Vector2(0.0, 150.0), center + Vector2(0.0, -40.0), trunk_col, 55.0)
+
+		# 茂み
+		var f_col1 = Color(0.42, 0.08, 0.50, 0.95) if is_enemy else Color(0.12, 0.58, 0.22, 0.95)
+		var f_col2 = Color(0.55, 0.12, 0.62, 0.95) if is_enemy else Color(0.15, 0.64, 0.25, 0.95)
+		var f_col3 = Color(0.72, 0.18, 0.80, 0.98) if is_enemy else Color(0.20, 0.78, 0.32, 0.98)
+		var f_col4 = Color(0.88, 0.35, 0.95, 0.75 * pulse) if is_enemy else Color(0.35, 0.90, 0.45, 0.75 * pulse)
+
+		draw_circle(center + Vector2(-80.0, -60.0), 110.0, f_col1)
+		draw_circle(center + Vector2(80.0, -60.0), 110.0, f_col2)
+		draw_circle(center + Vector2(0.0, -120.0), 130.0, f_col3)
+		draw_circle(center + Vector2(0.0, -130.0), 95.0, f_col4)
 
 		# 耐久値インジケーター（2ドット）
 		var b_y = center.y - 210.0
-		draw_circle(Vector2(center.x, b_y), 60.0, Color(0.06, 0.16, 0.08, 0.94))
-		draw_arc(Vector2(center.x, b_y), 60.0, 0.0, TAU, 24, Color(0.4, 1.0, 0.6), 8.0)
+		var badge_bg = Color(0.16, 0.04, 0.18, 0.94) if is_enemy else Color(0.06, 0.16, 0.08, 0.94)
+		var badge_border = Color(0.9, 0.3, 1.0) if is_enemy else Color(0.4, 1.0, 0.6)
+		draw_circle(Vector2(center.x, b_y), 60.0, badge_bg)
+		draw_arc(Vector2(center.x, b_y), 60.0, 0.0, TAU, 24, badge_border, 8.0)
 		for k in range(hp):
 			var dot_x = center.x + (k - (hp - 1) * 0.5) * 32.0
 			draw_circle(Vector2(dot_x, b_y), 10.0, Color.WHITE)
 
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 若木", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.5, 1.0, 0.6))
+		if is_enemy:
+			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 呪木(吸血)", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(1.0, 0.45, 0.85))
+		else:
+			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 若木", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.5, 1.0, 0.6))
 
 	elif st == 2:
-		# 3x3大木: 9マスを覆う荘厳な大樹冠（盤面グリッドの手前で圧倒的存在感）
-		# 巨大な幹
-		draw_line(center + Vector2(0.0, 500.0), center + Vector2(0.0, -80.0), Color(0.32, 0.18, 0.08, 0.98), 120.0)
-		# 豊かな樹冠レイヤー（3x3マス＝1500pxに広がる）
+		# 3x3大木: 9マスを覆う荘厳な大樹冠（敵植樹時は妖魔大樹）
+		var trunk_col = Color(0.22, 0.08, 0.18, 0.98) if is_enemy else Color(0.32, 0.18, 0.08, 0.98)
+		draw_line(center + Vector2(0.0, 500.0), center + Vector2(0.0, -80.0), trunk_col, 120.0)
+
 		var foliage_offsets = [
 			Vector2(-420.0, -100.0), Vector2(420.0, -100.0),
 			Vector2(-280.0, -350.0), Vector2(280.0, -350.0),
 			Vector2(0.0, -450.0), Vector2(-360.0, 150.0),
 			Vector2(360.0, 150.0), Vector2(0.0, -120.0)
 		]
-		for fo in foliage_offsets:
-			draw_circle(center + fo, 260.0, Color(0.08, 0.48, 0.18, 0.92))
-		for fo in foliage_offsets:
-			draw_circle(center + fo * 0.85, 210.0, Color(0.18, 0.72, 0.28, 0.96))
-		for fo in foliage_offsets:
-			draw_circle(center + fo * 0.70, 150.0, Color(0.30, 0.88, 0.40, 0.80 * pulse))
+		var big_col1 = Color(0.36, 0.06, 0.44, 0.92) if is_enemy else Color(0.08, 0.48, 0.18, 0.92)
+		var big_col2 = Color(0.54, 0.10, 0.64, 0.96) if is_enemy else Color(0.18, 0.72, 0.28, 0.96)
+		var big_col3 = Color(0.78, 0.20, 0.88, 0.80 * pulse) if is_enemy else Color(0.30, 0.88, 0.40, 0.80 * pulse)
 
-		# 神聖な光のオーラリング
-		draw_arc(center + Vector2(0.0, -120.0), 650.0, 0.0, TAU, 36, Color(0.45, 1.0, 0.65, 0.65 * pulse), 16.0)
+		for fo in foliage_offsets:
+			draw_circle(center + fo, 260.0, big_col1)
+		for fo in foliage_offsets:
+			draw_circle(center + fo * 0.85, 210.0, big_col2)
+		for fo in foliage_offsets:
+			draw_circle(center + fo * 0.70, 150.0, big_col3)
+
+		# オーラリング
+		var aura_col = Color(0.90, 0.25, 1.0, 0.70 * pulse) if is_enemy else Color(0.45, 1.0, 0.65, 0.65 * pulse)
+		draw_arc(center + Vector2(0.0, -120.0), 650.0, 0.0, TAU, 36, aura_col, 16.0)
 
 		# 耐久値インジケーター（3ドット）
 		var b_y3 = center.y - 520.0
-		draw_circle(Vector2(center.x, b_y3), 80.0, Color(0.06, 0.16, 0.08, 0.95))
-		draw_arc(Vector2(center.x, b_y3), 80.0, 0.0, TAU, 28, Color(0.4, 1.0, 0.6), 10.0)
+		var badge_bg3 = Color(0.16, 0.04, 0.18, 0.95) if is_enemy else Color(0.06, 0.16, 0.08, 0.95)
+		var badge_border3 = Color(0.9, 0.3, 1.0) if is_enemy else Color(0.4, 1.0, 0.6)
+		draw_circle(Vector2(center.x, b_y3), 80.0, badge_bg3)
+		draw_arc(Vector2(center.x, b_y3), 80.0, 0.0, TAU, 28, badge_border3, 10.0)
 		for k in range(hp):
 			var dot_x = center.x + (k - (hp - 1) * 0.5) * 36.0
 			draw_circle(Vector2(dot_x, b_y3), 12.0, Color.WHITE)
 
-		draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 神聖大木 3x3", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(0.6, 1.0, 0.7))
+		if is_enemy:
+			draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 妖魔大樹 3x3(大吸血)", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(1.0, 0.45, 0.90))
+		else:
+			draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 神聖大木 3x3", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(0.6, 1.0, 0.7))
 
 ## 闇属性の黒い霧描画（指定エリアを暗黒煙で覆いコマを隠す）
 func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:

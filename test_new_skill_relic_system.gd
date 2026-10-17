@@ -178,5 +178,58 @@ func _init() -> void:
 	assert(found_hazard, "cursed_gluttony_grail should spawn a hazard on the board")
 	print("Cursed Gluttony Grail Hazard Spawn: SUCCESS!")
 
+	# Test H: Water extinguishing fire
+	# Initialize grid_fire and grid_water if not already sized
+	while pb.grid_fire.size() < pb.GRID_ROWS:
+		var rf: Array = []
+		for c in range(pb.GRID_COLUMNS): rf.append(0)
+		pb.grid_fire.append(rf)
+	while pb.grid_water.size() < pb.GRID_ROWS:
+		var rw: Array = []
+		for c in range(pb.GRID_COLUMNS): rw.append(false)
+		pb.grid_water.append(rw)
+
+	pb.grid_fire[2][2] = 1
+	assert(pb.grid_fire[2][2] == 1, "Fire should be 1")
+	pb._apply_water_to_cell(2, 2)
+	assert(pb.grid_fire[2][2] == 0, "Water must extinguish fire (grid_fire == 0)")
+	assert(pb.grid_water[2][2] == true, "Water must be placed at (2, 2)")
+	print("Water extinguishing fire: SUCCESS! Fire extinguished and water placed.")
+
+	# Test I: Stone blocked from matching
+	# Clear grid_n
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = -1
+			pb.grid_stones[r][c] = 0
+	# Set SWORD at (1, 1), Stone (with SWORD type) at (1, 2), SWORD at (1, 3)
+	pb.grid_n[1][1] = 1
+	pb.grid_n[1][2] = 1
+	pb.grid_stones[1][2] = 2 # Stone!
+	pb.grid_n[1][3] = 1
+	var match_found = pb._check_matches_exist()
+	assert(not match_found, "Stone must NOT function as a piece or bridge matches across it")
+	assert(pb.ismatched[1][2] == false, "Stone cell must not be matched")
+	print("Stone matching exclusion check: SUCCESS! Stone correctly blocked match.")
+
+	# Test J: Stone damage helper
+	pb.grid_stones[4][4] = 2
+	var damaged = pb._damage_stone_at(4, 4, 1)
+	assert(damaged == true, "_damage_stone_at should return true")
+	assert(pb.grid_stones[4][4] == 1, "Stone durability should decrease from 2 to 1")
+	pb._damage_stone_at(4, 4, 1)
+	assert(pb.grid_stones[4][4] == 0, "Stone durability should reach 0 and be destroyed")
+	print("Stone damage & destruction check: SUCCESS!")
+
+	# Test K: Bomb skill damaging stone
+	pb.grid_stones[3][3] = 2
+	pb.special_levels[pb.SpecialItemType.BOMB] = 1
+	var q: Array = []
+	var exp_dict: Dictionary = {}
+	pb._trigger_bomb(3, 2, Vector2(300, 300), q, exp_dict)
+	assert(pb.grid_stones[3][3] == 1, "Bomb should deal 1 damage to stone at (3, 3), reducing durability from 2 to 1")
+	assert(pb.ismatched[3][3] == false, "Stone should not be matched while durability remains")
+	print("Skill damage to stone check: SUCCESS!")
+
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

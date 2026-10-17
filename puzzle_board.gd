@@ -994,12 +994,17 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 	for i in range(GRID_ROWS):
 		var j: int = 0
 		while j < GRID_COLUMNS:
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0)
 			var kind: int = grid_n[i][j]
-			if kind < 0:
+			if kind < 0 or is_stone or _is_plant_cell(i, j):
 				j += 1
 				continue
 			var match_len: int = 1
-			while j + match_len < GRID_COLUMNS and grid_n[i][j + match_len] == kind:
+			while j + match_len < GRID_COLUMNS:
+				var next_c: int = j + match_len
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][next_c] > 0)
+				if next_is_stone or _is_plant_cell(i, next_c) or grid_n[i][next_c] != kind:
+					break
 				match_len += 1
 			if match_len >= 3:
 				found = true
@@ -1011,12 +1016,17 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 	for j in range(GRID_COLUMNS):
 		var i: int = 0
 		while i < GRID_ROWS:
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0)
 			var kind: int = grid_n[i][j]
-			if kind < 0:
+			if kind < 0 or is_stone or _is_plant_cell(i, j):
 				i += 1
 				continue
 			var match_len: int = 1
-			while i + match_len < GRID_ROWS and grid_n[i + match_len][j] == kind:
+			while i + match_len < GRID_ROWS:
+				var next_r: int = i + match_len
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][j] > 0)
+				if next_is_stone or _is_plant_cell(next_r, j) or grid_n[next_r][j] != kind:
+					break
 				match_len += 1
 			if match_len >= 3:
 				found = true
@@ -1052,12 +1062,17 @@ func _detect_and_spawn_special_from_matches() -> void:
 	for r in range(GRID_ROWS):
 		var c = 0
 		while c < GRID_COLUMNS:
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
 			var kind = grid_n[r][c]
-			if kind < 0:
+			if kind < 0 or is_stone or _is_plant_cell(r, c):
 				c += 1
 				continue
 			var match_len = 1
-			while c + match_len < GRID_COLUMNS and grid_n[r][c + match_len] == kind:
+			while c + match_len < GRID_COLUMNS:
+				var next_c = c + match_len
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][next_c] > 0)
+				if next_is_stone or _is_plant_cell(r, next_c) or grid_n[r][next_c] != kind:
+					break
 				match_len += 1
 			if match_len >= 3:
 				var c_list: Array[Vector2i] = []
@@ -1075,12 +1090,17 @@ func _detect_and_spawn_special_from_matches() -> void:
 	for c in range(GRID_COLUMNS):
 		var r = 0
 		while r < GRID_ROWS:
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
 			var kind = grid_n[r][c]
-			if kind < 0:
+			if kind < 0 or is_stone or _is_plant_cell(r, c):
 				r += 1
 				continue
 			var match_len = 1
-			while r + match_len < GRID_ROWS and grid_n[r + match_len][c] == kind:
+			while r + match_len < GRID_ROWS:
+				var next_r = r + match_len
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][c] > 0)
+				if next_is_stone or _is_plant_cell(next_r, c) or grid_n[next_r][c] != kind:
+					break
 				match_len += 1
 			if match_len >= 3:
 				var c_list: Array[Vector2i] = []
@@ -1452,6 +1472,40 @@ func _spawn_steam_effect(pos: Vector2) -> void:
 		tw.tween_property(puff, "color:a", 0.0, 0.45)
 		tw.chain().tween_callback(puff.queue_free)
 
+## 水マス設置処理（燃えた盤面に水がかぶさると消火される）
+func _apply_water_to_cell(r: int, c: int) -> void:
+	if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+		return
+	if grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0:
+		grid_fire[r][c] = 0
+		_spawn_steam_effect(get_cell_position(r, c))
+		_spawn_floating_text(get_cell_position(r, c), "消火", Color(0.4, 0.8, 1.0))
+	if grid_water.size() == GRID_ROWS:
+		grid_water[r][c] = true
+
+## 石マスへの被ダメージ処理（耐久値減少・0で粉砕破壊）
+func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
+	if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+		return false
+	if grid_stones.size() != GRID_ROWS or grid_stones[r][c] <= 0:
+		return false
+
+	grid_stones[r][c] -= dmg
+	var pos = get_cell_position(r, c)
+	if grid_stones[r][c] <= 0:
+		grid_stones[r][c] = 0
+		var rm_h = _get_relic_manager()
+		if rm_h:
+			rm_h.on_hazard_destroyed("stone", 1)
+		_spawn_stone_break_effect(pos)
+		_spawn_floating_text(pos, "石粉砕", Color(0.8, 0.8, 0.7))
+	else:
+		_spawn_stone_break_effect(pos)
+		_spawn_floating_text(pos, "耐久-%d" % dmg, Color(0.7, 0.7, 0.6))
+
+	_redraw_board_effects()
+	return true
+
 # --- 各アイテムの個別アクション処理 ---
 
 func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
@@ -1468,6 +1522,13 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				# 石マスへのスキルダメージ
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, 1)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
+
 				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
 				if is_water:
 					grid_water[nr][nc] = false
@@ -1498,6 +1559,12 @@ func _trigger_cross_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	for dr in range(-r_reach, r_reach + 1):
 		var nr = r + dr
 		if nr >= 0 and nr < GRID_ROWS:
+			if grid_stones.size() == GRID_ROWS and grid_stones[nr][c] > 0:
+				_damage_stone_at(nr, c, 1)
+				if grid_stones[nr][c] == 0 and grid_i[nr][c] != -1:
+					ismatched[nr][c] = true
+				continue
+
 			var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][c])
 			if is_water:
 				grid_water[nr][c] = false
@@ -1513,6 +1580,12 @@ func _trigger_cross_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	for dc in range(-c_reach, c_reach + 1):
 		var nc = c + dc
 		if nc >= 0 and nc < GRID_COLUMNS:
+			if grid_stones.size() == GRID_ROWS and grid_stones[r][nc] > 0:
+				_damage_stone_at(r, nc, 1)
+				if grid_stones[r][nc] == 0 and grid_i[r][nc] != -1:
+					ismatched[r][nc] = true
+				continue
+
 			var is_water = (grid_water.size() == GRID_ROWS and grid_water[r][nc])
 			if is_water:
 				grid_water[r][nc] = false
@@ -1539,10 +1612,19 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 	_spawn_tornado_effect(pos, lvl, half_w)
 
 	var hit_plants: Array = []
+	# つむじ風(Lv1)は木の耐久値-1、竜巻(Lv2以上)は-2
+	var tornado_dmg: int = 1 if lvl == 1 else 2
+
 	for nr in range(r, -1, -1):
 		for dc in range(-half_w, half_w + 1):
 			var nc = c + dc
 			if nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, tornado_dmg)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
+
 				if grid_water.size() == GRID_ROWS:
 					grid_water[nr][nc] = false
 				if grid_i[nr][nc] != -1:
@@ -1555,8 +1637,6 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 				if not plant.is_empty() and not (plant in hit_plants):
 					hit_plants.append(plant)
 
-	# つむじ風(Lv1)は木の耐久値-1、竜巻(Lv2以上)は-2
-	var tornado_dmg: int = 1 if lvl == 1 else 2
 	for p in hit_plants:
 		_damage_plant(p, tornado_dmg, "tornado")
 
@@ -1588,8 +1668,15 @@ func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_ite
 
 	for k in range(mini(target_count, candidates.size())):
 		var cp = candidates[k]
-		ismatched[cp.x][cp.y] = true
 		targets.append(get_cell_position(cp.x, cp.y))
+
+		if grid_stones.size() == GRID_ROWS and grid_stones[cp.x][cp.y] > 0:
+			_damage_stone_at(cp.x, cp.y, 2)
+			if grid_stones[cp.x][cp.y] == 0 and grid_i[cp.x][cp.y] != -1:
+				ismatched[cp.x][cp.y] = true
+			continue
+
+		ismatched[cp.x][cp.y] = true
 		var has_sp = (special_item.size() == GRID_ROWS and special_item[cp.x][cp.y] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[cp.x][cp.y])
 		if has_sp and not (cp in exploded_items):
 			queue.append(cp)
@@ -1627,8 +1714,7 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				if grid_water.size() == GRID_ROWS:
-					grid_water[nr][nc] = true
+				_apply_water_to_cell(nr, nc)
 
 	# 周囲の植物による即時吸水
 	for plant in plant_entities.duplicate():
@@ -1707,6 +1793,12 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, 1)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
+
 				if grid_i[nr][nc] != -1:
 					ismatched[nr][nc] = true
 					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
@@ -1750,6 +1842,12 @@ func _trigger_charge_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, ch)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
+
 				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
 				if is_water:
 					grid_water[nr][nc] = false
@@ -1768,6 +1866,12 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, 1)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
+
 				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
 				if is_water:
 					grid_water[nr][nc] = false
@@ -1775,7 +1879,6 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 				else:
 					if grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
-
 
 	var lvl: int = max(1, special_levels.get(SpecialItemType.GEMINI_BOMB, 1))
 	var split_count: int = 2 + (lvl - 1)
@@ -1795,8 +1898,14 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			for dc in [-1, 0, 1]:
 				var cr = tp.x + dr
 				var cc = tp.y + dc
-				if cr >= 0 and cr < GRID_ROWS and cc >= 0 and cc < GRID_COLUMNS and grid_i[cr][cc] != -1:
-					ismatched[cr][cc] = true
+				if cr >= 0 and cr < GRID_ROWS and cc >= 0 and cc < GRID_COLUMNS:
+					if grid_stones.size() == GRID_ROWS and grid_stones[cr][cc] > 0:
+						_damage_stone_at(cr, cc, 1)
+						if grid_stones[cr][cc] == 0 and grid_i[cr][cc] != -1:
+							ismatched[cr][cc] = true
+						continue
+					if grid_i[cr][cc] != -1:
+						ismatched[cr][cc] = true
 
 	_spawn_gemini_effect(pos, targets)
 
@@ -3430,7 +3539,15 @@ func _start_breaking_animation() -> void:
 
 	# 2. 隣接マッチによる氷割れ・石破壊・黄金像耐久減算・黒い霧解除
 	var adj_dirs = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]
+	var damaged_stones: Dictionary = {}
 	for cell in matched_cells_list:
+		# 炎上マス上で水コマ(POTION)が消去された場合、消火
+		if grid_att.size() == GRID_ROWS and grid_att[cell.x][cell.y] == PieceType.POTION:
+			if grid_fire.size() == GRID_ROWS and grid_fire[cell.x][cell.y] > 0:
+				grid_fire[cell.x][cell.y] = 0
+				_spawn_steam_effect(get_cell_position(cell.x, cell.y))
+				_spawn_floating_text(get_cell_position(cell.x, cell.y), "消火", Color(0.4, 0.8, 1.0))
+
 		for d in adj_dirs:
 			var ar = cell.x + d.x
 			var ac = cell.y + d.y
@@ -3442,11 +3559,10 @@ func _start_breaking_animation() -> void:
 						if rm_h: rm_h.on_hazard_destroyed("ice", 1)
 					_spawn_ice_break_effect(get_cell_position(ar, ac))
 				if grid_stones.size() == GRID_ROWS and grid_stones[ar][ac] > 0:
-					grid_stones[ar][ac] -= 1
-					if grid_stones[ar][ac] <= 0:
-						var rm_h = _get_relic_manager()
-						if rm_h: rm_h.on_hazard_destroyed("stone", 1)
-						_spawn_stone_break_effect(get_cell_position(ar, ac))
+					var stone_pos = Vector2i(ar, ac)
+					if not damaged_stones.has(stone_pos):
+						damaged_stones[stone_pos] = true
+						_damage_stone_at(ar, ac, 1)
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[ar][ac] > 0:
 					grid_gold_statue[ar][ac] -= 1
 					if grid_gold_statue[ar][ac] <= 0:
@@ -5589,7 +5705,7 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
-		grid_water[p.x][p.y] = true
+		_apply_water_to_cell(p.x, p.y)
 		_spawn_floating_text(get_cell_position(p.x, p.y), "水没", Color(0.2, 0.8, 1.0))
 		_spawn_aqua_splash_effect(get_cell_position(p.x, p.y), 1)
 		_targets.append(get_cell_position(p.x, p.y))
@@ -6421,11 +6537,17 @@ func _get_elemental_effect_intensity(count: int) -> int:
 
 func _spawn_elemental_bombs(elem: String, count: int, active_en: Array) -> void:
 	var intensity: int = _get_elemental_effect_intensity(count)
-	for e in active_en:
-		var spr = e.get("sprite")
-		if not is_instance_valid(spr):
-			continue
-		_play_elemental_size(elem, intensity, spr.global_position, count)
+	var sm = _get_stage_manager()
+	var target_e: Dictionary = {}
+	if sm and sm.has_method("get_focused_enemy"):
+		target_e = sm.get_focused_enemy()
+	if target_e.is_empty() and active_en.size() > 0:
+		target_e = active_en[0]
+
+	if not target_e.is_empty():
+		var spr = target_e.get("sprite")
+		if is_instance_valid(spr):
+			_play_elemental_size(elem, intensity, spr.global_position, count)
 
 func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2, raw_count: int = 1) -> void:
 	var local_pos = self.to_local(target_global_pos)
