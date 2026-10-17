@@ -47,6 +47,7 @@ const SE_NORMALIZATION_OFFSETS: Dictionary = {
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	call_deferred("_ensure_fullscreen_startup")
 	
 	# 日本語フォントフォールバックの設定
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
@@ -63,6 +64,12 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_SIZE_CHANGED:
 		_check_and_fix_maximized_window()
+
+## 初回起動時の全画面保証
+func _ensure_fullscreen_startup() -> void:
+	var mode = DisplayServer.window_get_mode()
+	if mode != DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN and mode != DisplayServer.WINDOW_MODE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 ## Windows での最大化時に発生するタイトルバーオフセットバグを物理的に回避
 func _check_and_fix_maximized_window() -> void:
