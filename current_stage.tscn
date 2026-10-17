@@ -831,9 +831,9 @@ script = SubResource("GDScript_t23u5")
 [node name="combo" type="RichTextLabel" parent="ScoreManager"]
 z_index = 2
 offset_left = 30.0
-offset_top = 130.0
+offset_top = 176.0
 offset_right = 212.0
-offset_bottom = 195.0
+offset_bottom = 236.0
 mouse_filter = 2
 theme_override_font_sizes/bold_italics_font_size = 38
 theme_override_font_sizes/italics_font_size = 38
@@ -848,9 +848,9 @@ script = SubResource("GDScript_t23u5")
 [node name="combocount" type="RichTextLabel" parent="ScoreManager"]
 z_index = 2
 offset_left = 30.0
-offset_top = 195.0
+offset_top = 236.0
 offset_right = 212.0
-offset_bottom = 300.0
+offset_bottom = 338.0
 mouse_filter = 2
 theme_override_font_sizes/bold_italics_font_size = 64
 theme_override_font_sizes/italics_font_size = 64
@@ -865,18 +865,18 @@ script = SubResource("GDScript_t23u5")
 [node name="comborect1" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 26.0
-offset_top = 118.0
+offset_top = 166.0
 offset_right = 216.0
-offset_bottom = 310.0
+offset_bottom = 346.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="comborect2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 30.0
-offset_top = 122.0
+offset_top = 170.0
 offset_right = 212.0
-offset_bottom = 306.0
+offset_bottom = 342.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
@@ -916,9 +916,9 @@ color = Color(0.02, 0.02, 0.06, 0.88)
 visible = false
 z_index = 8
 offset_left = 26.0
-offset_top = 320.0
+offset_top = 358.0
 offset_right = 216.0
-offset_bottom = 560.0
+offset_bottom = 590.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
@@ -926,9 +926,9 @@ color = Color(0.960784, 1, 0.0901961, 1)
 visible = false
 z_index = 8
 offset_left = 30.0
-offset_top = 324.0
+offset_top = 362.0
 offset_right = 212.0
-offset_bottom = 556.0
+offset_bottom = 586.0
 mouse_filter = 2
 color = Color(0, 0, 0, 0.85)
 
@@ -936,7 +936,7 @@ color = Color(0, 0, 0, 0.85)
 visible = false
 z_index = 9
 offset_left = 30.0
-offset_top = 330.0
+offset_top = 368.0
 offset_right = 212.0
 offset_bottom = 372.0
 mouse_filter = 2
@@ -1061,9 +1061,9 @@ script = ExtResource("3_tkwor")
 
 [node name="StageLabel" type="RichTextLabel" parent="StageManager"]
 offset_left = 20.0
-offset_top = 18.0
+offset_top = 74.0
 offset_right = 230.0
-offset_bottom = 108.0
+offset_bottom = 154.0
 theme_override_font_sizes/bold_italics_font_size = 48
 theme_override_font_sizes/italics_font_size = 48
 theme_override_font_sizes/mono_font_size = 48
@@ -1076,9 +1076,9 @@ text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 [node name="StageLabel2" type="RichTextLabel" parent="StageManager"]
 z_index = -1
 offset_left = 20.0
-offset_top = 18.0
+offset_top = 74.0
 offset_right = 230.0
-offset_bottom = 108.0
+offset_bottom = 154.0
 theme_override_font_sizes/bold_italics_font_size = 48
 theme_override_font_sizes/italics_font_size = 48
 theme_override_font_sizes/mono_font_size = 48

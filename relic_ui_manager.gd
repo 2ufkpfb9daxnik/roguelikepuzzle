@@ -244,6 +244,32 @@ func _on_skill_icon_gui_input(event: InputEvent, skill_id: String, rect: ColorRe
 		_show_skill_tooltip(skill_id, rect)
 		get_viewport().set_input_as_handled()
 
+## 盤面上の効果マスやショップアイテム等、外部から呼び出し可能な汎用ツールチップ表示
+func show_custom_tooltip(title: String, desc: String, screen_pos: Vector2, meta_key: String = "") -> void:
+	if title.is_empty() and desc.is_empty():
+		hide_custom_tooltip(meta_key)
+		return
+	if name_label: name_label.text = title
+	if desc_label: desc_label.text = desc
+	info_panel.set_meta("current_id", meta_key)
+
+	var panel_w = maxf(420.0, info_panel.size.x)
+	var panel_h = maxf(120.0, info_panel.size.y)
+	var target_x = clampf(screen_pos.x + 24.0, 20.0, 1920.0 - panel_w - 20.0)
+	var target_y = clampf(screen_pos.y - panel_h - 15.0, 20.0, 1080.0 - panel_h - 20.0)
+	# 画面上部付近の場合はマウスの下側に配置
+	if screen_pos.y - panel_h - 15.0 < 20.0:
+		target_y = clampf(screen_pos.y + 30.0, 20.0, 1080.0 - panel_h - 20.0)
+
+	info_panel.position = Vector2(target_x, target_y)
+	info_panel.visible = true
+
+## ツールチップ非表示
+func hide_custom_tooltip(meta_key: String = "") -> void:
+	if not info_panel: return
+	if meta_key.is_empty() or info_panel.get_meta("current_id", "") == meta_key:
+		info_panel.visible = false
+
 func _on_relic_added(id: String) -> void:
 	if icon_nodes.has(id): return
 	var r_data = RelicDatabase.get_relic(id)

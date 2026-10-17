@@ -1160,14 +1160,13 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 			_active_single_anims.clear()
 			is_playing_custom_animation = false
 			_current_custom_anim = ""
-		var any_combat_anim: bool = (_current_custom_anim == "attack" or _current_custom_anim == "skill")
-		for a in _active_single_anims.values():
-			if a == "attack" or a == "skill":
-				any_combat_anim = true
-				break
-		if not any_combat_anim and _damaged_anim_timer <= 0.0 and has_enemy_animation("damaged") and target_idx < active_enemies.size():
-			play_single_enemy_animation(target_idx, "damaged")
-			_damaged_anim_timer = DAMAGED_ANIM_INTERVAL
+		if target_idx < active_enemies.size() and active_enemies[target_idx]["hp"] > 0:
+			var target_e = active_enemies[target_idx]
+			var t_spr = target_e.get("sprite")
+			if is_instance_valid(t_spr):
+				var cur_anim = _active_single_anims.get(t_spr, "")
+				if cur_anim != "attack" and cur_anim != "skill":
+					play_single_enemy_animation(target_idx, "damaged")
 
 	var sum_hp = 0.0
 	for e in active_enemies:

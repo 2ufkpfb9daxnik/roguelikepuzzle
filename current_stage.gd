@@ -59,20 +59,15 @@ func _ready() -> void:
 	settings_btn.name = "InGameSettingsButton"
 	settings_btn.text = "⚙ 設定"
 	settings_btn.add_theme_font_override("font", CUSTOM_FONT)
-	settings_btn.add_theme_font_size_override("font_size", 26)
-	settings_btn.add_theme_constant_override("outline_size", 6)
+	settings_btn.add_theme_font_size_override("font_size", 22)
+	settings_btn.add_theme_constant_override("outline_size", 5)
 	settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	settings_btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	settings_btn.size = Vector2(160, 56)
-	settings_btn.custom_minimum_size = Vector2(160, 56)
+	settings_btn.size = Vector2(148, 44)
+	settings_btn.custom_minimum_size = Vector2(148, 44)
 
 	var update_settings_btn_pos = func():
-		var vp_sz = ui_root.size
-		if vp_sz.x <= 0 or vp_sz.y <= 0:
-			var vp = ui_root.get_viewport()
-			if vp: vp_sz = vp.get_visible_rect().size
-		if vp_sz.x <= 0: vp_sz = Vector2(1920, 1080)
-		settings_btn.position = Vector2(38, vp_sz.y - 100)
+		settings_btn.position = Vector2(26, 20)
 
 	update_settings_btn_pos.call()
 	ui_root.resized.connect(update_settings_btn_pos)

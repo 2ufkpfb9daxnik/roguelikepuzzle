@@ -206,6 +206,7 @@ var isgameover: bool = false
 
 # 内部変数
 var current_state: BoardState = BoardState.IDLE
+var _last_hovered_cell: Vector2i = Vector2i(-1, -1)
 
 var cellsize: Vector2 = Vector2(1.4, 1.4)
 var piece: Array = []        # Sprite2Dの1次元配列
@@ -623,12 +624,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_hovered_swap_direction(_current_local_mouse)
 			if swap_guide_overlay:
 				swap_guide_overlay.queue_redraw()
+			_hide_cell_hover_tooltip()
+		else:
+			_update_cell_hover_tooltip(event.position)
 		return
 
 	if not (event is InputEventMouseButton):
 		return
 
 	var mouse_event = event as InputEventMouseButton
+	_hide_cell_hover_tooltip()
 	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
 		return
 
@@ -1186,8 +1191,11 @@ func _detonate_specials(start_items: Array) -> void:
 			SpecialItemType.BOMB, SpecialItemType.CHARGE_BOMB, SpecialItemType.GEMINI_BOMB, SpecialItemType.CROSS_BOMB:
 				s_name = "bomb"
 				s_elem = "fire"
-			SpecialItemType.TORNADO, SpecialItemType.TREE_SPROUT:
+			SpecialItemType.TORNADO:
 				s_name = "tornado"
+				s_elem = "wind"
+			SpecialItemType.TREE_SPROUT:
+				s_name = "tree_sprout"
 				s_elem = "wind"
 			SpecialItemType.LIGHTNING, SpecialItemType.MAGNET:
 				s_name = "lightning"
@@ -2847,6 +2855,25 @@ func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
 	var target_top_y = get_cell_position(0, 0).y - CELL_PITCH * 2.5
 
 	var vortex = TornadoVortexNode.new(pos, target_top_y, width_px, lvl)
+	Profiler.add_child_count += 1; effects_parent.add_child(vortex)
+
+## 敵キャラクター専用の竜巻エフェクト（敵画面枠 X:1190..1915, Y:10..410 を決して越えず内部に美しく収束）
+func _spawn_enemy_tornado_effect(pos: Vector2, size: int) -> void:
+	var effects_parent = get_node_or_null("Effects")
+	if effects_parent == null: effects_parent = self
+	_trigger_screen_shake(8.0 + float(size) * 3.0)
+
+	var sound = get_node_or_null("AudioStreamPlayer")
+	if sound:
+		sound.pitch_scale = 1.45
+		sound.play()
+
+	# 敵画面サイズ（幅725px、高さ400px = ローカル幅7250、高さ4000）内に完全に収まる幅・高さ
+	var clamped_size = clampi(size, 1, 5)
+	var width_px = 850.0 + float(clamped_size) * 220.0 # グローバルで約85px〜195px (敵1体の幅に完璧に適合)
+	var target_top_y = maxf(200.0, pos.y - (650.0 + float(clamped_size) * 160.0)) # 敵画面上端（ローカル200）を絶対超えない
+
+	var vortex = TornadoVortexNode.new(pos, target_top_y, width_px, clampi(clamped_size, 1, 3))
 	Profiler.add_child_count += 1; effects_parent.add_child(vortex)
 
 ## 水しぶき・アクアスプラッシュ演出（同心円波紋 ＆ 重力水滴放物線スプラッシュ ＆ ミスト）
@@ -6159,17 +6186,11 @@ func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2, r
 			else:
 				_spawn_aqua_splash_effect(local_pos, 1)
 		"wind":
-			if size >= 5:
-				_spawn_tornado_effect(local_pos, 5, 450)
-				_spawn_shockwave_ring(local_pos, Color(0.2, 1.0, 0.7, 0.95), 1000.0, 0.42)
-			elif size == 4:
-				_spawn_tornado_effect(local_pos, 4, 380)
-			elif size == 3:
-				_spawn_tornado_effect(local_pos, 3, 300)
-			elif size == 2:
-				_spawn_tornado_effect(local_pos, 2, 150)
-			else:
-				_spawn_tornado_effect(local_pos, 1, 50)
+			_spawn_enemy_tornado_effect(local_pos, size)
+			if size >= 4:
+				_spawn_shockwave_ring(local_pos, Color(0.2, 1.0, 0.7, 0.9), 450.0 + float(size) * 80.0, 0.35)
+			elif size >= 2:
+				_spawn_shockwave_ring(local_pos, Color(0.2, 1.0, 0.7, 0.8), 300.0 + float(size) * 60.0, 0.28)
 		"thunder":
 			if size >= 5:
 				for dx in [-320, -200, -100, 0, 100, 200, 320]:
@@ -6283,6 +6304,158 @@ func _debug_apply_element_random(el: int) -> void:
 
 func _get_relic_manager() -> Node:
 	return get_tree().get_root().find_child("RelicManager", true, false)
+
+func _get_relic_ui_manager() -> Node:
+	var p = get_parent()
+	if p:
+		var r_ui = p.get_node_or_null("RelicUIManager")
+		if r_ui: return r_ui
+	return get_tree().get_root().find_child("RelicUIManager", true, false)
+
+func _hide_cell_hover_tooltip() -> void:
+	_last_hovered_cell = Vector2i(-1, -1)
+	var rm_ui = _get_relic_ui_manager()
+	if rm_ui and rm_ui.has_method("hide_custom_tooltip"):
+		rm_ui.hide_custom_tooltip("board_cell")
+
+## マウスホバー中の効果マス（特殊アイテム、盤面ギミック、属性コマ）の説明ツールチップ更新
+func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
+	if selected_cell.x != -1 or is_holding or current_state != BoardState.IDLE:
+		_hide_cell_hover_tooltip()
+		return
+
+	var sm = _get_stage_manager()
+	if sm and (sm.isstageclear or sm.isdeadf):
+		_hide_cell_hover_tooltip()
+		return
+
+	var c = int(floor((_current_local_mouse.x - BOARD_LEFT) / CELL_PITCH))
+	var r = int(floor((_current_local_mouse.y - BOARD_TOP) / CELL_PITCH))
+
+	if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+		_hide_cell_hover_tooltip()
+		return
+
+	var cur_cell = Vector2i(r, c)
+	if cur_cell == _last_hovered_cell:
+		return
+
+	_last_hovered_cell = cur_cell
+
+	var title: String = ""
+	var desc: String = ""
+
+	# 1. 特殊アイテムコマ (special_item)
+	var sp = special_item[r][c] if (special_item.size() == GRID_ROWS and special_item[r].size() == GRID_COLUMNS) else SpecialItemType.NONE
+	var is_b = is_bomb[r][c] if (is_bomb.size() == GRID_ROWS and is_bomb[r].size() == GRID_COLUMNS) else false
+	if sp == SpecialItemType.NONE and is_b:
+		sp = SpecialItemType.BOMB
+
+	var sp_lvl = max(1, special_levels.get(sp, 1))
+
+	match sp:
+		SpecialItemType.BOMB:
+			title = "[b][color=#FF9100]💣 フレイムボム (Lv%d)[/color][/b]" % sp_lvl
+			var radius_str = "3×3マス" if sp_lvl == 1 else ("5×5マス" if sp_lvl == 2 else "7×7マス")
+			desc = "[font_size=19]起爆すると周囲[color=#FFD700]%s[/color]を業火で爆破消去！\n敵に炎属性ダメージを与えます。[/font_size]" % radius_str
+		SpecialItemType.CROSS_BOMB:
+			title = "[b][color=#FF3D00]⚔️ クロスブレイズ (Lv%d)[/color][/b]" % sp_lvl
+			var width_str = "縦横1列" if sp_lvl == 1 else ("縦横3列" if sp_lvl == 2 else "縦横3列＋斜めX字")
+			desc = "[font_size=19]起爆すると[color=#FFD700]%s[/color]を貫通する極太火柱で一掃消滅させます！[/font_size]" % width_str
+		SpecialItemType.DISCO_BALL:
+			title = "[b][color=#E040FB]✨ スターオーブ (Lv%d)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]盤面内で最も多い属性のコマを一斉消滅！\n大量コンボと大ダメージを誘発します。[/font_size]"
+		SpecialItemType.COLOR_CONVERTER:
+			title = "[b][color=#69F0AE]🎨 フローラスプレー (Lv%d)[/color][/b]" % sp_lvl
+			var span_str = "周囲8マス" if sp_lvl == 1 else ("周囲5×5マス" if sp_lvl == 2 else "周囲7×7マス")
+			desc = "[font_size=19][color=#FFD700]%s[/color]をすべて同一の属性コマに染め上げ、確実な巨大連鎖を生成します。[/font_size]" % span_str
+		SpecialItemType.LIGHTNING:
+			title = "[b][color=#FFEA00]⚡ ライトニング (Lv%d)[/color][/b]" % sp_lvl
+			var strikes = 3 if sp_lvl == 1 else (5 if sp_lvl == 2 else 8)
+			desc = "[font_size=19]盤面に[color=#FFD700]%d発[/color]の落雷追撃！\n水たまりマスに触れると周囲へ感電連鎖します。[/font_size]" % strikes
+		SpecialItemType.BLACK_HOLE:
+			title = "[b][color=#7C4DFF]🌀 ブラックホール (Lv%d)[/color][/b]" % sp_lvl
+			var hole_str = "5×5マス" if sp_lvl == 1 else ("7×7マス" if sp_lvl == 2 else "9×9マス")
+			desc = "[font_size=19]超強力な重力渦を展開し、周囲[color=#FFD700]%s[/color]のコマを吸引・消滅させます。[/font_size]" % hole_str
+		SpecialItemType.TORNADO:
+			title = "[b][color=#00E676]🌪️ つむじ風・竜巻 (Lv%d)[/color][/b]" % sp_lvl
+			var w_str = "1列" if sp_lvl == 1 else ("3列" if sp_lvl == 2 else "縦横2方向の巨大竜巻")
+			desc = "[font_size=19]上空へ直進する竜巻で[color=#FFD700]%s[/color]を一掃！\n敵に風属性ダメージを与えます。[/font_size]" % w_str
+		SpecialItemType.AQUA_SPLASH:
+			title = "[b][color=#00B0FF]💧 アクアスプラッシュ (Lv%d)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]周囲に水しぶきを拡散し水たまりを展開！\n落雷の感電や、苗木の成長を促進します。[/font_size]"
+		SpecialItemType.TREE_SPROUT:
+			title = "[b][color=#76FF03]🌱 生命の苗木 (Lv%d)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]盤面に根を張り、水を吸うことで大木へ進化！\n毎ターンプレイヤーのHPを自動回復します。[/font_size]"
+		SpecialItemType.MAGNET:
+			title = "[b][color=#40C4FF]🧲 マグネットストーム (Lv%d)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]離れた同色コマを磁力で一箇所に引き寄せて強力に結合させます。[/font_size]"
+		SpecialItemType.CHARGE_BOMB:
+			title = "[b][color=#FFAB00]🔋 チャージボム (Lv%d)[/color][/b]" % sp_lvl
+			var chg = special_charge[r][c] if special_charge.size() == GRID_ROWS else 0
+			desc = "[font_size=19]隣接消去で蓄電（残り[color=#FFD700]%d回[/color]）。\nカウントが0になると超広域大爆発を起こします！[/font_size]" % chg
+		SpecialItemType.GEMINI_BOMB:
+			title = "[b][color=#FF1744]💥 ジェミニボム (Lv%d)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]双子の爆弾が互いに共鳴爆破し、直線上の全コマを貫通レーザーで消滅させます。[/font_size]"
+
+	# 2. 盤面ギミックマス（特殊アイテムが無い場合やマス状態）
+	if title.is_empty():
+		var plant = _get_plant_at(r, c)
+		if not plant.is_empty():
+			var p_stage = int(plant.get("stage", 0))
+			if p_stage == 2:
+				title = "[b][color=#00E676]🌳 世界樹・生命の大木 (3×3)[/color][/b]"
+				desc = "[font_size=19]毎ターン大量のHPを自動回復！雷耐性あり。\n※炎上マスが接触すると大炎上するため注意。[/font_size]"
+			elif p_stage == 1:
+				title = "[b][color=#76FF03]🌿 生命の若木[/color][/b]"
+				desc = "[font_size=19]毎ターンHPを回復。水たまりを吸うと3×3の大木へ進化します。[/font_size]"
+			else:
+				title = "[b][color=#AEEA00]🌱 生命の苗木[/color][/b]"
+				desc = "[font_size=19]毎ターンHPを回復。隣接する水たまりを吸って若木へ進化します。[/font_size]"
+		elif grid_gold_statue.size() == GRID_ROWS and int(grid_gold_statue[r][c]) > 0:
+			var g_hp = int(grid_gold_statue[r][c])
+			title = "[b][color=#FFD700]🏆 黄金像 (残り耐久: %d)[/color][/b]" % g_hp
+			desc = "[font_size=19]隣接マスでマッチを重ねて破壊すると、大量のゴールドコインを獲得できます！[/font_size]"
+		elif grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0:
+			var i_hp = int(grid_ice[r][c])
+			title = "[b][color=#00E5FF]❄️ 氷結マス (残り耐久: %d)[/color][/b]" % i_hp
+			desc = "[font_size=19]凍りついて動かせません。\n隣接マスでのマッチや炎属性攻撃で破壊・解凍できます。[/font_size]"
+		elif grid_stones.size() == GRID_ROWS and int(grid_stones[r][c]) > 0:
+			var s_hp = int(grid_stones[r][c])
+			title = "[b][color=#B0BEC5]🪨 障害物の岩石 (残り耐久: %d)[/color][/b]" % s_hp
+			desc = "[font_size=19]動かすことができない邪魔な障害物。\n隣接マスでマッチすると耐久を減らして粉砕できます。[/font_size]"
+		elif grid_water.size() == GRID_ROWS and grid_water[r][c]:
+			title = "[b][color=#00B0FF]💧 水たまりマス[/color][/b]"
+			desc = "[font_size=19]雷属性の落雷を受けると周囲へ感電連鎖！\nまた、生命の苗木が吸水して進化するために必要です。[/font_size]"
+		elif grid_fire.size() == GRID_ROWS and int(grid_fire[r][c]) > 0:
+			title = "[b][color=#FF3D00]🔥 炎上マス[/color][/b]"
+			desc = "[font_size=19]火が燃え盛っています。\n毎ターン隣接マスへ延焼します（水や氷で消火可能）。[/font_size]"
+		elif grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]:
+			title = "[b][color=#FFEA00]⚡ 帯電マス[/color][/b]"
+			desc = "[font_size=19][color=#FF5252]【危険】[/color] このマスをスワップ移動させると、感電バックラッシュダメージを受けます！[/font_size]"
+		elif grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]:
+			title = "[b][color=#AA00FF]☠️ 呪いのマス[/color][/b]"
+			desc = "[font_size=19][color=#FF5252]【危険】[/color] このマスを消去すると呪詛ダメージを受けます。\n隣接マスでマッチすると安全に浄化できます。[/font_size]"
+		elif grid_element.size() == GRID_ROWS and grid_element[r][c] != ElementDataScript.Element.NONE:
+			var el = grid_element[r][c]
+			var el_name_jp = ""
+			var el_color = "#FFFFFF"
+			match el:
+				ElementDataScript.Element.FIRE: el_name_jp = "炎属性"; el_color = "#FF5722"
+				ElementDataScript.Element.WATER: el_name_jp = "水属性"; el_color = "#03A9F4"
+				ElementDataScript.Element.WIND: el_name_jp = "風・地属性"; el_color = "#4CAF50"
+				ElementDataScript.Element.THUNDER: el_name_jp = "雷属性"; el_color = "#FFEB3B"
+				ElementDataScript.Element.LIGHT: el_name_jp = "光・聖属性"; el_color = "#FFF176"
+				ElementDataScript.Element.DARK: el_name_jp = "闇・魔属性"; el_color = "#BA68C8"
+			title = "[b][color=%s]✦ %sコマ[/color][/b]" % [el_color, el_name_jp]
+			desc = "[font_size=19]このコマをマッチすると[color=%s]%s[/color]の魔力が蓄積され、ターン終了時に敵へ属性追撃を浴びせます！[/font_size]" % [el_color, el_name_jp]
+
+	if not title.is_empty():
+		var rm_ui = _get_relic_ui_manager()
+		if rm_ui and rm_ui.has_method("show_custom_tooltip"):
+			rm_ui.show_custom_tooltip(title, desc, global_mouse_pos, "board_cell")
+	else:
+		_hide_cell_hover_tooltip()
 
 ## 盤面状態の集計（水たまり数、炎上マス数、大木の有無）
 func get_board_state() -> Dictionary:

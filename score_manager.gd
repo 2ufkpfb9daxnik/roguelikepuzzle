@@ -200,7 +200,7 @@ var skill_tree_items: Array[Dictionary] = [
 	# --- Branch 1: 水・自然系 ---
 	{
 		"id": "aqua_splash",
-		"sp_type": 6,
+		"sp_type": 8,
 		"branch": 1,
 		"tier": 0,
 		"req_id": "",
@@ -218,7 +218,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "tree_sprout",
-		"sp_type": 7,
+		"sp_type": 9,
 		"branch": 1,
 		"tier": 1,
 		"req_id": "aqua_splash",
@@ -255,7 +255,7 @@ var skill_tree_items: Array[Dictionary] = [
 	# --- Branch 2: 風・雷電系 ---
 	{
 		"id": "tornado",
-		"sp_type": 3,
+		"sp_type": 7,
 		"branch": 2,
 		"tier": 0,
 		"req_id": "",
@@ -328,7 +328,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "black_hole",
-		"sp_type": 9,
+		"sp_type": 6,
 		"branch": 3,
 		"tier": 1,
 		"req_id": "charge_bomb",
@@ -346,7 +346,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "disco_ball",
-		"sp_type": 8,
+		"sp_type": 3,
 		"branch": 3,
 		"tier": 2,
 		"req_id": "black_hole",
@@ -627,15 +627,15 @@ func _ready() -> void:
 		style_hover.set_corner_radius_all(14)
 		gc_btn.add_theme_stylebox_override("hover", style_hover)
 
-	# フィーバータイム欄をコンボ欄（x: 26..216, y: 118..310）の真下（x: 26..216, y: 320..560）に美しく配置
+	# フィーバータイム欄をコンボ欄（x: 26..216, y: 166..346）の真下（x: 26..216, y: 358..590）に美しく配置
 	var fv_rect = get_node_or_null("feverrect") as ColorRect
 	if fv_rect:
-		fv_rect.position = Vector2(26, 320)
-		fv_rect.size = Vector2(190, 240)
+		fv_rect.position = Vector2(26, 358)
+		fv_rect.size = Vector2(190, 232)
 	var fv_rect2 = get_node_or_null("feverrect2") as ColorRect
 	if fv_rect2:
-		fv_rect2.position = Vector2(30, 324)
-		fv_rect2.size = Vector2(182, 232)
+		fv_rect2.position = Vector2(30, 362)
+		fv_rect2.size = Vector2(182, 224)
 
 	var fv_lbl2 = get_node_or_null("feverlabel2") as RichTextLabel
 	if fv_lbl2:
@@ -645,8 +645,8 @@ func _ready() -> void:
 		fv_lbl2.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		fv_lbl2.add_theme_font_size_override("normal_font_size", 18)
 		fv_lbl2.add_theme_font_size_override("bold_font_size", 18)
-		fv_lbl2.position = Vector2(30, 330)
-		fv_lbl2.size = Vector2(182, 42)
+		fv_lbl2.position = Vector2(30, 368)
+		fv_lbl2.size = Vector2(182, 40)
 		fv_lbl2.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ FEVER ★[/rainbow][/b][/center]"
 
 	var fv_lbl3 = get_node_or_null("feverlabel3") as RichTextLabel
@@ -657,7 +657,7 @@ func _ready() -> void:
 		fv_lbl3.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		fv_lbl3.add_theme_font_size_override("normal_font_size", 20)
 		fv_lbl3.add_theme_font_size_override("bold_font_size", 20)
-		fv_lbl3.position = Vector2(30, 372)
+		fv_lbl3.position = Vector2(30, 408)
 		fv_lbl3.size = Vector2(182, 40)
 		update_fever_label3()
 
@@ -669,7 +669,7 @@ func _ready() -> void:
 		fv_time.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		fv_time.add_theme_font_size_override("normal_font_size", 18)
 		fv_time.add_theme_font_size_override("bold_font_size", 18)
-		fv_time.position = Vector2(30, 412)
+		fv_time.position = Vector2(30, 448)
 		fv_time.size = Vector2(182, 40)
 		fv_time.text = "[center][b][color=#FFFFFF]残り手数[/color][/b][/center]"
 
@@ -681,7 +681,7 @@ func _ready() -> void:
 		fv_cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		fv_cnt.add_theme_font_size_override("normal_font_size", 46)
 		fv_cnt.add_theme_font_size_override("bold_font_size", 46)
-		fv_cnt.position = Vector2(30, 452)
+		fv_cnt.position = Vector2(30, 488)
 		fv_cnt.size = Vector2(182, 96)
 
 	var sc_btn = get_node_or_null("stagechangeb") as Button
@@ -985,14 +985,14 @@ func combo() -> void:
 	if interval <= 36:
 		var bounce: float = float((interval - 18) * (interval - 18)) / 10.0 - 33.0
 		if combo_label != null:
-			combo_label.position.y = 130.0 + bounce * 0.6
+			combo_label.position.y = 176.0 + bounce * 0.6
 		if combocount_label != null:
-			combocount_label.position.y = 195.0 + bounce * 0.6
+			combocount_label.position.y = 236.0 + bounce * 0.6
 	else:
 		iscombo = false
 		interval = 0
-		if combo_label != null: combo_label.position.y = 130.0
-		if combocount_label != null: combocount_label.position.y = 195.0
+		if combo_label != null: combo_label.position.y = 176.0
+		if combocount_label != null: combocount_label.position.y = 236.0
 	interval += 1
 
 ## 特大コンボ・アチーブメント演出（中央カットインバースト）
@@ -1482,6 +1482,33 @@ func _setup_shop_page_controls() -> void:
 		s_btn.pressed.connect(func(): _purchase_skill(bind_idx))
 		node_card.add_child(s_btn)
 
+		var card_skill_id = s_item["id"]
+		node_card.mouse_filter = Control.MOUSE_FILTER_PASS
+		node_card.mouse_entered.connect(func():
+			var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+			if r_ui and r_ui.has_method("show_custom_tooltip"):
+				var c_lvl = int(s_item.get("level", 0))
+				var m_lvl = int(s_item.get("max_level", 3))
+				var col_hex = s_item.get("color", Color.WHITE).to_html(false)
+				var t_str = "[b][color=#%s]🌿 %s (Lv%d/%d)[/color][/b]" % [col_hex, s_item.get("name", "Skill"), c_lvl, m_lvl]
+				var d_arr: Array = s_item.get("desc_lv", [])
+				var cur_d = d_arr[clampi(c_lvl - 1, 0, d_arr.size() - 1)] if c_lvl > 0 and not d_arr.is_empty() else (d_arr[0] if not d_arr.is_empty() else "")
+				var next_d = d_arr[clampi(c_lvl, 0, d_arr.size() - 1)] if c_lvl < m_lvl and not d_arr.is_empty() else ""
+				var d_str = ""
+				if c_lvl >= m_lvl:
+					d_str = "[font_size=19][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % cur_d
+				elif c_lvl == 0:
+					d_str = "[font_size=19][color=#AAAAAA]【未習得】[/color]\n習得効果 (Lv1): %s[/font_size]" % next_d
+				else:
+					d_str = "[font_size=19]現在 (Lv%d): %s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [c_lvl, cur_d, c_lvl + 1, next_d]
+				r_ui.show_custom_tooltip(t_str, d_str, node_card.get_global_mouse_position(), "shop_skill:" + card_skill_id)
+		)
+		node_card.mouse_exited.connect(func():
+			var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+			if r_ui and r_ui.has_method("hide_custom_tooltip"):
+				r_ui.hide_custom_tooltip("shop_skill:" + card_skill_id)
+		)
+
 		skill_node_refs.append({
 			"card": node_card,
 			"s_lvl": s_lvl,
@@ -1828,7 +1855,7 @@ func _purchase_skill(skill_idx: int) -> void:
 		var pb = _get_puzzle_board()
 		if pb and "special_levels" in pb:
 			pb.special_levels[sp_type] = new_lvl
-			if sp_type == 7 and pb.has_method("_plant_sprout_on_board"):
+			if sp_type == 9 and pb.has_method("_plant_sprout_on_board"):
 				pb._plant_sprout_on_board()
 
 		if s_item["id"] == "bomb":
