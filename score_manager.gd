@@ -1106,9 +1106,10 @@ func _setup_shop_page_controls() -> void:
 	coin_currency_lbl = RichTextLabel.new()
 	coin_currency_lbl.bbcode_enabled = true
 	coin_currency_lbl.scroll_active = false
+	coin_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	coin_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_currency_lbl.position = Vector2(10, 6)
-	coin_currency_lbl.size = Vector2(312, 54)
+	coin_currency_lbl.position = Vector2(8, 12)
+	coin_currency_lbl.size = Vector2(316, 40)
 	coin_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	coin_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
@@ -1129,9 +1130,10 @@ func _setup_shop_page_controls() -> void:
 	potion_currency_lbl = RichTextLabel.new()
 	potion_currency_lbl.bbcode_enabled = true
 	potion_currency_lbl.scroll_active = false
+	potion_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	potion_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	potion_currency_lbl.position = Vector2(10, 6)
-	potion_currency_lbl.size = Vector2(312, 54)
+	potion_currency_lbl.position = Vector2(8, 12)
+	potion_currency_lbl.size = Vector2(316, 40)
 	potion_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	potion_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
@@ -1488,9 +1490,9 @@ func _update_buff_button_labels() -> void:
 	var potions: int = int(divscore[PieceType.POTION]) if divscore.size() > PieceType.POTION else 0
 
 	if coin_currency_lbl:
-		coin_currency_lbl.text = "[center][color=#CCCCCC][font_size=14]所持コイン[/font_size][/color]\n[img=28]res://Texture/coin/coin_cut.png[/img] [b][color=#FFD700]%s[/color][/b][/center]" % _format_comma(coins)
+		coin_currency_lbl.text = "[center][img=30]res://Texture/coin/coin_cut.png[/img] [color=#CCCCCC][font_size=18]所持コイン:[/font_size][/color] [b][color=#FFD700][font_size=24]%s[/font_size][/color][/b][/center]" % _format_comma(coins)
 	if potion_currency_lbl:
-		potion_currency_lbl.text = "[center][color=#CCCCCC][font_size=14]余剰ポーション[/font_size][/color]\n[img=28]res://Texture/potion/potion_cut.png[/img] [b][color=#FF66B3]%s[/color][/b][/center]" % _format_comma(potions)
+		potion_currency_lbl.text = "[center][img=30]res://Texture/potion/potion_cut.png[/img] [color=#CCCCCC][font_size=18]余剰ポーション:[/font_size][/color] [b][color=#FF66B3][font_size=24]%s[/font_size][/color][/b][/center]" % _format_comma(potions)
 
 	# タブボタンのスタイル更新
 	if shop_tab_btn and skill_tab_btn:

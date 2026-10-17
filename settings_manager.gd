@@ -6,8 +6,8 @@ extends Node
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 
 # 設定値
-var bgm_volume: float = 0.8   # 0.0 ~ 1.0
-var se_volume: float = 0.8    # 0.0 ~ 1.0
+var bgm_volume: float = 0.2   # 0.0 ~ 1.0
+var se_volume: float = 0.2    # 0.0 ~ 1.0
 var game_speed: float = 1.0   # 0.5 ~ 3.0
 
 # 元のピッチ記憶用 Dictionary: { Node: float }
@@ -501,25 +501,9 @@ func _create_settings_dialog() -> void:
 	var btn_y = panel_h - 80.0
 
 	if is_on_title:
-		# タイトル画面時: 「ゲーム終了」と「閉じる」の2ボタン
-		var t_btn_w = 350.0
-		var t_gap = 40.0
-		var t_start_x = (panel_w - (t_btn_w * 2.0 + t_gap)) / 2.0
-
-		var quit_btn = Button.new()
-		quit_btn.text = "✕ ゲーム終了 (QUIT)"
-		quit_btn.add_theme_font_override("font", CUSTOM_FONT)
-		quit_btn.add_theme_font_size_override("font_size", 26)
-		quit_btn.add_theme_constant_override("outline_size", 6)
-		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
-		quit_btn.position = Vector2(t_start_x, btn_y)
-		quit_btn.size = Vector2(t_btn_w, 56)
-		quit_btn.pressed.connect(func():
-			var t = _get_tree_safe()
-			if t: t.quit()
-		)
-		modal.add_child(quit_btn)
+		# タイトル画面時: 「閉じる」ボタンのみ（中央配置）
+		var t_btn_w = 400.0
+		var t_start_x = (panel_w - t_btn_w) / 2.0
 
 		var close_btn = Button.new()
 		close_btn.text = "閉じる (CLOSE)"
@@ -527,22 +511,22 @@ func _create_settings_dialog() -> void:
 		close_btn.add_theme_font_size_override("font_size", 26)
 		close_btn.add_theme_constant_override("outline_size", 6)
 		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		close_btn.position = Vector2(t_start_x + t_btn_w + t_gap, btn_y)
+		close_btn.position = Vector2(t_start_x, btn_y)
 		close_btn.size = Vector2(t_btn_w, 56)
 		close_btn.pressed.connect(func():
 			close_settings()
 		)
 		modal.add_child(close_btn)
 	else:
-		# インゲーム時: 「タイトルへ戻る」「ゲーム終了」「閉じる」の3ボタン
-		var g_btn_w = 236.0
-		var g_gap = 24.0
-		var g_start_x = (panel_w - (g_btn_w * 3.0 + g_gap * 2.0)) / 2.0
+		# インゲーム時: 「タイトルへ戻る」「閉じる」の2ボタン（中央配置）
+		var g_btn_w = 340.0
+		var g_gap = 36.0
+		var g_start_x = (panel_w - (g_btn_w * 2.0 + g_gap)) / 2.0
 
 		var title_btn = Button.new()
 		title_btn.text = "タイトルへ戻る"
 		title_btn.add_theme_font_override("font", CUSTOM_FONT)
-		title_btn.add_theme_font_size_override("font_size", 22)
+		title_btn.add_theme_font_size_override("font_size", 24)
 		title_btn.add_theme_constant_override("outline_size", 6)
 		title_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		title_btn.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
@@ -557,28 +541,13 @@ func _create_settings_dialog() -> void:
 		)
 		modal.add_child(title_btn)
 
-		var quit_btn = Button.new()
-		quit_btn.text = "✕ ゲーム終了"
-		quit_btn.add_theme_font_override("font", CUSTOM_FONT)
-		quit_btn.add_theme_font_size_override("font_size", 22)
-		quit_btn.add_theme_constant_override("outline_size", 6)
-		quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		quit_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
-		quit_btn.position = Vector2(g_start_x + (g_btn_w + g_gap), btn_y)
-		quit_btn.size = Vector2(g_btn_w, 56)
-		quit_btn.pressed.connect(func():
-			var t = _get_tree_safe()
-			if t: t.quit()
-		)
-		modal.add_child(quit_btn)
-
 		var close_btn = Button.new()
 		close_btn.text = "閉じる (CLOSE)"
 		close_btn.add_theme_font_override("font", CUSTOM_FONT)
-		close_btn.add_theme_font_size_override("font_size", 22)
+		close_btn.add_theme_font_size_override("font_size", 24)
 		close_btn.add_theme_constant_override("outline_size", 6)
 		close_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		close_btn.position = Vector2(g_start_x + (g_btn_w + g_gap) * 2.0, btn_y)
+		close_btn.position = Vector2(g_start_x + g_btn_w + g_gap, btn_y)
 		close_btn.size = Vector2(g_btn_w, 56)
 		close_btn.pressed.connect(func():
 			close_settings()

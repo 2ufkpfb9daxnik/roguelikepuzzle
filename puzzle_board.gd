@@ -4413,8 +4413,13 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		var target_pos = Vector2(12300.0 + float(randi() % 2000 - 1000), 2700.0)
 		var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
 		if not active_en.is_empty():
-			var e = active_en[randi() % active_en.size()]
-			var spr = e.get("sprite")
+			var target_e = null
+			var focus_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1
+			if focus_idx >= 0 and focus_idx < active_en.size():
+				target_e = active_en[focus_idx]
+			else:
+				target_e = active_en[0]
+			var spr = target_e.get("sprite")
 			if is_instance_valid(spr):
 				target_pos = self.to_local(spr.global_position)
 		
@@ -4699,9 +4704,6 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 						total_blocked += block_amount
 						remaining_atk -= block_amount
 					
-						var consumed = (block_amount * mult) / blocked_per_shield if blocked_per_shield > 0 else 0
-						current_shield_pools[el] -= consumed
-					
 						if remaining_atk <= 0.0:
 							break
 			
@@ -4767,6 +4769,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		for item in active_shields:
 			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
 		active_shields.clear()
+		current_shield_pools.clear()
 		current_total_shields = 0
 		if sm and sm.myhp <= 0:
 			var go_node = sm.get_node_or_null("gameover")
@@ -4840,9 +4843,6 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 					
 					total_blocked += block_amount
 					remaining_atk -= block_amount
-					
-					var consumed = (block_amount * mult) / blocked_per_shield if blocked_per_shield > 0 else 0
-					current_shield_pools[el] -= consumed
 					
 					if remaining_atk <= 0.0:
 						break

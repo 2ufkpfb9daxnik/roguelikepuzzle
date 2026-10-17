@@ -223,8 +223,25 @@ var _cached_fever_count_lbl = null
 var _last_updated_bg_stage: int = -1
 var _cached_casino_bg: Texture2D = preload("res://Texture/haikei/casino_bg.jpg")
 const ACCEL_RUSH_SE: AudioStream = preload("res://Sound/se/patinko/acceleration_15_demo.mp3")
+const TARGET_LOCK_SE: AudioStream = preload("res://Sound/se/kurikku/cursor_14_demo.mp3")
+const TARGET_UNLOCK_SE: AudioStream = preload("res://Sound/se/kurikku/cancel_24.mp3")
+var _target_se_player: AudioStreamPlayer = null
 var _cached_enemy_textures: Dictionary = {}
 var _rush_se_player: AudioStreamPlayer = null
+
+func _play_target_se(is_lock: bool) -> void:
+	if _target_se_player == null:
+		_target_se_player = AudioStreamPlayer.new()
+		_target_se_player.name = "TargetSEPlayer"
+		add_child(_target_se_player)
+	_target_se_player.stream = TARGET_LOCK_SE if is_lock else TARGET_UNLOCK_SE
+	_target_se_player.pitch_scale = 1.05 if is_lock else 1.15
+	var se_vol: float = 0.6
+	var sm_autoload = get_node_or_null("/root/SettingsManager")
+	if sm_autoload and "se_volume" in sm_autoload:
+		se_vol = clampf(sm_autoload.se_volume * 0.7, 0.001, 1.0)
+	_target_se_player.volume_db = linear_to_db(se_vol)
+	_target_se_player.play()
 var _cached_settings_manager: Node = null
 var _cached_score_manager: Node2D = null
 var _cached_puzzle_board: Node2D = null
@@ -397,26 +414,31 @@ func is_boss_monster() -> bool:
 func get_focused_enemy_index() -> int:
 	if active_enemies.is_empty():
 		return -1
-	return clampi(target_enemy_index, 0, active_enemies.size() - 1)
+	return target_enemy_index
 
 func get_focused_enemy() -> Dictionary:
 	var idx = get_focused_enemy_index()
 	if idx >= 0 and idx < active_enemies.size():
 		return active_enemies[idx]
+	elif not active_enemies.is_empty():
+		return active_enemies[0]
 	return {}
 
 func set_focused_enemy_index(idx: int) -> void:
 	if active_enemies.is_empty():
-		target_enemy_index = 0
+		target_enemy_index = -1
 		return
-	target_enemy_index = clampi(idx, 0, active_enemies.size() - 1)
+	if idx < 0:
+		target_enemy_index = -1
+	else:
+		target_enemy_index = clampi(idx, 0, active_enemies.size() - 1)
 	_update_target_indicator()
 
 func _update_target_indicator() -> void:
 	var focused_idx = get_focused_enemy_index()
 	for j in range(active_enemies.size()):
 		var e = active_enemies[j]
-		var is_focus = (j == focused_idx)
+		var is_focus = (j == focused_idx and focused_idx >= 0)
 		if e.has("target_badge") and is_instance_valid(e["target_badge"]):
 			e["target_badge"].visible = is_focus
 		if e.has("target_frame") and is_instance_valid(e["target_frame"]):
@@ -424,6 +446,9 @@ func _update_target_indicator() -> void:
 		if is_focus and is_instance_valid(e.get("sprite")):
 			enemy = e["sprite"]
 			current_enemy_key = e.get("key", "")
+	if focused_idx < 0 and active_enemies.size() > 0:
+		enemy = active_enemies[0]["sprite"]
+		current_enemy_key = active_enemies[0].get("key", "")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -439,8 +464,16 @@ func _input(event: InputEvent) -> void:
 					if dist < best_dist and dist <= 160.0:
 						best_dist = dist
 						best_idx = j
-			if best_idx != -1 and best_idx != target_enemy_index:
-				set_focused_enemy_index(best_idx)
+			if best_idx != -1:
+				if best_idx == target_enemy_index:
+					# ターゲット中の敵をもう一度クリックすることでターゲット解除
+					target_enemy_index = -1
+					_update_target_indicator()
+					_play_target_se(false)
+				else:
+					target_enemy_index = best_idx
+					_update_target_indicator()
+					_play_target_se(true)
 
 func get_current_enemy_element() -> String:
 	var f_enemy = get_focused_enemy()
