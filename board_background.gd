@@ -6,14 +6,14 @@ class_name BoardBackground
 @export var board = null
 @export var background_texture: Texture2D = null
 
-const GRID_COLS: int = 15
-const GRID_ROWS: int = 15
-const CELL_PITCH: float = 500.0
+const GRID_COLS: int = 10
+const GRID_ROWS: int = 10
+const CELL_PITCH: float = 750.0
 
 const BOARD_LEFT: float = 4250.0
 const BOARD_TOP: float = 1250.0
-const BOARD_WIDTH: float = 7500.0   # 15 * 500
-const BOARD_HEIGHT: float = 7500.0  # 15 * 500
+const BOARD_WIDTH: float = 7500.0   # 10 * 750
+const BOARD_HEIGHT: float = 7500.0  # 10 * 750
 const BOARD_RIGHT: float = BOARD_LEFT + BOARD_WIDTH
 const BOARD_BOTTOM: float = BOARD_TOP + BOARD_HEIGHT
 

@@ -59,12 +59,12 @@ enum BoardState {
 }
 
 # --- 盤面設定・定数 ---
-const GRID_COLUMNS: int = 15
-const GRID_ROWS: int = 15
+const GRID_COLUMNS: int = 10
+const GRID_ROWS: int = 10
 const CELL_KINDS: int = 5
 const OFFSET_X: float = 4000.0
 const OFFSET_Y: float = 1000.0
-const CELL_PITCH: float = 500.0
+const CELL_PITCH: float = 750.0
 
 # 落下物理パラメータ
 const GRAVITY: float = 45000.0        # 落下加速度
@@ -200,7 +200,7 @@ var isgameover: bool = false
 # 内部変数
 var current_state: BoardState = BoardState.IDLE
 
-var cellsize: Vector2 = Vector2.ONE
+var cellsize: Vector2 = Vector2(1.5, 1.5)
 var piece: Array = []        # Sprite2Dの1次元配列
 var piececollid: Array = []  # CollisionShape2D等の1次元配列
 
@@ -342,7 +342,7 @@ func _get_score_manager() -> Node2D:
 
 ## セルのローカル座標を取得
 func get_cell_position(r: int, c: int) -> Vector2:
-	return Vector2(c * CELL_PITCH + CELL_PITCH + dx, r * CELL_PITCH + CELL_PITCH + dy)
+	return Vector2(4250.0 + (float(c) + 0.5) * CELL_PITCH, 1250.0 + (float(r) + 0.5) * CELL_PITCH)
 
 ## スコア欄ラベルをゲーム開始時の初期位置に厳密に復帰
 func _restore_score_label_positions() -> void:
@@ -652,8 +652,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var local_pos = _get_mouse_local()
 	_current_local_mouse = local_pos
-	var col_idx = int(floor((local_pos.x - 4250.0) / 500.0))
-	var row_idx = int(floor((local_pos.y - 1250.0) / 500.0))
+	var col_idx = int(floor((local_pos.x - 4250.0) / CELL_PITCH))
+	var row_idx = int(floor((local_pos.y - 1250.0) / CELL_PITCH))
 	var is_in_bounds: bool = (row_idx >= 0 and row_idx < GRID_ROWS and col_idx >= 0 and col_idx < GRID_COLUMNS)
 
 	if mouse_event.pressed:
@@ -750,8 +750,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		is_holding = false
 		if selected_cell.x != -1:
 			var rel_pos = _get_mouse_local()
-			var rel_col = int(floor((rel_pos.x - 4250.0) / 500.0))
-			var rel_row = int(floor((rel_pos.y - 1250.0) / 500.0))
+			var rel_col = int(floor((rel_pos.x - 4250.0) / CELL_PITCH))
+			var rel_row = int(floor((rel_pos.y - 1250.0) / CELL_PITCH))
 			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
 			
 			if rel_in_bounds and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) == 1):
@@ -6303,8 +6303,8 @@ func _update_hovered_swap_direction(local_mouse: Vector2) -> void:
 	var target_cell = Vector2i(-1, -1)
 
 	# 1. マウスが直接乗っているマスをチェック（マンハッタン距離1の隣接マス）
-	var m_col = int(floor((local_mouse.x - 4250.0) / 500.0))
-	var m_row = int(floor((local_mouse.y - 1250.0) / 500.0))
+	var m_col = int(floor((local_mouse.x - 4250.0) / CELL_PITCH))
+	var m_row = int(floor((local_mouse.y - 1250.0) / CELL_PITCH))
 	if m_row >= 0 and m_row < GRID_ROWS and m_col >= 0 and m_col < GRID_COLUMNS:
 		if abs(m_row - selected_cell.x) + abs(m_col - selected_cell.y) == 1:
 			target_cell = Vector2i(m_row, m_col)
@@ -6347,7 +6347,8 @@ func _draw_swap_guides_on_overlay(overlay: Node2D) -> void:
 			continue
 
 		var cell_pos = get_cell_position(nr, nc)
-		var rect = Rect2(cell_pos.x - 245.0, cell_pos.y - 245.0, 490.0, 490.0)
+		var half_p = CELL_PITCH * 0.5 - 10.0
+		var rect = Rect2(cell_pos.x - half_p, cell_pos.y - half_p, half_p * 2.0, half_p * 2.0)
 
 		if hovered_swap_cell == Vector2i(nr, nc):
 			# === 現在向いている移動先マスの特大強調表示 ===

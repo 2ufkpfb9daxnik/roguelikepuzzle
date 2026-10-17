@@ -7,9 +7,9 @@ class_name BoardOverlay
 
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 
-const GRID_COLS: int = 15
-const GRID_ROWS: int = 15
-const CELL_PITCH: float = 500.0
+const GRID_COLS: int = 10
+const GRID_ROWS: int = 10
+const CELL_PITCH: float = 750.0
 
 const BOARD_LEFT: float = 4250.0
 const BOARD_TOP: float = 1250.0
