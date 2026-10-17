@@ -4305,10 +4305,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
 		
-		# 敵全員がアクションを実行し終えるまでの十分な待機時間を計算 (最大 115)
-		var end_wait_fast = (105 if has_custom_atk else 95) if is_casting_skill_turn else (75 if has_custom_atk else 14)
-		if sm and "active_enemies" in sm:
-			end_wait_fast = max(end_wait_fast, sm.active_enemies.size() * 50)
+		# 敵全員がアクションを実行し終えるまでの十分な待機時間を計算（敵の数×アクション種別）
+		var end_wait_fast = 4 + _calc_enemy_turn_duration(sm, is_casting_skill_turn)
 			
 		if interval == 4:
 			_execute_enemy_turn_actions(sm)
@@ -4318,7 +4316,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 				sm.fevertime()
 		elif interval > end_wait_fast:
 			var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
-			if is_anim and interval < end_wait_fast + 60:
+			if is_anim and interval < end_wait_fast + 90:
 				interval += 1
 				return
 			
@@ -4397,14 +4395,14 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
 		_execute_enemy_turn_actions(sm)
 
-	elif interval == base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock:
 		if sm and not sm.isfevertime:
 			sm.fevertime()
 
-	elif interval > base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock:
-		var wait_threshold = base_time + ((115 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 105) if is_casting_skill_turn else (75 if (sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")) else 52)) + 144 * isattack + 128 * isblock
+	elif interval > base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock:
+		var wait_threshold = base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock
 		var is_anim = is_enemy_turn_in_progress or (sm and sm.is_enemy_animating())
-		if is_anim and interval < wait_threshold + 75:
+		if is_anim and interval < wait_threshold + 90:
 			interval += 1
 			return
 		
@@ -4614,6 +4612,16 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 var _enemy_turn_actions: Array = []
 var is_enemy_turn_in_progress: bool = false
 var _enemy_turn_tween: Tween = null
+
+func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
+	var enemy_cnt = 1
+	if sm and "active_enemies" in sm:
+		enemy_cnt = max(1, sm.active_enemies.size())
+	
+	# スキル時は1体あたり約85フレーム(約1.4秒)、通常攻撃時は1体あたり約35フレーム(約0.6秒)
+	# 全体のタメと余韻として +30フレーム
+	var per_enemy = 85 if is_skill_turn else 35
+	return enemy_cnt * per_enemy + 30
 
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
