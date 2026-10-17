@@ -449,39 +449,88 @@ func _ready() -> void:
 			divscorelabel.append(score_lbl)
 	
 
-	# 属性ステータスパネルの初期化（未配置の場合は自動生成）
+	# 各値ステータスパネルの初期化（敵の画面左端 x: 1190.0 を基準に固定幅340.0、高さ275.0）
+	if status_rect != null:
+		status_rect.position = Vector2(1190.0, 472.0)
+		status_rect.size = Vector2(340.0, 275.0)
+	if status2_rect != null:
+		status2_rect.position = Vector2(1192.0, 474.0)
+		status2_rect.size = Vector2(336.0, 271.0)
+
+	# 各値アイコン（左セル x: 1192..1250 の中央に独立配置）
+	for i in range(5):
+		var icn_name = "score_icon" + str(i)
+		var icn = get_node_or_null(icn_name) as TextureRect
+		if icn == null:
+			icn = TextureRect.new()
+			icn.name = icn_name
+			icn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icn.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			add_child(icn)
+		var tex_path = "res://Texture/%s/%s.png" % [TEXTURE_DIR[i], TEXTURE_FILE[i]]
+		if ResourceLoader.exists(tex_path):
+			icn.texture = load(tex_path)
+		icn.position = Vector2(1203.0, 474.0 + 54.0 * float(i) + 9.0)
+		icn.size = Vector2(36.0, 36.0)
+		icn.z_index = 2
+
+	for i in range(mini(5, divscorelabel.size())):
+		var sc_lbl = divscorelabel[i]
+		sc_lbl.position = Vector2(1256.0, 476.0 + 54.0 * float(i))
+		sc_lbl.scale = Vector2(0.5, 0.5)
+
+	# 属性ステータスパネルの初期化（敵の画面中央 x: 1553.0 を基準に固定幅340.0、高さ275.0）
 	if elem_status_rect == null:
 		elem_status_rect = ColorRect.new()
 		elem_status_rect.name = "elem_status"
 		elem_status_rect.z_index = -10
-		elem_status_rect.offset_left = 1430.0
-		elem_status_rect.offset_top = 472.0
-		elem_status_rect.size = Vector2(125.0, 275.0)
 		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		elem_status_rect.color = Color(0.960784, 1, 0.0901961, 1)
 		add_child(elem_status_rect)
+	elem_status_rect.position = Vector2(1553.0, 472.0)
+	elem_status_rect.size = Vector2(340.0, 275.0)
 
 	if elem_status2_rect == null:
 		elem_status2_rect = ColorRect.new()
 		elem_status2_rect.name = "elem_status2"
 		elem_status2_rect.z_index = -10
-		elem_status2_rect.offset_left = 1432.0
-		elem_status2_rect.offset_top = 474.0
-		elem_status2_rect.size = Vector2(121.0, 271.0)
 		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		elem_status2_rect.color = Color(0, 0, 0, 1)
 		add_child(elem_status2_rect)
+	elem_status2_rect.position = Vector2(1555.0, 474.0)
+	elem_status2_rect.size = Vector2(336.0, 271.0)
+
+	# 属性アイコン（左セル x: 1555..1613 の中央に独立配置）
+	for k in range(6):
+		var el_icn_name = "elem_icon" + str(k + 1)
+		var el_icn = get_node_or_null(el_icn_name) as TextureRect
+		if el_icn == null:
+			el_icn = TextureRect.new()
+			el_icn.name = el_icn_name
+			el_icn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			el_icn.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			el_icn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			add_child(el_icn)
+		var el_tex_path = "res://Texture/element/%s.png" % ELEM_KEYS[k]
+		if ResourceLoader.exists(el_tex_path):
+			el_icn.texture = load(el_tex_path)
+		el_icn.position = Vector2(1568.0, 474.0 + 45.16 * float(k) + 6.5)
+		el_icn.size = Vector2(32.0, 32.0)
+		el_icn.z_index = 2
 
 	if divscorelabel.size() > 0:
 		for k in range(6):
 			var el_lbl = divscorelabel[0].duplicate()
 			el_lbl.name = "elem_score" + str(k + 1)
-			el_lbl.offset_left = 1440.0
-			el_lbl.offset_top = 475.0 + float(k) * 43.5
+			el_lbl.position = Vector2(1619.0, 478.0 + float(k) * 45.16)
+			el_lbl.scale = Vector2(0.5, 0.5)
 			el_lbl.text = ""
 			add_child(el_lbl)
 			elem_labels.append(el_lbl)
 		update_elem_labels()
+
+	_setup_grid_lines()
 
 	var pb = _get_puzzle_board()
 	var row_count: int = pb.grid_row if pb and "grid_row" in pb else 15
@@ -688,16 +737,15 @@ func update_score_label() -> void:
 				if el_score > 0 and el != 0:
 					var el_color = ElementData.ELEMENT_COLORS[el].to_html(false)
 					breakdown_text += " [color=#%s]%s[/color]" % [el_color, _format_comma(el_score)]
-		divscorelabel[i].text = "[img=60]res://Texture/%s/%s.png[/img] [b][color=%s]%s[/color][/b][font_size=20]%s[/font_size]" % [
-			TEXTURE_DIR[i], TEXTURE_FILE[i], ATT_COLORS[i], formatted_val, breakdown_text
+		divscorelabel[i].text = "[b][color=%s]%s[/color][/b][font_size=20]%s[/font_size]" % [
+			ATT_COLORS[i], formatted_val, breakdown_text
 		]
 
-	# 桁数に応じたステータス枠の横幅自動追従
-	var frame_width = maxf(120.0 + 22.0 * float(max_len), 120.0)
+	# 欄の横幅は固定（ユーザー要望に完全準拠: 340.0px / 内枠 336.0px）
 	if status_rect != null:
-		status_rect.size = Vector2(frame_width + 5.0, 275)
+		status_rect.size = Vector2(340.0, 275.0)
 	if status2_rect != null:
-		status2_rect.size = Vector2(frame_width, 271)
+		status2_rect.size = Vector2(336.0, 271.0)
 
 	if combocount_label != null:
 		combocount_label.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % combocount
@@ -1828,21 +1876,17 @@ func _on_buffselectbutton_5_pressed() -> void:
 
 func update_elem_labels() -> void:
 	if elem_labels.size() == 0: return
-	var max_len: int = 0
 	for k in range(1, 7):
 		var count = turn_element_counts.get(k, 0)
 		var val_str = _format_comma(count)
-		max_len = maxi(max_len, val_str.length())
-		var img_path = "res://Texture/element/%s.png" % ELEM_KEYS[k - 1]
 		var c = ELEM_COLORS[k - 1]
-		elem_labels[k - 1].text = "[img=52]%s[/img] [b][color=#%s]%s[/color][/b]" % [img_path, c, val_str]
+		elem_labels[k - 1].text = "[b][color=#%s]%s[/color][/b]" % [c, val_str]
 
-	# 桁数に応じた属性ステータス枠の横幅自動追従（剣欄と同じロジック、高さ275/271で各値欄と上下完全同期）
-	var frame_width = maxf(120.0 + 22.0 * float(max_len), 120.0)
+	# 欄の横幅は固定（ユーザー要望に完全準拠: 340.0px / 内枠 336.0px）
 	if elem_status_rect != null:
-		elem_status_rect.size = Vector2(frame_width + 5.0, 275.0)
+		elem_status_rect.size = Vector2(340.0, 275.0)
 	if elem_status2_rect != null:
-		elem_status2_rect.size = Vector2(frame_width, 271.0)
+		elem_status2_rect.size = Vector2(336.0, 271.0)
 
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()
@@ -1856,3 +1900,63 @@ func get_turn_sword_element_counts() -> Dictionary:
 func add_turn_element(el: int, amount: int) -> void:
 	turn_element_counts[el] = turn_element_counts.get(el, 0) + amount
 	update_elem_labels()
+
+## シンボル同士・シンボルと値を区切るグリッド線のセットアップ
+func _setup_grid_lines() -> void:
+	var line_color = Color(0.960784, 1.0, 0.0901961, 0.75)
+	
+	# --- 1. 各値の欄 (敵画面左端 x: 1192..1528, y: 474..745, 5行) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1250.0）
+	var st_vline = get_node_or_null("status_v_line") as ColorRect
+	if st_vline == null:
+		st_vline = ColorRect.new()
+		st_vline.name = "status_v_line"
+		st_vline.z_index = -5
+		st_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(st_vline)
+	st_vline.position = Vector2(1250.0, 474.0)
+	st_vline.size = Vector2(2.0, 271.0)
+	st_vline.color = line_color
+	
+	# 水平区切り線（シンボル同士の境界: 4本）
+	var st_h_ys = [528.0, 582.0, 636.0, 690.0]
+	for idx in range(st_h_ys.size()):
+		var line_name = "status_h_line_" + str(idx)
+		var st_hline = get_node_or_null(line_name) as ColorRect
+		if st_hline == null:
+			st_hline = ColorRect.new()
+			st_hline.name = line_name
+			st_hline.z_index = -5
+			st_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(st_hline)
+		st_hline.position = Vector2(1192.0, st_h_ys[idx])
+		st_hline.size = Vector2(336.0, 2.0)
+		st_hline.color = line_color
+
+	# --- 2. 属性の値の欄 (敵画面中央 x: 1555..1891, y: 474..745, 6行) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1613.0）
+	var el_vline = get_node_or_null("elem_v_line") as ColorRect
+	if el_vline == null:
+		el_vline = ColorRect.new()
+		el_vline.name = "elem_v_line"
+		el_vline.z_index = -5
+		el_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(el_vline)
+	el_vline.position = Vector2(1613.0, 474.0)
+	el_vline.size = Vector2(2.0, 271.0)
+	el_vline.color = line_color
+	
+	# 水平区切り線（シンボル同士の境界: 5本）
+	var el_h_ys = [519.0, 564.0, 609.0, 654.0, 700.0]
+	for idx in range(el_h_ys.size()):
+		var line_name = "elem_h_line_" + str(idx)
+		var el_hline = get_node_or_null(line_name) as ColorRect
+		if el_hline == null:
+			el_hline = ColorRect.new()
+			el_hline.name = line_name
+			el_hline.z_index = -5
+			el_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(el_hline)
+		el_hline.position = Vector2(1555.0, el_h_ys[idx])
+		el_hline.size = Vector2(336.0, 2.0)
+		el_hline.color = line_color

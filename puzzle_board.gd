@@ -86,10 +86,10 @@ const PIECE_TEXTURES: Array[Texture2D] = [
 	preload("res://Texture/food/bread_cut.png"),    # PieceType.FOOD = 4   (パン・回復)
 ]
 
-# スコア欄ラベルの初期座標とピッチ定数（ScoreManager内の元の配置に厳密に完全固定）
-const SCORE_LABEL_BASE_X: float = 1200.0
-const SCORE_LABEL_BASE_Y: float = 472.0
-const SCORE_LABEL_PITCH: float = 50.0
+# スコア欄ラベルの初期座標とピッチ定数（ScoreManager内の敵画面左端配置に厳密に完全固定）
+const SCORE_LABEL_BASE_X: float = 1256.0
+const SCORE_LABEL_BASE_Y: float = 476.0
+const SCORE_LABEL_PITCH: float = 54.0
 const SCORE_LABEL_BASE_SCALE: Vector2 = Vector2(0.5, 0.5)
 
 # 事前ロード済みオーディオ（実行時ディスクI/Oフリーズ完全排除）
@@ -362,6 +362,9 @@ func _restore_score_label_positions() -> void:
 				lbl.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i
 				lbl.scale = SCORE_LABEL_BASE_SCALE
 				lbl.modulate = Color.WHITE
+			var icn = sm.get_node_or_null("score_icon" + str(i))
+			if icn:
+				icn.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + 9.0
 
 
 
@@ -4355,6 +4358,9 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 					lbl.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + hop_y
 					lbl.scale = SCORE_LABEL_BASE_SCALE
 					lbl.modulate = Color.WHITE
+				var icn = score_mgr.get_node_or_null("score_icon" + str(i))
+				if icn:
+					icn.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + 9.0 + hop_y
 	else:
 		# バウンド終了後および攻撃フェーズ中は、初期位置・通常スケール・白色に復帰固定
 		_restore_score_label_positions()
