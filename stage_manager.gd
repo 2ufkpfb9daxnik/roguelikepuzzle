@@ -982,7 +982,7 @@ func stop_enemy_animation() -> void:
 		_rush_tween = null
 
 	for e in active_enemies:
-		var spr = e["sprite"]
+		var spr = e.get("sprite", null)
 		if is_instance_valid(spr):
 			if spr.has_meta("anim_tween"):
 				var atw = spr.get_meta("anim_tween")
@@ -1170,7 +1170,8 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 
 	var sum_hp = 0.0
 	for e in active_enemies:
-		if e["hp"] > 0: sum_hp += e["hp"]
+		var cur_e_hp = float(e.get("hp", 0.0))
+		if cur_e_hp > 0: sum_hp += cur_e_hp
 	ehp = sum_hp
 	ehppar = ehp / ehpmax if ehpmax > 0 else 0.0
 	if ehp <= 0 and not isdeadf:

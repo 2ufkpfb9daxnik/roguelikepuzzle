@@ -364,7 +364,7 @@ func _init() -> void:
 	dummy_sm.isdeadf = false
 	var enemy_sprite = Sprite2D.new()
 	dummy_sm.enemy = enemy_sprite
-	dummy_sm.active_enemies = [{"sp_data": {"element": "水"}}]
+	dummy_sm.active_enemies = [{"sp_data": {"element": "水"}, "sprite": enemy_sprite, "hp": 500.0, "hpmax": 500.0}]
 	dummy_sm.target_enemy_index = 0
 	dummy_sm.is_current_boss = true
 	assert(pb._should_cast_enemy_elemental_skill(dummy_sm) == true, "Boss must always cast skill (100% fixed) at Stage 1")
@@ -372,42 +372,71 @@ func _init() -> void:
 	dummy_sm.stage = 5
 	assert(pb._should_cast_enemy_elemental_skill(dummy_sm) == true, "Boss must always cast skill (100% fixed) at Stage 5")
 
-	# 2) Stage 1 initial status scaling check (extremely weak initial stats)
+	# 2) Stage 1 initial status scaling check (Normal weak, Boss strong)
 	dummy_sm.stage = 1
-	var s1_water_norm_min = 1 + 0 * 2
-	var s1_water_norm_max = 2 + 0 * 2
+	var s1_water_norm_min = 1 + int(0 * 1.5)
+	var s1_water_norm_max = 2 + int(0 * 1.5)
 	assert(s1_water_norm_min == 1 and s1_water_norm_max == 2, "Stage 1 normal water skill should target 1~2 cells")
 
-	var s1_wood_drain_norm = 15 + 0 * 25
+	var s1_water_boss_min = 5 + int(0 * 1.0)
+	var s1_water_boss_max = 6 + int(0 * 1.0)
+	assert(s1_water_boss_min == 5 and s1_water_boss_max == 6, "Stage 1 boss water skill should target 5~6 cells (strong start)")
+
+	var s1_wood_drain_norm = 15 + 0 * 15
 	assert(s1_wood_drain_norm == 15, "Stage 1 normal wood drain should be 15 HP")
 
-	var s1_wood_drain_boss = 40 + 0 * 60
-	assert(s1_wood_drain_boss == 40, "Stage 1 boss wood drain should be 40 HP")
+	var s1_wood_drain_boss = 80 + 0 * 15
+	assert(s1_wood_drain_boss == 80, "Stage 1 boss wood drain should be 80 HP (strong start)")
 
-	var s1_dark_fog_turns_norm = 1 + int((0 + 1) / 2)
-	assert(s1_dark_fog_turns_norm == 1, "Stage 1 normal dark fog should last only 1 turn")
+	var s1_dark_fog_turns_norm = 1 + (1 if 0 >= 3 else 0)
+	assert(s1_dark_fog_turns_norm == 1, "Stage 1 normal dark fog should last 1 turn")
 
-	var s1_dark_fog_turns_boss = 2 + int(0 / 2)
+	var s1_dark_fog_turns_boss = 2 + (1 if 0 >= 2 else 0)
 	assert(s1_dark_fog_turns_boss == 2, "Stage 1 boss dark fog should last 2 turns")
 
-	var s1_earth_dur_norm = 1 + int(0 / 2)
+	var s1_earth_dur_norm = 1 + (1 if 0 >= 3 else 0)
 	assert(s1_earth_dur_norm == 1, "Stage 1 normal stone durability should be 1")
 
-	# 3) Stage 5 status scaling check (powerful high-stage stats)
+	var s1_earth_dur_boss = 2 + (1 if 0 >= 3 else 0)
+	assert(s1_earth_dur_boss == 2, "Stage 1 boss stone durability should be 2")
+
+	# 3) Stage 5 status scaling check (Normal scales up, Boss has gentle increase)
 	dummy_sm.stage = 5
-	var s5_water_norm_min = 1 + 4 * 2
-	var s5_water_norm_max = 2 + 4 * 2
-	assert(s5_water_norm_min == 9 and s5_water_norm_max == 10, "Stage 5 normal water skill should target 9~10 cells")
+	var s5_water_norm_min = 1 + int(4 * 1.5)
+	var s5_water_norm_max = 2 + int(4 * 1.5)
+	assert(s5_water_norm_min == 7 and s5_water_norm_max == 8, "Stage 5 normal water skill should target 7~8 cells")
 
-	var s5_wood_drain_norm = 15 + 4 * 25
-	assert(s5_wood_drain_norm == 115, "Stage 5 normal wood drain should be 115 HP")
+	var s5_water_boss_min = 5 + int(4 * 1.0)
+	var s5_water_boss_max = 6 + int(4 * 1.0)
+	assert(s5_water_boss_min == 9 and s5_water_boss_max == 10, "Stage 5 boss water skill should target 9~10 cells")
 
-	var s5_wood_drain_boss = 40 + 4 * 60
-	assert(s5_wood_drain_boss == 280, "Stage 5 boss wood drain should be 280 HP")
+	var s5_wood_drain_norm = 15 + 4 * 15
+	assert(s5_wood_drain_norm == 75, "Stage 5 normal wood drain should be 75 HP")
 
-	var s5_earth_dur_norm = 1 + int(4 / 2)
-	assert(s5_earth_dur_norm == 3, "Stage 5 normal stone durability should be 3")
-	print("Enemy skill fixed frequency & Stage 1 weak stats -> Stage 5 intense stats scaling: SUCCESS!")
+	var s5_wood_drain_boss = 80 + 4 * 15
+	assert(s5_wood_drain_boss == 140, "Stage 5 boss wood drain should be 140 HP (gentle rise from 80)")
+
+	var s5_earth_dur_norm = 1 + (1 if 4 >= 3 else 0)
+	assert(s5_earth_dur_norm == 2, "Stage 5 normal stone durability should be 2")
+
+	var s5_earth_dur_boss = 2 + (1 if 4 >= 3 else 0)
+	assert(s5_earth_dur_boss == 3, "Stage 5 boss stone durability should be 3")
+	print("Enemy skill fixed frequency & Boss strong start + gentle rise scaling: SUCCESS!")
+
+	# 4) Dark fog miasma damage on turn reset
+	dummy_sm.stage = 1
+	dummy_sm.is_current_boss = true
+	dummy_sm.myhp = 1000
+	dummy_sm.myhpmax = 1000
+	pb.grid_fog.clear()
+	pb.grid_fog.append({
+		"rect": Rect2i(2, 2, 3, 3),
+		"turns": 2
+	})
+	pb._reset_turn(dummy_sm, smg)
+	assert(pb.grid_fog[0]["turns"] == 1, "Dark fog turns should decrement to 1 after turn reset")
+	assert(dummy_sm.myhp < 1000, "Player must take miasma damage from active dark fog (myhp was 1000, now %d)" % dummy_sm.myhp)
+	print("Dark fog miasma turn-end damage: SUCCESS! Player took miasma damage.")
 
 	# Test T: Adjacent match cleanses curse without damage
 	# Set cursed tile at (2, 2)

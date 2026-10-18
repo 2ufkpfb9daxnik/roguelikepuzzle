@@ -474,10 +474,10 @@ func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:
 			draw_rect(c_rect, Color(0.60, 0.15, 0.85, 0.20 * pulse), false, 4.0)
 
 	# 霧の持続ターンインジケーター（右上）
-	var badge_pos = world_rect.position + Vector2(world_rect.size.x - 270, 20)
-	draw_rect(Rect2(badge_pos, Vector2(260, 90)), Color(0.12, 0.02, 0.18, 0.92), true)
-	draw_rect(Rect2(badge_pos, Vector2(260, 90)), Color(0.85, 0.30, 1.0, 0.95), false, 8.0)
-	draw_string(CUSTOM_FONT, badge_pos + Vector2(15, 65), "暗雲 %dT" % turns, HORIZONTAL_ALIGNMENT_CENTER, 230, 75, Color(0.95, 0.70, 1.0))
+	var badge_pos = world_rect.position + Vector2(world_rect.size.x - 350, 20)
+	draw_rect(Rect2(badge_pos, Vector2(340, 90)), Color(0.12, 0.02, 0.18, 0.92), true)
+	draw_rect(Rect2(badge_pos, Vector2(340, 90)), Color(0.85, 0.30, 1.0, 0.95), false, 8.0)
+	draw_string(CUSTOM_FONT, badge_pos + Vector2(10, 65), "瘴気の暗雲 %dT" % turns, HORIZONTAL_ALIGNMENT_CENTER, 320, 60, Color(0.95, 0.70, 1.0))
 
 ## 風属性の竜巻描画（列を縦断する回転渦巻き）
 func _draw_wind_tornado(tor: Dictionary, rot: float) -> void:
