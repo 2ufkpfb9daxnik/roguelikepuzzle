@@ -724,19 +724,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			_spawn_shock_zap_effect(get_cell_position(row_idx, col_idx))
 			_redraw_board_effects()
 
-		# 爆弾・特殊アイテムのクリック即時起爆（1手消費）
-		var has_special_at_click: bool = false
-		if is_in_bounds:
-			if is_bomb.size() == GRID_ROWS and is_bomb[row_idx][col_idx]:
-				has_special_at_click = true
-			elif special_item.size() == GRID_ROWS and special_item[row_idx][col_idx] != SpecialItemType.NONE:
-				has_special_at_click = true
-
-		if has_special_at_click:
-			if selected_cell.x != -1:
+		# すでに選択中の場合で、隣接マス（特殊アイテム含む）をクリックしたならスワップ成立
+		if selected_cell.x != -1:
+			if is_in_bounds and (abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1):
+				var r1 = selected_cell.x
+				var c1 = selected_cell.y
+				_execute_swap(r1, c1, row_idx, col_idx)
+				return
+			elif is_in_bounds and row_idx == selected_cell.x and col_idx == selected_cell.y:
+				# 特殊アイテムをその場で再タップした場合は即時起爆
+				var is_sp = (special_item.size() == GRID_ROWS and special_item[row_idx][col_idx] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[row_idx][col_idx])
+				if is_sp:
+					_deselect_piece()
+					_detonate_special_by_click(row_idx, col_idx)
+					return
+				drag_offset = piece[selected_piece_idx].position - local_pos
+				return
+			else:
 				_deselect_piece()
-			_detonate_special_by_click(row_idx, col_idx)
-			return
 
 		if selected_cell.x == -1:
 			# 未選択時: クリックしたマスを選択
@@ -783,13 +788,19 @@ func _unhandled_input(event: InputEvent) -> void:
 				# 盤面外や2マス以上離れた場所で離した (ドラッグ失敗・キャンセル)
 				_deselect_piece()
 			else:
-				# 同じマスで離した（タップ操作）: 駒を中心位置に戻して選択を維持
-				if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
-					var orig_pos = get_cell_position(selected_cell.x, selected_cell.y)
-					var tw = create_tween()
-					tw.tween_property(piece[selected_piece_idx], "position", orig_pos, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-				_update_hovered_swap_direction(_current_local_mouse)
-				if swap_guide_overlay: swap_guide_overlay.queue_redraw()
+				# 同じマスで離した（タップ/クリック操作）
+				var is_sp = (special_item.size() == GRID_ROWS and special_item[selected_cell.x][selected_cell.y] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[selected_cell.x][selected_cell.y])
+				if is_sp and press_start_cell == selected_cell:
+					var sc = selected_cell
+					_deselect_piece()
+					_detonate_special_by_click(sc.x, sc.y)
+				else:
+					if selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
+						var orig_pos = get_cell_position(selected_cell.x, selected_cell.y)
+						var tw = create_tween()
+						tw.tween_property(piece[selected_piece_idx], "position", orig_pos, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					_update_hovered_swap_direction(_current_local_mouse)
+					if swap_guide_overlay: swap_guide_overlay.queue_redraw()
 
 func _on_area_2d_input_event(_viewport: Node, _event: InputEvent, _shape_idx: int) -> void:
 	# _unhandled_input で確実に処理するためシグナル側はパス
@@ -911,11 +922,27 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	await tween.finished
 	print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 
-	# スワップ後にマッチが存在するか判定
+	# スワップ後にマッチが存在するか、または特殊アイテムがスワップされたか判定
 	var has_match = _check_matches_exist()
-	if has_match:
-		_detect_and_spawn_special_from_matches()
-		_check_and_trigger_bomb_reactions()
+	var sp1 = (special_item.size() == GRID_ROWS and special_item[r1][c1] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r1][c1])
+	var sp2 = (special_item.size() == GRID_ROWS and special_item[r2][c2] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r2][c2])
+
+	if has_match or sp1 or sp2:
+		var detonates: Array[Vector2i] = []
+		if sp1: detonates.append(Vector2i(r1, c1))
+		if sp2: detonates.append(Vector2i(r2, c2))
+		if detonates.size() > 0:
+			var sm = _get_stage_manager()
+			if sm and sm.isfevertime:
+				sm.fevercount -= 1
+				if sm.fevercount <= 0:
+					sm.notfevertime()
+			_detonate_specials(detonates)
+
+		if has_match:
+			_detect_and_spawn_special_from_matches()
+			_check_and_trigger_bomb_reactions()
+
 		_start_match_highlight()
 	else:
 		last_swap_cells.clear()
@@ -995,15 +1022,17 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 		var j: int = 0
 		while j < GRID_COLUMNS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0)
+			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][j])
 			var kind: int = grid_n[i][j]
-			if kind < 0 or is_stone or _is_plant_cell(i, j):
+			if kind < 0 or is_stone or is_sp or _is_plant_cell(i, j):
 				j += 1
 				continue
 			var match_len: int = 1
 			while j + match_len < GRID_COLUMNS:
 				var next_c: int = j + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][next_c] > 0)
-				if next_is_stone or _is_plant_cell(i, next_c) or grid_n[i][next_c] != kind:
+				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][next_c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][next_c])
+				if next_is_stone or next_is_sp or _is_plant_cell(i, next_c) or grid_n[i][next_c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1017,15 +1046,17 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 		var i: int = 0
 		while i < GRID_ROWS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0)
+			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][j])
 			var kind: int = grid_n[i][j]
-			if kind < 0 or is_stone or _is_plant_cell(i, j):
+			if kind < 0 or is_stone or is_sp or _is_plant_cell(i, j):
 				i += 1
 				continue
 			var match_len: int = 1
 			while i + match_len < GRID_ROWS:
 				var next_r: int = i + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][j] > 0)
-				if next_is_stone or _is_plant_cell(next_r, j) or grid_n[next_r][j] != kind:
+				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[next_r][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[next_r][j])
+				if next_is_stone or next_is_sp or _is_plant_cell(next_r, j) or grid_n[next_r][j] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1063,15 +1094,17 @@ func _detect_and_spawn_special_from_matches() -> void:
 		var c = 0
 		while c < GRID_COLUMNS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
+			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][c])
 			var kind = grid_n[r][c]
-			if kind < 0 or is_stone or _is_plant_cell(r, c):
+			if kind < 0 or is_stone or is_sp or _is_plant_cell(r, c):
 				c += 1
 				continue
 			var match_len = 1
 			while c + match_len < GRID_COLUMNS:
 				var next_c = c + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][next_c] > 0)
-				if next_is_stone or _is_plant_cell(r, next_c) or grid_n[r][next_c] != kind:
+				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][next_c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][next_c])
+				if next_is_stone or next_is_sp or _is_plant_cell(r, next_c) or grid_n[r][next_c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1091,15 +1124,17 @@ func _detect_and_spawn_special_from_matches() -> void:
 		var r = 0
 		while r < GRID_ROWS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
+			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][c])
 			var kind = grid_n[r][c]
-			if kind < 0 or is_stone or _is_plant_cell(r, c):
+			if kind < 0 or is_stone or is_sp or _is_plant_cell(r, c):
 				r += 1
 				continue
 			var match_len = 1
 			while r + match_len < GRID_ROWS:
 				var next_r = r + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][c] > 0)
-				if next_is_stone or _is_plant_cell(next_r, c) or grid_n[next_r][c] != kind:
+				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[next_r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[next_r][c])
+				if next_is_stone or next_is_sp or _is_plant_cell(next_r, c) or grid_n[next_r][c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -3596,11 +3631,16 @@ func _start_breaking_animation() -> void:
 				# ピボットセル: 破壊消滅させず、特殊アイテムへの変身・残留アニメーション
 				var sp_type = pending_special_spawns[cell]
 				special_item[cell.x][cell.y] = sp_type
+				grid_n[cell.x][cell.y] = -1
+				grid_att[cell.x][cell.y] = -1
+				if grid_element.size() == GRID_ROWS:
+					grid_element[cell.x][cell.y] = ElementDataScript.Element.NONE
 				if is_bomb.size() == GRID_ROWS:
 					is_bomb[cell.x][cell.y] = true
 				if sp_type == SpecialItemType.CHARGE_BOMB:
 					special_charge[cell.x][cell.y] = 1
 				ismatched[cell.x][cell.y] = false
+				p.texture = null
 
 				# ポップ＆弾む変身アニメーション
 				tween.tween_property(p, "scale", cellsize * 1.35, 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -4296,7 +4336,7 @@ func _draw_special_item_marks_on_overlay(overlay: Node2D) -> void:
 				if s_factor <= 0.05:
 					continue
 				var alpha = p.modulate.a
-				_draw_single_special_mark(overlay, center, sp_type, s_factor * time_pulse, alpha, r, c)
+				_draw_single_special_mark(overlay, center, sp_type, s_factor * time_pulse * 2.2, alpha, r, c)
 
 ## 個別のシンプルシンボルマーク描画（複雑にせず単純で直感的にわかりやすい幾何学マーク）
 func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s: float, alpha: float, r: int, c: int) -> void:
@@ -4306,7 +4346,8 @@ func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s
 	var badge_r: float = 95.0 * s
 
 	# 1. 視認性を保証する背面の半透明ダークサークルプレート
-	overlay.draw_circle(center, badge_r, Color(0.06, 0.08, 0.12, 0.85 * alpha))
+	overlay.draw_circle(center, badge_r + 16.0 * s, Color(0.05, 0.07, 0.12, 0.90 * alpha))
+	overlay.draw_circle(center, badge_r, Color(0.08, 0.10, 0.16, 0.95 * alpha))
 
 	match sp_type:
 		SpecialItemType.LIGHTNING: # 5: 雷（⚡黄色ジグザグ稲妻マーク）
@@ -4704,9 +4745,9 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			var stage_idx = sm.stage - 1 if sm else 0
 			var max_heal = 50 * int(pow(10, stage_idx)) - int((sm.myhp if sm else 0) / (foodt * 100.0))
 			var f_cnt = min(max_heal, int(score_mgr.divscore[PieceType.FOOD] / (foodt * 100.0)))
-			var max_gage = 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont))
+			var max_gage = 0 if (sm and sm.isfevertime) else maxi(0, 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont)))
 			var p_cnt = min(max_gage, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
-			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and sm.fevergage < 5000.0) or turn_skill_log.size() > 0:
+			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and not sm.isfevertime and sm.fevergage < 7000.0) or turn_skill_log.size() > 0:
 				isattack = 1
 			var sh_cnt = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
 			if sh_cnt > 0:
@@ -6405,7 +6446,9 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	current_total_shields = 0
 	_restore_score_label_positions()
 
-	if sm and sm.isfevertime:
+	if sm and not sm.isfevertime and sm.fevergage >= 7000.0:
+		sm.fevertime()
+	elif sm and sm.isfevertime:
 		sm.fevercount -= 1
 		if sm.fevercount <= 0:
 			sm.notfevertime()

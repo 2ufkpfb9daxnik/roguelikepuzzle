@@ -18,7 +18,7 @@ func _get_sys_font() -> SystemFont:
 	return sys_font
 
 func _ready() -> void:
-	layer = 50 # High above board
+	layer = 99 # High above board and all game UIs
 
 	var sys_font = _get_sys_font()
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
@@ -61,7 +61,7 @@ func _ready() -> void:
 
 	container = HFlowContainer.new()
 	container.position = Vector2(1060, 970)
-	container.size = Vector2(820, 70)
+	container.size = Vector2(670, 70)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -71,6 +71,7 @@ func _ready() -> void:
 	info_panel.visible = false
 	info_panel.position = Vector2(316, 710)
 	info_panel.size = Vector2(460, 165)
+	info_panel.custom_minimum_size = Vector2(420, 100)
 	info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info_panel.z_index = 100
 	var style = StyleBoxFlat.new()
@@ -78,6 +79,10 @@ func _ready() -> void:
 	style.border_color = Color(0.9, 0.78, 0.3, 1.0)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(10)
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
 	info_panel.add_theme_stylebox_override("panel", style)
 	add_child(info_panel)
 	
@@ -88,6 +93,8 @@ func _ready() -> void:
 	name_label = RichTextLabel.new()
 	name_label.bbcode_enabled = true
 	name_label.fit_content = true
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.custom_minimum_size = Vector2(420, 0)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.add_theme_font_override("normal_font", sys_font)
 	name_label.add_theme_font_override("bold_font", sys_font)
@@ -98,12 +105,16 @@ func _ready() -> void:
 	desc_label = RichTextLabel.new()
 	desc_label.bbcode_enabled = true
 	desc_label.fit_content = true
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.custom_minimum_size = Vector2(420, 0)
 	desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	desc_label.add_theme_font_override("normal_font", sys_font)
 	desc_label.add_theme_font_override("bold_font", sys_font)
 	vbox.add_child(desc_label)
 	
-	var rm = get_tree().get_root().find_child("RelicManager", true, false)
+	var rm = null
+	if get_tree() and get_tree().get_root():
+		rm = get_tree().get_root().find_child("RelicManager", true, false)
 	if rm:
 		rm.connect("relic_added", _on_relic_added)
 		rm.connect("relic_leveled_up", _on_relic_leveled_up)
@@ -112,7 +123,7 @@ func _ready() -> void:
 			_on_relic_added(r_id)
 
 	var sm = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
-	if sm == null:
+	if sm == null and get_tree() and get_tree().get_root():
 		sm = get_tree().get_root().find_child("ScoreManager", true, false)
 	if sm:
 		if sm.has_signal("skill_upgraded") and not sm.is_connected("skill_upgraded", _on_skill_upgraded):
@@ -252,9 +263,10 @@ func show_custom_tooltip(title: String, desc: String, screen_pos: Vector2, meta_
 	if name_label: name_label.text = title
 	if desc_label: desc_label.text = desc
 	info_panel.set_meta("current_id", meta_key)
+	info_panel.reset_size()
 
 	var panel_w = maxf(420.0, info_panel.size.x)
-	var panel_h = maxf(120.0, info_panel.size.y)
+	var panel_h = maxf(100.0, info_panel.size.y)
 	var target_x = clampf(screen_pos.x + 24.0, 20.0, 1920.0 - panel_w - 20.0)
 	var target_y = clampf(screen_pos.y - panel_h - 15.0, 20.0, 1080.0 - panel_h - 20.0)
 	# 画面上部付近の場合はマウスの下側に配置

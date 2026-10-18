@@ -67,7 +67,12 @@ func _ready() -> void:
 	settings_btn.custom_minimum_size = Vector2(148, 44)
 
 	var update_settings_btn_pos = func():
-		settings_btn.position = Vector2(26, 20)
+		var vp_sz = ui_root.size
+		if vp_sz.x <= 0 or vp_sz.y <= 0:
+			var vp = ui_root.get_viewport()
+			if vp: vp_sz = vp.get_visible_rect().size
+		if vp_sz.x <= 0: vp_sz = Vector2(1920, 1080)
+		settings_btn.position = Vector2(vp_sz.x - settings_btn.size.x - 22.0, 980.0)
 
 	update_settings_btn_pos.call()
 	ui_root.resized.connect(update_settings_btn_pos)

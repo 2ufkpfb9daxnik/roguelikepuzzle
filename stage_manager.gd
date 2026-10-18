@@ -1177,7 +1177,9 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 		isdead()
 ## フィーバーゲージ蓄積
 func calcgage(potion: float) -> void:
-	fevergage += potion
+	if isfevertime:
+		return
+	fevergage = minf(7000.0, fevergage + potion)
 	feverpar = fevergage / 7000.0
 
 ## HPバー表示の更新
@@ -1264,7 +1266,8 @@ func displaygage() -> void:
 	if _cached_fever_bar == null or not is_instance_valid(_cached_fever_bar):
 		_cached_fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2") as ColorRect if get_parent() else null
 	if _cached_fever_bar:
-		_cached_fever_bar.size = Vector2(int(feverpar * 725.0), 24.0)
+		var cur_par: float = (float(fevercount) / 5.0) if isfevertime else feverpar
+		_cached_fever_bar.size = Vector2(int(cur_par * 725.0), 24.0)
 		
 		# フィーバーゲージ%ラベル（フィーバーバー内部に中央配置）
 		if fever_bar_lbl == null or not is_instance_valid(fever_bar_lbl):
@@ -1288,10 +1291,13 @@ func displaygage() -> void:
 			else:
 				add_child(fever_bar_lbl)
 				
-		var pct = clampi(int(feverpar * 100.0), 0, 100)
+		var pct = clampi(int(cur_par * 100.0), 0, 100)
 		if pct != _last_fever_pct:
 			_last_fever_pct = pct
-			fever_bar_lbl.text = "[center][b][color=#FFD700]FEVER GAUGE[/color] [color=#FFFFFF]%d%%[/color][/b][/center]" % pct
+			if isfevertime:
+				fever_bar_lbl.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ FEVER TIME ★[/rainbow] [color=#FFFFFF]残り%dターン (%d%%)[/color][/b][/center]" % [fevercount, pct]
+			else:
+				fever_bar_lbl.text = "[center][b][color=#FFD700]FEVER GAUGE[/color] [color=#FFFFFF]%d%%[/color][/b][/center]" % pct
 
 	if _cached_fever_count_lbl == null or not is_instance_valid(_cached_fever_count_lbl):
 		_cached_fever_count_lbl = get_parent().get_node_or_null("ScoreManager/fevertimecount") if get_parent() else null
@@ -1360,7 +1366,9 @@ func isdead() -> void:
 func fevertime() -> void:
 	if int(fevergage) >= 7000:
 		fevercount = 5
-		fevergage = 0
+		fevergage = 0.0
+		feverpar = 1.0
+		_last_fever_pct = -1
 		appeartime = 0
 		isfevertime = true
 		
@@ -1410,6 +1418,9 @@ func notfevertime() -> void:
 	if not isfevertime:
 		return
 	isfevertime = false
+	fevergage = 0.0
+	feverpar = 0.0
+	_last_fever_pct = -1
 	var fever_bgm = get_node_or_null("feverbgm")
 	if fever_bgm: fever_bgm.stop()
 	

@@ -877,6 +877,9 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 		for j in range(cols):
 			if match_index[i][j] and not visited[i][j]:
 				var att_type: int = grid_att[i][j]
+				if att_type < 0 or att_type >= 5:
+					visited[i][j] = true
+					continue
 				var component_cells: Array[Vector2i] = []
 				
 				# BFSで同じ属性の連結マッチ駒を収集

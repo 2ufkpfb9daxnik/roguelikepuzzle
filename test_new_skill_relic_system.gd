@@ -36,6 +36,7 @@ func _init() -> void:
 	dummy_sm.myhp = 1000.0
 	dummy_root.add_child(dummy_sm)
 	dummy_root.add_child(rm)
+	root.add_child(dummy_root)
 
 	# Test cursed_shura_sword add effect
 	rm.add_relic("cursed_shura_sword")
@@ -230,6 +231,52 @@ func _init() -> void:
 	assert(pb.grid_stones[3][3] == 1, "Bomb should deal 1 damage to stone at (3, 3), reducing durability from 2 to 1")
 	assert(pb.ismatched[3][3] == false, "Stone should not be matched while durability remains")
 	print("Skill damage to stone check: SUCCESS!")
+
+	# Test L: Skill piece de-attribution & matching exclusion check
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = -1
+			pb.special_item[r][c] = pb.SpecialItemType.NONE
+			pb.is_bomb[r][c] = false
+	pb.grid_n[2][1] = pb.PieceType.SWORD
+	pb.grid_n[2][2] = -1
+	pb.special_item[2][2] = pb.SpecialItemType.BOMB
+	pb.is_bomb[2][2] = true
+	pb.grid_n[2][3] = pb.PieceType.SWORD
+	var sp_match_found = pb._check_matches_exist()
+	assert(not sp_match_found, "Skill piece must NOT match with basic pieces")
+	assert(pb.ismatched[2][2] == false, "Skill piece must not be matched as basic piece")
+	print("Skill piece matching exclusion check: SUCCESS! Skill piece ignored basic 3-match.")
+
+	# Test M: Fever gauge accumulation, fever time protection, and reset flow
+	dummy_sm.fevergage = 0.0
+	dummy_sm.isfevertime = false
+	dummy_sm.calcgage(3500.0)
+	assert(dummy_sm.fevergage == 3500.0 and dummy_sm.feverpar == 0.5, "Fever gauge should be 50%")
+	dummy_sm.calcgage(5000.0) # Exceeds 7000
+	assert(dummy_sm.fevergage == 7000.0 and dummy_sm.feverpar == 1.0, "Fever gauge should clamp to 7000.0 (100%)")
+	dummy_sm.fevertime()
+	assert(dummy_sm.isfevertime == true, "isfevertime should be true")
+	assert(dummy_sm.fevercount == 5, "fevercount should be 5")
+	# Potion arrival during fever time should be ignored and not reset gauge to 0 or low value
+	dummy_sm.calcgage(100.0)
+	assert(dummy_sm.isfevertime == true, "Fever time should remain active")
+	dummy_sm.notfevertime()
+	assert(dummy_sm.isfevertime == false, "isfevertime should become false")
+	assert(dummy_sm.fevergage == 0.0 and dummy_sm.feverpar == 0.0, "Fever gauge should reset to 0.0")
+	print("Fever gauge & fever time flow check: SUCCESS!")
+
+	# Test N: Tooltip display check in RelicUIManager
+	var rui = load("res://relic_ui_manager.gd").new()
+	dummy_root.add_child(rui)
+	if rui.info_panel == null:
+		rui._ready()
+	rui.show_custom_tooltip("[b]Test Title[/b]", "Test Description", Vector2(400, 400), "test_key")
+	assert(rui.info_panel.visible == true, "info_panel should be visible")
+	assert(rui.info_panel.position.x > 0 and rui.info_panel.position.y > 0, "info_panel position should be valid")
+	rui.hide_custom_tooltip("test_key")
+	assert(rui.info_panel.visible == false, "info_panel should hide after hide_custom_tooltip")
+	print("Tooltip display check: SUCCESS!")
 
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
