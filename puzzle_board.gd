@@ -5175,21 +5175,55 @@ var _enemy_turn_actions: Array = []
 var is_enemy_turn_in_progress: bool = false
 var _enemy_turn_tween: Tween = null
 
+func _is_5th_boss_enemy(sm: Node2D, e: Dictionary) -> bool:
+	if sm == null: return false
+	var e_key = e.get("key", "")
+	var e_name = e.get("name", "")
+	if e_key == "enemy18" or e_name == "冥王デモニアス":
+		return true
+	if sm.stage == 5 and sm.stage_enemy == 5:
+		if sm.active_enemies.size() > 0 and e == sm.active_enemies[0]:
+			return true
+	if sm.get("islastboss") == true:
+		if sm.active_enemies.size() > 0 and e == sm.active_enemies[0]:
+			return true
+	return false
+
 func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 	if sm == null or not ("active_enemies" in sm) or sm.active_enemies.is_empty():
 		return 60
 	
 	var total_seconds = 0.0
-	for i in range(sm.active_enemies.size()):
-		var e = sm.active_enemies[i]
-		var action = _enemy_turn_actions[i] if i < _enemy_turn_actions.size() else ("skill" if is_skill_turn else "attack")
-		var spr = e.get("sprite")
-		if action == "skill":
-			var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
-			total_seconds += maxf(sk_dur, 1.2) + 0.2
-		else:
-			var atk_dur = sm.get_enemy_animation_duration(spr, "attack") if sm.has_method("get_enemy_animation_duration") else 0.5
-			total_seconds += maxf(atk_dur, 0.5) + 0.2
+	if not _enemy_turn_actions.is_empty():
+		for act_info in _enemy_turn_actions:
+			var action = ""
+			var spr = null
+			if typeof(act_info) == TYPE_DICTIONARY:
+				action = act_info.get("action", "attack")
+				var e_data = act_info.get("enemy_data", {})
+				spr = e_data.get("sprite", null)
+			elif typeof(act_info) == TYPE_STRING:
+				action = act_info
+			
+			if action == "skill":
+				var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
+				total_seconds += maxf(sk_dur, 1.2) + 0.3
+			elif action == "summon":
+				var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
+				total_seconds += maxf(sk_dur, 1.2) + 0.3
+			else:
+				var atk_dur = sm.get_enemy_animation_duration(spr, "attack") if sm.has_method("get_enemy_animation_duration") else 0.5
+				total_seconds += maxf(atk_dur, 0.5) + 0.25
+	else:
+		for i in range(sm.active_enemies.size()):
+			var e = sm.active_enemies[i]
+			var spr = e.get("sprite")
+			if is_skill_turn:
+				var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
+				total_seconds += maxf(sk_dur, 1.2) + 0.3
+			else:
+				var atk_dur = sm.get_enemy_animation_duration(spr, "attack") if sm.has_method("get_enemy_animation_duration") else 0.5
+				total_seconds += maxf(atk_dur, 0.5) + 0.25
 			
 	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +60フレーム (1.0秒) を付加
 	return int(ceil(total_seconds * 60.0)) + 60
@@ -5198,12 +5232,32 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
 	var has_skill = false
 	if sm and "active_enemies" in sm:
-		for e in sm.active_enemies:
-			if randf() < 0.5:
-				_enemy_turn_actions.append("skill")
-				has_skill = true
+		var sim_enemy_count = sm.active_enemies.size()
+		for i in range(sm.active_enemies.size()):
+			var e = sm.active_enemies[i]
+			var is_5th = _is_5th_boss_enemy(sm, e)
+			if is_5th:
+				# 5番目のボスは2回行動（ランダムに攻撃、闇スキル、使徒召喚）
+				for _act_step in range(2):
+					var pool: Array[String] = ["attack", "skill"]
+					if sim_enemy_count < 3:
+						pool.append("summon")
+					var chosen_action: String = pool[randi() % pool.size()]
+					if chosen_action == "summon":
+						sim_enemy_count += 1
+					if chosen_action == "skill" or chosen_action == "summon":
+						has_skill = true
+					_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": chosen_action})
 			else:
-				_enemy_turn_actions.append("attack")
+				var is_boss = false
+				if sm.has_method("is_boss_monster"): is_boss = sm.is_boss_monster()
+				else: is_boss = sm.is_current_boss if "is_current_boss" in sm else false
+				
+				var action = "attack"
+				if is_boss or randf() < 0.5:
+					action = "skill"
+					has_skill = true
+				_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": action})
 	return has_skill
 
 func _spawn_slash_effect(pos: Vector2) -> void:
@@ -5253,11 +5307,26 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 	var seq_tw = create_tween()
 	_enemy_turn_tween = seq_tw
 	
-	for i in range(sm.active_enemies.size()):
-		var e = sm.active_enemies[i]
-		var action = _enemy_turn_actions[i] if i < _enemy_turn_actions.size() else "attack"
-		var spr = e["sprite"]
-		var atk = e["atk"]
+	for act_idx in range(_enemy_turn_actions.size()):
+		var act_info = _enemy_turn_actions[act_idx]
+		var action = "attack"
+		var e = {}
+		var e_idx = 0
+		if typeof(act_info) == TYPE_DICTIONARY:
+			action = act_info.get("action", "attack")
+			e = act_info.get("enemy_data", {})
+			e_idx = act_info.get("enemy_index", 0)
+		elif typeof(act_info) == TYPE_STRING:
+			action = act_info
+			if act_idx < sm.active_enemies.size():
+				e = sm.active_enemies[act_idx]
+				e_idx = act_idx
+		
+		if e.is_empty() and e_idx < sm.active_enemies.size():
+			e = sm.active_enemies[e_idx]
+		
+		var spr = e.get("sprite", null)
+		var atk = e.get("atk", 10.0)
 		
 		if action == "attack":
 			var anim_dur = sm.get_enemy_animation_duration(spr, "attack") if (sm and sm.has_method("get_enemy_animation_duration")) else ENEMY_ATTACK_MOTION_DURATION
@@ -5266,7 +5335,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var after_delay = maxf(0.15, anim_dur - effect_delay + 0.1)
 
 			seq_tw.tween_callback(func():
-				if not is_instance_valid(spr): return
+				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				
 				var has_anim = false
 				if sm.has_method("play_single_enemy_animation"):
@@ -5277,7 +5346,6 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 					var atk_tw = create_tween()
 					atk_tw.bind_node(spr)
 					spr.set_meta("rush_tween", atk_tw)
-					# モーション：前に踏み込む（0.3倍の時間）→戻る（0.7倍の時間）
 					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), anim_dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 					atk_tw.tween_property(spr, "position", orig_pos, anim_dur * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 					atk_tw.tween_callback(func(): if is_instance_valid(spr): spr.position = orig_pos)
@@ -5349,6 +5417,41 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			)
 			
 			seq_tw.tween_interval(after_delay)
+
+		elif action == "summon":
+			var sk_anim_dur = sm.get_enemy_animation_duration(spr, "skill") if (sm and sm.has_method("get_enemy_animation_duration")) else 1.2
+			sk_anim_dur = maxf(sk_anim_dur, 1.2)
+			var chant_delay = 0.75
+			var after_summon_delay = maxf(0.5, sk_anim_dur - chant_delay + 0.1)
+
+			seq_tw.tween_callback(func():
+				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
+				_play_enemy_skill_se(true)
+				_show_enemy_skill_banner("冥府の号令・使徒召喚", "#D500F9", true, "【使徒召喚】冥界より下僕を召喚する！")
+				
+				var has_anim = false
+				if sm.has_method("play_single_enemy_animation"):
+					has_anim = sm.play_single_enemy_animation(spr, "skill")
+				
+				if not has_anim and is_instance_valid(spr):
+					var orig_s = spr.get_meta("anim_orig_scale", spr.scale)
+					var sk_tw = create_tween()
+					sk_tw.bind_node(spr)
+					spr.set_meta("rush_tween", sk_tw)
+					sk_tw.tween_property(spr, "scale", orig_s * 1.3, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+					
+				_spawn_enemy_skill_chant_vfx(sm, spr, "#D500F9", true)
+			)
+			seq_tw.tween_interval(chant_delay)
+			seq_tw.tween_callback(func():
+				if sm == null or sm.isdeadf or sm.ehp <= 0: return
+				if sm.has_method("summon_boss_minion"):
+					var res = sm.summon_boss_minion()
+					if not res.is_empty():
+						_spawn_floating_text(Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, BOARD_TOP + 80), "使徒召喚！", Color(0.9, 0.4, 1.0))
+			)
+			seq_tw.tween_interval(after_summon_delay)
 
 		else:
 			var key = e.get("key", "slime")
@@ -6150,7 +6253,7 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	)
 
 	var s_name = ("冥府降臨・アビスディメンション" if is_5th_boss else "終焉の夜・アビスディメンション") if is_boss else "シャドウベール＆カース"
-	var s_desc = ("【暗雲＆使徒召喚】毎ターン瘴気ダメージ！さらに冥界の仲間を召喚！" if is_5th_boss else "【暗雲＆呪詛】毎ターン瘴気ダメージ！呪いコマ消去で反動！")
+	var s_desc = "【暗雲＆呪詛】毎ターン瘴気ダメージ！呪いコマ消去で反動！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#E040FB", is_boss, s_desc)
 	var st_idx = _get_stage_index()
 
@@ -6188,18 +6291,25 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		_spawn_floating_text(get_cell_position(p.x, p.y), "【呪い】消去で反動！", Color(0.9, 0.4, 1.0))
 		_targets.append(get_cell_position(p.x, p.y))
 
-	# 5番目のボス（冥王デモニアス等）の追加効果：仲間を呼ぶ（最大3体まで召喚）
-	if is_5th_boss and sm and sm.has_method("summon_boss_minion"):
-		if sm.active_enemies.size() < 3:
-			var summoned = sm.summon_boss_minion()
-			if not summoned.is_empty():
-				_spawn_floating_text(Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, BOARD_TOP + 80), "仲間を呼んだ！", Color(0.9, 0.4, 1.0))
-
 	var anten_se = get_node_or_null("anten")
 	if anten_se: anten_se.play()
 
 	_redraw_board_effects()
 	return _targets
+
+## 盤面の状態異常ハザード（暗雲・呪い・炎上・帯電・石・凍結・水たまり等）を一括消去
+func clear_board_hazards() -> void:
+	grid_fog.clear()
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_cursed.size() == GRID_ROWS: grid_cursed[r][c] = false
+			if grid_fire.size() == GRID_ROWS: grid_fire[r][c] = 0
+			if grid_electrified.size() == GRID_ROWS: grid_electrified[r][c] = false
+			if grid_stones.size() == GRID_ROWS: grid_stones[r][c] = 0
+			if grid_gold_statue.size() == GRID_ROWS: grid_gold_statue[r][c] = 0
+			if grid_water.size() == GRID_ROWS: grid_water[r][c] = false
+			if grid_ice.size() == GRID_ROWS: grid_ice[r][c] = 0
+	_redraw_board_effects()
 
 ## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（通常1体・耐久1、ボスは初期3〜4体・耐久2から緩やかに増加）
 func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:

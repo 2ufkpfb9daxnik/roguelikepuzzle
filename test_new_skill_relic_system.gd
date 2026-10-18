@@ -470,31 +470,67 @@ func _init() -> void:
 	pb._update_cell_hover_tooltip(Vector2(500, 500))
 	assert(rui.info_panel.visible == true, "Dark fog cell hover should show tooltip")
 	rui.hide_custom_tooltip("board_cell")
-	# Test V: 5th Boss minion summoning skill
+	# Test V: 5th Boss minion summoning & 2 actions
 	dummy_sm.stage = 5
+	dummy_sm.stage_enemy = 5
 	dummy_sm.is_current_boss = true
 	dummy_sm.current_enemy_key = "enemy18"
 	dummy_sm.ehp = 500000.0
-	dummy_sm.ehpmax = 500000.0
+	if not enemy_sprite.is_inside_tree():
+		dummy_sm.add_child(enemy_sprite)
 	enemy_sprite.position = Vector2(1550, 250)
-	dummy_sm.active_enemies = [{ "key": "enemy18", "sprite": enemy_sprite, "hp": 500000.0, "max_hp": 500000.0 }]
+	dummy_sm.active_enemies = [{ "key": "enemy18", "name": "冥王デモニアス", "sprite": enemy_sprite, "hp": 500000.0, "max_hp": 500000.0, "atk": 1500.0 }]
 	
-	# Cast 1: Should summon 1 minion (1 -> 2 enemies)
-	pb._cast_enemy_dark_skill(true, false)
-	assert(dummy_sm.active_enemies.size() == 2, "5th Boss skill must summon 1 minion (size should be 2, got %d)" % dummy_sm.active_enemies.size())
+	# Test 5th Boss 2-action decision
+	var _has_skill_decided = pb._decide_enemy_actions(dummy_sm)
+	assert(pb._enemy_turn_actions.size() == 2, "5th Boss must decide exactly 2 actions per turn (got %d)" % pb._enemy_turn_actions.size())
+	for act_info in pb._enemy_turn_actions:
+		var act = act_info.get("action", "")
+		assert(act in ["attack", "skill", "summon"], "Action must be attack, skill, or summon (got %s)" % act)
+	print("5th Boss 2-action decision check: SUCCESS! Actions: ", pb._enemy_turn_actions[0]["action"], ", ", pb._enemy_turn_actions[1]["action"])
+
+	# Summon 1: Should summon 1 minion (1 -> 2 enemies)
+	var _summon_res1 = dummy_sm.summon_boss_minion()
+	assert(dummy_sm.active_enemies.size() == 2, "5th Boss summon must spawn 1 minion (size should be 2, got %d)" % dummy_sm.active_enemies.size())
 	var summoned1 = dummy_sm.active_enemies[1]
 	assert(summoned1.has("sprite") and is_instance_valid(summoned1["sprite"]), "Summoned minion must have a valid Sprite2D")
 	assert(summoned1["hp"] > 0, "Summoned minion must have positive HP")
 	assert(dummy_sm.ehp > 500000.0, "Total enemy HP must include summoned minion HP")
 
-	# Cast 2: Should summon 2nd minion (2 -> 3 enemies)
-	pb._cast_enemy_dark_skill(true, false)
-	assert(dummy_sm.active_enemies.size() == 3, "5th Boss skill must summon 2nd minion (size should be 3, got %d)" % dummy_sm.active_enemies.size())
+	# Summon 2: Should summon 2nd minion (2 -> 3 enemies)
+	var _summon_res2 = dummy_sm.summon_boss_minion()
+	assert(dummy_sm.active_enemies.size() == 3, "5th Boss summon must spawn 2nd minion (size should be 3, got %d)" % dummy_sm.active_enemies.size())
 
-	# Cast 3: When already 3 enemies, should not exceed max limit of 3
-	pb._cast_enemy_dark_skill(true, false)
+	# Summon 3: When already 3 enemies, summon_boss_minion should return empty and not exceed 3
+	var summon_res3 = dummy_sm.summon_boss_minion()
 	assert(dummy_sm.active_enemies.size() == 3, "5th Boss must not exceed maximum 3 enemies on screen")
-	print("5th Boss minion summoning skill check: SUCCESS!")
+	assert(summon_res3.is_empty(), "Summon at max capacity must return empty dictionary")
+	
+	# When 3 enemies present, summon must not be picked in actions
+	for _test_loop in range(10):
+		pb._decide_enemy_actions(dummy_sm)
+		for act_info in pb._enemy_turn_actions:
+			if act_info.get("enemy_index") == 0:
+				assert(act_info.get("action") != "summon", "When 3 enemies present, boss must not choose summon")
+	print("5th Boss minion summoning and action limit check: SUCCESS!")
+
+	# Test W: Enemy Hover Tooltip
+	dummy_sm._update_enemy_hover_tooltip(Vector2(1550, 250))
+	assert(rui.info_panel.visible == true, "Hovering over enemy must show tooltip")
+	var desc_text = rui.desc_label.text
+	assert("【毎ターン2回行動】" in desc_text, "5th Boss hover tooltip must contain 2-action trait")
+	assert("使徒召喚" in desc_text, "5th Boss hover tooltip must mention apostle summoning")
+	dummy_sm.hide_enemy_hover_tooltip()
+	assert(rui.info_panel.visible == false, "Hiding tooltip must set info_panel invisible")
+	print("Enemy hover tooltip check: SUCCESS!")
+
+	# Test X: Debug Stage 5 Boss Battle
+	dummy_sm.debug_start_stage5_boss()
+	assert(dummy_sm.stage == 5, "Stage must be 5")
+	assert(dummy_sm.stage_enemy == 5, "Stage enemy must be 5 (Boss)")
+	assert(dummy_sm.active_enemies.size() == 1, "Must have exactly 1 boss on start")
+	assert(dummy_sm.active_enemies[0]["key"] == "enemy18", "Boss must be enemy18 (冥王デモニアス)")
+	print("Stage 5 Boss Debug Start check: SUCCESS!")
 
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

@@ -370,6 +370,25 @@ func _ready() -> void:
 		choose_buff_rect.color = Color(0, 0, 0, 0)
 		choose_buff_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	# デバッグ用ステージ5ボス戦突入ボタン
+	var debug_s5_btn = Button.new()
+	debug_s5_btn.name = "DebugStage5Button"
+	debug_s5_btn.text = "☠ S5ボス戦 (F5)"
+	debug_s5_btn.size = Vector2(170, 32)
+	debug_s5_btn.position = Vector2(1730, 370)
+	debug_s5_btn.z_index = 40
+	debug_s5_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	debug_s5_btn.add_theme_font_override("font", CUSTOM_FONT)
+	debug_s5_btn.add_theme_font_size_override("font_size", 14)
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.3, 0.05, 0.1, 0.85)
+	btn_style.border_color = Color(0.9, 0.2, 0.2, 0.9)
+	btn_style.set_border_width_all(2)
+	btn_style.set_corner_radius_all(6)
+	debug_s5_btn.add_theme_stylebox_override("normal", btn_style)
+	debug_s5_btn.pressed.connect(debug_start_stage5_boss)
+	add_child(debug_s5_btn)
+
 	if label != null and label2 != null:
 		stage_enemy = 1
 		stage += 1
@@ -452,7 +471,167 @@ func _update_target_indicator() -> void:
 		enemy = active_enemies[0]["sprite"]
 		current_enemy_key = active_enemies[0].get("key", "")
 
+func _get_relic_ui_manager() -> Node:
+	if get_tree():
+		var root = get_tree().root
+		if root.has_node("RelicUIManager"):
+			return root.get_node("RelicUIManager")
+		var found = root.find_child("RelicUIManager", true, false)
+		if found:
+			return found
+	var p = get_parent()
+	while p:
+		if p.has_node("RelicUIManager"):
+			return p.get_node("RelicUIManager")
+		p = p.get_parent()
+	return null
+
+var _last_hovered_enemy_idx: int = -1
+
+## マウスカーソルが敵に重なった時の情報ツールチップ表示
+func _update_enemy_hover_tooltip(mpos: Vector2) -> void:
+	var rm_ui = _get_relic_ui_manager()
+	if rm_ui == null or not rm_ui.has_method("show_custom_tooltip"):
+		return
+
+	# 敵表示エリア外ならツールチップを閉じる
+	if mpos.x < 1190.0 or mpos.x > 1915.0 or mpos.y < 10.0 or mpos.y > 410.0 or active_enemies.is_empty():
+		if _last_hovered_enemy_idx != -1:
+			_last_hovered_enemy_idx = -1
+			rm_ui.hide_custom_tooltip("enemy_hover")
+		return
+
+	var hovered_idx = -1
+	var best_dist = 999999.0
+	for j in range(active_enemies.size()):
+		var spr = active_enemies[j].get("sprite")
+		if is_instance_valid(spr):
+			var spr_pos = spr.global_position if spr.is_inside_tree() else spr.position
+			var dist_x = absf(spr_pos.x - mpos.x)
+			var dist_y = absf(spr_pos.y - mpos.y)
+			if dist_x <= 130.0 and dist_y <= 160.0:
+				var dist = dist_x + dist_y
+				if dist < best_dist:
+					best_dist = dist
+					hovered_idx = j
+
+	if hovered_idx == -1:
+		if _last_hovered_enemy_idx != -1:
+			_last_hovered_enemy_idx = -1
+			rm_ui.hide_custom_tooltip("enemy_hover")
+		return
+
+	_last_hovered_enemy_idx = hovered_idx
+	var e = active_enemies[hovered_idx]
+	var sp_data = e.get("sp_data", {})
+	var ename = sp_data.get("name", e.get("key", "敵"))
+	var elem_raw = sp_data.get("element", sp_data.get("race", "無属性"))
+	var elem_str = "/".join(elem_raw) if typeof(elem_raw) == TYPE_ARRAY else elem_raw
+	var c_color = sp_data.get("color", "#FFFFFF")
+	
+	var is_boss_b = is_boss_monster()
+	var e_key = e.get("key", "")
+	var is_5th_boss = is_boss_b and (
+		stage == 5 or (islastboss == true) or (e_key == "enemy18") or (current_enemy_key == "enemy18")
+	)
+
+	var title = ""
+	var desc = ""
+
+	var cur_hp = int(e.get("hp", 0.0))
+	var max_hp = int(e.get("max_hp", cur_hp))
+	var cur_atk = int(e.get("atk", 0.0))
+
+	if is_5th_boss:
+		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
+		desc = "[font_size=19][color=#FF5252]【毎ターン2回行動】[/color]\n冥府を統べる破滅の魔王。1ターンに2回の行動をランダムに繰り出す！\n・[color=#FF5252]通常攻撃[/color]: 圧倒的破壊力の直接攻撃\n・[color=#E040FB]闇スキル[/color]: 暗雲（毎ターン瘴気ダメージ）＆呪いコマ配置\n・[color=#BA68C8]使徒召喚[/color]: 冥府より従者を召喚して盤石の陣を敷く\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [cur_hp, max_hp, cur_atk]
+	elif is_boss_b:
+		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
+		desc = "[font_size=19][color=#FFD700]【ステージボス】[/color]\n強力な属性スキルを確定発動してプレイヤーを阻む難敵！\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [cur_hp, max_hp, cur_atk]
+	else:
+		title = "[b][color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
+		var trait_desc = ""
+		match elem_str:
+			"水属性": trait_desc = "水たまりマスを生成して盤面を浸水させる"
+			"氷属性": trait_desc = "コマを凍結させてスワップ移動を封じる"
+			"風属性": trait_desc = "竜巻を発生させて列のコマを一掃・シャッフル"
+			"木属性": trait_desc = "吸血苗木を植え付け、毎ターンプレイヤーHPを吸収"
+			"地属性": trait_desc = "動かせない硬い岩石障害物を配置する"
+			"雷属性": trait_desc = "落雷を落とし、動かすと反動を受ける帯電コマを生成"
+			"闇属性": trait_desc = "暗雲（毎ターン瘴気ダメージ）と呪詛コマを展開"
+			"光属性": trait_desc = "重要コマを黄金像に変化させて消去不可にする"
+			"火属性": trait_desc = "周囲へ毎ターン延焼する炎上マスを生成"
+			_: trait_desc = "通常攻撃や属性スキルで攻撃"
+		desc = "[font_size=19]・[b]スキル特徴:[/b] %s\n・[b]行動:[/b] 毎ターン攻撃または属性スキル(50%%)\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [trait_desc, cur_hp, max_hp, cur_atk]
+
+	rm_ui.show_custom_tooltip(title, desc, mpos, "enemy_hover")
+
+func hide_enemy_hover_tooltip() -> void:
+	if _last_hovered_enemy_idx != -1:
+		_last_hovered_enemy_idx = -1
+		var rm_ui = _get_relic_ui_manager()
+		if rm_ui and rm_ui.has_method("hide_custom_tooltip"):
+			rm_ui.hide_custom_tooltip("enemy_hover")
+
+## デバッグ用：ステージ5ボス（冥王デモニアス）との戦闘を即時開始
+func debug_start_stage5_boss() -> void:
+	stage = 5
+	stage_enemy = 5
+	_last_updated_bg_stage = -1 # 背景更新を強制
+	isdanger = false
+	dangerinterval = 0
+	isstageclear = false
+	clearinterval = 0
+	islastboss = false
+	lastbossinterval = 0
+	isdeadf = false
+	enemycount = 0
+	
+	hide_enemy_hover_tooltip()
+	stop_enemy_animation()
+	for e in active_enemies:
+		if is_instance_valid(e.get("sprite")): e["sprite"].queue_free()
+		if e.has("bar_bg") and is_instance_valid(e["bar_bg"]): e["bar_bg"].queue_free()
+		if e.has("bar_red") and is_instance_valid(e["bar_red"]): e["bar_red"].queue_free()
+		if e.has("bar_green") and is_instance_valid(e["bar_green"]): e["bar_green"].queue_free()
+		if e.has("lbl") and is_instance_valid(e["lbl"]): e["lbl"].queue_free()
+		if e.has("hp_lbl") and is_instance_valid(e["hp_lbl"]): e["hp_lbl"].queue_free()
+		if e.has("target_badge") and is_instance_valid(e["target_badge"]): e["target_badge"].queue_free()
+		if e.has("target_frame") and is_instance_valid(e["target_frame"]): e["target_frame"].queue_free()
+	active_enemies.clear()
+	enemy = null
+	
+	label_control()
+	_update_background()
+	make_enemy(true)
+	displayhp()
+	displaygage()
+	
+	var pb = _get_puzzle_board()
+	if pb:
+		pb.interval = 0
+		pb.isattack = 0
+		pb.isblock = 0
+		pb.has_enemy_attacked = false
+		pb.has_enemy_skilled = false
+		pb.is_casting_skill_turn = false
+		pb.is_enemy_turn_in_progress = false
+		if pb.has_method("clear_board_hazards"):
+			pb.clear_board_hazards()
+		pb._redraw_board_effects()
+		pb._spawn_floating_text(Vector2(pb.BOARD_LEFT + pb.BOARD_WIDTH * 0.5, pb.BOARD_TOP + 120), "⚔️ STAGE 5 BOSS BATTLE! ⚔️", Color(1.0, 0.2, 0.2))
+	print("DEBUG: Successfully jumped to Stage 5 Boss (冥王デモニアス)!")
+
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F5:
+			debug_start_stage5_boss()
+			get_viewport().set_input_as_handled()
+			return
+
+	if event is InputEventMouseMotion:
+		_update_enemy_hover_tooltip(event.position)
+
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var mpos = event.position
 		# 敵表示エリア枠: x in [1190, 1915], y in [10, 410]
@@ -1342,6 +1521,7 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
 				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
 				active_enemies.remove_at(target_idx)
+				hide_enemy_hover_tooltip()
 				if target_enemy_index >= 0:
 					target_enemy_index = clampi(target_enemy_index, 0, max(0, active_enemies.size() - 1))
 				_update_target_indicator()
@@ -1513,6 +1693,7 @@ func displaygage() -> void:
 
 ## 敵死亡時の処理
 func isdead() -> void:
+	hide_enemy_hover_tooltip()
 	stop_enemy_animation()
 	var gekiha = get_parent().get_node_or_null("gekiha")
 	if gekiha: gekiha.play()
