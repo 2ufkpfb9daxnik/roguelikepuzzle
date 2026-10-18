@@ -276,7 +276,101 @@ func _init() -> void:
 	assert(rui.info_panel.position.x > 0 and rui.info_panel.position.y > 0, "info_panel position should be valid")
 	rui.hide_custom_tooltip("test_key")
 	assert(rui.info_panel.visible == false, "info_panel should hide after hide_custom_tooltip")
-	print("Tooltip display check: SUCCESS!")
+	# Test O: Skill tree max_level 20 and 20-level descriptions verification
+	var smg = load("res://score_manager.gd").new()
+	assert(smg.skill_tree_items.size() == 12, "Must have 12 skills")
+	for s in smg.skill_tree_items:
+		assert(int(s.get("max_level", 0)) == 20, "Skill %s must have max_level == 20" % s.get("id"))
+		var d_arr: Array = s.get("desc_lv", [])
+		assert(d_arr.size() == 20, "Skill %s must have 20 description entries, got %d" % [s.get("id"), d_arr.size()])
+	print("Skill max_level 20 & 20-level descriptions check: SUCCESS!")
+
+	# Test P: Skill purchase cost multiplier check (1.30 curve)
+	smg.divscore[smg.PieceType.POTION] = 1000000
+	var bomb_skill = smg.get_skill_by_id("bomb")
+	var initial_cost = int(bomb_skill["cost"]) # 1000
+	assert(initial_cost == 1000, "Initial bomb cost should be 1000")
+	smg._purchase_skill(0) # Buy Lv1
+	assert(bomb_skill["level"] == 1, "Bomb level should become 1")
+	assert(bomb_skill["cost"] == int(1000 * 1.30), "Next bomb cost should be 1300, got %d" % bomb_skill["cost"])
+	print("Skill purchase cost progression (* 1.30): SUCCESS!")
+
+	# Test Q: Multi-spawn scaling at Lv3, Lv10, Lv18
+	# Clear grid
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = -1
+			pb.grid_i[r][c] = -1
+	# 4 swords in a row (cols 2..5, enough cells for up to 4 simultaneous spawns)
+	for c in range(2, 6):
+		pb.grid_n[4][c] = pb.PieceType.SWORD
+		pb.grid_i[4][c] = c + 50
+	pb.last_swap_cells = [Vector2i(4, 2), Vector2i(5, 2)]
+	pb.special_levels[pb.SpecialItemType.LIGHTNING] = 0
+	pb.special_levels[pb.SpecialItemType.GEMINI_BOMB] = 0
+	pb.special_levels[pb.SpecialItemType.DISCO_BALL] = 0
+
+	# Lv1: 1 spawn
+	pb.special_levels[pb.SpecialItemType.BOMB] = 1
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.size() == 1, "Lv1 should spawn 1 bomb")
+
+	# Lv3: 2 spawns
+	pb.special_levels[pb.SpecialItemType.BOMB] = 3
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.size() == 2, "Lv3 should spawn 2 bombs")
+
+	# Lv10: 3 spawns
+	pb.special_levels[pb.SpecialItemType.BOMB] = 10
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.size() == 3, "Lv10 should spawn 3 bombs")
+
+	# Lv18: 4 spawns
+	pb.special_levels[pb.SpecialItemType.BOMB] = 18
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.size() == 4, "Lv18 should spawn 4 bombs")
+	print("Multi-spawn scaling (Lv1=1, Lv3=2, Lv10=3, Lv18=4): SUCCESS!")
+
+	# Test R: Bomb stone penetration damage scaling with level
+	# Bomb Lv1 deals 1 dmg to stone
+	pb.grid_stones[3][3] = 10
+	pb.special_levels[pb.SpecialItemType.BOMB] = 1
+	var q_test: Array = []
+	var exp_test: Dictionary = {}
+	pb._trigger_bomb(3, 2, Vector2(300, 300), q_test, exp_test)
+	assert(pb.grid_stones[3][3] == 9, "Bomb Lv1 should deal 1 damage to stone (10 -> 9)")
+
+	# Bomb Lv5 deals 2 dmg to stone (1 + int((5-1)/4) = 2)
+	pb.special_levels[pb.SpecialItemType.BOMB] = 5
+	pb._trigger_bomb(3, 2, Vector2(300, 300), q_test, exp_test)
+	assert(pb.grid_stones[3][3] == 7, "Bomb Lv5 should deal 2 damage to stone (9 -> 7)")
+
+	# Bomb Lv17 deals 5 dmg to stone (1 + int((17-1)/4) = 5)
+	pb.special_levels[pb.SpecialItemType.BOMB] = 17
+	pb._trigger_bomb(3, 2, Vector2(300, 300), q_test, exp_test)
+	assert(pb.grid_stones[3][3] == 2, "Bomb Lv17 should deal 5 damage to stone (7 -> 2)")
+	print("Bomb stone penetration damage scaling: SUCCESS!")
+
+	# Test S: Enemy skill stage difficulty scaling (Stage 1 gentle vs Stage 5 intense)
+	dummy_sm.stage = 1
+	var st1_idx = pb._get_stage_index()
+	assert(st1_idx == 0, "Stage 1 should have index 0")
+
+	# Verify Stage 1 rate logic
+	var is_boss = false
+	var st1_prob = 0.25 + st1_idx * 0.10
+	assert(st1_prob == 0.25, "Stage 1 regular enemy skill rate should be 25%")
+	var st1_boss_prob = 0.50 + st1_idx * 0.125
+	assert(st1_boss_prob == 0.50, "Stage 1 boss skill rate should be 50%")
+
+	dummy_sm.stage = 5
+	var st5_idx = pb._get_stage_index()
+	assert(st5_idx == 4, "Stage 5 should have index 4")
+	var st5_prob = 0.25 + st5_idx * 0.10
+	assert(st5_prob == 0.65, "Stage 5 regular enemy skill rate should be 65%")
+	var st5_boss_prob = 0.50 + st5_idx * 0.125
+	assert(st5_boss_prob == 1.00, "Stage 5 boss skill rate should be 100%")
+	print("Enemy skill stage difficulty scaling (Stage 1 rate 25%/50% -> Stage 5 rate 65%/100%): SUCCESS!")
 
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

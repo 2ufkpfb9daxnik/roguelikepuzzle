@@ -1082,6 +1082,22 @@ func _get_dominant_attribute() -> int:
 			max_att = i
 	return max_att
 
+## 2番目に多い属性の取得ヘルパー
+func _get_second_dominant_attribute(exclude_att: int) -> int:
+	var counts: Array[int] = [0, 0, 0, 0, 0]
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var a = grid_att[r][c]
+			if a >= 0 and a < 5 and a != exclude_att:
+				counts[a] += 1
+	var max_c = -1
+	var best_a = -1
+	for a in range(5):
+		if a != exclude_att and counts[a] > max_c and counts[a] > 0:
+			max_c = counts[a]
+			best_a = a
+	return best_a
+
 ## 同色コマのn個消し（4消し、5個直線、交差、6個、7個以上）によるスキルコマ手動生成解析
 func _detect_and_spawn_special_from_matches() -> void:
 	pending_special_spawns.clear()
@@ -1301,13 +1317,24 @@ func _detect_and_spawn_special_from_matches() -> void:
 		if pivot != Vector2i(-1, -1):
 			pending_special_spawns[pivot] = target_sp
 
-			# Lv3ボーナス: 2個同時生成アビリティ解放
+			# スキルLvスケーリング生成ボーナス: Lv3+で2個、Lv10+で3個、Lv18+で4個同時生成
 			var sp_lvl = special_levels.get(target_sp, 0)
-			if sp_lvl >= 3:
+			var max_spawns = 1
+			if sp_lvl >= 18:
+				max_spawns = 4
+			elif sp_lvl >= 10:
+				max_spawns = 3
+			elif sp_lvl >= 3:
+				max_spawns = 2
+
+			var spawned_count = 1
+			if max_spawns > 1:
 				for extra_cell in unique_cells:
 					if extra_cell != pivot and not pending_special_spawns.has(extra_cell):
 						pending_special_spawns[extra_cell] = target_sp
-						break
+						spawned_count += 1
+						if spawned_count >= max_spawns:
+							break
 
 ## 落下時の特殊アイテム抽選（仕様刷新：スキルコマは同じコマのn個消しのみで生成され、自動落下・自動湧きは完全廃止）
 func _roll_falling_special() -> int:
@@ -1546,10 +1573,16 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.BOMB, 1))
 	var radius: int = 1 # Lv1: 3x3
-	if lvl == 2:
-		radius = 2 # Lv2: 5x5
-	elif lvl >= 3:
-		radius = 3 # Lv3: 7x7
+	if lvl >= 16:
+		radius = 5 # 画面ほぼ全域
+	elif lvl >= 10:
+		radius = 4 # 9x9
+	elif lvl >= 5:
+		radius = 3 # 7x7
+	elif lvl >= 2:
+		radius = 2 # 5x5
+
+	var stone_dmg: int = 1 + int((lvl - 1) / 4)
 
 	_spawn_explosion_effect(pos)
 	for dr in range(-radius, radius + 1):
@@ -1559,7 +1592,7 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				# 石マスへのスキルダメージ
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
-					_damage_stone_at(nr, nc, 1)
+					_damage_stone_at(nr, nc, stone_dmg)
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
@@ -1590,65 +1623,71 @@ func _trigger_cross_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 		r_reach = GRID_ROWS # Lv3: 全画面十字
 		c_reach = GRID_COLUMNS
 
+	var stone_dmg: int = 1 + int((lvl - 1) / 4)
+	var cross_width: int = 1 if lvl >= 12 else 0
+
 	# 縦方向
 	for dr in range(-r_reach, r_reach + 1):
-		var nr = r + dr
-		if nr >= 0 and nr < GRID_ROWS:
-			if grid_stones.size() == GRID_ROWS and grid_stones[nr][c] > 0:
-				_damage_stone_at(nr, c, 1)
-				if grid_stones[nr][c] == 0 and grid_i[nr][c] != -1:
-					ismatched[nr][c] = true
-				continue
+		for dw in range(-cross_width, cross_width + 1):
+			var nr = r + dr
+			var nc = c + dw
+			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, stone_dmg)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
 
-			var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][c])
-			if is_water:
-				grid_water[nr][c] = false
-				_spawn_steam_effect(get_cell_position(nr, c))
-			else:
-				if grid_i[nr][c] != -1:
-					ismatched[nr][c] = true
-					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][c])
-					if has_sp and not (Vector2i(nr, c) in exploded_items):
-						queue.append(Vector2i(nr, c))
+				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
+				if is_water:
+					grid_water[nr][nc] = false
+					_spawn_steam_effect(get_cell_position(nr, nc))
+				else:
+					if grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+						var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+						if has_sp and not (Vector2i(nr, nc) in exploded_items):
+							queue.append(Vector2i(nr, nc))
 
 	# 横方向
 	for dc in range(-c_reach, c_reach + 1):
-		var nc = c + dc
-		if nc >= 0 and nc < GRID_COLUMNS:
-			if grid_stones.size() == GRID_ROWS and grid_stones[r][nc] > 0:
-				_damage_stone_at(r, nc, 1)
-				if grid_stones[r][nc] == 0 and grid_i[r][nc] != -1:
-					ismatched[r][nc] = true
-				continue
+		for dw in range(-cross_width, cross_width + 1):
+			var nr = r + dw
+			var nc = c + dc
+			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					_damage_stone_at(nr, nc, stone_dmg)
+					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+					continue
 
-			var is_water = (grid_water.size() == GRID_ROWS and grid_water[r][nc])
-			if is_water:
-				grid_water[r][nc] = false
-				_spawn_steam_effect(get_cell_position(r, nc))
-			else:
-				if grid_i[r][nc] != -1:
-					ismatched[r][nc] = true
-					var has_sp = (special_item.size() == GRID_ROWS and special_item[r][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][nc])
-					if has_sp and not (Vector2i(r, nc) in exploded_items):
-						queue.append(Vector2i(r, nc))
+				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
+				if is_water:
+					grid_water[nr][nc] = false
+					_spawn_steam_effect(get_cell_position(nr, nc))
+				else:
+					if grid_i[nr][nc] != -1:
+						ismatched[nr][nc] = true
+						var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+						if has_sp and not (Vector2i(nr, nc) in exploded_items):
+							queue.append(Vector2i(nr, nc))
 
-	_check_burn_plants_in_rect(r - r_reach, r + r_reach, c, c, queue, exploded_items)
-	_check_burn_plants_in_rect(r, r, c - c_reach, c + c_reach, queue, exploded_items)
+	_check_burn_plants_in_rect(r - r_reach, r + r_reach, c - cross_width, c + cross_width, queue, exploded_items)
+	_check_burn_plants_in_rect(r - cross_width, r + cross_width, c - c_reach, c + c_reach, queue, exploded_items)
 
 
 func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.TORNADO, 1))
 	var half_w: int = 0 # Lv1: 幅1マス (つむじ風)
-	if lvl == 2:
+	if lvl >= 7:
+		half_w = 2 # Lv7+: 幅5マス (天災大竜巻)
+	elif lvl >= 2:
 		half_w = 1 # Lv2: 幅3マス (疾風竜巻)
-	elif lvl >= 3:
-		half_w = 2 # Lv3: 幅5マス (天災大竜巻)
 
 	_spawn_tornado_effect(pos, lvl, half_w)
 
 	var hit_plants: Array = []
-	# つむじ風(Lv1)は木の耐久値-1、竜巻(Lv2以上)は-2
-	var tornado_dmg: int = 1 if lvl == 1 else 2
+	var tornado_dmg: int = 1 + int((lvl - 1) / 4)
 
 	for nr in range(r, -1, -1):
 		for dc in range(-half_w, half_w + 1):
@@ -1677,9 +1716,8 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 
 func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.LIGHTNING, 1))
-	var target_count: int = 3
-	if lvl == 2: target_count = 5
-	elif lvl >= 3: target_count = 8
+	var target_count: int = mini(GRID_ROWS * GRID_COLUMNS, 3 + int(lvl * 1.1))
+	var stone_dmg: int = 2 + int((lvl - 1) / 3)
 
 	ismatched[r][c] = true
 
@@ -1706,7 +1744,7 @@ func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_ite
 		targets.append(get_cell_position(cp.x, cp.y))
 
 		if grid_stones.size() == GRID_ROWS and grid_stones[cp.x][cp.y] > 0:
-			_damage_stone_at(cp.x, cp.y, 2)
+			_damage_stone_at(cp.x, cp.y, stone_dmg)
 			if grid_stones[cp.x][cp.y] == 0 and grid_i[cp.x][cp.y] != -1:
 				ismatched[cp.x][cp.y] = true
 			continue
@@ -1736,10 +1774,12 @@ func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_ite
 func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.AQUA_SPLASH, 1))
 	var radius: int = 1 # Lv1: 3x3
-	if lvl == 2:
-		radius = 2 # Lv2: 5x5
+	if lvl >= 14:
+		radius = 5 # 画面ほぼ全域
+	elif lvl >= 8:
+		radius = 3 # 7x7
 	elif lvl >= 3:
-		radius = 3 # Lv3: 7x7
+		radius = 2 # 5x5
 
 	ismatched[r][c] = true
 	_spawn_aqua_splash_effect(pos, radius)
@@ -1751,6 +1791,14 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				_apply_water_to_cell(nr, nc)
 
+	# Lv7以上: 発動時にHP回復ボーナス
+	if lvl >= 7:
+		var sm = _get_stage_manager()
+		if sm and sm.myhpmax > 0:
+			var heal_ratio = 0.05 + lvl * 0.01
+			sm.myhp = minf(sm.myhpmax, sm.myhp + sm.myhpmax * heal_ratio)
+			_spawn_floating_text(pos, "清流回復 +%d" % int(sm.myhpmax * heal_ratio), Color(0.2, 0.9, 0.4))
+
 	# 周囲の植物による即時吸水
 	for plant in plant_entities.duplicate():
 		_process_plant_water_absorption(plant)
@@ -1761,12 +1809,18 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 func _trigger_tree_sprout(r: int, c: int, pos: Vector2, _queue: Array, _exploded_items: Dictionary) -> void:
 	ismatched[r][c] = true
 	_spawn_sprout_effect(pos)
+	var lvl: int = max(1, special_levels.get(SpecialItemType.TREE_SPROUT, 1))
 	if _get_plant_at(r, c).is_empty():
+		var init_stage = 0
+		if lvl >= 12:
+			init_stage = 2 # 直接3x3世界樹として出現
+		elif lvl >= 5:
+			init_stage = 1 # 最初から若木として出現
 		var new_plant: Dictionary = {
 			"origin": Vector2i(r, c),
-			"stage": 0, # 0: 苗木, 1: 若木, 2: 3x3大木
+			"stage": init_stage,
 			"absorbed_water": 0,
-			"thunder_hp": 1 # 苗木は1回耐える
+			"thunder_hp": 1 + int((lvl - 1) / 3)
 		}
 		plant_entities.append(new_plant)
 		_process_plant_water_absorption(new_plant)
@@ -1780,17 +1834,28 @@ func _trigger_disco_ball(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	var lvl: int = max(1, special_levels.get(SpecialItemType.DISCO_BALL, 1))
 	_spawn_disco_effect(pos)
 
+	var target_attrs: Array[int] = [target_att]
+	if lvl >= 10:
+		var sec_att = _get_second_dominant_attribute(target_att)
+		if sec_att >= 0:
+			target_attrs.append(sec_att)
+
+	var stone_dmg: int = 1 + int((lvl - 1) / 4)
 	for nr in range(GRID_ROWS):
 		for nc in range(GRID_COLUMNS):
-			if grid_att[nr][nc] == target_att and grid_i[nr][nc] != -1:
+			if grid_att[nr][nc] in target_attrs and grid_i[nr][nc] != -1:
 				ismatched[nr][nc] = true
 				if lvl >= 2:
-					for dr in [-1, 0, 1]:
-						for dc in [-1, 0, 1]:
+					var blast_reach = 1 if lvl < 9 else 2
+					for dr in range(-blast_reach, blast_reach + 1):
+						for dc in range(-blast_reach, blast_reach + 1):
 							var ar = nr + dr
 							var ac = nc + dc
-							if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_i[ar][ac] != -1:
-								ismatched[ar][ac] = true
+							if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS:
+								if grid_stones.size() == GRID_ROWS and grid_stones[ar][ac] > 0:
+									_damage_stone_at(ar, ac, stone_dmg)
+								if grid_i[ar][ac] != -1:
+									ismatched[ar][ac] = true
 				var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
 				if has_sp and not (Vector2i(nr, nc) in exploded_items):
 					queue.append(Vector2i(nr, nc))
@@ -1801,12 +1866,22 @@ func _trigger_color_converter(r: int, c: int, pos: Vector2, _queue: Array, _expl
 	_spawn_paint_effect(pos)
 	ismatched[r][c] = true
 
-	var paint_radius: int = 1 if lvl == 1 else 2
+	var paint_radius: int = 1
+	if lvl >= 14:
+		paint_radius = 4
+	elif lvl >= 8:
+		paint_radius = 3
+	elif lvl >= 3:
+		paint_radius = 2
+
 	for dr in range(-paint_radius, paint_radius + 1):
 		for dc in range(-paint_radius, paint_radius + 1):
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if lvl >= 4 and grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
+					grid_stones[nr][nc] = 0
+					_spawn_stone_break_effect(get_cell_position(nr, nc))
 				var p_idx = grid_i[nr][nc]
 				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
 					grid_att[nr][nc] = dom_att
@@ -1819,9 +1894,14 @@ func _trigger_color_converter(r: int, c: int, pos: Vector2, _queue: Array, _expl
 func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.BLACK_HOLE, 1))
 	var radius: int = 1
-	if lvl == 2: radius = 2
-	elif lvl >= 3: radius = 3
+	if lvl >= 13:
+		radius = 4
+	elif lvl >= 7:
+		radius = 3
+	elif lvl >= 2:
+		radius = 2
 	_spawn_black_hole_effect(pos, radius)
+	var stone_dmg: int = 1 + int((lvl - 1) / 3)
 
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
@@ -1829,7 +1909,7 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
-					_damage_stone_at(nr, nc, 1)
+					_damage_stone_at(nr, nc, stone_dmg)
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
@@ -1844,7 +1924,7 @@ func _trigger_magnet(r: int, c: int, pos: Vector2, queue: Array, exploded_items:
 	var target_att: int = grid_att[r][c]
 	if target_att < 0: target_att = _get_dominant_attribute()
 	var lvl: int = max(1, special_levels.get(SpecialItemType.MAGNET, 1))
-	var max_pull: int = 4 if lvl == 1 else (8 if lvl == 2 else 999)
+	var max_pull: int = 4 if lvl == 1 else (8 if lvl == 2 else (14 + lvl * 2 if lvl < 10 else 999))
 
 	var candidates: Array[Vector2i] = []
 	for nr in range(GRID_ROWS):
@@ -1866,19 +1946,21 @@ func _trigger_magnet(r: int, c: int, pos: Vector2, queue: Array, exploded_items:
 	_spawn_magnet_effect(pos, target_positions)
 
 func _trigger_charge_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+	var lvl: int = max(1, special_levels.get(SpecialItemType.CHARGE_BOMB, 1))
 	var ch: int = 1
 	if special_charge.size() == GRID_ROWS:
 		ch = max(1, special_charge[r][c])
 	_spawn_mega_explosion_effect(pos, ch)
 
-	var radius: int = ch
+	var radius: int = ch + int((lvl - 1) / 5)
+	var stone_dmg: int = ch + int((lvl - 1) / 3)
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
-					_damage_stone_at(nr, nc, ch)
+					_damage_stone_at(nr, nc, stone_dmg)
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
@@ -1895,6 +1977,8 @@ func _trigger_charge_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 							queue.append(Vector2i(nr, nc))
 
 func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded_items: Dictionary) -> void:
+	var lvl: int = max(1, special_levels.get(SpecialItemType.GEMINI_BOMB, 1))
+	var stone_dmg: int = 1 + int((lvl - 1) / 4)
 	_spawn_explosion_effect(pos)
 	for dr in [-1, 0, 1]:
 		for dc in [-1, 0, 1]:
@@ -1902,7 +1986,7 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
-					_damage_stone_at(nr, nc, 1)
+					_damage_stone_at(nr, nc, stone_dmg)
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
@@ -1915,8 +1999,7 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 					if grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 
-	var lvl: int = max(1, special_levels.get(SpecialItemType.GEMINI_BOMB, 1))
-	var split_count: int = 2 + (lvl - 1)
+	var split_count: int = mini(8, 2 + int(lvl / 3))
 	var targets: Array[Vector2] = []
 	var cands: Array[Vector2i] = []
 	for ar in range(GRID_ROWS):
@@ -1935,7 +2018,7 @@ func _trigger_gemini_bomb(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 				var cc = tp.y + dc
 				if cr >= 0 and cr < GRID_ROWS and cc >= 0 and cc < GRID_COLUMNS:
 					if grid_stones.size() == GRID_ROWS and grid_stones[cr][cc] > 0:
-						_damage_stone_at(cr, cc, 1)
+						_damage_stone_at(cr, cc, stone_dmg)
 						if grid_stones[cr][cc] == 0 and grid_i[cr][cc] != -1:
 							ismatched[cr][cc] = true
 						continue
@@ -5074,9 +5157,16 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 	if elem == "無属性" or elem == "":
 		return false
 	var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
-	# ボスは確定発動、通常敵は50%の確率でスキル発動
-	if not is_boss and randf() > 0.5:
-		return false
+	var st_idx = _get_stage_index()
+	# ステージ1は弱く控えめ（通常25%、ボス50%）、ステージ進行につれて徐々に強化（Stage 5通常65%、ボス100%）
+	if is_boss:
+		var boss_skill_rate = 0.50 + st_idx * 0.125
+		if randf() > boss_skill_rate:
+			return false
+	else:
+		var norm_skill_rate = 0.25 + st_idx * 0.10
+		if randf() > norm_skill_rate:
+			return false
 	return true
 
 ## 敵の攻撃処理（物理攻撃・爪斬撃演出・ダメージ計算）
@@ -5106,9 +5196,12 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
 	var has_skill = false
+	var st_idx = _get_stage_index()
+	var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
+	var skill_prob = (0.50 + st_idx * 0.125) if is_boss else (0.25 + st_idx * 0.10)
 	if sm and "active_enemies" in sm:
 		for e in sm.active_enemies:
-			if randf() < 0.5:
+			if randf() < skill_prob:
 				_enemy_turn_actions.append("skill")
 				has_skill = true
 			else:
@@ -5727,13 +5820,13 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	tw.parallel().tween_property(panel, "position:y", panel.position.y - 25.0, 0.30)
 	tw.tween_callback(panel.queue_free)
 
-## 1. 水属性スキル: 水浸しで操作困難（ステージ上昇でマス数増加）
+## 1. 水属性スキル: 水浸しで操作困難（ステージ1は控えめ、ステージ上昇でマス数増加）
 func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "怒涛・タイダルウェイブ" if is_boss else "アクアサージ"
 	if show_banner: _show_enemy_skill_banner(s_name, "#00E5FF", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(18 + st_idx * 3, 24 + st_idx * 3) if is_boss else randi_range(8 + st_idx * 2, 12 + st_idx * 2)
+	var count = randi_range(6 + st_idx * 4, 9 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 4 + st_idx * 2)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5779,13 +5872,13 @@ func _freeze_connected_water(start_cell: Vector2i, ice_dur: int) -> void:
 					visited[next_c] = true
 					queue.append(next_c)
 
-## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ上昇でマス数＆耐久値増加、水接触時は塊ごと一括凍結）
+## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ1は少数・耐久1、後半でマス数＆耐久値強化）
 func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "絶対零度・ブリザード" if is_boss else "フロストロック"
 	if show_banner: _show_enemy_skill_banner(s_name, "#80DEEA", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(16 + st_idx * 3, 22 + st_idx * 3) if is_boss else randi_range(6 + st_idx * 2, 10 + st_idx * 2)
+	var count = randi_range(5 + st_idx * 4, 7 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5798,13 +5891,13 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
-		# ステージ上昇に応じて氷の耐久値を強化（Stage 1~2: 耐久1, Stage 3~4: 耐久1~2, Stage 5: 耐久2、ボスは最大耐久3）
+		# ステージ上昇に応じて氷の耐久値を強化（Stage 1: 耐久1, Stage 2~3: 耐久1~2, Stage 4~5: 耐久2~3）
 		var ice_dur = 1
 		if is_boss:
-			ice_dur = 2 + (1 if st_idx >= 4 and i < 4 else 0)
+			ice_dur = 1 + (1 if st_idx >= 1 else 0) + (1 if st_idx >= 4 and i < 4 else 0)
 		elif st_idx >= 4:
 			ice_dur = 2
-		elif st_idx >= 2 and i < 4:
+		elif st_idx >= 2 and i < 3:
 			ice_dur = 2
 
 		# 氷のブレス/スキルが水マスに当たった場合、水の塊ごと全体を一括凍結！
@@ -5821,15 +5914,15 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 	_redraw_board_effects()
 	return _targets
 
-## 3. 風属性スキル: 縦1直線の竜巻が非コマオブジェクトを一掃（ステージ上昇で竜巻列数増加）
+## 3. 風属性スキル: 縦1直線の竜巻が非コマオブジェクトを一掃（ステージ1は1列のみ、ステージ上昇で列数増加）
 func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "滅神風・テンペスト" if is_boss else "ダウンバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#64FFDA", is_boss)
 	var st_idx = _get_stage_index()
-	var base_min = 4 + int((st_idx + 1) / 2) if is_boss else 2 + int(st_idx / 2)
-	var base_max = 5 + int((st_idx + 1) / 2) if is_boss else 3 + int(st_idx / 2)
-	var num_cols = randi_range(mini(base_min, GRID_COLUMNS - 1), mini(base_max, GRID_COLUMNS))
+	var base_min = mini(GRID_COLUMNS - 1, 2 + st_idx) if is_boss else mini(GRID_COLUMNS - 1, 1 + int(st_idx / 2))
+	var base_max = mini(GRID_COLUMNS, 2 + int((st_idx + 1) * 0.8)) if is_boss else mini(GRID_COLUMNS - 1, 1 + int((st_idx + 1) / 2))
+	var num_cols = randi_range(base_min, base_max)
 
 	var cols: Array[int] = []
 	var col_pool: Array[int] = []
@@ -5884,14 +5977,14 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	_redraw_board_effects()
 	return _targets
 
-## 4. 木属性スキル: 苗木を植えて毎ターンドレイン（ステージ上昇で本数・若木割合・ドレイン量増加）
+## 4. 木属性スキル: 苗木を植えて毎ターンドレイン（ステージ1は1〜2本・低ドレイン、後半で本数・若木割合・ドレイン量増加）
 func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "生命強奪・フォレストカース" if is_boss else "ソーンシード"
 	if show_banner: _show_enemy_skill_banner(s_name, "#69F0AE", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(6 + st_idx * 2, 9 + st_idx * 2) if is_boss else randi_range(3 + st_idx * 1, 5 + st_idx * 1)
-	var drain_hp = (300 + st_idx * 60) if is_boss else (150 + st_idx * 30)
+	var count = randi_range(3 + st_idx * 2, 4 + st_idx * 2) if is_boss else randi_range(1 + int(st_idx / 2), 2 + int(st_idx / 2))
+	var drain_hp = (80 + st_idx * 80) if is_boss else (30 + st_idx * 35)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5904,7 +5997,7 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 
 	var newly_planted: Array[Dictionary] = []
 	var num = mini(count, cands.size())
-	var num_saplings = (2 + int(st_idx / 2)) if is_boss else (1 if st_idx >= 2 else 0)
+	var num_saplings = (1 + int(st_idx / 2)) if is_boss else (1 if st_idx >= 3 else 0)
 	for i in range(num):
 		var p = cands[i]
 		var idx = grid_i[p.x][p.y]
@@ -5917,13 +6010,13 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 
 		# ステージ上昇に応じて植物の耐雷耐久値（thunder_hp）を強化
 		# 苗木: Stage 1~2: 耐久 1, Stage 3~4: 耐久 2, Stage 5: 耐久 3
-		# 若木: Stage 1~2: 耐久 2 (ボス 3), Stage 3~4: 耐久 3 (ボス 4), Stage 5: 耐久 4 (ボス 5)
+		# 若木: Stage 1~2: 耐久 1~2, Stage 3~4: 耐久 2~3, Stage 5: 耐久 3~4
 		var st_val = 1 if i < num_saplings else 0
 		var th_hp = 1
 		if st_val == 0:
 			th_hp = 1 + (1 if st_idx >= 2 else 0) + (1 if st_idx >= 4 else 0)
 		else:
-			th_hp = 2 + int((st_idx + 1) / 2) + (1 if is_boss else 0)
+			th_hp = 1 + int((st_idx + 1) / 2) + (1 if is_boss else 0)
 
 		var plant_data = {
 			"origin": p,
@@ -5948,13 +6041,13 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		_execute_wood_hp_drain(sm, newly_planted, stage_scale)
 	return _targets
 
-## 5. 地属性スキル: 石を複数配置（ステージ上昇で個数＆耐久値強化、巨岩出現）
+## 5. 地属性スキル: 石を配置（ステージ1は2〜3個・耐久1、ステージ上昇で個数＆耐久値強化、巨岩出現）
 func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "天変地異・グランドカタストロフ" if is_boss else "ロックフォール"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFB74D", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(14 + st_idx * 3, 18 + st_idx * 3) if is_boss else randi_range(6 + st_idx * 2, 9 + st_idx * 2)
+	var count = randi_range(4 + st_idx * 3, 6 + st_idx * 3) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5967,10 +6060,9 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 
 	var num = mini(count, cands.size())
 	# ステージ上昇に応じて石の耐久値を強化
-	# 基礎耐久: Stage 1~2: 2, Stage 3~4: 3, Stage 5: 4 (ボスはさらに+1)
-	# 巨岩耐久: 基礎耐久 + 1 (Stage 5ボス戦では耐久5~6の超巨岩が混入！)
-	var base_dur = 2 + int(st_idx / 2) + (1 if is_boss else 0)
-	var heavy_stones = mini(randi_range(2, 4) + st_idx, num) if st_idx >= 2 else (1 if is_boss else 0)
+	# 基礎耐久: Stage 1: 耐久 1, Stage 2~3: 耐久 2, Stage 4~5: 耐久 3 (ボスはさらに+1)
+	var base_dur = 1 + int(st_idx / 2) + (1 if (is_boss and st_idx >= 2) else 0)
+	var heavy_stones = mini(1 + st_idx, num) if st_idx >= 3 else (1 if (is_boss and st_idx >= 2) else 0)
 	for i in range(num):
 		var p = cands[i]
 		var stone_dur = (base_dur + 1) if i < heavy_stones else base_dur
@@ -5986,13 +6078,13 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	_redraw_board_effects()
 	return _targets
 
-## 6. 雷属性スキル: 落雷（ステージ上昇で落雷本数大幅増加）
+## 6. 雷属性スキル: 落雷（ステージ1は2〜3発、ステージ上昇で落雷本数大幅増加）
 func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "神罰・ジャッジメントサンダー" if is_boss else "ギガスパーク"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(18 + st_idx * 4, 25 + st_idx * 4) if is_boss else randi_range(8 + st_idx * 3, 12 + st_idx * 3)
+	var count = randi_range(5 + st_idx * 4, 7 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
 
 	for i in range(count):
 		var r = randi() % GRID_ROWS
@@ -6038,16 +6130,16 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 		)
 	return _targets
 
-## 7. 闇属性スキル: 黒い霧＆呪いコマ（ステージ上昇で霧拡大・呪いコマ数増加）
+## 7. 闇属性スキル: 黒い霧＆呪いコマ（ステージ1は2×2・呪い2〜3個、ステージ上昇で霧拡大・呪いコマ数増加）
 func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "終焉の夜・アビスディメンション" if is_boss else "シャドウベール＆カース"
 	if show_banner: _show_enemy_skill_banner(s_name, "#E040FB", is_boss)
 	var st_idx = _get_stage_index()
 
-	# 黒い霧（高ステージで範囲拡大＆解除必要ターン数増加）
-	var fog_size = mini(GRID_ROWS, (6 + (1 if st_idx >= 3 else 0)) if is_boss else (4 + (1 if st_idx >= 3 else 0)))
-	var fog_turns = (4 if is_boss else 3) + int(st_idx / 2)
+	# 黒い霧（Stage 1は2×2・2ターン、高ステージで範囲拡大＆解除必要ターン数増加）
+	var fog_size = mini(GRID_ROWS, (3 + st_idx) if is_boss else (2 + int(st_idx / 2)))
+	var fog_turns = (2 if st_idx <= 1 else 3) + int(st_idx / 3) + (1 if is_boss else 0)
 	var top_r = clampi(randi() % (GRID_ROWS - fog_size + 1), 0, GRID_ROWS - fog_size)
 	var left_c = clampi(randi() % (GRID_COLUMNS - fog_size + 1), 0, GRID_COLUMNS - fog_size)
 	grid_fog.append({
@@ -6056,7 +6148,7 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	})
 
 	# 呪いコマ生成（盾やパンを優先的に呪う）
-	var curse_count = randi_range(12 + st_idx * 3, 16 + st_idx * 3) if is_boss else randi_range(6 + st_idx * 2, 8 + st_idx * 2)
+	var curse_count = randi_range(5 + st_idx * 3, 7 + st_idx * 3) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
 	var cands: Array[Vector2i] = []
 	var other_cands: Array[Vector2i] = []
 
@@ -6085,13 +6177,13 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	_redraw_board_effects()
 	return _targets
 
-## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（ステージ上昇で個数＆耐久値強化）
+## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（ステージ1は1〜2体・耐久1、ステージ上昇で個数＆耐久値強化）
 func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "太陽神の審判・ソーラープリズム" if is_boss else "ミダスグレイス"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(10 + st_idx * 2, 15 + st_idx * 2) if is_boss else randi_range(4 + st_idx * 1, 6 + st_idx * 1)
+	var count = randi_range(3 + st_idx * 2, 5 + st_idx * 2) if is_boss else randi_range(1 + int(st_idx / 2), 2 + int(st_idx / 2))
 
 	var sm = _get_stage_manager()
 	# プレイヤーピンチ時は盾、それ以外は剣を優先してスカコマ化
@@ -6114,9 +6206,9 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	cands.append_array(backup_cands)
 
 	# ステージ上昇に応じて黄金像の耐久値を強化
-	# 通常: Stage 1~2: 耐久 3, Stage 3~4: 耐久 4, Stage 5: 耐久 5
-	# ボス: Stage 1~2: 耐久 4, Stage 3~4: 耐久 5, Stage 5: 耐久 6（神聖黄金像）
-	var statue_dur = 3 + int(st_idx / 2) + (1 if is_boss else 0)
+	# 通常: Stage 1: 耐久 1, Stage 2~3: 耐久 2, Stage 4~5: 耐久 3~4
+	# ボス: Stage 1: 耐久 2, Stage 2~3: 耐久 3, Stage 4~5: 耐久 4~5
+	var statue_dur = 1 + int(st_idx / 2) + (1 if is_boss else 0)
 
 	var num = mini(count, cands.size())
 	for i in range(num):
@@ -6126,9 +6218,9 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 		_spawn_gold_shatter_effect(get_cell_position(p.x, p.y))
 		_targets.append(get_cell_position(p.x, p.y))
 
-	# ボス時はさらにランダムな通常コマも追加で黄金石像化
-	if is_boss:
-		var extra_num = mini(randi_range(5, 8) + st_idx, backup_cands.size())
+	# ボス時はさらにランダムな通常コマも追加で黄金石像化（Stage 2以上から）
+	if is_boss and st_idx >= 1:
+		var extra_num = mini(randi_range(1, 2) + st_idx, backup_cands.size())
 		for j in range(extra_num):
 			var p2 = backup_cands[j]
 			grid_gold_statue[p2.x][p2.y] = statue_dur
@@ -6138,13 +6230,13 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	_redraw_board_effects()
 	return _targets
 
-## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ上昇で生成数増加）
+## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ1は2〜3個、ステージ上昇で生成数増加）
 func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(12 + st_idx * 3, 16 + st_idx * 3) if is_boss else randi_range(5 + st_idx * 2, 8 + st_idx * 2)
+	var count = randi_range(5 + st_idx * 3, 7 + st_idx * 3) if is_boss else randi_range(2 + int(st_idx * 1.5), 3 + int(st_idx * 1.5))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6804,48 +6896,54 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 
 	match sp:
 		SpecialItemType.BOMB:
-			title = "[b][color=#FF9100]💣 フレイムボム (Lv%d)[/color][/b]" % sp_lvl
-			var radius_str = "3×3マス" if sp_lvl == 1 else ("5×5マス" if sp_lvl == 2 else "7×7マス")
-			desc = "[font_size=19]起爆すると周囲[color=#FFD700]%s[/color]を業火で爆破消去！\n敵に炎属性ダメージを与えます。[/font_size]" % radius_str
+			title = "[b][color=#FF9100]💣 フレイムボム (Lv%d/20)[/color][/b]" % sp_lvl
+			var radius_str = "3×3マス" if sp_lvl == 1 else ("5×5マス" if sp_lvl < 5 else ("7×7マス" if sp_lvl < 10 else ("9×9マス" if sp_lvl < 16 else "全域")))
+			var stone_str = "（石貫通ダメージ %d）" % (1 + int((sp_lvl - 1) / 4))
+			desc = "[font_size=19]起爆すると周囲[color=#FFD700]%s[/color]を業火で爆破消去！%s\n敵に炎属性ダメージを与えます。[/font_size]" % [radius_str, stone_str]
 		SpecialItemType.CROSS_BOMB:
-			title = "[b][color=#FF3D00]⚔️ クロスブレイズ (Lv%d)[/color][/b]" % sp_lvl
-			var width_str = "縦横1列" if sp_lvl == 1 else ("縦横3列" if sp_lvl == 2 else "縦横3列＋斜めX字")
-			desc = "[font_size=19]起爆すると[color=#FFD700]%s[/color]を貫通する極太火柱で一掃消滅させます！[/font_size]" % width_str
+			title = "[b][color=#FF3D00]⚔️ クロスブレイズ (Lv%d/20)[/color][/b]" % sp_lvl
+			var width_str = "縦横1列" if sp_lvl == 1 else ("縦横3列" if sp_lvl < 6 else "全画面十字貫通")
+			desc = "[font_size=19]起爆すると[color=#FFD700]%s[/color]を貫通する極太火柱で一掃消滅させます！（石貫通 %d）[/font_size]" % [width_str, 1 + int((sp_lvl - 1) / 4)]
 		SpecialItemType.DISCO_BALL:
-			title = "[b][color=#E040FB]✨ スターオーブ (Lv%d)[/color][/b]" % sp_lvl
-			desc = "[font_size=19]盤面内で最も多い属性のコマを一斉消滅！\n大量コンボと大ダメージを誘発します。[/font_size]"
+			title = "[b][color=#E040FB]✨ スターオーブ (Lv%d/20)[/color][/b]" % sp_lvl
+			var target_str = "最多属性" if sp_lvl < 10 else "最多2属性"
+			desc = "[font_size=19]盤面内で最も多い[color=#FFD700]%s[/color]のコマを一斉消滅！\n大量コンボと大ダメージを誘発します。（石貫通 %d）[/font_size]" % [target_str, 1 + int((sp_lvl - 1) / 4)]
 		SpecialItemType.COLOR_CONVERTER:
-			title = "[b][color=#69F0AE]🎨 フローラスプレー (Lv%d)[/color][/b]" % sp_lvl
-			var span_str = "周囲8マス" if sp_lvl == 1 else ("周囲5×5マス" if sp_lvl == 2 else "周囲7×7マス")
+			title = "[b][color=#69F0AE]🎨 フローラスプレー (Lv%d/20)[/color][/b]" % sp_lvl
+			var span_str = "周囲8マス" if sp_lvl < 3 else ("周囲5×5マス" if sp_lvl < 8 else ("周囲7×7マス" if sp_lvl < 14 else "盤面全域"))
 			desc = "[font_size=19][color=#FFD700]%s[/color]をすべて同一の属性コマに染め上げ、確実な巨大連鎖を生成します。[/font_size]" % span_str
 		SpecialItemType.LIGHTNING:
-			title = "[b][color=#FFEA00]⚡ ライトニング (Lv%d)[/color][/b]" % sp_lvl
-			var strikes = 3 if sp_lvl == 1 else (5 if sp_lvl == 2 else 8)
-			desc = "[font_size=19]盤面に[color=#FFD700]%d発[/color]の落雷追撃！\n水たまりマスに触れると周囲へ感電連鎖します。[/font_size]" % strikes
+			title = "[b][color=#FFEA00]⚡ ライトニング (Lv%d/20)[/color][/b]" % sp_lvl
+			var strikes = mini(GRID_ROWS * GRID_COLUMNS, 3 + int(sp_lvl * 1.1))
+			desc = "[font_size=19]盤面に[color=#FFD700]%d発[/color]の落雷追撃！（石貫通 %d）\n水たまりマスに触れると周囲へ感電連鎖します。[/font_size]" % [strikes, 2 + int((sp_lvl - 1) / 3)]
 		SpecialItemType.BLACK_HOLE:
-			title = "[b][color=#7C4DFF]🌀 ブラックホール (Lv%d)[/color][/b]" % sp_lvl
-			var hole_str = "5×5マス" if sp_lvl == 1 else ("7×7マス" if sp_lvl == 2 else "9×9マス")
-			desc = "[font_size=19]超強力な重力渦を展開し、周囲[color=#FFD700]%s[/color]のコマを吸引・消滅させます。[/font_size]" % hole_str
+			title = "[b][color=#7C4DFF]🌀 ブラックホール (Lv%d/20)[/color][/b]" % sp_lvl
+			var hole_str = "5×5マス" if sp_lvl < 2 else ("7×7マス" if sp_lvl < 7 else ("9×9マス" if sp_lvl < 13 else "超巨大重力渦"))
+			desc = "[font_size=19]超強力な重力渦を展開し、周囲[color=#FFD700]%s[/color]のコマを吸引・消滅させます。（石貫通 %d）[/font_size]" % [hole_str, 1 + int((sp_lvl - 1) / 3)]
 		SpecialItemType.TORNADO:
-			title = "[b][color=#00E676]🌪️ つむじ風・竜巻 (Lv%d)[/color][/b]" % sp_lvl
-			var w_str = "1列" if sp_lvl == 1 else ("3列" if sp_lvl == 2 else "縦横2方向の巨大竜巻")
-			desc = "[font_size=19]上空へ直進する竜巻で[color=#FFD700]%s[/color]を一掃！\n敵に風属性ダメージを与えます。[/font_size]" % w_str
+			title = "[b][color=#00E676]🌪️ つむじ風・竜巻 (Lv%d/20)[/color][/b]" % sp_lvl
+			var w_str = "1列" if sp_lvl < 2 else ("3列" if sp_lvl < 7 else "幅5マスの超巨大竜巻")
+			desc = "[font_size=19]上空へ直進する竜巻で[color=#FFD700]%s[/color]を一掃！（石貫通 %d）\n敵に風属性ダメージを与えます。[/font_size]" % [w_str, 1 + int((sp_lvl - 1) / 4)]
 		SpecialItemType.AQUA_SPLASH:
-			title = "[b][color=#00B0FF]💧 アクアスプラッシュ (Lv%d)[/color][/b]" % sp_lvl
-			desc = "[font_size=19]周囲に水しぶきを拡散し水たまりを展開！\n落雷の感電や、苗木の成長を促進します。[/font_size]"
+			title = "[b][color=#00B0FF]💧 アクアスプラッシュ (Lv%d/20)[/color][/b]" % sp_lvl
+			var aqua_rad = "周囲3×3" if sp_lvl < 3 else ("周囲5×5" if sp_lvl < 8 else "盤面全域")
+			desc = "[font_size=19]%sに水しぶきを拡散し水たまりを展開！\n落雷の感電や、苗木の成長を促進します。[/font_size]" % aqua_rad
 		SpecialItemType.TREE_SPROUT:
-			title = "[b][color=#76FF03]🌱 生命の苗木 (Lv%d)[/color][/b]" % sp_lvl
-			desc = "[font_size=19]盤面に根を張り、水を吸うことで大木へ進化！\n毎ターンプレイヤーのHPを自動回復します。[/font_size]"
+			title = "[b][color=#76FF03]🌱 生命の苗木 (Lv%d/20)[/color][/b]" % sp_lvl
+			var th_def = 1 + int((sp_lvl - 1) / 3)
+			desc = "[font_size=19]盤面に根を張り、水を吸うことで大木へ進化！（耐雷耐久 %d）\n毎ターンプレイヤーのHPを自動回復します。[/font_size]" % th_def
 		SpecialItemType.MAGNET:
-			title = "[b][color=#40C4FF]🧲 マグネットストーム (Lv%d)[/color][/b]" % sp_lvl
-			desc = "[font_size=19]離れた同色コマを磁力で一箇所に引き寄せて強力に結合させます。[/font_size]"
+			title = "[b][color=#40C4FF]🧲 マグネットストーム (Lv%d/20)[/color][/b]" % sp_lvl
+			var pull_str = "%d個" % (4 if sp_lvl == 1 else (8 if sp_lvl == 2 else (14 + sp_lvl * 2 if sp_lvl < 10 else 999)))
+			desc = "[font_size=19]同種コマ（最大[color=#FFD700]%s[/color]）を中央へ引き寄せ大連結させます。[/font_size]" % ("全コマ" if sp_lvl >= 10 else pull_str)
 		SpecialItemType.CHARGE_BOMB:
-			title = "[b][color=#FFAB00]🔋 チャージボム (Lv%d)[/color][/b]" % sp_lvl
+			title = "[b][color=#FFAB00]🔋 チャージボム (Lv%d/20)[/color][/b]" % sp_lvl
 			var chg = special_charge[r][c] if special_charge.size() == GRID_ROWS else 0
-			desc = "[font_size=19]隣接消去で蓄電（残り[color=#FFD700]%d回[/color]）。\nカウントが0になると超広域大爆発を起こします！[/font_size]" % chg
+			desc = "[font_size=19]隣接消去で蓄電（残り[color=#FFD700]%d回[/color]）。\n蓄電完了で超広域大爆発を起こします！（石貫通 %d）[/font_size]" % [chg, chg + int((sp_lvl - 1) / 3)]
 		SpecialItemType.GEMINI_BOMB:
-			title = "[b][color=#FF1744]💥 ジェミニボム (Lv%d)[/color][/b]" % sp_lvl
-			desc = "[font_size=19]双子の爆弾が互いに共鳴爆破し、直線上の全コマを貫通レーザーで消滅させます。[/font_size]"
+			title = "[b][color=#FF1744]💥 ジェミニボム (Lv%d/20)[/color][/b]" % sp_lvl
+			var split_cnt = mini(8, 2 + int(sp_lvl / 3))
+			desc = "[font_size=19]双子の爆弾が互いに共鳴爆破（計[color=#FFD700]%d箇所[/color]）！\n直線上の全コマを貫通レーザーで消滅させます。（石貫通 %d）[/font_size]" % [split_cnt, 1 + int((sp_lvl - 1) / 4)]
 
 	# 2. 盤面ギミックマス（特殊アイテムが無い場合やマス状態）
 	if title.is_empty():
