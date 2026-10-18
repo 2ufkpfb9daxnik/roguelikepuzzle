@@ -3649,13 +3649,15 @@ func _start_breaking_animation() -> void:
 		if grid_cursed.size() == GRID_ROWS and grid_cursed[cell.x][cell.y]:
 			grid_cursed[cell.x][cell.y] = false
 			if stage_mgr:
-				var curse_dmg = minf(stage_mgr.myhpmax * 0.08, 500.0) if stage_mgr.myhpmax > 0 else 500.0
+				var st_idx = _get_stage_index()
+				var curse_pct = 0.04 + st_idx * 0.01
+				var curse_dmg = minf(stage_mgr.myhpmax * curse_pct, 100.0 + st_idx * 100.0) if stage_mgr.myhpmax > 0 else 500.0
 				stage_mgr.calchp(0.0, curse_dmg)
 				var rm_br = _get_relic_manager()
 				if rm_br: rm_br.on_backlash_damage("cursed", curse_dmg)
 			_spawn_curse_burst_effect(get_cell_position(cell.x, cell.y))
 
-	# 2. 隣接マッチによる氷割れ・石破壊・黄金像耐久減算・黒い霧解除
+	# 2. 隣接マッチによる氷割れ・石破壊・黄金像耐久減算・呪い浄化・黒い霧解除
 	var adj_dirs = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]
 	var damaged_stones: Dictionary = {}
 	for cell in matched_cells_list:
@@ -3689,6 +3691,9 @@ func _start_breaking_animation() -> void:
 						_spawn_gold_shatter_effect(get_cell_position(ar, ac))
 						if sm and "totalScore" in sm:
 							sm.totalScore += 500
+				if grid_cursed.size() == GRID_ROWS and grid_cursed[ar][ac]:
+					grid_cursed[ar][ac] = false
+					_spawn_floating_text(get_cell_position(ar, ac), "浄化", Color(0.8, 1.0, 0.6))
 
 		# 黒い霧内のマッチによる霧晴れ判定
 		var f_idx = grid_fog.size() - 1
@@ -5149,7 +5154,7 @@ func _set_enemy_attack_motion(sm: Node2D, forward: bool) -> void:
 			var base_s: Vector2 = sm.enemy.get_meta("base_scale", Vector2(0.5, 0.5))
 			sm.enemy.scale = base_s
 
-## 敵が属性スキルを発動するかどうかの判定
+## 敵が属性スキルを発動するかどうかの判定（発動頻度は全ステージ共通で維持：ボス確定100%、通常敵50%）
 func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 	if sm == null or sm.isdeadf or sm.enemy == null or sm.ehp <= 0:
 		return false
@@ -5157,16 +5162,9 @@ func _should_cast_enemy_elemental_skill(sm: Node2D) -> bool:
 	if elem == "無属性" or elem == "":
 		return false
 	var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
-	var st_idx = _get_stage_index()
-	# ステージ1は弱く控えめ（通常25%、ボス50%）、ステージ進行につれて徐々に強化（Stage 5通常65%、ボス100%）
-	if is_boss:
-		var boss_skill_rate = 0.50 + st_idx * 0.125
-		if randf() > boss_skill_rate:
-			return false
-	else:
-		var norm_skill_rate = 0.25 + st_idx * 0.10
-		if randf() > norm_skill_rate:
-			return false
+	# ボスは確定発動、通常敵は50%の確率でスキル発動（発動頻度は固定）
+	if not is_boss and randf() > 0.5:
+		return false
 	return true
 
 ## 敵の攻撃処理（物理攻撃・爪斬撃演出・ダメージ計算）
@@ -5196,12 +5194,9 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
 	var has_skill = false
-	var st_idx = _get_stage_index()
-	var is_boss: bool = sm.is_boss_monster() if sm.has_method("is_boss_monster") else (sm.is_current_boss or sm.stage_enemy == 5)
-	var skill_prob = (0.50 + st_idx * 0.125) if is_boss else (0.25 + st_idx * 0.10)
 	if sm and "active_enemies" in sm:
 		for e in sm.active_enemies:
-			if randf() < skill_prob:
+			if randf() < 0.5:
 				_enemy_turn_actions.append("skill")
 				has_skill = true
 			else:
@@ -5820,13 +5815,13 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	tw.parallel().tween_property(panel, "position:y", panel.position.y - 25.0, 0.30)
 	tw.tween_callback(panel.queue_free)
 
-## 1. 水属性スキル: 水浸しで操作困難（ステージ1は控えめ、ステージ上昇でマス数増加）
+## 1. 水属性スキル: 水浸しで操作困難（ステージ1は1〜2マスと極めて弱く、ステージ進行で大量水没）
 func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "怒涛・タイダルウェイブ" if is_boss else "アクアサージ"
 	if show_banner: _show_enemy_skill_banner(s_name, "#00E5FF", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(6 + st_idx * 4, 9 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 4 + st_idx * 2)
+	var count = randi_range(3 + st_idx * 3, 4 + st_idx * 4) if is_boss else randi_range(1 + st_idx * 2, 2 + st_idx * 2)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5872,13 +5867,13 @@ func _freeze_connected_water(start_cell: Vector2i, ice_dur: int) -> void:
 					visited[next_c] = true
 					queue.append(next_c)
 
-## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ1は少数・耐久1、後半でマス数＆耐久値強化）
+## 2. 氷属性スキル: 氷漬けで操作困難・落雷除去不可（ステージ1は1〜2マス・耐久1、後半でマス数＆耐久値強化）
 func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "絶対零度・ブリザード" if is_boss else "フロストロック"
 	if show_banner: _show_enemy_skill_banner(s_name, "#80DEEA", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(5 + st_idx * 4, 7 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
+	var count = randi_range(3 + st_idx * 2, 4 + st_idx * 3) if is_boss else randi_range(1 + st_idx, 2 + int(st_idx * 1.3))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5894,10 +5889,10 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 		# ステージ上昇に応じて氷の耐久値を強化（Stage 1: 耐久1, Stage 2~3: 耐久1~2, Stage 4~5: 耐久2~3）
 		var ice_dur = 1
 		if is_boss:
-			ice_dur = 1 + (1 if st_idx >= 1 else 0) + (1 if st_idx >= 4 and i < 4 else 0)
+			ice_dur = 1 + (1 if st_idx >= 2 else 0) + (1 if st_idx >= 4 else 0)
 		elif st_idx >= 4:
-			ice_dur = 2
-		elif st_idx >= 2 and i < 3:
+			ice_dur = 2 + (1 if i < 2 else 0)
+		elif st_idx >= 2 and i < 2:
 			ice_dur = 2
 
 		# 氷のブレス/スキルが水マスに当たった場合、水の塊ごと全体を一括凍結！
@@ -5920,8 +5915,8 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var s_name = "滅神風・テンペスト" if is_boss else "ダウンバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#64FFDA", is_boss)
 	var st_idx = _get_stage_index()
-	var base_min = mini(GRID_COLUMNS - 1, 2 + st_idx) if is_boss else mini(GRID_COLUMNS - 1, 1 + int(st_idx / 2))
-	var base_max = mini(GRID_COLUMNS, 2 + int((st_idx + 1) * 0.8)) if is_boss else mini(GRID_COLUMNS - 1, 1 + int((st_idx + 1) / 2))
+	var base_min = mini(GRID_COLUMNS - 1, 1 + int(st_idx * 0.75)) if is_boss else mini(GRID_COLUMNS - 1, 1 + int(st_idx / 3))
+	var base_max = mini(GRID_COLUMNS, 2 + int(st_idx * 0.75)) if is_boss else mini(GRID_COLUMNS - 1, 1 + int(st_idx / 2))
 	var num_cols = randi_range(base_min, base_max)
 
 	var cols: Array[int] = []
@@ -5977,14 +5972,14 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	_redraw_board_effects()
 	return _targets
 
-## 4. 木属性スキル: 苗木を植えて毎ターンドレイン（ステージ1は1〜2本・低ドレイン、後半で本数・若木割合・ドレイン量増加）
+## 4. 木属性スキル: 苗木を植えて毎ターンドレイン（ステージ1は苗木1本・極低ドレイン15HP、後半で本数・若木化・高ドレイン増加）
 func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "生命強奪・フォレストカース" if is_boss else "ソーンシード"
 	if show_banner: _show_enemy_skill_banner(s_name, "#69F0AE", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(3 + st_idx * 2, 4 + st_idx * 2) if is_boss else randi_range(1 + int(st_idx / 2), 2 + int(st_idx / 2))
-	var drain_hp = (80 + st_idx * 80) if is_boss else (30 + st_idx * 35)
+	var count = randi_range(2 + st_idx, 2 + int(st_idx * 1.5)) if is_boss else randi_range(1 + int(st_idx / 3), 1 + int((st_idx + 1) / 2))
+	var drain_hp = (40 + st_idx * 60) if is_boss else (15 + st_idx * 25)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -5997,7 +5992,7 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 
 	var newly_planted: Array[Dictionary] = []
 	var num = mini(count, cands.size())
-	var num_saplings = (1 + int(st_idx / 2)) if is_boss else (1 if st_idx >= 3 else 0)
+	var num_saplings = (1 + int((st_idx - 1) / 2)) if (is_boss and st_idx >= 1) else (1 if st_idx >= 3 else 0)
 	for i in range(num):
 		var p = cands[i]
 		var idx = grid_i[p.x][p.y]
@@ -6016,7 +6011,7 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		if st_val == 0:
 			th_hp = 1 + (1 if st_idx >= 2 else 0) + (1 if st_idx >= 4 else 0)
 		else:
-			th_hp = 1 + int((st_idx + 1) / 2) + (1 if is_boss else 0)
+			th_hp = 1 + int((st_idx + 1) / 2) + (1 if (is_boss and st_idx >= 2) else 0)
 
 		var plant_data = {
 			"origin": p,
@@ -6041,13 +6036,13 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		_execute_wood_hp_drain(sm, newly_planted, stage_scale)
 	return _targets
 
-## 5. 地属性スキル: 石を配置（ステージ1は2〜3個・耐久1、ステージ上昇で個数＆耐久値強化、巨岩出現）
+## 5. 地属性スキル: 石を配置（ステージ1は1〜2個・耐久1、ステージ上昇で個数＆耐久値強化、巨岩出現）
 func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "天変地異・グランドカタストロフ" if is_boss else "ロックフォール"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFB74D", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(4 + st_idx * 3, 6 + st_idx * 3) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
+	var count = randi_range(2 + st_idx * 2, 3 + st_idx * 2) if is_boss else randi_range(1 + st_idx, 2 + st_idx)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6060,7 +6055,7 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 
 	var num = mini(count, cands.size())
 	# ステージ上昇に応じて石の耐久値を強化
-	# 基礎耐久: Stage 1: 耐久 1, Stage 2~3: 耐久 2, Stage 4~5: 耐久 3 (ボスはさらに+1)
+	# 基礎耐久: Stage 1~2: 耐久 1, Stage 3~4: 耐久 2, Stage 5: 耐久 3 (ボスはさらに+1)
 	var base_dur = 1 + int(st_idx / 2) + (1 if (is_boss and st_idx >= 2) else 0)
 	var heavy_stones = mini(1 + st_idx, num) if st_idx >= 3 else (1 if (is_boss and st_idx >= 2) else 0)
 	for i in range(num):
@@ -6078,13 +6073,13 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	_redraw_board_effects()
 	return _targets
 
-## 6. 雷属性スキル: 落雷（ステージ1は2〜3発、ステージ上昇で落雷本数大幅増加）
+## 6. 雷属性スキル: 落雷（ステージ1は1〜2発、ステージ上昇で落雷本数大幅増加）
 func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "神罰・ジャッジメントサンダー" if is_boss else "ギガスパーク"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(5 + st_idx * 4, 7 + st_idx * 4) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
+	var count = randi_range(2 + st_idx * 3, 3 + st_idx * 4) if is_boss else randi_range(1 + int(st_idx * 1.2), 2 + int(st_idx * 1.3))
 
 	for i in range(count):
 		var r = randi() % GRID_ROWS
@@ -6130,16 +6125,16 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 		)
 	return _targets
 
-## 7. 闇属性スキル: 黒い霧＆呪いコマ（ステージ1は2×2・呪い2〜3個、ステージ上昇で霧拡大・呪いコマ数増加）
+## 7. 闇属性スキル: 黒い霧＆呪いコマ（ステージ1は2×2・呪い1〜2個と極小、ステージ上昇で霧拡大・呪いコマ数増加）
 func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "終焉の夜・アビスディメンション" if is_boss else "シャドウベール＆カース"
 	if show_banner: _show_enemy_skill_banner(s_name, "#E040FB", is_boss)
 	var st_idx = _get_stage_index()
 
-	# 黒い霧（Stage 1は2×2・2ターン、高ステージで範囲拡大＆解除必要ターン数増加）
-	var fog_size = mini(GRID_ROWS, (3 + st_idx) if is_boss else (2 + int(st_idx / 2)))
-	var fog_turns = (2 if st_idx <= 1 else 3) + int(st_idx / 3) + (1 if is_boss else 0)
+	# 黒い霧（Stage 1は2×2・1〜2ターン、高ステージで範囲拡大＆解除必要ターン数増加）
+	var fog_size = mini(GRID_ROWS, (2 + st_idx) if is_boss else (2 + int(st_idx / 2)))
+	var fog_turns = (1 + int((st_idx + 1) / 2)) if not is_boss else (2 + int(st_idx / 2))
 	var top_r = clampi(randi() % (GRID_ROWS - fog_size + 1), 0, GRID_ROWS - fog_size)
 	var left_c = clampi(randi() % (GRID_COLUMNS - fog_size + 1), 0, GRID_COLUMNS - fog_size)
 	grid_fog.append({
@@ -6148,7 +6143,7 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	})
 
 	# 呪いコマ生成（盾やパンを優先的に呪う）
-	var curse_count = randi_range(5 + st_idx * 3, 7 + st_idx * 3) if is_boss else randi_range(2 + st_idx * 2, 3 + st_idx * 2)
+	var curse_count = randi_range(2 + st_idx * 2, 3 + st_idx * 3) if is_boss else randi_range(1 + st_idx, 2 + int(st_idx * 1.5))
 	var cands: Array[Vector2i] = []
 	var other_cands: Array[Vector2i] = []
 
@@ -6177,13 +6172,13 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	_redraw_board_effects()
 	return _targets
 
-## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（ステージ1は1〜2体・耐久1、ステージ上昇で個数＆耐久値強化）
+## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（ステージ1は1体・耐久1、ステージ上昇で個数＆耐久値強化）
 func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "太陽神の審判・ソーラープリズム" if is_boss else "ミダスグレイス"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(3 + st_idx * 2, 5 + st_idx * 2) if is_boss else randi_range(1 + int(st_idx / 2), 2 + int(st_idx / 2))
+	var count = randi_range(1 + st_idx, 2 + int(st_idx * 1.5)) if is_boss else randi_range(1 + int(st_idx / 3), 1 + int((st_idx + 1) / 2))
 
 	var sm = _get_stage_manager()
 	# プレイヤーピンチ時は盾、それ以外は剣を優先してスカコマ化
@@ -6206,9 +6201,9 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	cands.append_array(backup_cands)
 
 	# ステージ上昇に応じて黄金像の耐久値を強化
-	# 通常: Stage 1: 耐久 1, Stage 2~3: 耐久 2, Stage 4~5: 耐久 3~4
-	# ボス: Stage 1: 耐久 2, Stage 2~3: 耐久 3, Stage 4~5: 耐久 4~5
-	var statue_dur = 1 + int(st_idx / 2) + (1 if is_boss else 0)
+	# 通常: Stage 1~2: 耐久 1, Stage 3~4: 耐久 2, Stage 5: 耐久 3
+	# ボス: Stage 1: 耐久 1, Stage 2~3: 耐久 2, Stage 4~5: 耐久 3~4
+	var statue_dur = (1 + int(st_idx / 2)) if not is_boss else (1 + int((st_idx + 1) / 2))
 
 	var num = mini(count, cands.size())
 	for i in range(num):
@@ -6230,13 +6225,13 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	_redraw_board_effects()
 	return _targets
 
-## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ1は2〜3個、ステージ上昇で生成数増加）
+## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（ステージ1は1〜2個、ステージ上昇で生成数増加）
 func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss)
 	var st_idx = _get_stage_index()
-	var count = randi_range(5 + st_idx * 3, 7 + st_idx * 3) if is_boss else randi_range(2 + int(st_idx * 1.5), 3 + int(st_idx * 1.5))
+	var count = randi_range(2 + int(st_idx * 2.5), 3 + int(st_idx * 3.0)) if is_boss else randi_range(1 + int(st_idx * 1.2), 2 + int(st_idx * 1.5))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6996,6 +6991,18 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 				ElementDataScript.Element.DARK: el_name_jp = "闇・魔属性"; el_color = "#BA68C8"
 			title = "[b][color=%s]✦ %sコマ[/color][/b]" % [el_color, el_name_jp]
 			desc = "[font_size=19]このコマをマッチすると[color=%s]%s[/color]の魔力が蓄積され、ターン終了時に敵へ属性追撃を浴びせます！[/font_size]" % [el_color, el_name_jp]
+
+	# 3. 黒い霧 (grid_fog) のチェック
+	for fog in grid_fog:
+		var f_rect: Rect2i = fog.get("rect", Rect2i(-1, -1, 0, 0))
+		if f_rect.has_point(Vector2i(r, c)):
+			var f_turns = fog.get("turns", 1)
+			if title.is_empty():
+				title = "[b][color=#BA68C8]🌫️ 黒い霧・暗雲 (残り%dターン)[/color][/b]" % f_turns
+				desc = "[font_size=19]闇の魔風が立ち込める領域。\nこのエリア内でコマをマッチさせるか、ターン経過で霧が晴れます。[/font_size]"
+			else:
+				desc += "\n[color=#BA68C8]※黒い霧の覆いの中（残り%dターン）[/color]" % f_turns
+			break
 
 	if not title.is_empty():
 		var rm_ui = _get_relic_ui_manager()

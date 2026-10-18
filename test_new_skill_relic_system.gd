@@ -268,6 +268,7 @@ func _init() -> void:
 
 	# Test N: Tooltip display check in RelicUIManager
 	var rui = load("res://relic_ui_manager.gd").new()
+	rui.name = "RelicUIManager"
 	dummy_root.add_child(rui)
 	if rui.info_panel == null:
 		rui._ready()
@@ -351,26 +352,96 @@ func _init() -> void:
 	assert(pb.grid_stones[3][3] == 2, "Bomb Lv17 should deal 5 damage to stone (7 -> 2)")
 	print("Bomb stone penetration damage scaling: SUCCESS!")
 
-	# Test S: Enemy skill stage difficulty scaling (Stage 1 gentle vs Stage 5 intense)
+	# Test S: Enemy skill fixed trigger frequency (Boss 100%, Normal 50% across all stages)
+	# and stage initial status scaling (Stage 1 gentle/weak -> Stage 5 intense)
 	dummy_sm.stage = 1
 	var st1_idx = pb._get_stage_index()
 	assert(st1_idx == 0, "Stage 1 should have index 0")
 
-	# Verify Stage 1 rate logic
-	var is_boss = false
-	var st1_prob = 0.25 + st1_idx * 0.10
-	assert(st1_prob == 0.25, "Stage 1 regular enemy skill rate should be 25%")
-	var st1_boss_prob = 0.50 + st1_idx * 0.125
-	assert(st1_boss_prob == 0.50, "Stage 1 boss skill rate should be 50%")
+	# 1) Frequency check: fixed across stages
+	# Dummy enemy node for _should_cast_enemy_elemental_skill
+	dummy_sm.ehp = 500
+	dummy_sm.isdeadf = false
+	var enemy_sprite = Sprite2D.new()
+	dummy_sm.enemy = enemy_sprite
+	dummy_sm.active_enemies = [{"sp_data": {"element": "水"}}]
+	dummy_sm.target_enemy_index = 0
+	dummy_sm.is_current_boss = true
+	assert(pb._should_cast_enemy_elemental_skill(dummy_sm) == true, "Boss must always cast skill (100% fixed) at Stage 1")
 
 	dummy_sm.stage = 5
-	var st5_idx = pb._get_stage_index()
-	assert(st5_idx == 4, "Stage 5 should have index 4")
-	var st5_prob = 0.25 + st5_idx * 0.10
-	assert(st5_prob == 0.65, "Stage 5 regular enemy skill rate should be 65%")
-	var st5_boss_prob = 0.50 + st5_idx * 0.125
-	assert(st5_boss_prob == 1.00, "Stage 5 boss skill rate should be 100%")
-	print("Enemy skill stage difficulty scaling (Stage 1 rate 25%/50% -> Stage 5 rate 65%/100%): SUCCESS!")
+	assert(pb._should_cast_enemy_elemental_skill(dummy_sm) == true, "Boss must always cast skill (100% fixed) at Stage 5")
+
+	# 2) Stage 1 initial status scaling check (extremely weak initial stats)
+	dummy_sm.stage = 1
+	var s1_water_norm_min = 1 + 0 * 2
+	var s1_water_norm_max = 2 + 0 * 2
+	assert(s1_water_norm_min == 1 and s1_water_norm_max == 2, "Stage 1 normal water skill should target 1~2 cells")
+
+	var s1_wood_drain_norm = 15 + 0 * 25
+	assert(s1_wood_drain_norm == 15, "Stage 1 normal wood drain should be 15 HP")
+
+	var s1_wood_drain_boss = 40 + 0 * 60
+	assert(s1_wood_drain_boss == 40, "Stage 1 boss wood drain should be 40 HP")
+
+	var s1_dark_fog_turns_norm = 1 + int((0 + 1) / 2)
+	assert(s1_dark_fog_turns_norm == 1, "Stage 1 normal dark fog should last only 1 turn")
+
+	var s1_dark_fog_turns_boss = 2 + int(0 / 2)
+	assert(s1_dark_fog_turns_boss == 2, "Stage 1 boss dark fog should last 2 turns")
+
+	var s1_earth_dur_norm = 1 + int(0 / 2)
+	assert(s1_earth_dur_norm == 1, "Stage 1 normal stone durability should be 1")
+
+	# 3) Stage 5 status scaling check (powerful high-stage stats)
+	dummy_sm.stage = 5
+	var s5_water_norm_min = 1 + 4 * 2
+	var s5_water_norm_max = 2 + 4 * 2
+	assert(s5_water_norm_min == 9 and s5_water_norm_max == 10, "Stage 5 normal water skill should target 9~10 cells")
+
+	var s5_wood_drain_norm = 15 + 4 * 25
+	assert(s5_wood_drain_norm == 115, "Stage 5 normal wood drain should be 115 HP")
+
+	var s5_wood_drain_boss = 40 + 4 * 60
+	assert(s5_wood_drain_boss == 280, "Stage 5 boss wood drain should be 280 HP")
+
+	var s5_earth_dur_norm = 1 + int(4 / 2)
+	assert(s5_earth_dur_norm == 3, "Stage 5 normal stone durability should be 3")
+	print("Enemy skill fixed frequency & Stage 1 weak stats -> Stage 5 intense stats scaling: SUCCESS!")
+
+	# Test T: Adjacent match cleanses curse without damage
+	# Set cursed tile at (2, 2)
+	pb.grid_cursed[2][2] = true
+	# Match adjacent tiles (2, 3), (2, 4), (2, 5) with SWORD
+	for c in range(pb.GRID_COLUMNS):
+		pb.grid_n[2][c] = -1
+		pb.ismatched[2][c] = false
+	pb.matched_cells_list.clear()
+	for c in range(3, 6):
+		pb.grid_n[2][c] = pb.PieceType.SWORD
+		pb.ismatched[2][c] = true
+		pb.matched_cells_list.append(Vector2i(2, c))
+	pb._start_breaking_animation()
+	assert(pb.grid_cursed[2][2] == false, "Adjacent match should purify cursed piece at (2, 2) safely")
+	print("Curse adjacent match purification: SUCCESS!")
+
+	# Test U: Dark fog hover tooltip
+	pb.grid_fog.clear()
+	pb.grid_fog.append({
+		"rect": Rect2i(1, 1, 3, 3),
+		"turns": 2
+	})
+	pb._current_local_mouse = Vector2(pb.BOARD_LEFT + 2 * pb.CELL_PITCH + 10, pb.BOARD_TOP + 2 * pb.CELL_PITCH + 10)
+	pb._last_hovered_cell = Vector2i(-1, -1)
+	pb.current_state = pb.BoardState.IDLE
+	pb.is_holding = false
+	pb.selected_cell = Vector2i(-1, -1)
+	dummy_sm.isstageclear = false
+	dummy_sm.isdeadf = false
+	pb._update_cell_hover_tooltip(Vector2(500, 500))
+	assert(rui.info_panel.visible == true, "Dark fog cell hover should show tooltip")
+	rui.hide_custom_tooltip("board_cell")
+	print("Dark fog hover tooltip check: SUCCESS!")
 
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

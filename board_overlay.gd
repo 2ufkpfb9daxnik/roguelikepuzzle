@@ -447,7 +447,7 @@ func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
 		else:
 			draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 神聖大木 3x3", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(0.6, 1.0, 0.7))
 
-## 闇属性の黒い霧描画（指定エリアを暗黒煙で覆いコマを隠す）
+## 闇属性の黒い霧描画（指定エリアを妖気の暗黒霧で覆う・コマを隠さず視認可能）
 func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:
 	var f_rect: Rect2i = fog.get("rect", Rect2i(5, 5, 3, 3))
 	var turns: int = fog.get("turns", 2)
@@ -459,25 +459,25 @@ func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:
 		f_rect.size.x * CELL_PITCH
 	)
 
-	# 濃密な暗黒煙覆い
-	draw_rect(world_rect, Color(0.04, 0.02, 0.07, 0.90), true)
-	draw_rect(world_rect, Color(0.55, 0.15, 0.85, 0.85 * pulse), false, 30.0)
+	# 透き通る妖気の暗黒霧（コマがはっきり視認できる半透明パープルミスト）
+	draw_rect(world_rect, Color(0.12, 0.03, 0.20, 0.35), true)
+	draw_rect(world_rect, Color(0.75, 0.25, 1.0, 0.80 * pulse), false, 18.0)
 
-	# 渦巻く暗黒霧の雲
+	# 渦巻く暗黒霧の雲（薄く流れる妖気ミスト、コマの視認性を邪魔しない演出）
 	for br in range(f_rect.position.x, f_rect.position.x + f_rect.size.x):
 		for bc in range(f_rect.position.y, f_rect.position.y + f_rect.size.y):
 			var c_pos = Vector2(BOARD_LEFT + bc * CELL_PITCH + CELL_PITCH * 0.5, BOARD_TOP + br * CELL_PITCH + CELL_PITCH * 0.5)
-			# 不規則な煙雲
-			var cloud_r = 230.0 + 35.0 * sin(now * 0.004 + (br * 3 + bc))
-			draw_circle(c_pos, cloud_r, Color(0.07, 0.02, 0.11, 0.82))
-			# 隠されたコマの「？」シルエット
-			draw_string(CUSTOM_FONT, Vector2(c_pos.x - 100, c_pos.y + 75), "？", HORIZONTAL_ALIGNMENT_CENTER, 200, 220, Color(0.75, 0.55, 0.95, 0.85 * pulse))
+			var cloud_r = 180.0 + 25.0 * sin(now * 0.003 + (br * 3 + bc))
+			draw_circle(c_pos, cloud_r, Color(0.22, 0.06, 0.35, 0.16))
+			# セル境界の淡い魔気枠
+			var c_rect = Rect2(c_pos.x - CELL_PITCH * 0.46, c_pos.y - CELL_PITCH * 0.46, CELL_PITCH * 0.92, CELL_PITCH * 0.92)
+			draw_rect(c_rect, Color(0.60, 0.15, 0.85, 0.20 * pulse), false, 4.0)
 
 	# 霧の持続ターンインジケーター（右上）
-	var badge_pos = world_rect.position + Vector2(world_rect.size.x - 300, 40)
-	draw_rect(Rect2(badge_pos, Vector2(280, 110)), Color(0.12, 0.02, 0.18, 0.95), true)
-	draw_rect(Rect2(badge_pos, Vector2(280, 110)), Color(0.85, 0.25, 1.0, 0.95), false, 10.0)
-	draw_string(CUSTOM_FONT, badge_pos + Vector2(20, 80), "暗雲 %dT" % turns, HORIZONTAL_ALIGNMENT_CENTER, 240, 85, Color(0.92, 0.65, 1.0))
+	var badge_pos = world_rect.position + Vector2(world_rect.size.x - 270, 20)
+	draw_rect(Rect2(badge_pos, Vector2(260, 90)), Color(0.12, 0.02, 0.18, 0.92), true)
+	draw_rect(Rect2(badge_pos, Vector2(260, 90)), Color(0.85, 0.30, 1.0, 0.95), false, 8.0)
+	draw_string(CUSTOM_FONT, badge_pos + Vector2(15, 65), "暗雲 %dT" % turns, HORIZONTAL_ALIGNMENT_CENTER, 230, 75, Color(0.95, 0.70, 1.0))
 
 ## 風属性の竜巻描画（列を縦断する回転渦巻き）
 func _draw_wind_tornado(tor: Dictionary, rot: float) -> void:
