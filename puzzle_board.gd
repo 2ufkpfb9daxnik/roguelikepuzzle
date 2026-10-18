@@ -5525,7 +5525,15 @@ func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
 		"雷属性":
 			return {"name": "神鳴・トールハンマー" if is_boss else "ライトニングボルト", "color": "#FFD600"}
 		"闇属性":
-			return {"name": "深淵・ヴォイドカラミティ" if is_boss else "ダークネスフォール", "color": "#7C4DFF"}
+			var sm_info = _get_stage_manager()
+			var is_5th_boss_info: bool = is_boss and sm_info != null and (
+				sm_info.stage == 5 or _get_stage_index() >= 4 or
+				(sm_info.has_method("is_boss_battle") and sm_info.is_boss_battle() and sm_info.stage == 5) or
+				(sm_info.get("islastboss") == true) or
+				(sm_info.get("current_enemy_key") == "enemy18")
+			)
+			var s_name_d = ("冥府降臨・アビスディメンション" if is_5th_boss_info else "終焉の夜・アビスディメンション") if is_boss else "シャドウベール＆カース"
+			return {"name": s_name_d, "color": "#E040FB"}
 		"光属性":
 			return {"name": "極光・ホーリージャッジ" if is_boss else "シャイニングレイ", "color": "#FFF59D"}
 		"火属性":
@@ -6133,8 +6141,16 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 ## 7. 闇属性スキル: 暗雲＆呪いコマ（通常2x2・呪い1〜2個、ボスは初期3x3・呪い4〜5個から緩やかに増加）
 func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
-	var s_name = "終焉の夜・アビスディメンション" if is_boss else "シャドウベール＆カース"
-	var s_desc = "【暗雲＆呪詛】毎ターン瘴気ダメージ！呪いコマ消去で反動！"
+	var sm = _get_stage_manager()
+	var is_5th_boss: bool = is_boss and sm != null and (
+		sm.stage == 5 or _get_stage_index() >= 4 or
+		(sm.has_method("is_boss_battle") and sm.is_boss_battle() and sm.stage == 5) or
+		(sm.get("islastboss") == true) or
+		(sm.get("current_enemy_key") == "enemy18")
+	)
+
+	var s_name = ("冥府降臨・アビスディメンション" if is_5th_boss else "終焉の夜・アビスディメンション") if is_boss else "シャドウベール＆カース"
+	var s_desc = ("【暗雲＆使徒召喚】毎ターン瘴気ダメージ！さらに冥界の仲間を召喚！" if is_5th_boss else "【暗雲＆呪詛】毎ターン瘴気ダメージ！呪いコマ消去で反動！")
 	if show_banner: _show_enemy_skill_banner(s_name, "#E040FB", is_boss, s_desc)
 	var st_idx = _get_stage_index()
 
@@ -6171,6 +6187,13 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		grid_cursed[p.x][p.y] = true
 		_spawn_floating_text(get_cell_position(p.x, p.y), "【呪い】消去で反動！", Color(0.9, 0.4, 1.0))
 		_targets.append(get_cell_position(p.x, p.y))
+
+	# 5番目のボス（冥王デモニアス等）の追加効果：仲間を呼ぶ（最大3体まで召喚）
+	if is_5th_boss and sm and sm.has_method("summon_boss_minion"):
+		if sm.active_enemies.size() < 3:
+			var summoned = sm.summon_boss_minion()
+			if not summoned.is_empty():
+				_spawn_floating_text(Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, BOARD_TOP + 80), "仲間を呼んだ！", Color(0.9, 0.4, 1.0))
 
 	var anten_se = get_node_or_null("anten")
 	if anten_se: anten_se.play()

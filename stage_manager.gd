@@ -701,6 +701,205 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 
 	ehppar = 1.0
 	enemycount += 1
+
+## 5番目のボス（冥王デモニアス等）による仲間召喚スキル
+func summon_boss_minion(specific_ename: String = "") -> Dictionary:
+	if active_enemies.size() >= 3:
+		return {}
+
+	# 1. 空いているスロット位置(X座標)を判定（標準スロット: 1310, 1790, 1550）
+	var available_slots = [1310.0, 1790.0, 1550.0]
+	var chosen_x = -1.0
+	for slot_x in available_slots:
+		var occupied = false
+		for e in active_enemies:
+			var spr = e.get("sprite")
+			if is_instance_valid(spr) and absf(spr.position.x - slot_x) < 80.0:
+				occupied = true
+				break
+		if not occupied:
+			chosen_x = slot_x
+			break
+	if chosen_x < 0.0:
+		return {}
+
+	var stage_idx: int = clampi(stage - 1, 0, STAGE_ENEMIES.size() - 1)
+	var enemy_info = STAGE_ENEMIES[stage_idx]
+	var parent_node: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
+	var stage_mult: float = pow(10.0, max(0, stage - 1))
+
+	# 2. 召喚する敵キャラクターの選定（デフォルトはステージ5の通常敵: グリムリーパーやスケルトンナイト等）
+	var ename = specific_ename
+	var e_idx = 0
+	if ename.is_empty():
+		e_idx = randi() % 5 # 0..4（通常敵からランダム選出）
+		ename = enemy_info["names"][e_idx]
+	else:
+		e_idx = enemy_info["names"].find(ename)
+		if e_idx == -1: e_idx = 0
+
+	var r_hp: int = enemy_info["hp"][e_idx]
+	var r_atk: int = enemy_info["atk"][e_idx]
+	var sp_data = ENEMY_SPECIES.get(ename, {"name": ename, "element": "無属性", "race": "無属性", "color": "#FFFFFF"})
+
+	# 3. Sprite2Dの生成
+	var en: Sprite2D = null
+	if ename in ENEMY_TEXTURES:
+		var tex: Texture2D = _cached_enemy_textures.get(ename)
+		if tex == null:
+			var path = ENEMY_TEXTURES[ename]
+			if ResourceLoader.has_cached(path):
+				tex = ResourceLoader.load_threaded_get(path) as Texture2D
+			if tex == null:
+				tex = load(path) as Texture2D
+			_cached_enemy_textures[ename] = tex
+		en = Sprite2D.new()
+		en.name = "Enemy_Summoned_" + str(active_enemies.size())
+		en.texture = tex
+		en.scale = Vector2.ZERO # 出現時に0から拡大
+	else:
+		var template_enemy = get_parent().get_child(0).get_node_or_null(ename) if (get_parent() and get_parent().get_child_count() > 0) else null
+		if template_enemy: en = template_enemy.duplicate()
+
+	if en == null:
+		return {}
+
+	en.set_meta("base_scale", Vector2(0.5, 0.5))
+	en.position = Vector2(chosen_x, 250)
+	parent_node.add_child(en)
+
+	if ENEMY_ANIMATION_SHEETS.has(ename):
+		var anims = ENEMY_ANIMATION_SHEETS[ename]
+		for a_key in anims:
+			var a_info = anims[a_key]
+			var s_path = a_info.get("path", "")
+			_get_anim_texture(s_path)
+
+	# 4. ステータス加算（ボスの取り巻きとして適正なHP・ATK）
+	var e_hp = r_hp * stage_mult
+	var e_atk = r_atk * stage_mult
+	ehp += e_hp
+	ehpmax += e_hp
+	enemyat += e_atk
+
+	# 5. UI要素の生成
+	var bar_bg = ColorRect.new()
+	bar_bg.color = Color(0, 0, 0, 0.5)
+	bar_bg.size = Vector2(100, 10)
+	bar_bg.position = en.position + Vector2(-50, -100)
+	parent_node.add_child(bar_bg)
+	var bar_red = ColorRect.new()
+	bar_red.color = Color(1.0, 0.2, 0.2, 1.0)
+	bar_red.size = Vector2(100, 10)
+	bar_red.position = bar_bg.position
+	parent_node.add_child(bar_red)
+	var bar_green = ColorRect.new()
+	bar_green.color = Color(0.2, 1.0, 0.2, 1.0)
+	bar_green.size = Vector2(100, 10)
+	bar_green.position = bar_bg.position
+	parent_node.add_child(bar_green)
+
+	var target_frame = ReferenceRect.new()
+	target_frame.size = Vector2(108, 18)
+	target_frame.position = bar_bg.position + Vector2(-4, -4)
+	target_frame.border_color = Color(1.0, 0.2, 0.2, 0.95)
+	target_frame.border_width = 2.5
+	target_frame.editor_only = false
+	target_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	target_frame.visible = false
+	parent_node.add_child(target_frame)
+
+	var target_badge = RichTextLabel.new()
+	target_badge.bbcode_enabled = true
+	target_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	target_badge.fit_content = true
+	target_badge.scroll_active = false
+	target_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
+	target_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
+	target_badge.add_theme_font_size_override("normal_font_size", 14)
+	target_badge.add_theme_font_size_override("bold_font_size", 14)
+	target_badge.add_theme_constant_override("outline_size", 4)
+	target_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	target_badge.size = Vector2(160, 24)
+	target_badge.position = bar_bg.position + Vector2(-30, -20)
+	target_badge.text = "[center][b][color=#FF1744]🎯 TARGET[/color][/b][/center]"
+	target_badge.visible = false
+	parent_node.add_child(target_badge)
+
+	var lbl = RichTextLabel.new()
+	lbl.bbcode_enabled = true
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.fit_content = true
+	lbl.scroll_active = false
+	lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+	lbl.add_theme_font_size_override("normal_font_size", 16)
+	lbl.add_theme_font_size_override("bold_font_size", 16)
+	lbl.add_theme_constant_override("outline_size", 4)
+	lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
+	lbl.size = Vector2(240, 50)
+	lbl.position = bar_bg.position + Vector2(-70, -45)
+	var elem_raw = sp_data.get("element", sp_data.get("race", "無属性"))
+	var elem_str = "/".join(elem_raw) if typeof(elem_raw) == TYPE_ARRAY else elem_raw
+	var c_color = sp_data.get("color", "#FFFFFF")
+	lbl.text = "[center][color=" + c_color + "]" + elem_str + "[/color] " + sp_data["name"] + "[/center]"
+	parent_node.add_child(lbl)
+
+	var hp_lbl = RichTextLabel.new()
+	hp_lbl.bbcode_enabled = true
+	hp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_lbl.fit_content = true
+	hp_lbl.scroll_active = false
+	hp_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	hp_lbl.add_theme_font_size_override("normal_font_size", 16)
+	hp_lbl.add_theme_constant_override("outline_size", 4)
+	hp_lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
+	hp_lbl.size = Vector2(240, 20)
+	hp_lbl.position = bar_bg.position + Vector2(-70, 12)
+	hp_lbl.text = "[center][color=#FFFFFF]" + str(int(e_hp)) + " / " + str(int(e_hp)) + "[/color][/center]"
+	parent_node.add_child(hp_lbl)
+
+	var new_e = {
+		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
+		"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
+		"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data
+	}
+	active_enemies.append(new_e)
+
+	# 6. 出現ポップ演出（0から跳ねるように拡大 & 妖気フラッシュ）
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(en, "scale", Vector2(0.5, 0.5), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	en.modulate = Color(2.5, 1.2, 3.0, 1.0)
+	tw.tween_property(en, "modulate", Color.WHITE, 0.35)
+
+	# 出現SE & 煙エフェクト再生
+	var p = get_parent()
+	if p:
+		var se = p.get_node_or_null("syutsugen")
+		if se: se.play()
+		var kemuri = p.get_node_or_null("kemuri")
+		if kemuri:
+			kemuri.position = Vector2(chosen_x, 210)
+			kemuri.play()
+
+	# 召喚テキスト表示
+	var summon_lbl = Label.new()
+	summon_lbl.text = "使徒召喚！"
+	summon_lbl.add_theme_font_override("font", CUSTOM_FONT)
+	summon_lbl.add_theme_font_size_override("font_size", 28)
+	summon_lbl.add_theme_color_override("font_color", Color(0.9, 0.4, 1.0))
+	summon_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	summon_lbl.add_theme_constant_override("outline_size", 6)
+	summon_lbl.position = Vector2(chosen_x - 70, 160)
+	parent_node.add_child(summon_lbl)
+	var lbl_tw = create_tween()
+	lbl_tw.tween_property(summon_lbl, "position:y", 120.0, 0.8).set_ease(Tween.EASE_OUT)
+	lbl_tw.parallel().tween_property(summon_lbl, "modulate:a", 0.0, 0.8).set_ease(Tween.EASE_IN)
+	lbl_tw.chain().tween_callback(summon_lbl.queue_free)
+
+	_update_target_indicator()
+	return new_e
+
 ## 敵スプライト外周の画面切れ・離散エッジを防止するソフトフェードシェーダーマテリアル
 func _get_or_create_edge_fade_material() -> ShaderMaterial:
 	if _edge_fade_material == null:

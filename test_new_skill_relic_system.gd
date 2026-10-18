@@ -470,7 +470,31 @@ func _init() -> void:
 	pb._update_cell_hover_tooltip(Vector2(500, 500))
 	assert(rui.info_panel.visible == true, "Dark fog cell hover should show tooltip")
 	rui.hide_custom_tooltip("board_cell")
-	print("Dark fog hover tooltip check: SUCCESS!")
+	# Test V: 5th Boss minion summoning skill
+	dummy_sm.stage = 5
+	dummy_sm.is_current_boss = true
+	dummy_sm.current_enemy_key = "enemy18"
+	dummy_sm.ehp = 500000.0
+	dummy_sm.ehpmax = 500000.0
+	enemy_sprite.position = Vector2(1550, 250)
+	dummy_sm.active_enemies = [{ "key": "enemy18", "sprite": enemy_sprite, "hp": 500000.0, "max_hp": 500000.0 }]
+	
+	# Cast 1: Should summon 1 minion (1 -> 2 enemies)
+	pb._cast_enemy_dark_skill(true, false)
+	assert(dummy_sm.active_enemies.size() == 2, "5th Boss skill must summon 1 minion (size should be 2, got %d)" % dummy_sm.active_enemies.size())
+	var summoned1 = dummy_sm.active_enemies[1]
+	assert(summoned1.has("sprite") and is_instance_valid(summoned1["sprite"]), "Summoned minion must have a valid Sprite2D")
+	assert(summoned1["hp"] > 0, "Summoned minion must have positive HP")
+	assert(dummy_sm.ehp > 500000.0, "Total enemy HP must include summoned minion HP")
+
+	# Cast 2: Should summon 2nd minion (2 -> 3 enemies)
+	pb._cast_enemy_dark_skill(true, false)
+	assert(dummy_sm.active_enemies.size() == 3, "5th Boss skill must summon 2nd minion (size should be 3, got %d)" % dummy_sm.active_enemies.size())
+
+	# Cast 3: When already 3 enemies, should not exceed max limit of 3
+	pb._cast_enemy_dark_skill(true, false)
+	assert(dummy_sm.active_enemies.size() == 3, "5th Boss must not exceed maximum 3 enemies on screen")
+	print("5th Boss minion summoning skill check: SUCCESS!")
 
 	print("ALL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
