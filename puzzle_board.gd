@@ -5198,12 +5198,16 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 		for act_info in _enemy_turn_actions:
 			var action = ""
 			var spr = null
+			var e_data = {}
 			if typeof(act_info) == TYPE_DICTIONARY:
 				action = act_info.get("action", "attack")
-				var e_data = act_info.get("enemy_data", {})
+				e_data = act_info.get("enemy_data", {})
 				spr = e_data.get("sprite", null)
 			elif typeof(act_info) == TYPE_STRING:
 				action = act_info
+			
+			if e_data.get("just_summoned", false) == true:
+				continue
 			
 			if action == "skill":
 				var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
@@ -5217,6 +5221,8 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 	else:
 		for i in range(sm.active_enemies.size()):
 			var e = sm.active_enemies[i]
+			if e.get("just_summoned", false) == true:
+				continue
 			var spr = e.get("sprite")
 			if is_skill_turn:
 				var sk_dur = sm.get_enemy_animation_duration(spr, "skill") if sm.has_method("get_enemy_animation_duration") else 1.2
@@ -5235,6 +5241,9 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 		var sim_enemy_count = sm.active_enemies.size()
 		for i in range(sm.active_enemies.size()):
 			var e = sm.active_enemies[i]
+			# 召喚されたモンスターは召喚されたターンに行動してはいけない
+			if e.get("just_summoned", false) == true:
+				continue
 			var is_5th = _is_5th_boss_enemy(sm, e)
 			if is_5th:
 				# 5番目のボスは2回行動（ランダムに攻撃、闇スキル、使徒召喚）
@@ -5325,8 +5334,19 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		if e.is_empty() and e_idx < sm.active_enemies.size():
 			e = sm.active_enemies[e_idx]
 		
+		# 召喚されたモンスターは召喚されたターンに行動してはいけない
+		if e.get("just_summoned", false) == true:
+			continue
+		
 		var spr = e.get("sprite", null)
 		var atk = e.get("atk", 10.0)
+		
+		# 行動する敵へズームイン演出（敵画面内限定）
+		if sm and sm.has_method("zoom_on_attacking_enemy"):
+			seq_tw.tween_callback(func():
+				if is_instance_valid(sm):
+					sm.zoom_on_attacking_enemy(e_idx)
+			)
 		
 		if action == "attack":
 			var anim_dur = sm.get_enemy_animation_duration(spr, "attack") if (sm and sm.has_method("get_enemy_animation_duration")) else ENEMY_ATTACK_MOTION_DURATION
@@ -5501,11 +5521,16 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 
 	seq_tw.tween_callback(func():
 		is_enemy_turn_in_progress = false
+		if sm and sm.has_method("reset_enemy_zoom"):
+			sm.reset_enemy_zoom()
 		for item in active_shields:
 			if is_instance_valid(item["node"]): _return_sprite_to_pool(item["node"])
 		active_shields.clear()
 		current_shield_pools.clear()
 		current_total_shields = 0
+		if sm and "active_enemies" in sm:
+			for en_data in sm.active_enemies:
+				en_data["just_summoned"] = false
 		if sm and sm.myhp <= 0:
 			var go_node = sm.get_node_or_null("gameover")
 			if go_node: go_node.position = Vector2.ZERO
@@ -6646,6 +6671,11 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		_sm_for_reset.reset_turn_elements()
 	if sm and sm.has_method("stop_enemy_animation"):
 		sm.stop_enemy_animation()
+	if sm and sm.has_method("reset_enemy_zoom"):
+		sm.reset_enemy_zoom(0.0)
+	if sm and "active_enemies" in sm:
+		for en_data in sm.active_enemies:
+			en_data["just_summoned"] = false
 
 	# 敵スキル演出ノードを安全に消去
 	if get_tree():

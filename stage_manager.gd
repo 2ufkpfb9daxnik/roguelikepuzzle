@@ -304,6 +304,58 @@ func _setup_enemy_viewport_container() -> void:
 		if bg_node and bg_node.get_parent() == self:
 			bg_node.reparent(_enemy_zoom_root)
 
+	var p = get_parent()
+	if p:
+		var base_k = p.get_node_or_null("kemuri")
+		if base_k and base_k.get_parent() != _enemy_zoom_root:
+			base_k.reparent(_enemy_zoom_root)
+			base_k.visible = false
+			base_k.stop()
+			base_k.position = Vector2(-1e9, -1e9)
+			if not base_k.animation_finished.is_connected(_on_kemuri_finished):
+				base_k.animation_finished.connect(_on_kemuri_finished)
+
+func _on_kemuri_finished() -> void:
+	var kemuri = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
+	if kemuri:
+		kemuri.visible = false
+		kemuri.stop()
+		kemuri.position = Vector2(-1e9, -1e9)
+
+## 召喚時の煙エフェクト（敵画面枠内に収め、黒画面で止まることなく綺麗に消滅）
+func _play_summon_smoke(chosen_x: float, chosen_y: float = 240.0) -> void:
+	var base_kemuri: AnimatedSprite2D = null
+	if _enemy_zoom_root:
+		base_kemuri = _enemy_zoom_root.get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null and get_parent():
+		base_kemuri = get_parent().get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null:
+		return
+	
+	var smoke = base_kemuri.duplicate() as AnimatedSprite2D
+	smoke.name = "SummonSmoke_" + str(Time.get_ticks_msec())
+	smoke.visible = true
+	smoke.position = Vector2(chosen_x, chosen_y)
+	# 召喚されたモンスターに合わせた適切なスケール（敵画面枠内に収まるサイズ）
+	smoke.scale = Vector2(0.26, 0.26)
+	smoke.z_index = 20
+	smoke.modulate = Color.WHITE
+	smoke.frame = 0
+	
+	var parent_target = _enemy_zoom_root if _enemy_zoom_root != null else self
+	parent_target.add_child(smoke)
+	smoke.play("new_animation")
+	
+	# 煙エフェクトのアニメーション末尾（黒画面フレーム）に入る前にスムーズにフェードアウトさせて完全消去
+	var tw = smoke.create_tween()
+	tw.tween_interval(0.55)
+	tw.tween_property(smoke, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(func():
+		if is_instance_valid(smoke):
+			smoke.stop()
+			smoke.queue_free()
+	)
+
 func _ready() -> void:
 	_setup_enemy_viewport_container()
 	_vfx_container = Node2D.new()
@@ -601,6 +653,16 @@ func debug_start_stage5_boss() -> void:
 	active_enemies.clear()
 	enemy = null
 	
+	var base_k = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
+	if base_k:
+		base_k.visible = false
+		base_k.stop()
+		base_k.position = Vector2(-1e9, -1e9)
+	if _enemy_zoom_root:
+		for child in _enemy_zoom_root.get_children():
+			if child.name.begins_with("SummonSmoke_"):
+				child.queue_free()
+	
 	label_control()
 	_update_background()
 	make_enemy(true)
@@ -720,8 +782,14 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	else:
 		if field_bgm: field_bgm.seek(0.0); field_bgm.play()
 	interval = 0
-	var kemuri = get_parent().get_node_or_null("kemuri")
-	if kemuri: kemuri.position = Vector2(1552.375, 210.125); kemuri.play()
+	var kemuri = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
+	if kemuri:
+		kemuri.visible = true
+		kemuri.frame = 0
+		kemuri.position = Vector2(1552.375, 210.125)
+		kemuri.scale = Vector2(0.558789, 0.546875)
+		kemuri.modulate = Color.WHITE
+		kemuri.play()
 
 	active_enemies.clear()
 	ehp = 0.0
@@ -1041,7 +1109,8 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	var new_e = {
 		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
 		"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
-		"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data
+		"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data,
+		"just_summoned": true
 	}
 	active_enemies.append(new_e)
 
@@ -1051,15 +1120,12 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	en.modulate = Color(2.5, 1.2, 3.0, 1.0)
 	tw.tween_property(en, "modulate", Color.WHITE, 0.35)
 
-	# 出現SE & 煙エフェクト再生
+	# 出現SE & 煙エフェクト再生（敵画面枠内に収め、黒画面で止まることなく綺麗に消滅）
 	var p = get_parent()
 	if p:
 		var se = p.get_node_or_null("syutsugen")
 		if se: se.play()
-		var kemuri = p.get_node_or_null("kemuri")
-		if kemuri:
-			kemuri.position = Vector2(chosen_x, 210)
-			kemuri.play()
+	_play_summon_smoke(chosen_x, 240.0)
 
 	# 召喚テキスト表示
 	var summon_lbl = Label.new()
@@ -1924,8 +1990,11 @@ func _step_process() -> void:
 		var se = get_parent().get_node_or_null("syutsugen")
 		if se: se.play()
 	elif interval == 105:
-		var kemuri = get_parent().get_node_or_null("kemuri")
-		if kemuri: kemuri.position = Vector2(-1e9, -1e9)
+		var kemuri = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
+		if kemuri:
+			kemuri.visible = false
+			kemuri.stop()
+			kemuri.position = Vector2(-1e9, -1e9)
 
 	# 背景の切り替え（ステージ変更時のみ軽量実行）
 	_update_background()

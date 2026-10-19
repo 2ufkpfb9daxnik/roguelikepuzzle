@@ -500,11 +500,16 @@ func _init() -> void:
 	# Summon 2: Should summon 2nd minion (2 -> 3 enemies)
 	var _summon_res2 = dummy_sm.summon_boss_minion()
 	assert(dummy_sm.active_enemies.size() == 3, "5th Boss summon must spawn 2nd minion (size should be 3, got %d)" % dummy_sm.active_enemies.size())
+	var summoned2 = dummy_sm.active_enemies[2]
 
 	# Summon 3: When already 3 enemies, summon_boss_minion should return empty and not exceed 3
 	var summon_res3 = dummy_sm.summon_boss_minion()
 	assert(dummy_sm.active_enemies.size() == 3, "5th Boss must not exceed maximum 3 enemies on screen")
 	assert(summon_res3.is_empty(), "Summon at max capacity must return empty dictionary")
+	
+	# Summoned minions must have just_summoned == true initially and must not act on the turn they are summoned
+	assert(summoned1.get("just_summoned", false) == true, "Summoned minion 1 must have just_summoned == true")
+	assert(summoned2.get("just_summoned", false) == true, "Summoned minion 2 must have just_summoned == true")
 	
 	# When 3 enemies present, summon must not be picked in actions
 	for _test_loop in range(10):
@@ -512,6 +517,15 @@ func _init() -> void:
 		for act_info in pb._enemy_turn_actions:
 			if act_info.get("enemy_index") == 0:
 				assert(act_info.get("action") != "summon", "When 3 enemies present, boss must not choose summon")
+			else:
+				assert(false, "Summoned minions must NOT act on the turn they were summoned")
+	
+	# After turn reset, minions can act normally on subsequent turns
+	for e in dummy_sm.active_enemies:
+		e["just_summoned"] = false
+	pb._decide_enemy_actions(dummy_sm)
+	var minion_actions = pb._enemy_turn_actions.filter(func(a): return a.get("enemy_index") != 0)
+	assert(minion_actions.size() == 2, "Minions must be able to act on subsequent turns after summon turn (got %d actions)" % minion_actions.size())
 	print("5th Boss minion summoning and action limit check: SUCCESS!")
 
 	# Test W: Enemy Hover Tooltip
