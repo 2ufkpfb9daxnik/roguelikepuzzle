@@ -2376,15 +2376,7 @@ func _execute_wood_hp_drain(sm: Node2D, drain_plants: Array[Dictionary], stage_s
 		_emit_combat_event("heal", "enemy", "enemy", heal_enemy_amount, "drain")
 
 	if sm.myhp <= 0:
-		var go_node = sm.get_node_or_null("gameover")
-		if go_node:
-			go_node.position = Vector2.ZERO
-		isgameover = true
-		interval = 0
-		current_state = BoardState.TURN_SEQUENCE
-		if selected_cell.x != -1:
-			_deselect_piece()
-		is_holding = false
+		_trigger_gameover(sm)
 
 	if heal_enemy_amount > 0.0:
 		_spawn_enemy_heal_effect(sm, int(heal_enemy_amount))
@@ -4291,6 +4283,14 @@ func _process(delta: float) -> void:
 	var sm = _get_stage_manager()
 	var score_mgr = _get_score_manager()
 
+	# ゲームオーバー時の更新処理（最優先で実行し、盤面処理をスキップ）
+	if sm and not isgameover and sm.myhpmax > 0.0 and sm.myhp <= 0.0:
+		_trigger_gameover(sm)
+
+	if isgameover:
+		_handle_gameover_sequence(sm)
+		return
+
 	# 落下アニメーション中の物理更新
 	if current_state == BoardState.FALLING:
 		_update_falling_physics(delta)
@@ -5357,6 +5357,11 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			seq_tw.tween_callback(func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				
+				# 5番目のボス（冥王デモニアス等）の2回行動時、攻撃アクションの発生を明確に告知
+				var is_5th = _is_5th_boss_enemy(sm, e)
+				if is_5th:
+					_show_enemy_skill_banner("冥王の強撃", "#FF1744", true, "【冥王の追撃】強烈な一撃を繰り出す！")
+				
 				var has_anim = false
 				if sm.has_method("play_single_enemy_animation"):
 					has_anim = sm.play_single_enemy_animation(spr, "attack")
@@ -5434,6 +5439,8 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				
 				sm.calchp(0, incoming_damage)
 				_emit_combat_event("damage", "enemy", "ally", incoming_damage, "", false, "normal", event_payload)
+				if sm.myhp <= 0:
+					_trigger_gameover(sm)
 			)
 			
 			seq_tw.tween_interval(after_delay)
@@ -5532,10 +5539,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			for en_data in sm.active_enemies:
 				en_data["just_summoned"] = false
 		if sm and sm.myhp <= 0:
-			var go_node = sm.get_node_or_null("gameover")
-			if go_node: go_node.position = Vector2.ZERO
-			isgameover = true
-			interval = 0
+			_trigger_gameover(sm)
 	)
 func _execute_enemy_attack(sm: Node2D) -> void:
 	if has_enemy_attacked: return
@@ -5632,10 +5636,7 @@ func _execute_enemy_attack(sm: Node2D) -> void:
 		current_total_shields = 0
 		
 		if sm and sm.myhp <= 0:
-			var go_node = sm.get_node_or_null("gameover")
-			if go_node: go_node.position = Vector2.ZERO
-			isgameover = true
-			interval = 0
+			_trigger_gameover(sm)
 	)
 ## 各属性スキルの情報（スキル名・演出カラー）の取得
 func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
@@ -6755,15 +6756,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		var rm_fog = _get_relic_manager()
 		if rm_fog: rm_fog.on_backlash_damage("fog", total_fog_dmg)
 		if sm.myhp <= 0:
-			var go_node = sm.get_node_or_null("gameover")
-			if go_node:
-				go_node.position = Vector2.ZERO
-			isgameover = true
-			interval = 0
-			current_state = BoardState.TURN_SEQUENCE
-			if selected_cell.x != -1:
-				_deselect_piece()
-			is_holding = false
+			_trigger_gameover(sm)
 
 	_spawn_turn_bombs()
 	_process_fire_spread()
@@ -6771,9 +6764,31 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	var rm = _get_relic_manager()
 	if rm: rm.on_turn_start()
 
+func _trigger_gameover(sm: Node2D) -> void:
+	if isgameover: return
+	isgameover = true
+	interval = 0
+	current_state = BoardState.TURN_SEQUENCE
+	is_enemy_turn_in_progress = false
+	if selected_cell.x != -1:
+		_deselect_piece()
+	is_holding = false
+	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
+		_enemy_turn_tween.kill()
+		_enemy_turn_tween = null
+	if sm:
+		var go_node = sm.get_node_or_null("gameover")
+		if go_node:
+			go_node.visible = true
+			go_node.offset_left = 0
+			go_node.offset_top = 0
+			go_node.offset_right = 1920
+			go_node.offset_bottom = 1080
+			go_node.position = Vector2.ZERO
+
 ## ゲームオーバー演出
 func _handle_gameover_sequence(sm: Node2D) -> void:
-	if interval <= 1:
+	if interval == 0:
 		var rm = _get_relic_manager()
 		if rm: rm.reset_run()
 		if sm:
@@ -6784,28 +6799,60 @@ func _handle_gameover_sequence(sm: Node2D) -> void:
 		var p = get_parent()
 		var haiboku_se = p.get_node_or_null("haiboku") if p else null
 		if haiboku_se: haiboku_se.play()
-	elif interval < 100:
+
 		if sm:
+			var go_node = sm.get_node_or_null("gameover")
+			if go_node:
+				go_node.visible = true
+				go_node.offset_left = 0
+				go_node.offset_top = 0
+				go_node.offset_right = 1920
+				go_node.offset_bottom = 1080
+				go_node.position = Vector2.ZERO
 			var go_lbl = sm.get_node_or_null("GameOver")
-			if go_lbl: go_lbl.position.y = (interval - 50) * 6.0
-	elif interval == 100:
+			if go_lbl:
+				go_lbl.visible = true
+				go_lbl.offset_left = 0
+				go_lbl.offset_right = 1920
+				go_lbl.offset_top = 0
+				go_lbl.offset_bottom = 350
+				go_lbl.position = Vector2(0, -350)
+				go_lbl.bbcode_enabled = true
+				var custom_font = preload("res://font/g_comickoin_freeR.ttf")
+				go_lbl.add_theme_font_override("normal_font", custom_font)
+				go_lbl.add_theme_font_override("bold_font", custom_font)
+				go_lbl.add_theme_font_size_override("normal_font_size", 140)
+				go_lbl.add_theme_font_size_override("bold_font_size", 140)
+				go_lbl.add_theme_constant_override("outline_size", 16)
+				go_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+				go_lbl.text = "[center][b][color=#FF1744]GAME OVER[/color][/b][/center]"
+		if p:
+			var ret_btn = p.get_node_or_null("returntitle")
+			if ret_btn:
+				ret_btn.visible = false
+				ret_btn.z_index = 15
+
+	elif interval < 50:
 		if sm:
 			var go_lbl = sm.get_node_or_null("GameOver")
 			if go_lbl:
-				if not go_lbl.has_theme_font_override("normal_font"):
-					var custom_font = preload("res://font/g_comickoin_freeR.ttf")
-					go_lbl.add_theme_font_override("normal_font", custom_font)
-					go_lbl.add_theme_font_override("bold_font", custom_font)
-					go_lbl.add_theme_constant_override("outline_size", 12)
-					go_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-				go_lbl.text = "[center][b][color=#FF1744]GAME OVER[/color][/b][/center]"
+				var t = clampf(float(interval) / 45.0, 0.0, 1.0)
+				var ease_t = 1.0 - pow(1.0 - t, 3.0)
+				go_lbl.position.y = lerpf(-350.0, 260.0, ease_t)
+
+	elif interval >= 50:
+		if sm:
+			var go_lbl = sm.get_node_or_null("GameOver")
+			if go_lbl:
+				go_lbl.position.y = 260.0
 		var p = get_parent()
 		var ret_btn = p.get_node_or_null("returntitle") if p else null
 		if ret_btn:
 			ret_btn.visible = true
 			ret_btn.size = Vector2(440, 84)
-			ret_btn.position = Vector2(740, 700)
+			ret_btn.position = Vector2(740, 620)
 			ret_btn.add_theme_font_size_override("font_size", 42)
+			ret_btn.z_index = 15
 	interval += 1
 
 

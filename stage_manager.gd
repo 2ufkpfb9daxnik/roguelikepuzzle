@@ -629,6 +629,9 @@ func hide_enemy_hover_tooltip() -> void:
 func debug_start_stage5_boss() -> void:
 	stage = 5
 	stage_enemy = 5
+	myhp = 5000.0 * pow(10.0, max(0, stage - 1))
+	myhpmax = myhp
+	myhppar = 1.0
 	_last_updated_bg_stage = -1 # 背景更新を強制
 	isdanger = false
 	dangerinterval = 0
@@ -1114,9 +1117,15 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	}
 	active_enemies.append(new_e)
 
+	# 召喚モンスターのIdleアニメーション初期化とループ再生
+	play_single_idle_loop(new_e)
+
 	# 6. 出現ポップ演出（0から跳ねるように拡大 & 妖気フラッシュ）
+	var target_pop_scale = en.scale if en.scale != Vector2.ZERO else Vector2(0.5, 0.5)
+	en.scale = Vector2.ZERO
+	en.set_meta("base_scale", target_pop_scale)
 	var tw = create_tween().set_parallel(true)
-	tw.tween_property(en, "scale", Vector2(0.5, 0.5), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(en, "scale", target_pop_scale, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	en.modulate = Color(2.5, 1.2, 3.0, 1.0)
 	tw.tween_property(en, "modulate", Color.WHITE, 0.35)
 
@@ -1183,8 +1192,12 @@ func _cleanup_battle_camera() -> void:
 
 ## 敵が特定のアニメーションスプライトシートを持っているか判定
 func has_enemy_animation(anim_name: String) -> bool:
-	var enemy_anims = ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {})
-	return enemy_anims.has(anim_name)
+	if ENEMY_ANIMATION_SHEETS.get(current_enemy_key, {}).has(anim_name):
+		return true
+	for e in active_enemies:
+		if ENEMY_ANIMATION_SHEETS.get(e.get("key", ""), {}).has(anim_name):
+			return true
+	return false
 
 ## 敵の待機（Idle）アニメーションをループ再生開始
 func start_enemy_idle_animation() -> void:
@@ -1434,6 +1447,9 @@ func stop_enemy_animation() -> void:
 			if spr.has_meta("rush_tween"):
 				var rtw = spr.get_meta("rush_tween")
 				if is_instance_valid(rtw) and rtw is Tween and rtw.is_valid(): rtw.kill()
+			if spr.has_meta("idle_tween"):
+				var itw = spr.get_meta("idle_tween")
+				if is_instance_valid(itw) and itw is Tween and itw.is_valid(): itw.kill()
 			if spr.has_meta("anim_orig_tex"):
 				spr.texture = spr.get_meta("anim_orig_tex")
 				spr.hframes = 1
