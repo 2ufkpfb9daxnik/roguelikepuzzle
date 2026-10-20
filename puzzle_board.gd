@@ -173,6 +173,7 @@ var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/
 var grid_stones: Array = []    # [row][col] -> int (石・耐久値 1)
 var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int}] (黒い霧)
 var grid_cursed: Array = []    # [row][col] -> bool (呪いコマ・消すと反動ダメージ)
+var grid_poison: Array = []    # [row][col] -> bool (猛毒沼マス・毎ターン毒ダメージ・マッチや隣接で解毒)
 var grid_gold_statue: Array = [] # [row][col] -> int (黄金像スカコマ・耐久値 3)
 var active_wind_tornadoes: Array[Dictionary] = [] # [{"col": int, "y": float, "speed": float, "active": bool}]
 var enemy_skill_banner: RichTextLabel = null
@@ -298,6 +299,7 @@ func _update_board_element_flags() -> void:
 				var is_stone: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
 				var is_animated: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
 				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
+				   (grid_poison.size() == GRID_ROWS and grid_poison[r][c]) or \
 				   (grid_ice[r][c] > 0) or \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
 				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
@@ -517,6 +519,7 @@ func _initialize_board(collid_template: Node) -> void:
 	grid_stones.clear()
 	grid_fog.clear()
 	grid_cursed.clear()
+	grid_poison.clear()
 	grid_gold_statue.clear()
 
 	var area_node = get_node_or_null("Area2D")
@@ -535,8 +538,12 @@ func _initialize_board(collid_template: Node) -> void:
 		var row_electrified: Array[bool] = []
 		var row_stones: Array[int] = []
 		var row_cursed: Array[bool] = []
+		var row_poison: Array[bool] = []
 		var row_gold_statue: Array[int] = []
 		var row_element: Array[int] = []
+
+		row_poison.resize(GRID_COLUMNS)
+		row_poison.fill(false)
 
 		for j in range(GRID_COLUMNS):
 			var can_set: Array[bool] = []
@@ -599,6 +606,7 @@ func _initialize_board(collid_template: Node) -> void:
 		grid_electrified.append(row_electrified)
 		grid_stones.append(row_stones)
 		grid_cursed.append(row_cursed)
+		grid_poison.append(row_poison)
 		grid_gold_statue.append(row_gold_statue)
 
 	current_state = BoardState.IDLE
@@ -3661,6 +3669,11 @@ func _start_breaking_animation() -> void:
 				_spawn_steam_effect(get_cell_position(cell.x, cell.y))
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "消火", Color(0.4, 0.8, 1.0))
 
+		# 猛毒沼マス上でコマがマッチ消去された場合、解毒・浄化
+		if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y]:
+			grid_poison[cell.x][cell.y] = false
+			_spawn_floating_text(get_cell_position(cell.x, cell.y), "✨ 解毒！", Color(0.65, 1.0, 0.75))
+
 		for d in adj_dirs:
 			var ar = cell.x + d.x
 			var ac = cell.y + d.y
@@ -3687,6 +3700,9 @@ func _start_breaking_animation() -> void:
 				if grid_cursed.size() == GRID_ROWS and grid_cursed[ar][ac]:
 					grid_cursed[ar][ac] = false
 					_spawn_floating_text(get_cell_position(ar, ac), "✨ 呪い浄化！", Color(0.5, 1.0, 0.6))
+				if grid_poison.size() == GRID_ROWS and grid_poison[ar][ac]:
+					grid_poison[ar][ac] = false
+					_spawn_floating_text(get_cell_position(ar, ac), "✨ 解毒！", Color(0.65, 1.0, 0.75))
 
 		# 黒い霧内のマッチによる霧晴れ判定
 		var f_idx = grid_fog.size() - 1
@@ -5234,6 +5250,26 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +60フレーム (1.0秒) を付加
 	return int(ceil(total_seconds * 60.0)) + 60
 
+## 敵キャラクターの所持スキルから今回の発動スキル（単一または複数候補からランダム）を選出
+func _select_enemy_skill(e: Dictionary, sm: Node2D) -> String:
+	var key = e.get("key", "slime")
+	var sp_data = e.get("sp_data", {})
+	if sp_data.is_empty() and sm and "ENEMY_SPECIES" in sm:
+		sp_data = sm.ENEMY_SPECIES.get(key, {})
+	
+	var skills_pool: Array = []
+	if sp_data.has("skills") and typeof(sp_data["skills"]) == TYPE_ARRAY and not sp_data["skills"].is_empty():
+		skills_pool = sp_data["skills"]
+	elif sp_data.has("elements") and typeof(sp_data["elements"]) == TYPE_ARRAY and not sp_data["elements"].is_empty():
+		skills_pool = sp_data["elements"]
+	elif typeof(sp_data.get("element")) == TYPE_ARRAY:
+		skills_pool = sp_data.get("element")
+	
+	if not skills_pool.is_empty():
+		return str(skills_pool[randi() % skills_pool.size()])
+	
+	return str(sp_data.get("element", sp_data.get("race", "無属性")))
+
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
 	var has_skill = false
@@ -5246,7 +5282,7 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 				continue
 			var is_5th = _is_5th_boss_enemy(sm, e)
 			if is_5th:
-				# 5番目のボスは2回行動（ランダムに攻撃、闇スキル、使徒召喚）
+				# 5番目のボスは2回行動（ランダムに攻撃、スキル、使徒召喚）
 				for _act_step in range(2):
 					var pool: Array[String] = ["attack", "skill"]
 					if sim_enemy_count < 3:
@@ -5256,17 +5292,22 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 						sim_enemy_count += 1
 					if chosen_action == "skill" or chosen_action == "summon":
 						has_skill = true
-					_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": chosen_action})
+					var chosen_skill = ""
+					if chosen_action == "skill":
+						chosen_skill = _select_enemy_skill(e, sm)
+					_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": chosen_action, "chosen_skill": chosen_skill})
 			else:
 				var is_boss = false
 				if sm.has_method("is_boss_monster"): is_boss = sm.is_boss_monster()
 				else: is_boss = sm.is_current_boss if "is_current_boss" in sm else false
 				
 				var action = "attack"
+				var chosen_skill = ""
 				if is_boss or randf() < 0.5:
 					action = "skill"
 					has_skill = true
-				_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": action})
+					chosen_skill = _select_enemy_skill(e, sm)
+				_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": action, "chosen_skill": chosen_skill})
 	return has_skill
 
 func _spawn_slash_effect(pos: Vector2) -> void:
@@ -5481,14 +5522,15 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			seq_tw.tween_interval(after_summon_delay)
 
 		else:
-			var key = e.get("key", "slime")
 			var is_boss = false
 			if sm.has_method("is_boss_monster"): is_boss = sm.is_boss_monster()
 			else: is_boss = sm.is_current_boss if "is_current_boss" in sm else false
-			var sp_data = {}
-			if "ENEMY_SPECIES" in sm: sp_data = sm.ENEMY_SPECIES.get(key, {})
-			var elem = sp_data.get("element", sp_data.get("race", "???"))
-			if typeof(elem) == TYPE_ARRAY: elem = elem[randi() % elem.size()]
+			
+			var elem = ""
+			if typeof(act_info) == TYPE_DICTIONARY and act_info.has("chosen_skill") and not str(act_info["chosen_skill"]).is_empty():
+				elem = str(act_info["chosen_skill"])
+			else:
+				elem = _select_enemy_skill(e, sm)
 			var s_info = _get_enemy_skill_info(elem, is_boss)
 			var s_name = s_info["name"]
 			var elem_color = s_info["color"]
@@ -5667,6 +5709,8 @@ func _get_enemy_skill_info(elem: String, is_boss: bool) -> Dictionary:
 			return {"name": "極光・ホーリージャッジ" if is_boss else "シャイニングレイ", "color": "#FFF59D"}
 		"火属性":
 			return {"name": "紅蓮・ヘルフレイム" if is_boss else "ブレイズブラスト", "color": "#FF3D00"}
+		"毒属性":
+			return {"name": "猛毒瘴気・デッドリーヴェノム" if is_boss else "ポイズンバースト", "color": "#AB47BC"}
 		_:
 			return {"name": "アースクエイク", "color": "#BCAAA4"}
 
@@ -5767,6 +5811,8 @@ func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> Array[V
 			return _cast_enemy_light_skill(is_boss, false)
 		"火属性":
 			return _cast_enemy_fire_skill(is_boss, false)
+		"毒属性":
+			return _cast_enemy_poison_skill(is_boss, false)
 		_:
 			return _cast_enemy_earth_skill(is_boss, false)
 
@@ -6335,6 +6381,7 @@ func clear_board_hazards() -> void:
 			if grid_gold_statue.size() == GRID_ROWS: grid_gold_statue[r][c] = 0
 			if grid_water.size() == GRID_ROWS: grid_water[r][c] = false
 			if grid_ice.size() == GRID_ROWS: grid_ice[r][c] = 0
+			if grid_poison.size() == GRID_ROWS: grid_poison[r][c] = false
 	_redraw_board_effects()
 
 ## 8. 光属性スキル: 重要アイテム（盾/剣）を黄金石像スカコマ化（通常1体・耐久1、ボスは初期3〜4体・耐久2から緩やかに増加）
@@ -6410,9 +6457,40 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		var p = cands[i]
 		special_item[p.x][p.y] = SpecialItemType.BOMB
 		if is_bomb.size() == GRID_ROWS: is_bomb[p.x][p.y] = true
-		if grid_fire.size() == GRID_ROWS: grid_fire[p.x][p.y] = 1
-		_spawn_floating_text(get_cell_position(p.x, p.y), "炎上", Color(1.0, 0.4, 0.1))
-		_spawn_explosion_effect(get_cell_position(p.x, p.y))
+		var cell_p = get_cell_position(p.x, p.y)
+		_spawn_floating_text(cell_p, "炎上", Color(1.0, 0.4, 0.1))
+		_spawn_explosion_effect(cell_p)
+		_targets.append(cell_p)
+
+	_redraw_board_effects()
+	return _targets
+
+## 10. 毒属性スキル: 盤面に猛毒沼を生成（通常2〜3マス、ボスは初期5〜6マスから緩やかに増加、毎ターン毒ダメージ・マッチで解毒）
+func _cast_enemy_poison_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
+	var _targets: Array[Vector2] = []
+	var s_name = "猛毒瘴気・デッドリーヴェノム" if is_boss else "ポイズンバースト"
+	var s_desc = "【毒沼】盤面に猛毒沼を生成！ターン終了時に継続猛毒ダメージ！"
+	if show_banner: _show_enemy_skill_banner(s_name, "#AB47BC", is_boss, s_desc)
+	var st_idx = _get_stage_index()
+	var count = randi_range(5 + st_idx, 6 + st_idx) if is_boss else randi_range(2 + int(st_idx * 0.5), 3 + int(st_idx * 0.5))
+
+	var cands: Array[Vector2i] = []
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
+				if grid_poison.size() == GRID_ROWS and not grid_poison[r][c]:
+					cands.append(Vector2i(r, c))
+	cands.shuffle()
+
+	var num = mini(count, cands.size())
+	for i in range(num):
+		var p = cands[i]
+		if grid_poison.size() == GRID_ROWS:
+			grid_poison[p.x][p.y] = true
+		var cell_p = get_cell_position(p.x, p.y)
+		_spawn_floating_text(cell_p, "毒沼！", Color(0.85, 0.35, 0.95))
+		_spawn_poison_bubble_burst_effect(cell_p)
+		_targets.append(cell_p)
 
 	_redraw_board_effects()
 	return _targets
@@ -6633,6 +6711,23 @@ func _spawn_curse_burst_effect(pos: Vector2) -> void:
 		tw.tween_property(orb, "modulate:a", 0.0, 0.3)
 		tw.chain().tween_callback(orb.queue_free)
 
+func _spawn_poison_bubble_burst_effect(pos: Vector2) -> void:
+	_spawn_shockwave_ring(pos, Color(0.68, 0.15, 0.90), 105.0, 0.28)
+	for i in range(7):
+		var a = randf() * TAU
+		var dist = randf_range(40.0, 110.0)
+		var orb = ColorRect.new()
+		var s_dim = randf_range(16.0, 24.0)
+		orb.size = Vector2(s_dim, s_dim)
+		orb.position = pos - orb.size / 2.0
+		orb.color = Color(0.60, 0.10, 0.85, 0.85)
+		orb.z_index = 30
+		Profiler.add_child_count += 1; add_child(orb)
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(orb, "position", pos + Vector2(cos(a), sin(a)) * dist + Vector2(0, -25), 0.32).set_ease(Tween.EASE_OUT)
+		tw.tween_property(orb, "modulate:a", 0.0, 0.32)
+		tw.chain().tween_callback(orb.queue_free)
+
 ## 戦闘発射物・シールド・攻撃エフェクトの全消去（蓄積・メモリリーク・重さの完全根絶）
 func _clear_all_combat_projectiles() -> void:
 	for item in flying_swords:
@@ -6757,6 +6852,40 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		if rm_fog: rm_fog.on_backlash_damage("fog", total_fog_dmg)
 		if sm.myhp <= 0:
 			_trigger_gameover(sm)
+
+	# 猛毒沼（grid_poison）による持続ダメージ
+	var poison_tiles: Array[Vector2i] = []
+	if grid_poison.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_poison[r][c]:
+					poison_tiles.append(Vector2i(r, c))
+
+	if not poison_tiles.is_empty():
+		var st_idx = _get_stage_index()
+		var is_boss_enemy: bool = false
+		if sm:
+			if sm.has_method("is_boss_battle"): is_boss_enemy = sm.is_boss_battle()
+			elif "is_current_boss" in sm: is_boss_enemy = sm.is_current_boss
+		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
+		var base_p_dmg: float = (25.0 + st_idx * 12.0) if is_boss_enemy else (12.0 + st_idx * 6.0)
+		var total_poison_dmg: float = base_p_dmg * stage_scale * float(poison_tiles.size())
+		
+		for pt in poison_tiles.slice(0, 3):
+			var pt_pos = get_cell_position(pt.x, pt.y)
+			_spawn_poison_bubble_burst_effect(pt_pos)
+		
+		var center_pt = poison_tiles[poison_tiles.size() / 2]
+		_spawn_floating_text(get_cell_position(center_pt.x, center_pt.y), "猛毒ダメージ -%d" % int(total_poison_dmg), Color(0.85, 0.35, 0.95))
+		
+		if sm:
+			_spawn_screen_flash(Color(0.6, 0.1, 0.7, 0.22), 0.15)
+			sm.calchp(0.0, total_poison_dmg)
+			_emit_combat_event("damage", "enemy", "ally", total_poison_dmg, "poison")
+			var rm_poi = _get_relic_manager()
+			if rm_poi: rm_poi.on_backlash_damage("poison", total_poison_dmg)
+			if sm.myhp <= 0:
+				_trigger_gameover(sm)
 
 	_spawn_turn_bombs()
 	_process_fire_spread()
@@ -7018,6 +7147,16 @@ func _play_elemental_size(elem: String, size: int, target_global_pos: Vector2, r
 				_spawn_black_hole_effect(local_pos, 2)
 			else:
 				_spawn_black_hole_effect(local_pos, 1)
+		"poison":
+			if size >= 5:
+				_spawn_curse_burst_effect(local_pos)
+				_spawn_poison_bubble_burst_effect(local_pos)
+				_spawn_shockwave_ring(local_pos, Color(0.75, 0.15, 0.95, 0.95), 1100.0, 0.45)
+			elif size >= 3:
+				_spawn_poison_bubble_burst_effect(local_pos)
+				_spawn_shockwave_ring(local_pos, Color(0.75, 0.15, 0.95, 0.9), 800.0, 0.38)
+			else:
+				_spawn_poison_bubble_burst_effect(local_pos)
 
 
 func _add_element_mark_to_sprite(sprite: Sprite2D) -> void:
@@ -7061,6 +7200,7 @@ func _input(event: InputEvent) -> void:
 			KEY_4: el = ElementDataScript.Element.THUNDER
 			KEY_5: el = ElementDataScript.Element.LIGHT
 			KEY_6: el = ElementDataScript.Element.DARK
+			KEY_7: el = ElementDataScript.Element.POISON
 			
 		if el != ElementDataScript.Element.NONE:
 			_debug_apply_element_random(el)
@@ -7233,6 +7373,9 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 		elif grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]:
 			title = "[b][color=#AA00FF]☠️ 呪いのコマ[/color][/b]"
 			desc = "[font_size=19][color=#FF5252]【消去時反動ダメージ】[/color] このコマを直接揃えて消去すると、呪詛反動ダメージを受けます！\n[color=#69F0AE]【安全な浄化方法】[/color] 隣接マスで他のコマを揃えてマッチさせると、反動を受けずに安全に浄化（消去）できます。[/font_size]"
+		elif grid_poison.size() == GRID_ROWS and grid_poison[r][c]:
+			title = "[b][color=#AB47BC]☠️ 猛毒沼マス[/color][/b]"
+			desc = "[font_size=19][color=#FF5252]【毎ターン猛毒ダメージ】[/color] ターン終了時に猛毒沼から継続毒ダメージを受けます！\n[color=#69F0AE]【解毒方法】[/color] このマスでコマを揃えるか、隣接マスでマッチさせると毒沼を浄化・解毒できます。[/font_size]"
 		elif grid_element.size() == GRID_ROWS and grid_element[r][c] != ElementDataScript.Element.NONE:
 			var el = grid_element[r][c]
 			var el_name_jp = ""
@@ -7244,6 +7387,7 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 				ElementDataScript.Element.THUNDER: el_name_jp = "雷属性"; el_color = "#FFEB3B"
 				ElementDataScript.Element.LIGHT: el_name_jp = "光・聖属性"; el_color = "#FFF176"
 				ElementDataScript.Element.DARK: el_name_jp = "闇・魔属性"; el_color = "#BA68C8"
+				ElementDataScript.Element.POISON: el_name_jp = "毒属性"; el_color = "#AB47BC"
 			title = "[b][color=%s]✦ %sコマ[/color][/b]" % [el_color, el_name_jp]
 			desc = "[font_size=19]このコマをマッチすると[color=%s]%s[/color]の魔力が蓄積され、ターン終了時に敵へ属性追撃を浴びせます！[/font_size]" % [el_color, el_name_jp]
 

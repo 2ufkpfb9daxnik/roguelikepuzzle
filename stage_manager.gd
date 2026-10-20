@@ -78,26 +78,26 @@ const STAGE_ENEMIES: Array[Dictionary] = [
 const ENEMY_SPECIES: Dictionary = {
 	"enemy1": {"name": "グリムリーパー", "element": "闇属性", "race": "闇属性", "color": "#E040FB"},
 	"enemy2": {"name": "カースドマミー", "element": "地属性", "race": "地属性", "color": "#FFB74D"},
-	"enemy3": {"name": "ポイズントード", "element": "水属性", "race": "水属性", "color": "#00E5FF"},
-	"enemy4": {"name": "マグマゴーレム", "element": "地属性", "race": "地属性", "color": "#FF9800"},
+	"enemy3": {"name": "ポイズントード", "element": "毒属性", "race": "毒属性", "skills": ["毒属性", "水属性"], "color": "#AB47BC"},
+	"enemy4": {"name": "マグマゴーレム", "element": "地属性", "race": "地属性", "skills": ["地属性", "火属性"], "color": "#FF9800"},
 	"enemy5": {"name": "ディープサハギン", "element": "水属性", "race": "水属性", "color": "#00E5FF"},
-	"enemy6": {"name": "ファンガスロード", "element": "木属性", "race": "木属性", "color": "#69F0AE"},
+	"enemy6": {"name": "ファンガスロード", "element": "木属性", "race": "木属性", "skills": ["木属性", "毒属性"], "color": "#69F0AE"},
 	"enemy7": {"name": "スケルトンナイト", "element": "闇属性", "race": "闇属性", "color": "#B0BEC5"},
-	"enemy8": {"name": "キラーホーネット", "element": "風属性", "race": "風属性", "color": "#64FFDA"},
+	"enemy8": {"name": "キラーホーネット", "element": "風属性", "race": "風属性", "skills": ["風属性", "毒属性"], "color": "#64FFDA"},
 	"enemy9": {"name": "クリムゾンウォーロック", "element": "火属性", "race": "火属性", "color": "#FF1744"},
-	"enemy10": {"name": "ジュエルアラクネ", "element": "闇属性", "race": "闇属性", "color": "#B388FF"},
-	"enemy11": {"name": "グランドラゴン", "element": "火属性", "race": "火属性", "color": "#FF6D00"},
+	"enemy10": {"name": "ジュエルアラクネ", "element": "闇属性", "race": "闇属性", "skills": ["闇属性", "毒属性"], "color": "#B388FF"},
+	"enemy11": {"name": "グランドラゴン", "element": "火属性", "race": "火属性", "skills": ["火属性", "風属性"], "color": "#FF6D00"},
 	"enemy12": {"name": "ワーウルフ", "element": "風属性", "race": "風属性", "color": "#80D8FF"},
 	"enemy13": {"name": "ダークピクシー", "element": "闇属性", "race": "闇属性", "color": "#EA80FC"},
 	"enemy14": {"name": "グランガーゴイル", "element": "地属性", "race": "地属性", "color": "#D7CCC8"},
 	"enemy15": {"name": "レインボーサーペント", "element": "光属性", "race": "光属性", "color": "#FFD700"},
-	"enemy16": {"name": "アビスリザード", "element": "水属性", "race": "水属性", "color": "#40C4FF"},
+	"enemy16": {"name": "アビスリザード", "element": "水属性", "race": "水属性", "skills": ["水属性", "氷属性"], "color": "#40C4FF"},
 	"enemy17": {"name": "フロストドラゴン", "element": "氷属性", "race": "氷属性", "color": "#80DEEA"},
-	"enemy18": {"name": "冥王デモニアス", "element": "闇属性", "race": "闇属性", "color": "#D500F9"},
+	"enemy18": {"name": "冥王デモニアス", "element": "闇属性", "race": "闇属性", "skills": ["闇属性", "毒属性", "火属性"], "color": "#D500F9"},
 	"enemy19": {"name": "アビスクラーケン", "element": "水属性", "race": "水属性", "color": "#00E676"},
-	"enemy20": {"name": "デスクラウンサソリ", "element": "地属性", "race": "地属性", "color": "#FF6D00"},
-	"enemy21": {"name": "ブラックバイパー", "element": "地属性", "race": "地属性", "color": "#76FF03"},
-	"enemy22": {"name": "ヴェノムバイパー", "element": "地属性", "race": "地属性", "color": "#76FF03"},
+	"enemy20": {"name": "デスクラウンサソリ", "element": "地属性", "race": "地属性", "skills": ["地属性", "毒属性"], "color": "#FF6D00"},
+	"enemy21": {"name": "ブラックバイパー", "element": "毒属性", "race": "毒属性", "skills": ["毒属性", "闇属性"], "color": "#AB47BC"},
+	"enemy22": {"name": "ヴェノムバイパー", "element": "毒属性", "race": "毒属性", "skills": ["毒属性", "地属性"], "color": "#AB47BC"},
 	"enemy23": {"name": "エルダートレント", "element": "木属性", "race": "木属性", "color": "#8BC34A"},
 	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "color": "#FFD700"},
 }
@@ -594,27 +594,53 @@ func _update_enemy_hover_tooltip(mpos: Vector2) -> void:
 	var max_hp = int(e.get("max_hp", cur_hp))
 	var cur_atk = int(e.get("atk", 0.0))
 
-	if is_5th_boss:
-		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
-		desc = "[font_size=19][color=#FF5252]【毎ターン2回行動】[/color]\n冥府を統べる破滅の魔王。1ターンに2回の行動をランダムに繰り出す！\n・[color=#FF5252]通常攻撃[/color]: 圧倒的破壊力の直接攻撃\n・[color=#E040FB]闇スキル[/color]: 暗雲（毎ターン瘴気ダメージ）＆呪いコマ配置\n・[color=#BA68C8]使徒召喚[/color]: 冥府より従者を召喚して盤石の陣を敷く\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [cur_hp, max_hp, cur_atk]
-	elif is_boss_b:
-		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
-		desc = "[font_size=19][color=#FFD700]【ステージボス】[/color]\n強力な属性スキルを確定発動してプレイヤーを阻む難敵！\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [cur_hp, max_hp, cur_atk]
+	var skills_list: Array = []
+	if sp_data.has("skills") and typeof(sp_data["skills"]) == TYPE_ARRAY and not sp_data["skills"].is_empty():
+		skills_list = sp_data["skills"]
+	elif sp_data.has("elements") and typeof(sp_data["elements"]) == TYPE_ARRAY and not sp_data["elements"].is_empty():
+		skills_list = sp_data["elements"]
+	elif typeof(elem_raw) == TYPE_ARRAY:
+		skills_list = elem_raw
 	else:
-		title = "[b][color=%s]%s[/color] (属性: %s)[/b]" % [c_color, ename, elem_str]
-		var trait_desc = ""
-		match elem_str:
-			"水属性": trait_desc = "水たまりマスを生成して盤面を浸水させる"
-			"氷属性": trait_desc = "コマを凍結させてスワップ移動を封じる"
-			"風属性": trait_desc = "竜巻を発生させて列のコマを一掃・シャッフル"
-			"木属性": trait_desc = "吸血苗木を植え付け、毎ターンプレイヤーHPを吸収"
-			"地属性": trait_desc = "動かせない硬い岩石障害物を配置する"
-			"雷属性": trait_desc = "落雷を落とし、動かすと反動を受ける帯電コマを生成"
-			"闇属性": trait_desc = "暗雲（毎ターン瘴気ダメージ）と呪詛コマを展開"
-			"光属性": trait_desc = "重要コマを黄金像に変化させて消去不可にする"
-			"火属性": trait_desc = "周囲へ毎ターン延焼する炎上マスを生成"
-			_: trait_desc = "通常攻撃や属性スキルで攻撃"
-		desc = "[font_size=19]・[b]スキル特徴:[/b] %s\n・[b]行動:[/b] 毎ターン攻撃または属性スキル(50%%)\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [trait_desc, cur_hp, max_hp, cur_atk]
+		skills_list = [elem_str]
+
+	var skill_descs: Array[String] = []
+	for sk in skills_list:
+		var sk_str = str(sk)
+		match sk_str:
+			"毒属性": skill_descs.append("[color=#AB47BC]毒属性[/color]: 盤面に猛毒沼を生成（毎ターン猛毒ダメージ / マッチで解毒）")
+			"水属性": skill_descs.append("[color=#00E5FF]水属性[/color]: 水たまりマスを生成して盤面を浸水させる")
+			"氷属性": skill_descs.append("[color=#80DEEA]氷属性[/color]: コマを凍結させてスワップ移動を封じる")
+			"風属性": skill_descs.append("[color=#64FFDA]風属性[/color]: 竜巻を発生させて列のコマを一掃・シャッフル")
+			"木属性": skill_descs.append("[color=#76FF03]木属性[/color]: 吸血苗木を植え付け、毎ターンプレイヤーHPを吸収")
+			"地属性": skill_descs.append("[color=#BCAAA4]地属性[/color]: 動かせない硬い岩石障害物を配置する")
+			"雷属性": skill_descs.append("[color=#FFD600]雷属性[/color]: 落雷を落とし、動かすと反動を受ける帯電コマを生成")
+			"闇属性": skill_descs.append("[color=#E040FB]闇属性[/color]: 暗雲（毎ターン瘴気ダメージ）と呪詛コマを展開")
+			"光属性": skill_descs.append("[color=#FFF59D]光属性[/color]: 重要コマを黄金像に変化させて消去不可にする")
+			"火属性": skill_descs.append("[color=#FF3D00]火属性[/color]: 周囲へ毎ターン延焼する炎上マスを生成")
+			_: skill_descs.append("%s: 強力な属性スキルで妨害" % sk_str)
+
+	var multi_tag = " [color=#FFD54F]【複数スキル所持】[/color]" if skills_list.size() > 1 else ""
+
+	if is_5th_boss:
+		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)%s[/b]" % [c_color, ename, elem_str, multi_tag]
+		desc = "[font_size=19][color=#FF5252]【毎ターン2回行動】[/color]（複数スキル所持）\n冥府を統べる破滅の魔王。1ターンに2回の行動をランダムに繰り出す！\n・[color=#FF5252]通常攻撃[/color]: 圧倒的破壊力の直接攻撃\n・[color=#E040FB]闇・毒・炎スキル[/color]: 冥府の暗雲、猛毒沼、紅蓮の劫火を使い分ける\n・[color=#BA68C8]使徒召喚[/color]: 冥府より従者を召喚して盤石の陣を敷く\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [cur_hp, max_hp, cur_atk]
+	elif is_boss_b:
+		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)%s[/b]" % [c_color, ename, elem_str, multi_tag]
+		var skills_block = ""
+		if skills_list.size() > 1:
+			skills_block = "・[b][color=#FFD54F]発動スキル（状況に応じて使い分け）:[/color][/b]\n  ・" + "\n  ・".join(skill_descs)
+		else:
+			skills_block = "・[b]スキル特徴:[/b] " + (skill_descs[0] if not skill_descs.is_empty() else "属性スキルを発動")
+		desc = "[font_size=19][color=#FFD700]【ステージボス】[/color]\n強力な属性スキルを確定発動してプレイヤーを阻む難敵！\n%s\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [skills_block, cur_hp, max_hp, cur_atk]
+	else:
+		title = "[b][color=%s]%s[/color] (属性: %s)%s[/b]" % [c_color, ename, elem_str, multi_tag]
+		var skills_block = ""
+		if skills_list.size() > 1:
+			skills_block = "・[b][color=#FFD54F]保有スキル（状況に応じて使い分け）:[/color][/b]\n  ・" + "\n  ・".join(skill_descs)
+		else:
+			skills_block = "・[b]スキル特徴:[/b] " + (skill_descs[0] if not skill_descs.is_empty() else "通常攻撃や属性スキルで攻撃")
+		desc = "[font_size=19]%s\n・[b]行動:[/b] 毎ターン攻撃または属性スキル(50%%)\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [skills_block, cur_hp, max_hp, cur_atk]
 
 	rm_ui.show_custom_tooltip(title, desc, mpos, "enemy_hover")
 

@@ -537,20 +537,31 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 
 
 
+## 毒属性の猛毒沼マス描画（深紫の毒溜まり・毒泡・毒ドクロマーク）
 func _draw_poison_tile(r: int, c: int, pulse: float) -> void:
-	var pos = Vector2(BOARD_LEFT + c * CELL_PITCH + CELL_PITCH/2.0, BOARD_TOP + r * CELL_PITCH + CELL_PITCH/2.0)
-	var m = CELL_PITCH / 2.0
-	var rect = Rect2(pos - Vector2(m, m), Vector2(CELL_PITCH, CELL_PITCH))
-	var bg_col = Color(0.4, 0.0, 0.8, 0.65 + 0.15 * pulse)
+	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
+	var center = rect.get_center()
+	var m = (CELL_PITCH - 20.0) / 2.0
+
+	# 深紫の毒沼（半透明で下のコマを視認可能）
+	var bg_col = Color(0.42, 0.05, 0.60, 0.32 * pulse)
 	draw_rect(rect, bg_col, true)
-	draw_rect(rect, Color(0.6, 0.0, 1.0, 0.9), false, 18.0)
+	draw_rect(rect, Color(0.78, 0.18, 0.96, 0.88), false, 16.0)
+
+	# 毒の気泡エフェクト（脈動・浮遊）
 	for i in range(5):
-		var p_x = pos.x + sin(i * 1.5 + pulse * TAU) * (m * 0.5)
-		var p_y = pos.y + cos(i * 2.1 - pulse * TAU) * (m * 0.5)
-		draw_circle(Vector2(p_x, p_y), 30.0 + 10.0 * pulse, Color(0.7, 0.2, 1.0, 0.8))
-		draw_circle(Vector2(p_x - 5, p_y - 5), 10.0, Color(0.9, 0.6, 1.0, 0.9))
-	var label = "POISON"
-	draw_string(CUSTOM_FONT, Vector2(pos.x - 200, pos.y + 195), label, HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.9, 0.5, 1.0, 0.95))
+		var p_x = center.x + sin(i * 1.5 + pulse * TAU) * (m * 0.45)
+		var p_y = center.y + cos(i * 2.1 - pulse * TAU) * (m * 0.45)
+		draw_circle(Vector2(p_x, p_y), 24.0 + 8.0 * pulse, Color(0.68, 0.15, 0.90, 0.70))
+		draw_circle(Vector2(p_x - 4, p_y - 4), 8.0, Color(0.92, 0.55, 1.0, 0.85))
+
+	# 毒のドクロ（☠）バッジ
+	draw_circle(center, 90.0, Color(0.16, 0.02, 0.22, 0.90))
+	draw_arc(center, 90.0, 0.0, TAU, 28, Color(0.85, 0.25, 1.0), 10.0)
+	draw_string(CUSTOM_FONT, Vector2(center.x - 70, center.y + 50), "☠", HORIZONTAL_ALIGNMENT_CENTER, 140, 140, Color(0.96, 0.45, 1.0))
+
+	# 「【毒沼】」文字
+	draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【毒沼】", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.92, 0.50, 1.0))
 
 
 
