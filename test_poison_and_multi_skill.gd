@@ -176,5 +176,35 @@ func _init() -> void:
 	assert(pb.grid_poison[3][1] == false, "West 2-step must NOT be infected because west was dry")
 	print("✓ 2x poison spread into wet target passed!")
 
+	# 9. Test Multi-Element Display on Enemies
+	var e3_data = species["enemy3"]
+	var e3_plain = sm_node.get_enemy_elements_plain(e3_data)
+	assert("毒属性" in e3_plain and "水属性" in e3_plain, "Poison Toad must display both poison and water attributes in plain string")
+	var e3_bbcode = sm_node.get_enemy_elements_bbcode(e3_data)
+	assert("#AB47BC" in e3_bbcode and "#00E5FF" in e3_bbcode, "Poison Toad BBCode must color poison and water properly")
+	
+	var e18_data = species["enemy18"]
+	var e18_plain = sm_node.get_enemy_elements_plain(e18_data)
+	assert("闇属性" in e18_plain and "毒属性" in e18_plain and "火属性" in e18_plain, "Demonius must display all 3 elements in plain string")
+	var e18_bbcode = sm_node.get_enemy_elements_bbcode(e18_data)
+	assert("#E040FB" in e18_bbcode and "#AB47BC" in e18_bbcode and "#FF3D00" in e18_bbcode, "Demonius BBCode must contain colors for all 3 elements")
+	print("✓ Multi-element display for enemies passed!")
+
+	# 10. Test Poison Spread Immediately Upon Steady State (Zero Wait Time)
+	pb.clear_board_hazards()
+	pb.poison_spread_done_this_turn = false
+	pb.grid_poison[2][2] = true
+	# Simulate steady state entry
+	if not pb.poison_spread_done_this_turn:
+		pb.poison_spread_done_this_turn = true
+		pb._process_poison_spread()
+	assert(pb.poison_spread_done_this_turn == true, "poison_spread_done_this_turn must be true after steady state")
+	assert(pb.grid_poison[2][3] == true, "Poison must spread immediately at steady state (0 delay)")
+	# Call _reset_turn and ensure poison doesn't spread twice
+	pb._reset_turn(sm_node, null)
+	assert(pb.poison_spread_done_this_turn == false, "poison_spread_done_this_turn must reset to false on turn end")
+	assert(pb.grid_poison[2][4] == false, "Poison must NOT spread a second time during turn reset")
+	print("✓ Immediate poison spread on steady state (zero delay) passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

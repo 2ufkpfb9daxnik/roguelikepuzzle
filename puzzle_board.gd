@@ -173,7 +173,8 @@ var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/
 var grid_stones: Array = []    # [row][col] -> int (石・耐久値 1)
 var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int}] (黒い霧)
 var grid_cursed: Array = []    # [row][col] -> bool (呪いコマ・消すと反動ダメージ)
-var grid_poison: Array = []    # [row][col] -> bool (猛毒沼マス・毎ターン毒ダメージ・マッチや隣接で解毒)
+var grid_poison: Array = []    # [row][col] -> bool (猛毒沼マス・毎ターン毒ダメージ・マッチで解毒)
+var poison_spread_done_this_turn: bool = false # 毒の侵攻（伝染）が当ターンで反映済みかフラグ
 var grid_gold_statue: Array = [] # [row][col] -> int (黄金像スカコマ・耐久値 3)
 var active_wind_tornadoes: Array[Dictionary] = [] # [{"col": int, "y": float, "speed": float, "active": bool}]
 var enemy_skill_banner: RichTextLabel = null
@@ -891,6 +892,7 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 	current_state = BoardState.SWAPPING
 	last_swap_cells = [Vector2i(r1, c1), Vector2i(r2, c2)]
 	steady_spark_triggered_this_turn = false
+	poison_spread_done_this_turn = false
 
 	var idx1 = grid_i[r1][c1]
 	var idx2 = grid_i[r2][c2]
@@ -1375,6 +1377,7 @@ func _spawn_turn_bombs() -> void:
 ## クリックによる即時起爆（1手消費）
 func _detonate_special_by_click(r: int, c: int) -> void:
 	steady_spark_triggered_this_turn = false
+	poison_spread_done_this_turn = false
 	last_swap_cells.clear()
 	var sm = _get_stage_manager()
 	if sm and sm.isfevertime:
@@ -4177,6 +4180,11 @@ func _check_cascade() -> void:
 			var rm = _get_relic_manager()
 			if rm and rm.trigger_steady_state_relics(self):
 				return
+		# 盤面が安定したら直ちに毒の侵攻・伝染を盤面に反映（待機時間ゼロ化）
+		if not poison_spread_done_this_turn:
+			poison_spread_done_this_turn = true
+			_process_poison_spread()
+
 		# 盤面が安定したらターン演出へ
 		current_state = BoardState.TURN_SEQUENCE
 		endbreak = true
@@ -4343,7 +4351,7 @@ func _process(delta: float) -> void:
 	if _sword_hit_sound_timer > 0.0:
 		_sword_hit_sound_timer = maxf(0.0, _sword_hit_sound_timer - delta * spd)
 
-	_turn_sim_accumulator += spd
+	_turn_sim_accumulator += spd * minf(2.5, delta * 60.0)
 	var sim_steps: int = 0
 	while _turn_sim_accumulator >= 1.0 and sim_steps < 16:
 		_turn_sim_accumulator -= 1.0
@@ -4895,28 +4903,25 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		if interval == 4:
 			_execute_enemy_turn_actions(sm)
 			
-		elif interval == end_wait_fast:
-			if sm and not sm.isfevertime:
-				sm.fevertime()
-		elif interval > end_wait_fast:
+		elif interval > 4:
 			var is_anim = is_enemy_turn_in_progress or (_enemy_turn_tween != null and _enemy_turn_tween.is_valid()) or (sm and sm.is_enemy_animating())
-			if is_anim and interval < end_wait_fast + 240:
-				interval += 1
+			# アニメーションが完了したら直ちにターン終了（長大な無駄待機を完全カット）
+			if not is_anim or interval >= end_wait_fast + 30:
+				if sm and not sm.isfevertime and interval >= end_wait_fast:
+					sm.fevertime()
+				if is_anim and sm and sm.has_method("stop_enemy_animation"):
+					sm.stop_enemy_animation()
+				is_enemy_turn_in_progress = false
+				_reset_turn(sm, score_mgr)
+				current_state = BoardState.IDLE
 				return
-			
-			if is_anim and sm and sm.has_method("stop_enemy_animation"):
-				sm.stop_enemy_animation()
-			is_enemy_turn_in_progress = false
-			_reset_turn(sm, score_mgr)
-			current_state = BoardState.IDLE
-			return
 		interval += 1
 		return
 
 	# --- 行動が発生する場合の通常のタイムライン ---
-	# スコア欄ラベルの上下運動（放物線バウンド）演出 (36フレーム x 3回 = 108フレーム)
-	if interval <= 108:
-		if interval == 0 or interval == 36 or interval == 72:
+	# スコア欄ラベルの上下運動（放物線バウンド）演出 (36フレーム = 0.6秒でスピーディに完了)
+	if interval <= 36:
+		if interval == 0:
 			var anten = get_node_or_null("anten")
 			if anten: anten.play()
 
@@ -4939,8 +4944,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		# バウンド終了後および攻撃フェーズ中は、初期位置・通常スケール・白色に復帰固定
 		_restore_score_label_positions()
 
-	# 攻撃・防御・敵ターンのタイムライン（108フレームのバウンド終了後から開始）
-	var base_time: int = 108
+	# 攻撃・防御・敵ターンのタイムライン（36フレームのバウンド終了後から開始）
+	var base_time: int = 36
 
 	if interval == base_time + 1 and isattack:
 		_spawn_attack_projectiles(sm, score_mgr)
@@ -4954,7 +4959,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			current_state = BoardState.IDLE
 			return
 		# 攻撃発射物が全数着地済みなら、長すぎる144フレームの空き時間をスキップして速やかに次フェーズへ
-		if interval >= base_time + 10 and flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
+		if interval >= base_time + 8 and flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty():
 			interval = base_time + 144
 
 	elif interval == base_time + 1 + 144 * isattack and isblock:
@@ -4965,7 +4970,7 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 
 	elif interval < base_time + 1 + 144 * isattack + 128 * isblock:
 		# シールド展開が完了していれば、長すぎる空き時間をスキップして速やかに敵ターンへ
-		if interval > base_time + 35 + 144 * isattack and isblock:
+		if interval > base_time + 12 + 144 * isattack and isblock:
 			var all_arrived: bool = true
 			for it in active_shields:
 				if not it.get("has_arrived", false):
@@ -4979,26 +4984,22 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		has_enemy_attacked = false
 		has_enemy_skilled = false
 
-	elif interval == base_time + 13 + 144 * isattack + 128 * isblock:
+	elif interval == base_time + 8 + 144 * isattack + 128 * isblock:
 		_execute_enemy_turn_actions(sm)
 
-	elif interval == base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock:
-		if sm and not sm.isfevertime:
-			sm.fevertime()
-
-	elif interval > base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock:
-		var wait_threshold = base_time + 13 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock
+	elif interval > base_time + 8 + 144 * isattack + 128 * isblock:
+		var max_wait = base_time + 8 + _calc_enemy_turn_duration(sm, is_casting_skill_turn) + 144 * isattack + 128 * isblock
 		var is_anim = is_enemy_turn_in_progress or (_enemy_turn_tween != null and _enemy_turn_tween.is_valid()) or (sm and sm.is_enemy_animating())
-		if is_anim and interval < wait_threshold + 240:
-			interval += 1
+		# 敵アクション完了判定：アニメーション終了次第、待機ゼロで即座にターン終了
+		if not is_anim or interval >= max_wait + 30:
+			if sm and not sm.isfevertime and interval >= max_wait:
+				sm.fevertime()
+			if is_anim and sm and sm.has_method("stop_enemy_animation"):
+				sm.stop_enemy_animation()
+			is_enemy_turn_in_progress = false
+			_reset_turn(sm, score_mgr)
+			current_state = BoardState.IDLE
 			return
-		
-		if is_anim and sm and sm.has_method("stop_enemy_animation"):
-			sm.stop_enemy_animation()
-		is_enemy_turn_in_progress = false
-		_reset_turn(sm, score_mgr)
-		current_state = BoardState.IDLE
-		return
 
 	interval += 1
 
@@ -5256,8 +5257,8 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 				var atk_dur = sm.get_enemy_animation_duration(spr, "attack") if sm.has_method("get_enemy_animation_duration") else 0.5
 				total_seconds += maxf(atk_dur, 0.5) + 0.25
 			
-	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +60フレーム (1.0秒) を付加
-	return int(ceil(total_seconds * 60.0)) + 60
+	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +15フレーム を付加
+	return int(ceil(total_seconds * 60.0)) + 15
 
 ## 敵キャラクターの所持スキルから今回の発動スキル（単一または複数候補からランダム）を選出
 func _select_enemy_skill(e: Dictionary, sm: Node2D) -> String:
@@ -6987,7 +6988,9 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 
 	_spawn_turn_bombs()
 	_process_fire_spread()
-	_process_poison_spread()
+	if not poison_spread_done_this_turn:
+		_process_poison_spread()
+	poison_spread_done_this_turn = false
 	_redraw_board_effects()
 	var rm = _get_relic_manager()
 	if rm: rm.on_turn_start()

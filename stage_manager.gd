@@ -578,7 +578,7 @@ func _update_enemy_hover_tooltip(mpos: Vector2) -> void:
 	var sp_data = e.get("sp_data", {})
 	var ename = sp_data.get("name", e.get("key", "敵"))
 	var elem_raw = sp_data.get("element", sp_data.get("race", "無属性"))
-	var elem_str = "/".join(elem_raw) if typeof(elem_raw) == TYPE_ARRAY else elem_raw
+	var elem_str = get_enemy_elements_plain(sp_data)
 	var c_color = sp_data.get("color", "#FFFFFF")
 	
 	var is_boss_b = is_boss_monster()
@@ -650,6 +650,64 @@ func hide_enemy_hover_tooltip() -> void:
 		var rm_ui = _get_relic_ui_manager()
 		if rm_ui and rm_ui.has_method("hide_custom_tooltip"):
 			rm_ui.hide_custom_tooltip("enemy_hover")
+
+## 敵キャラクターの所持する全属性を取得（単一・複数スキル対応）
+func get_enemy_all_elements(sp_data: Dictionary) -> Array[String]:
+	var elems: Array[String] = []
+	if sp_data.has("skills") and typeof(sp_data["skills"]) == TYPE_ARRAY and not sp_data["skills"].is_empty():
+		for sk in sp_data["skills"]:
+			var sk_s = str(sk)
+			if not elems.has(sk_s):
+				elems.append(sk_s)
+	elif sp_data.has("elements") and typeof(sp_data["elements"]) == TYPE_ARRAY and not sp_data["elements"].is_empty():
+		for sk in sp_data["elements"]:
+			var sk_s = str(sk)
+			if not elems.has(sk_s):
+				elems.append(sk_s)
+
+	var base_el = sp_data.get("element", sp_data.get("race", ""))
+	if typeof(base_el) == TYPE_ARRAY:
+		for el in base_el:
+			var el_s = str(el)
+			if not elems.has(el_s):
+				elems.append(el_s)
+	elif not str(base_el).is_empty():
+		var base_s = str(base_el)
+		if not elems.has(base_s):
+			elems.insert(0, base_s)
+
+	if elems.is_empty():
+		elems.append("無属性")
+	return elems
+
+## 属性名に対応するカラーコードを取得
+func get_element_hex_color(elem_str: String) -> String:
+	match elem_str:
+		"火属性", "火": return "#FF3D00"
+		"水属性", "水": return "#00E5FF"
+		"氷属性", "氷": return "#80DEEA"
+		"風属性", "風": return "#64FFDA"
+		"木属性", "木": return "#76FF03"
+		"地属性", "地": return "#BCAAA4"
+		"雷属性", "雷": return "#FFD600"
+		"闇属性", "闇": return "#E040FB"
+		"光属性", "光": return "#FFF59D"
+		"毒属性", "毒": return "#AB47BC"
+		_: return "#FFFFFF"
+
+## 敵の属性表示用BBCode文字列（複数属性は各属性カラーでスラッシュ連結）
+func get_enemy_elements_bbcode(sp_data: Dictionary) -> String:
+	var elems = get_enemy_all_elements(sp_data)
+	var parts: Array[String] = []
+	for el in elems:
+		var col = get_element_hex_color(el)
+		parts.append("[color=" + col + "]" + el + "[/color]")
+	return "/".join(parts)
+
+## 敵の属性表示用プレーン文字列（ツールチップ等用）
+func get_enemy_elements_plain(sp_data: Dictionary) -> String:
+	var elems = get_enemy_all_elements(sp_data)
+	return " / ".join(elems)
 
 ## デバッグ用：ステージ5ボス（冥王デモニアス）との戦闘を即時開始
 func debug_start_stage5_boss() -> void:
@@ -937,13 +995,10 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			lbl.add_theme_font_size_override("bold_font_size", 16)
 			lbl.add_theme_constant_override("outline_size", 4)
 			lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
-			lbl.size = Vector2(240, 50)
-			lbl.position = bar_bg.position + Vector2(-70, -45)
-			var elem_raw = sp_data.get("element", sp_data.get("race", "無属性"))
-			var elem_str = "/".join(elem_raw) if typeof(elem_raw) == TYPE_ARRAY else elem_raw
-			var c_color = sp_data.get("color", "#FFFFFF")
+			lbl.size = Vector2(300, 50)
+			lbl.position = bar_bg.position + Vector2(-100, -45)
 			var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color]\n" if is_boss else ""
-			lbl.text = "[center]" + boss_tag + "[color=" + c_color + "]" + elem_str + "[/color] " + sp_data["name"] + "[/center]"
+			lbl.text = "[center]" + boss_tag + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
 			parent_node.add_child(lbl)
 			var hp_lbl = RichTextLabel.new()
 			hp_lbl.bbcode_enabled = true
@@ -1113,12 +1168,9 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	lbl.add_theme_font_size_override("bold_font_size", 16)
 	lbl.add_theme_constant_override("outline_size", 4)
 	lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
-	lbl.size = Vector2(240, 50)
-	lbl.position = bar_bg.position + Vector2(-70, -45)
-	var elem_raw = sp_data.get("element", sp_data.get("race", "無属性"))
-	var elem_str = "/".join(elem_raw) if typeof(elem_raw) == TYPE_ARRAY else elem_raw
-	var c_color = sp_data.get("color", "#FFFFFF")
-	lbl.text = "[center][color=" + c_color + "]" + elem_str + "[/color] " + sp_data["name"] + "[/center]"
+	lbl.size = Vector2(300, 50)
+	lbl.position = bar_bg.position + Vector2(-100, -45)
+	lbl.text = "[center]" + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
 	parent_node.add_child(lbl)
 
 	var hp_lbl = RichTextLabel.new()

@@ -24,7 +24,7 @@ func _ready() -> void:
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
 # 常時アニメーション（脈動・揺らめき）する障害物の再描画間隔（秒）。描画は時間ベースなのでアニメ速度は不変
-const ANIM_REDRAW_INTERVAL: float = 1.0 / 30.0
+const ANIM_REDRAW_INTERVAL: float = 1.0 / 24.0
 var _anim_redraw_elapsed: float = 0.0
 
 func _process(delta: float) -> void:
@@ -538,42 +538,67 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 
 
 
-## 毒属性の猛毒沼マス描画（深紫の毒溜まり・毒泡・毒ドクロマーク、水上は猛毒水・2倍速伝染表示）
+## 毒属性の猛毒沼マス描画（軽量・高パフォーマンス化：フォント処理完全排除、ベクター描画最適化）
 func _draw_poison_tile(r: int, c: int, pulse: float) -> void:
-	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
-	var center = rect.get_center()
-	var m = (CELL_PITCH - 20.0) / 2.0
+	var x = BOARD_LEFT + c * CELL_PITCH + 10.0
+	var y = BOARD_TOP + r * CELL_PITCH + 10.0
+	var w = CELL_PITCH - 20.0
+	var rect = Rect2(x, y, w, w)
+	var center = Vector2(x + w * 0.5, y + w * 0.5)
+	var m = w * 0.5
 
 	var is_wet: bool = ("grid_water" in board and board.grid_water.size() == GRID_ROWS and board.grid_water[r][c])
 
-	# 深紫の毒沼（水マスの場合は青紫の猛毒水たまり・半透明で下のコマを視認可能）
-	var bg_col = Color(0.20, 0.15, 0.70, 0.40 * pulse) if is_wet else Color(0.42, 0.05, 0.60, 0.32 * pulse)
-	var border_col = Color(0.35, 0.75, 1.0, 0.95) if is_wet else Color(0.78, 0.18, 0.96, 0.88)
+	# 深紫の毒沼（水マスの場合は青紫の猛毒水たまり・半透明で下のコマを鮮明に視認可能）
+	var bg_col = Color(0.18, 0.12, 0.65, 0.38 * pulse) if is_wet else Color(0.38, 0.05, 0.55, 0.30 * pulse)
+	var border_col = Color(0.35, 0.80, 1.0, 0.90) if is_wet else Color(0.75, 0.18, 0.95, 0.85)
 	draw_rect(rect, bg_col, true)
-	draw_rect(rect, border_col, false, 18.0 if is_wet else 16.0)
+	draw_rect(rect, border_col, false, 12.0)
 
-	# 毒の気泡エフェクト（脈動・浮遊、水上は青紫と泡が活発化）
-	var bubble_col1 = Color(0.30, 0.65, 1.0, 0.85) if is_wet else Color(0.68, 0.15, 0.90, 0.70)
-	var bubble_col2 = Color(0.80, 0.95, 1.0, 0.95) if is_wet else Color(0.92, 0.55, 1.0, 0.85)
-	for i in range(6 if is_wet else 5):
-		var p_x = center.x + sin(i * 1.5 + pulse * TAU) * (m * 0.45)
-		var p_y = center.y + cos(i * 2.1 - pulse * TAU) * (m * 0.45)
-		draw_circle(Vector2(p_x, p_y), (28.0 if is_wet else 24.0) + 8.0 * pulse, bubble_col1)
-		draw_circle(Vector2(p_x - 4, p_y - 4), 9.0 if is_wet else 8.0, bubble_col2)
+	# 毒の気泡エフェクト（計算と円描画を最小化して超軽量化）
+	var bubble_col1 = Color(0.30, 0.70, 1.0, 0.80) if is_wet else Color(0.68, 0.15, 0.90, 0.65)
+	var bubble_col2 = Color(0.85, 0.95, 1.0, 0.90) if is_wet else Color(0.92, 0.55, 1.0, 0.80)
+	var bx = center.x + sin(r * 2.3 + c * 1.7 + pulse * TAU) * (m * 0.38)
+	var by = center.y + cos(c * 2.1 - r * 1.5 - pulse * TAU) * (m * 0.38)
+	draw_circle(Vector2(bx, by), 20.0 + 4.0 * pulse, bubble_col1)
+	draw_circle(Vector2(bx - 3, by - 3), 7.0, bubble_col2)
 
-	# 毒のドクロ（☠）バッジ
-	var badge_bg = Color(0.08, 0.08, 0.28, 0.92) if is_wet else Color(0.16, 0.02, 0.22, 0.90)
-	var badge_arc = Color(0.40, 0.85, 1.0) if is_wet else Color(0.85, 0.25, 1.0)
-	var skull_col = Color(0.60, 0.95, 1.0) if is_wet else Color(0.96, 0.45, 1.0)
-	draw_circle(center, 90.0, badge_bg)
-	draw_arc(center, 90.0, 0.0, TAU, 28, badge_arc, 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 70, center.y + 50), "☠", HORIZONTAL_ALIGNMENT_CENTER, 140, 140, skull_col)
+	# 毒のシンボルマーク（ドクロと骨の軽量ベクター描画：draw_string不使用で負荷ゼロ）
+	var badge_bg = Color(0.08, 0.08, 0.28, 0.90) if is_wet else Color(0.15, 0.02, 0.20, 0.88)
+	var badge_arc = Color(0.40, 0.85, 1.0, 0.95) if is_wet else Color(0.85, 0.25, 1.0, 0.90)
+	var skull_col = Color(0.70, 0.95, 1.0) if is_wet else Color(0.95, 0.50, 1.0)
 
-	# 文字表示（水上は2倍伝染を明示）
+	# 中央バッジ台座
+	draw_circle(center, 65.0, badge_bg)
+	draw_circle(center, 65.0, badge_arc, false, 6.0)
+
+	# 交差する骨
+	var bone_len = 45.0
+	draw_line(center - Vector2(bone_len, bone_len), center + Vector2(bone_len, bone_len), skull_col, 8.0)
+	draw_line(center + Vector2(-bone_len, bone_len), center + Vector2(bone_len, -bone_len), skull_col, 8.0)
+
+	# ドクロ頭蓋骨
+	draw_circle(center + Vector2(0, -8), 26.0, skull_col)
+	# ドクロ顎
+	draw_rect(Rect2(center.x - 14, center.y + 6, 28, 16), skull_col, true)
+	# 目窩（背景色でくり抜き）
+	draw_circle(center + Vector2(-10, -5), 6.0, badge_bg)
+	draw_circle(center + Vector2(10, -5), 6.0, badge_bg)
+
+	# 水濡れマス（2倍速伝染）専用インジケータ：左上に「2x」水流紋章
 	if is_wet:
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【猛毒水】伝染2倍", HORIZONTAL_ALIGNMENT_CENTER, 400, 80, Color(0.40, 0.90, 1.0, 0.98))
-	else:
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【毒沼】", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.92, 0.50, 1.0))
+		var ind_pos = rect.position + Vector2(50, 50)
+		draw_circle(ind_pos, 28.0, Color(0.05, 0.45, 0.85, 0.90))
+		draw_circle(ind_pos, 28.0, Color(0.40, 0.90, 1.0, 0.95), false, 4.0)
+		# 2:
+		draw_line(ind_pos + Vector2(-12, -8), ind_pos + Vector2(0, -8), Color.WHITE, 4.0)
+		draw_line(ind_pos + Vector2(0, -8), ind_pos + Vector2(0, 0), Color.WHITE, 4.0)
+		draw_line(ind_pos + Vector2(0, 0), ind_pos + Vector2(-12, 0), Color.WHITE, 4.0)
+		draw_line(ind_pos + Vector2(-12, 0), ind_pos + Vector2(-12, 8), Color.WHITE, 4.0)
+		draw_line(ind_pos + Vector2(-12, 8), ind_pos + Vector2(0, 8), Color.WHITE, 4.0)
+		# x:
+		draw_line(ind_pos + Vector2(6, -4), ind_pos + Vector2(14, 6), Color(0.4, 0.95, 1.0), 3.5)
+		draw_line(ind_pos + Vector2(14, -4), ind_pos + Vector2(6, 6), Color(0.4, 0.95, 1.0), 3.5)
 
 
 
