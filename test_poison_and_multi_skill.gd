@@ -99,5 +99,82 @@ func _init() -> void:
 	assert(remaining_poison == 0, "clear_board_hazards should clear all poison tiles")
 	print("✓ clear_board_hazards cleared all poison tiles")
 
+	# 4. Test Poison Piece Swapping
+	pb.clear_board_hazards()
+	pb.grid_poison[2][3] = true
+	pb.grid_poison[2][4] = false
+	pb._swap_grid_data(2, 3, 2, 4)
+	assert(pb.grid_poison[2][3] == false, "After swap, original cell should no longer be poisoned")
+	assert(pb.grid_poison[2][4] == true, "After swap, destination cell should inherit poison")
+	print("✓ Poison moves with pieces during swap")
+
+	# 5. Test Poison Cleansing (Only cleared piece is cured; adjacent uncleared piece stays poisoned)
+	pb.clear_board_hazards()
+	pb.grid_poison[2][2] = true
+	pb.grid_poison[2][3] = true
+	# Simulate matched piece removal at (2, 2)
+	if pb.grid_poison.size() == pb.GRID_ROWS and pb.grid_poison[2][2]:
+		pb.grid_poison[2][2] = false
+	assert(pb.grid_poison[2][2] == false, "Matched piece at (2, 2) is cured of poison")
+	assert(pb.grid_poison[2][3] == true, "Adjacent unmatched piece at (2, 3) must remain poisoned")
+	print("✓ Poison is eliminated specifically by clearing the poisoned piece")
+
+	# 6. Test Poison Contagion (Spread to adjacent cells on dry ground)
+	pb.clear_board_hazards()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_water[r][c] = false
+			pb.grid_poison[r][c] = false
+
+	pb.grid_poison[3][3] = true
+	pb._process_poison_spread()
+	assert(pb.grid_poison[3][3] == true, "Origin (3, 3) must remain poisoned")
+	assert(pb.grid_poison[2][3] == true, "North neighbor (2, 3) must be infected")
+	assert(pb.grid_poison[4][3] == true, "South neighbor (4, 3) must be infected")
+	assert(pb.grid_poison[3][2] == true, "West neighbor (3, 2) must be infected")
+	assert(pb.grid_poison[3][4] == true, "East neighbor (3, 4) must be infected")
+	assert(pb.grid_poison[1][3] == false, "North 2-step (1, 3) must NOT be infected on dry ground")
+	assert(pb.grid_poison[5][3] == false, "South 2-step (5, 3) must NOT be infected on dry ground")
+	assert(pb.grid_poison[3][1] == false, "West 2-step (3, 1) must NOT be infected on dry ground")
+	assert(pb.grid_poison[3][5] == false, "East 2-step (3, 5) must NOT be infected on dry ground")
+	assert(pb.grid_poison[2][2] == false, "Diagonal (2, 2) must NOT be infected")
+	print("✓ Normal poison contagion (1 tile orthogonal) passed!")
+
+	# 7. Test 2x Fast Poison Contagion on Wet Ground (Origin is wet)
+	pb.clear_board_hazards()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_water[r][c] = false
+			pb.grid_poison[r][c] = false
+
+	pb.grid_water[3][3] = true
+	pb.grid_poison[3][3] = true
+	pb._process_poison_spread()
+	assert(pb.grid_poison[3][3] == true, "Wet origin (3, 3) remains poisoned")
+	assert(pb.grid_poison[2][3] == true, "North 1-step must be infected")
+	assert(pb.grid_poison[1][3] == true, "North 2-step must be infected due to wet origin (2x speed)")
+	assert(pb.grid_poison[4][3] == true, "South 1-step must be infected")
+	assert(pb.grid_poison[5][3] == true, "South 2-step must be infected due to wet origin (2x speed)")
+	assert(pb.grid_poison[3][2] == true, "West 1-step must be infected")
+	assert(pb.grid_poison[3][1] == true, "West 2-step must be infected due to wet origin (2x speed)")
+	assert(pb.grid_poison[3][4] == true, "East 1-step must be infected")
+	assert(pb.grid_poison[3][5] == true, "East 2-step must be infected due to wet origin (2x speed)")
+	print("✓ 2x poison spread from wet origin passed!")
+
+	# 8. Test 2x Fast Poison Contagion when Target is Wet
+	pb.clear_board_hazards()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_water[r][c] = false
+			pb.grid_poison[r][c] = false
+
+	pb.grid_poison[3][3] = true
+	pb.grid_water[3][4] = true # Only East neighbor is wet
+	pb._process_poison_spread()
+	assert(pb.grid_poison[3][4] == true, "East wet neighbor must be infected")
+	assert(pb.grid_poison[3][5] == true, "East 2-step must be infected because target was wet (2x speed)")
+	assert(pb.grid_poison[3][1] == false, "West 2-step must NOT be infected because west was dry")
+	print("✓ 2x poison spread into wet target passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

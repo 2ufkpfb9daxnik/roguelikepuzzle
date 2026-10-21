@@ -125,12 +125,6 @@ func _draw() -> void:
 				if board.grid_cursed[r][c]:
 					_draw_cursed_tile(r, c, pulse)
 
-	if "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
-		for r in range(GRID_ROWS):
-			for c in range(GRID_COLS):
-				if board.grid_poison[r][c]:
-					_draw_poison_tile(r, c, pulse)
-
 	# 6. 植物エンティティ（苗木・若木・3x3大木: 盤面手前 z_index=8）
 	if "plant_entities" in board and not board.plant_entities.is_empty():
 		for plant in board.plant_entities:
@@ -144,6 +138,13 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				if board.grid_water[r][c]:
 					_draw_water_tile(r, c, water_pulse)
+
+	# 猛毒マス（水マスの手前に重ねて描画・水上では猛毒水として2倍伝染表示）
+	if "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLS):
+				if board.grid_poison[r][c]:
+					_draw_poison_tile(r, c, pulse)
 	if "grid_fog" in board and not board.grid_fog.is_empty():
 		for fog in board.grid_fog:
 			_draw_black_fog(fog, pulse, now)
@@ -537,31 +538,42 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 
 
 
-## 毒属性の猛毒沼マス描画（深紫の毒溜まり・毒泡・毒ドクロマーク）
+## 毒属性の猛毒沼マス描画（深紫の毒溜まり・毒泡・毒ドクロマーク、水上は猛毒水・2倍速伝染表示）
 func _draw_poison_tile(r: int, c: int, pulse: float) -> void:
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
 	var m = (CELL_PITCH - 20.0) / 2.0
 
-	# 深紫の毒沼（半透明で下のコマを視認可能）
-	var bg_col = Color(0.42, 0.05, 0.60, 0.32 * pulse)
-	draw_rect(rect, bg_col, true)
-	draw_rect(rect, Color(0.78, 0.18, 0.96, 0.88), false, 16.0)
+	var is_wet: bool = ("grid_water" in board and board.grid_water.size() == GRID_ROWS and board.grid_water[r][c])
 
-	# 毒の気泡エフェクト（脈動・浮遊）
-	for i in range(5):
+	# 深紫の毒沼（水マスの場合は青紫の猛毒水たまり・半透明で下のコマを視認可能）
+	var bg_col = Color(0.20, 0.15, 0.70, 0.40 * pulse) if is_wet else Color(0.42, 0.05, 0.60, 0.32 * pulse)
+	var border_col = Color(0.35, 0.75, 1.0, 0.95) if is_wet else Color(0.78, 0.18, 0.96, 0.88)
+	draw_rect(rect, bg_col, true)
+	draw_rect(rect, border_col, false, 18.0 if is_wet else 16.0)
+
+	# 毒の気泡エフェクト（脈動・浮遊、水上は青紫と泡が活発化）
+	var bubble_col1 = Color(0.30, 0.65, 1.0, 0.85) if is_wet else Color(0.68, 0.15, 0.90, 0.70)
+	var bubble_col2 = Color(0.80, 0.95, 1.0, 0.95) if is_wet else Color(0.92, 0.55, 1.0, 0.85)
+	for i in range(6 if is_wet else 5):
 		var p_x = center.x + sin(i * 1.5 + pulse * TAU) * (m * 0.45)
 		var p_y = center.y + cos(i * 2.1 - pulse * TAU) * (m * 0.45)
-		draw_circle(Vector2(p_x, p_y), 24.0 + 8.0 * pulse, Color(0.68, 0.15, 0.90, 0.70))
-		draw_circle(Vector2(p_x - 4, p_y - 4), 8.0, Color(0.92, 0.55, 1.0, 0.85))
+		draw_circle(Vector2(p_x, p_y), (28.0 if is_wet else 24.0) + 8.0 * pulse, bubble_col1)
+		draw_circle(Vector2(p_x - 4, p_y - 4), 9.0 if is_wet else 8.0, bubble_col2)
 
 	# 毒のドクロ（☠）バッジ
-	draw_circle(center, 90.0, Color(0.16, 0.02, 0.22, 0.90))
-	draw_arc(center, 90.0, 0.0, TAU, 28, Color(0.85, 0.25, 1.0), 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 70, center.y + 50), "☠", HORIZONTAL_ALIGNMENT_CENTER, 140, 140, Color(0.96, 0.45, 1.0))
+	var badge_bg = Color(0.08, 0.08, 0.28, 0.92) if is_wet else Color(0.16, 0.02, 0.22, 0.90)
+	var badge_arc = Color(0.40, 0.85, 1.0) if is_wet else Color(0.85, 0.25, 1.0)
+	var skull_col = Color(0.60, 0.95, 1.0) if is_wet else Color(0.96, 0.45, 1.0)
+	draw_circle(center, 90.0, badge_bg)
+	draw_arc(center, 90.0, 0.0, TAU, 28, badge_arc, 10.0)
+	draw_string(CUSTOM_FONT, Vector2(center.x - 70, center.y + 50), "☠", HORIZONTAL_ALIGNMENT_CENTER, 140, 140, skull_col)
 
-	# 「【毒沼】」文字
-	draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【毒沼】", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.92, 0.50, 1.0))
+	# 文字表示（水上は2倍伝染を明示）
+	if is_wet:
+		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【猛毒水】伝染2倍", HORIZONTAL_ALIGNMENT_CENTER, 400, 80, Color(0.40, 0.90, 1.0, 0.98))
+	else:
+		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "【毒沼】", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.92, 0.50, 1.0))
 
 
 

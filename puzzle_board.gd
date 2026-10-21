@@ -1008,6 +1008,11 @@ func _swap_grid_data(r1: int, c1: int, r2: int, c2: int) -> void:
 		grid_cursed[r1][c1] = grid_cursed[r2][c2]
 		grid_cursed[r2][c2] = tmp_cu
 
+	if grid_poison.size() == GRID_ROWS:
+		var tmp_po = grid_poison[r1][c1]
+		grid_poison[r1][c1] = grid_poison[r2][c2]
+		grid_poison[r2][c2] = tmp_po
+
 	if tmp_i >= 0 and tmp_i < piececollid.size() and piececollid[tmp_i]:
 		piececollid[tmp_i].position = get_cell_position(r2, c2)
 	var other_i = grid_i[r1][c1]
@@ -3700,9 +3705,6 @@ func _start_breaking_animation() -> void:
 				if grid_cursed.size() == GRID_ROWS and grid_cursed[ar][ac]:
 					grid_cursed[ar][ac] = false
 					_spawn_floating_text(get_cell_position(ar, ac), "✨ 呪い浄化！", Color(0.5, 1.0, 0.6))
-				if grid_poison.size() == GRID_ROWS and grid_poison[ar][ac]:
-					grid_poison[ar][ac] = false
-					_spawn_floating_text(get_cell_position(ar, ac), "✨ 解毒！", Color(0.65, 1.0, 0.75))
 
 		# 黒い霧内のマッチによる霧晴れ判定
 		var f_idx = grid_fog.size() - 1
@@ -3803,6 +3805,8 @@ func _start_breaking_animation() -> void:
 			grid_electrified[cell.x][cell.y] = false
 		if grid_cursed.size() == GRID_ROWS:
 			grid_cursed[cell.x][cell.y] = false
+		if grid_poison.size() == GRID_ROWS:
+			grid_poison[cell.x][cell.y] = false
 
 	pending_special_spawns.clear()
 	_redraw_board_effects()
@@ -3880,6 +3884,7 @@ func _start_continuous_falling() -> void:
 			var is_gold_statue: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0)
 			var is_electrified: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c])
 			var is_cursed: bool = (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c])
+			var is_poison: bool = (grid_poison.size() == GRID_ROWS and grid_poison[r][c])
 
 			var is_locked: bool = (is_water and p_idx != -1) or (is_ice and p_idx != -1)
 			var is_obstacle: bool = is_tree or is_stone or is_gold_statue
@@ -3897,6 +3902,7 @@ func _start_continuous_falling() -> void:
 				"is_obstacle": is_obstacle,
 				"is_electrified": is_electrified,
 				"is_cursed": is_cursed,
+				"is_poison": is_poison,
 				"is_tree": is_tree,
 				"is_new": false,
 				"horizontal_moved": false,
@@ -4058,6 +4064,7 @@ func _start_continuous_falling() -> void:
 				if special_charge.size() == GRID_ROWS: special_charge[r][c] = 0
 				if grid_electrified.size() == GRID_ROWS: grid_electrified[r][c] = false
 				if grid_cursed.size() == GRID_ROWS: grid_cursed[r][c] = false
+				if grid_poison.size() == GRID_ROWS: grid_poison[r][c] = false
 				continue
 
 			var p_idx: int = final_cell.p_idx
@@ -4075,6 +4082,8 @@ func _start_continuous_falling() -> void:
 				grid_electrified[r][c] = final_cell.get("is_electrified", false)
 			if grid_cursed.size() == GRID_ROWS:
 				grid_cursed[r][c] = final_cell.get("is_cursed", false)
+			if grid_poison.size() == GRID_ROWS:
+				grid_poison[r][c] = final_cell.get("is_poison", false)
 
 
 			if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
@@ -6151,6 +6160,8 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 				grid_ice[r][col] = 0
 			if grid_cursed.size() == GRID_ROWS:
 				grid_cursed[r][col] = false
+			if grid_poison.size() == GRID_ROWS:
+				grid_poison[r][col] = false
 			if grid_electrified.size() == GRID_ROWS:
 				grid_electrified[r][col] = false
 			if grid_gold_statue.size() == GRID_ROWS:
@@ -6469,7 +6480,7 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 func _cast_enemy_poison_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "猛毒瘴気・デッドリーヴェノム" if is_boss else "ポイズンバースト"
-	var s_desc = "【毒沼】盤面に猛毒沼を生成！ターン終了時に継続猛毒ダメージ！"
+	var s_desc = "【猛毒】盤面に猛毒を放つ！毎ターン隣接マスへ伝染（水マスは2倍速で伝染）！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#AB47BC", is_boss, s_desc)
 	var st_idx = _get_stage_index()
 	var count = randi_range(5 + st_idx, 6 + st_idx) if is_boss else randi_range(2 + int(st_idx * 0.5), 3 + int(st_idx * 0.5))
@@ -6592,6 +6603,93 @@ func _process_fire_spread() -> void:
 						_spawn_explosion_effect(get_cell_position(nr, nc))
 
 	grid_fire = next_fire
+	_redraw_board_effects()
+
+## 毒の毎ターン伝染処理（隣接マスへの伝染、水にぬれたマスは2倍速く伝染）
+func _process_poison_spread() -> void:
+	if grid_poison.size() != GRID_ROWS:
+		return
+
+	var has_poison = false
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_poison[r][c]:
+				has_poison = true
+				break
+		if has_poison: break
+
+	if not has_poison:
+		return
+
+	var next_poison: Array = []
+	for r in range(GRID_ROWS):
+		var row: Array[bool] = []
+		for c in range(GRID_COLUMNS):
+			row.append(grid_poison[r][c])
+		next_poison.append(row)
+
+	var newly_infected: Array[Vector2i] = []
+	var water_spread_occurred: bool = false
+
+	# 既存の毒マスから隣接マスへ伝染
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if not grid_poison[r][c]:
+				continue
+
+			var is_src_wet: bool = (grid_water.size() == GRID_ROWS and grid_water[r][c])
+
+			for offset in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+				var nr = r + offset.x
+				var nc = c + offset.y
+				if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
+					continue
+				if _is_plant_cell(nr, nc) or grid_i[nr][nc] == -1:
+					continue
+
+				# 1段階目の隣接マス伝染
+				var is_tgt_wet: bool = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
+				if not next_poison[nr][nc]:
+					next_poison[nr][nc] = true
+					newly_infected.append(Vector2i(nr, nc))
+
+				# 「水にぬれたマスは2倍速く伝染する」
+				# 伝染元が水マス、または伝染先が水マスの場合、2倍の速度（2マス先まで）で伝染！
+				if is_src_wet or is_tgt_wet:
+					water_spread_occurred = true
+					# 同方向の2マス先へ伝染
+					var nr2 = r + offset.x * 2
+					var nc2 = c + offset.y * 2
+					if nr2 >= 0 and nr2 < GRID_ROWS and nc2 >= 0 and nc2 < GRID_COLUMNS:
+						if not _is_plant_cell(nr2, nc2) and grid_i[nr2][nc2] != -1:
+							if not next_poison[nr2][nc2]:
+								next_poison[nr2][nc2] = true
+								newly_infected.append(Vector2i(nr2, nc2))
+
+					# 水マス(nr, nc)からの周囲伝染加速
+					if is_tgt_wet:
+						for offset2 in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+							var nnr = nr + offset2.x
+							var nnc = nc + offset2.y
+							if nnr >= 0 and nnr < GRID_ROWS and nnc >= 0 and nnc < GRID_COLUMNS:
+								if not _is_plant_cell(nnr, nnc) and grid_i[nnr][nnc] != -1:
+									if not next_poison[nnr][nnc]:
+										next_poison[nnr][nnc] = true
+										newly_infected.append(Vector2i(nnr, nnc))
+
+	grid_poison = next_poison
+
+	# 伝染時の演出
+	if not newly_infected.is_empty():
+		for p in newly_infected.slice(0, 3):
+			_spawn_poison_bubble_burst_effect(get_cell_position(p.x, p.y))
+
+		var first_pos = get_cell_position(newly_infected[0].x, newly_infected[0].y)
+		if water_spread_occurred:
+			_spawn_floating_text(first_pos, "💧 猛毒水流伝染！(2倍速)", Color(0.40, 0.90, 1.0))
+		else:
+			_spawn_floating_text(first_pos, "☠ 猛毒伝染！", Color(0.85, 0.35, 0.95))
+
 	_redraw_board_effects()
 
 ## ジグルフィードバック演出（操作不可・拒否時の揺れ演出）
@@ -6889,6 +6987,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 
 	_spawn_turn_bombs()
 	_process_fire_spread()
+	_process_poison_spread()
 	_redraw_board_effects()
 	var rm = _get_relic_manager()
 	if rm: rm.on_turn_start()
@@ -7374,8 +7473,13 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 			title = "[b][color=#AA00FF]☠️ 呪いのコマ[/color][/b]"
 			desc = "[font_size=19][color=#FF5252]【消去時反動ダメージ】[/color] このコマを直接揃えて消去すると、呪詛反動ダメージを受けます！\n[color=#69F0AE]【安全な浄化方法】[/color] 隣接マスで他のコマを揃えてマッチさせると、反動を受けずに安全に浄化（消去）できます。[/font_size]"
 		elif grid_poison.size() == GRID_ROWS and grid_poison[r][c]:
-			title = "[b][color=#AB47BC]☠️ 猛毒沼マス[/color][/b]"
-			desc = "[font_size=19][color=#FF5252]【毎ターン猛毒ダメージ】[/color] ターン終了時に猛毒沼から継続毒ダメージを受けます！\n[color=#69F0AE]【解毒方法】[/color] このマスでコマを揃えるか、隣接マスでマッチさせると毒沼を浄化・解毒できます。[/font_size]"
+			var is_wet = (grid_water.size() == GRID_ROWS and grid_water[r][c])
+			if is_wet:
+				title = "[b][color=#AB47BC]☠️ 猛毒水たまり (伝染速度2倍！)[/color][/b]"
+				desc = "[font_size=19][color=#FF5252]【猛毒・拡散加速】[/color] 水に濡れているため、毎ターン2倍の速さ（2マス先まで）で周囲へ毒が伝染します！\n[color=#69F0AE]【解毒方法】[/color] この毒に侵されたコマをマッチ等で消去すると解毒できます。[/font_size]"
+			else:
+				title = "[b][color=#AB47BC]☠️ 猛毒沼マス (毎ターン伝染！)[/color][/b]"
+				desc = "[font_size=19][color=#FF5252]【毎ターン毒伝染＆毒ダメージ】[/color] 毎ターン隣接マスへ毒が伝染します！水に濡れたマスは2倍速く伝染します。\n[color=#69F0AE]【解毒方法】[/color] この毒に侵されたコマをマッチ等で消去すると解毒できます。[/font_size]"
 		elif grid_element.size() == GRID_ROWS and grid_element[r][c] != ElementDataScript.Element.NONE:
 			var el = grid_element[r][c]
 			var el_name_jp = ""

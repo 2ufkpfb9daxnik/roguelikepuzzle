@@ -608,7 +608,7 @@ func _update_enemy_hover_tooltip(mpos: Vector2) -> void:
 	for sk in skills_list:
 		var sk_str = str(sk)
 		match sk_str:
-			"毒属性": skill_descs.append("[color=#AB47BC]毒属性[/color]: 盤面に猛毒沼を生成（毎ターン猛毒ダメージ / マッチで解毒）")
+			"毒属性": skill_descs.append("[color=#AB47BC]毒属性[/color]: 盤面に猛毒を放つ（毎ターン隣接マスへ伝染 / 水で2倍速伝染 / マッチで解毒）")
 			"水属性": skill_descs.append("[color=#00E5FF]水属性[/color]: 水たまりマスを生成して盤面を浸水させる")
 			"氷属性": skill_descs.append("[color=#80DEEA]氷属性[/color]: コマを凍結させてスワップ移動を封じる")
 			"風属性": skill_descs.append("[color=#64FFDA]風属性[/color]: 竜巻を発生させて列のコマを一掃・シャッフル")
