@@ -5258,6 +5258,49 @@ func _calc_enemy_turn_duration(sm: Node2D, is_skill_turn: bool) -> int:
 	# 秒数からフレーム数(60fps)に換算し、全体の余韻マージンとして +15フレーム を付加
 	return int(ceil(total_seconds * 60.0)) + 15
 
+## 敵がステージ1〜4のボス（確定スキル発動・複数スキル全発動対象）であるかを判定
+func _is_stage_1_to_4_boss(sm: Node2D, e: Dictionary) -> bool:
+	if sm == null: return false
+	if _is_5th_boss_enemy(sm, e): return false
+	
+	var is_boss: bool = false
+	if sm.has_method("is_boss_monster"):
+		is_boss = sm.is_boss_monster()
+	elif "is_current_boss" in sm:
+		is_boss = sm.is_current_boss
+	elif "is_boss" in e:
+		is_boss = e.get("is_boss", false)
+	
+	if not is_boss:
+		return false
+	
+	var stage_num: int = sm.stage if ("stage" in sm) else 1
+	return stage_num >= 1 and stage_num <= 4
+
+## 敵キャラクターの所持する全スキル（属性名）リストを取得
+func _get_enemy_all_skills(e: Dictionary, sm: Node2D) -> Array[String]:
+	var key = e.get("key", "slime")
+	var sp_data = e.get("sp_data", {})
+	if sp_data.is_empty() and sm and "ENEMY_SPECIES" in sm:
+		sp_data = sm.ENEMY_SPECIES.get(key, {})
+	
+	var skills_pool: Array = []
+	if sp_data.has("skills") and typeof(sp_data["skills"]) == TYPE_ARRAY and not sp_data["skills"].is_empty():
+		skills_pool = sp_data["skills"]
+	elif sp_data.has("elements") and typeof(sp_data["elements"]) == TYPE_ARRAY and not sp_data["elements"].is_empty():
+		skills_pool = sp_data["elements"]
+	elif typeof(sp_data.get("element")) == TYPE_ARRAY:
+		skills_pool = sp_data.get("element")
+	
+	var result: Array[String] = []
+	if not skills_pool.is_empty():
+		for sk in skills_pool:
+			result.append(str(sk))
+	else:
+		var elem = str(sp_data.get("element", sp_data.get("race", "無属性")))
+		result.append(elem)
+	return result
+
 ## 敵キャラクターの所持スキルから今回の発動スキル（単一または複数候補からランダム）を選出
 func _select_enemy_skill(e: Dictionary, sm: Node2D) -> String:
 	var key = e.get("key", "slime")
@@ -5304,6 +5347,16 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 					if chosen_action == "skill":
 						chosen_skill = _select_enemy_skill(e, sm)
 					_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": chosen_action, "chosen_skill": chosen_skill})
+			elif _is_stage_1_to_4_boss(sm, e):
+				# 1〜4のボス：各ターンスキルを発動し、複数のスキルを持っている場合はすべてのスキルを発動する
+				var all_skills = _get_enemy_all_skills(e, sm)
+				has_skill = true
+				if all_skills.size() > 1:
+					for sk in all_skills:
+						_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": "skill", "chosen_skill": sk})
+				else:
+					var chosen_skill = all_skills[0] if not all_skills.is_empty() else _select_enemy_skill(e, sm)
+					_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": "skill", "chosen_skill": chosen_skill})
 			else:
 				var is_boss = false
 				if sm.has_method("is_boss_monster"): is_boss = sm.is_boss_monster()
@@ -5945,6 +5998,11 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	var custom_font = preload("res://font/g_comickoin_freeR.ttf")
 	var p = get_parent()
 	var target_parent = p if p != null else self
+
+	# 既存のスキルバナーがあれば直ちに破棄（複数スキル連続発動時に重ならないようにする）
+	for child in target_parent.get_children():
+		if child is Control and child.name.begins_with("EnemySkillBanner"):
+			child.queue_free()
 
 	# スタイル付きバナーパネル
 	var panel = Panel.new()

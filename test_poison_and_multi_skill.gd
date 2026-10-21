@@ -231,5 +231,40 @@ func _init() -> void:
 	assert(pb.has_animated_board_hazards == false, "Poison must NOT trigger has_animated_board_hazards continuous redraw loop")
 	print("✓ Hardware-accelerated poison texture batching & static redraw optimization passed!")
 
+	# 12. Test Stage 1 Spawn Count Strictly 1
+	sm_node.stage = 1
+	for se in range(1, 6):
+		sm_node.stage_enemy = se
+		sm_node.enemycount = 0
+		sm_node.active_enemies.clear()
+		sm_node.make_enemy(se == 5)
+		assert(sm_node.active_enemies.size() == 1, "Stage 1 battle %d must spawn exactly 1 enemy (got %d)" % [se, sm_node.active_enemies.size()])
+		assert(sm_node.initial_spawn_count == 1, "Stage 1 initial_spawn_count must be 1")
+	print("✓ Stage 1 spawn count strictly 1 for all battles passed!")
+
+	# 13. Test Stage 1-4 Boss Activates All Skills When Having Multiple Skills
+	# Test with Stage 3 Boss (Grandragon: Fire + Wind)
+	sm_node.stage = 3
+	sm_node.stage_enemy = 5
+	sm_node.is_current_boss = true
+	var grandragon_data = sm_node.ENEMY_SPECIES["enemy11"]
+	var dummy_boss_sprite = Sprite2D.new()
+	sm_node.active_enemies = [{
+		"key": "enemy11",
+		"name": "グランドラゴン",
+		"sprite": dummy_boss_sprite,
+		"hp": 30000.0,
+		"max_hp": 30000.0,
+		"atk": 1500.0,
+		"sp_data": grandragon_data
+	}]
+	var has_skill_boss = pb._decide_enemy_actions(sm_node)
+	assert(has_skill_boss == true, "Stage 3 boss with multiple skills must activate skills")
+	assert(pb._enemy_turn_actions.size() == 2, "Stage 3 boss with 2 skills must queue exactly 2 actions (got %d)" % pb._enemy_turn_actions.size())
+	assert(pb._enemy_turn_actions[0]["action"] == "skill" and pb._enemy_turn_actions[1]["action"] == "skill", "Both actions must be 'skill'")
+	var queued_skills = [pb._enemy_turn_actions[0]["chosen_skill"], pb._enemy_turn_actions[1]["chosen_skill"]]
+	assert("火属性" in queued_skills and "風属性" in queued_skills, "Queued skills must contain both 火属性 and 風属性")
+	print("✓ Stage 1-4 Boss all-skills activation passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

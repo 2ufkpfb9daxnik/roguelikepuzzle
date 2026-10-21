@@ -628,11 +628,12 @@ func _update_enemy_hover_tooltip(mpos: Vector2) -> void:
 	elif is_boss_b:
 		title = "[b][color=#FF1744]☠ BOSS ☠[/color] [color=%s]%s[/color] (属性: %s)%s[/b]" % [c_color, ename, elem_str, multi_tag]
 		var skills_block = ""
+		var boss_trait = "【毎ターン全属性スキル連続発動】" if skills_list.size() > 1 else "【ステージボス】"
 		if skills_list.size() > 1:
-			skills_block = "・[b][color=#FFD54F]発動スキル（状況に応じて使い分け）:[/color][/b]\n  ・" + "\n  ・".join(skill_descs)
+			skills_block = "・[b][color=#FFD54F]発動スキル（毎ターン全スキルを連続発動！）:[/color][/b]\n  ・" + "\n  ・".join(skill_descs)
 		else:
 			skills_block = "・[b]スキル特徴:[/b] " + (skill_descs[0] if not skill_descs.is_empty() else "属性スキルを発動")
-		desc = "[font_size=19][color=#FFD700]【ステージボス】[/color]\n強力な属性スキルを確定発動してプレイヤーを阻む難敵！\n%s\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [skills_block, cur_hp, max_hp, cur_atk]
+		desc = "[font_size=19][color=#FFD700]%s[/color]\n強力な属性スキルを確定発動してプレイヤーを阻む難敵！\n%s\n\n[b]HP:[/b] %d / %d\n[b]攻撃力(ATK):[/b] %d[/font_size]" % [boss_trait, skills_block, cur_hp, max_hp, cur_atk]
 	else:
 		title = "[b][color=%s]%s[/color] (属性: %s)%s[/b]" % [c_color, ename, elem_str, multi_tag]
 		var skills_block = ""
@@ -905,7 +906,8 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	ehp = 0.0
 	ehpmax = 0.0
 	enemyat = 0.0
-	initial_spawn_count = 1 if is_boss else randi_range(1, 3)
+	# ステージ1は戦闘ごとの出現数を厳格に1体に制限、ステージ2以降は通常1〜3体・ボス戦1体
+	initial_spawn_count = 1 if (is_boss or stage <= 1) else randi_range(1, 3)
 	var pb = _get_puzzle_board()
 	var first_color_set = false
 	var stage_mult: float = pow(10.0, max(0, stage - 1))
