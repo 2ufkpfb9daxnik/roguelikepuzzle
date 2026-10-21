@@ -176,19 +176,29 @@ func _init() -> void:
 	assert(pb.grid_poison[3][1] == false, "West 2-step must NOT be infected because west was dry")
 	print("✓ 2x poison spread into wet target passed!")
 
-	# 9. Test Multi-Element Display on Enemies
+	# 9. Test Multi-Element Compact Display on Enemies (No redundant "属性", single-bracket badge)
+	var e1_data = species["enemy1"]
+	var e1_plain = sm_node.get_enemy_elements_plain(e1_data)
+	assert(e1_plain == "闇", "Single element plain text must be short kanji: " + e1_plain)
+	var e1_bbcode = sm_node.get_enemy_elements_bbcode(e1_data)
+	assert(e1_bbcode == "[color=#E040FB]【闇】[/color]", "Single element BBCode must be colored badge: " + e1_bbcode)
+
 	var e3_data = species["enemy3"]
 	var e3_plain = sm_node.get_enemy_elements_plain(e3_data)
-	assert("毒属性" in e3_plain and "水属性" in e3_plain, "Poison Toad must display both poison and water attributes in plain string")
+	assert("毒" in e3_plain and "水" in e3_plain, "Poison Toad must display both poison and water attributes in plain string")
 	var e3_bbcode = sm_node.get_enemy_elements_bbcode(e3_data)
 	assert("#AB47BC" in e3_bbcode and "#00E5FF" in e3_bbcode, "Poison Toad BBCode must color poison and water properly")
-	
+	assert("【" in e3_bbcode and "】" in e3_bbcode and "/" in e3_bbcode, "Poison Toad BBCode must be formatted as compact slash badge")
+	assert(not "属性" in e3_bbcode, "Enemy element badge must NOT contain redundant '属性' keyword")
+
 	var e18_data = species["enemy18"]
 	var e18_plain = sm_node.get_enemy_elements_plain(e18_data)
-	assert("闇属性" in e18_plain and "毒属性" in e18_plain and "火属性" in e18_plain, "Demonius must display all 3 elements in plain string")
+	assert("闇" in e18_plain and "毒" in e18_plain and "火" in e18_plain, "Demonius must display all 3 elements in plain string")
 	var e18_bbcode = sm_node.get_enemy_elements_bbcode(e18_data)
 	assert("#E040FB" in e18_bbcode and "#AB47BC" in e18_bbcode and "#FF3D00" in e18_bbcode, "Demonius BBCode must contain colors for all 3 elements")
-	print("✓ Multi-element display for enemies passed!")
+	assert("【" in e18_bbcode and "】" in e18_bbcode, "Demonius BBCode must be formatted as compact slash badge")
+	assert(not "属性" in e18_bbcode, "Enemy element badge must NOT contain redundant '属性' keyword")
+	print("✓ Compact multi-element display for enemies passed!")
 
 	# 10. Test Poison Spread Immediately Upon Steady State (Zero Wait Time)
 	pb.clear_board_hazards()

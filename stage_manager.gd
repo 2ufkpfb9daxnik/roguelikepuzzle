@@ -680,6 +680,11 @@ func get_enemy_all_elements(sp_data: Dictionary) -> Array[String]:
 		elems.append("無属性")
 	return elems
 
+## 属性文字列から「属性」サフィックスを除去して短縮名（火, 水, 毒, etc.）を取得
+func get_enemy_short_element(elem_str: String) -> String:
+	var s = elem_str.trim_suffix("属性")
+	return s if not s.is_empty() else elem_str
+
 ## 属性名に対応するカラーコードを取得
 func get_element_hex_color(elem_str: String) -> String:
 	match elem_str:
@@ -695,19 +700,37 @@ func get_element_hex_color(elem_str: String) -> String:
 		"毒属性", "毒": return "#AB47BC"
 		_: return "#FFFFFF"
 
-## 敵の属性表示用BBCode文字列（複数属性は各属性カラーでスラッシュ連結）
+## 敵の属性表示用BBCode文字列
+## - 単一属性: 【火】、【風】のように属性色で鮮明に発光する角括弧バッジ
+## - 複数属性: 【毒/水】、【闇/毒/火】のように1つの角括弧内で各属性色を保持したコンパクトバッジ
+##   （「属性」の重複文字を排除し、複数所持時も絶対にUI枠からはみ出さない）
 func get_enemy_elements_bbcode(sp_data: Dictionary) -> String:
 	var elems = get_enemy_all_elements(sp_data)
+	if elems.is_empty():
+		return "[color=#B0BEC5]【無】[/color]"
+
+	if elems.size() == 1:
+		var el = elems[0]
+		var short_el = get_enemy_short_element(el)
+		var col = get_element_hex_color(el)
+		return "[color=" + col + "]【" + short_el + "】[/color]"
+
+	# 複数属性（2つ以上）：各属性の色で短縮名を表示し、スラッシュで区切るコンパクト表記
 	var parts: Array[String] = []
 	for el in elems:
+		var short_el = get_enemy_short_element(el)
 		var col = get_element_hex_color(el)
-		parts.append("[color=" + col + "]" + el + "[/color]")
-	return "/".join(parts)
+		parts.append("[color=" + col + "]" + short_el + "[/color]")
+
+	return "【" + "[color=#90A4AE]/[/color]".join(parts) + "】"
 
 ## 敵の属性表示用プレーン文字列（ツールチップ等用）
 func get_enemy_elements_plain(sp_data: Dictionary) -> String:
 	var elems = get_enemy_all_elements(sp_data)
-	return " / ".join(elems)
+	var short_elems: Array[String] = []
+	for el in elems:
+		short_elems.append(get_enemy_short_element(el))
+	return " / ".join(short_elems)
 
 ## デバッグ用：ステージ5ボス（冥王デモニアス）との戦闘を即時開始
 func debug_start_stage5_boss() -> void:
@@ -989,14 +1012,15 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			lbl.fit_content = true
 			lbl.scroll_active = false
+			lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 			lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
 			lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
 			lbl.add_theme_font_size_override("normal_font_size", 16)
 			lbl.add_theme_font_size_override("bold_font_size", 16)
 			lbl.add_theme_constant_override("outline_size", 4)
 			lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
-			lbl.size = Vector2(300, 50)
-			lbl.position = bar_bg.position + Vector2(-100, -45)
+			lbl.size = Vector2(340, 50)
+			lbl.position = bar_bg.position + Vector2(-120, -45)
 			var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color]\n" if is_boss else ""
 			lbl.text = "[center]" + boss_tag + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
 			parent_node.add_child(lbl)
@@ -1162,14 +1186,15 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.fit_content = true
 	lbl.scroll_active = false
+	lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
 	lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
 	lbl.add_theme_font_size_override("normal_font_size", 16)
 	lbl.add_theme_font_size_override("bold_font_size", 16)
 	lbl.add_theme_constant_override("outline_size", 4)
 	lbl.add_theme_color_override("font_outline_color", Color(0,0,0,1))
-	lbl.size = Vector2(300, 50)
-	lbl.position = bar_bg.position + Vector2(-100, -45)
+	lbl.size = Vector2(340, 50)
+	lbl.position = bar_bg.position + Vector2(-120, -45)
 	lbl.text = "[center]" + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
 	parent_node.add_child(lbl)
 
