@@ -298,15 +298,13 @@ func _update_board_element_flags() -> void:
 			for c in range(GRID_COLUMNS):
 				var is_water: bool = grid_water.size() == GRID_ROWS and grid_water[r][c]
 				var is_stone: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
+				var is_poison: bool = (grid_poison.size() == GRID_ROWS and grid_poison[r][c])
 				var is_animated: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
 				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
-				   (grid_poison.size() == GRID_ROWS and grid_poison[r][c]) or \
 				   (grid_ice[r][c] > 0) or \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
 				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
-				if is_stone or is_animated or is_water:
-					has_board_hazards = true
-
+				if is_stone or is_animated or is_water or is_poison:
 					has_board_hazards = true
 				if is_animated or is_water:
 					has_animated_board_hazards = true

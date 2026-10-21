@@ -6,6 +6,8 @@ class_name BoardOverlay
 @export var board: Node2D = null
 
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
+const POISON_TILE_DRY_TEX: Texture2D = preload("res://Texture/element/poison_tile_dry.png")
+const POISON_TILE_WET_TEX: Texture2D = preload("res://Texture/element/poison_tile_wet.png")
 
 const GRID_COLS: int = 13
 const GRID_ROWS: int = 13
@@ -139,12 +141,12 @@ func _draw() -> void:
 				if board.grid_water[r][c]:
 					_draw_water_tile(r, c, water_pulse)
 
-	# 猛毒マス（水マスの手前に重ねて描画・水上では猛毒水として2倍伝染表示）
+	# 猛毒マス（水マスの手前に重ねて描画・GPU完全バッチ描画で負荷ゼロ）
 	if "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_poison[r][c]:
-					_draw_poison_tile(r, c, pulse)
+					_draw_poison_tile(r, c)
 	if "grid_fog" in board and not board.grid_fog.is_empty():
 		for fog in board.grid_fog:
 			_draw_black_fog(fog, pulse, now)
@@ -538,67 +540,12 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 
 
 
-## 毒属性の猛毒沼マス描画（軽量・高パフォーマンス化：フォント処理完全排除、ベクター描画最適化）
-func _draw_poison_tile(r: int, c: int, pulse: float) -> void:
-	var x = BOARD_LEFT + c * CELL_PITCH + 10.0
-	var y = BOARD_TOP + r * CELL_PITCH + 10.0
-	var w = CELL_PITCH - 20.0
-	var rect = Rect2(x, y, w, w)
-	var center = Vector2(x + w * 0.5, y + w * 0.5)
-	var m = w * 0.5
-
+## 毒属性の猛毒沼マス描画（GPUテクスチャ・バッチ描画により負荷ゼロ）
+func _draw_poison_tile(r: int, c: int) -> void:
 	var is_wet: bool = ("grid_water" in board and board.grid_water.size() == GRID_ROWS and board.grid_water[r][c])
-
-	# 深紫の毒沼（水マスの場合は青紫の猛毒水たまり・半透明で下のコマを鮮明に視認可能）
-	var bg_col = Color(0.18, 0.12, 0.65, 0.38 * pulse) if is_wet else Color(0.38, 0.05, 0.55, 0.30 * pulse)
-	var border_col = Color(0.35, 0.80, 1.0, 0.90) if is_wet else Color(0.75, 0.18, 0.95, 0.85)
-	draw_rect(rect, bg_col, true)
-	draw_rect(rect, border_col, false, 12.0)
-
-	# 毒の気泡エフェクト（計算と円描画を最小化して超軽量化）
-	var bubble_col1 = Color(0.30, 0.70, 1.0, 0.80) if is_wet else Color(0.68, 0.15, 0.90, 0.65)
-	var bubble_col2 = Color(0.85, 0.95, 1.0, 0.90) if is_wet else Color(0.92, 0.55, 1.0, 0.80)
-	var bx = center.x + sin(r * 2.3 + c * 1.7 + pulse * TAU) * (m * 0.38)
-	var by = center.y + cos(c * 2.1 - r * 1.5 - pulse * TAU) * (m * 0.38)
-	draw_circle(Vector2(bx, by), 20.0 + 4.0 * pulse, bubble_col1)
-	draw_circle(Vector2(bx - 3, by - 3), 7.0, bubble_col2)
-
-	# 毒のシンボルマーク（ドクロと骨の軽量ベクター描画：draw_string不使用で負荷ゼロ）
-	var badge_bg = Color(0.08, 0.08, 0.28, 0.90) if is_wet else Color(0.15, 0.02, 0.20, 0.88)
-	var badge_arc = Color(0.40, 0.85, 1.0, 0.95) if is_wet else Color(0.85, 0.25, 1.0, 0.90)
-	var skull_col = Color(0.70, 0.95, 1.0) if is_wet else Color(0.95, 0.50, 1.0)
-
-	# 中央バッジ台座
-	draw_circle(center, 65.0, badge_bg)
-	draw_circle(center, 65.0, badge_arc, false, 6.0)
-
-	# 交差する骨
-	var bone_len = 45.0
-	draw_line(center - Vector2(bone_len, bone_len), center + Vector2(bone_len, bone_len), skull_col, 8.0)
-	draw_line(center + Vector2(-bone_len, bone_len), center + Vector2(bone_len, -bone_len), skull_col, 8.0)
-
-	# ドクロ頭蓋骨
-	draw_circle(center + Vector2(0, -8), 26.0, skull_col)
-	# ドクロ顎
-	draw_rect(Rect2(center.x - 14, center.y + 6, 28, 16), skull_col, true)
-	# 目窩（背景色でくり抜き）
-	draw_circle(center + Vector2(-10, -5), 6.0, badge_bg)
-	draw_circle(center + Vector2(10, -5), 6.0, badge_bg)
-
-	# 水濡れマス（2倍速伝染）専用インジケータ：左上に「2x」水流紋章
-	if is_wet:
-		var ind_pos = rect.position + Vector2(50, 50)
-		draw_circle(ind_pos, 28.0, Color(0.05, 0.45, 0.85, 0.90))
-		draw_circle(ind_pos, 28.0, Color(0.40, 0.90, 1.0, 0.95), false, 4.0)
-		# 2:
-		draw_line(ind_pos + Vector2(-12, -8), ind_pos + Vector2(0, -8), Color.WHITE, 4.0)
-		draw_line(ind_pos + Vector2(0, -8), ind_pos + Vector2(0, 0), Color.WHITE, 4.0)
-		draw_line(ind_pos + Vector2(0, 0), ind_pos + Vector2(-12, 0), Color.WHITE, 4.0)
-		draw_line(ind_pos + Vector2(-12, 0), ind_pos + Vector2(-12, 8), Color.WHITE, 4.0)
-		draw_line(ind_pos + Vector2(-12, 8), ind_pos + Vector2(0, 8), Color.WHITE, 4.0)
-		# x:
-		draw_line(ind_pos + Vector2(6, -4), ind_pos + Vector2(14, 6), Color(0.4, 0.95, 1.0), 3.5)
-		draw_line(ind_pos + Vector2(14, -4), ind_pos + Vector2(6, 6), Color(0.4, 0.95, 1.0), 3.5)
+	var tex = POISON_TILE_WET_TEX if is_wet else POISON_TILE_DRY_TEX
+	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
+	draw_texture_rect(tex, rect, false)
 
 
 

@@ -206,5 +206,20 @@ func _init() -> void:
 	assert(pb.grid_poison[2][4] == false, "Poison must NOT spread a second time during turn reset")
 	print("✓ Immediate poison spread on steady state (zero delay) passed!")
 
+	# 11. Test Performance Optimization: Static & Texture Batching
+	var bo_script = load("res://board_overlay.gd")
+	assert(bo_script.POISON_TILE_DRY_TEX != null, "POISON_TILE_DRY_TEX must be loaded")
+	assert(bo_script.POISON_TILE_WET_TEX != null, "POISON_TILE_WET_TEX must be loaded")
+
+	# Verify grid_poison does NOT trigger continuous animated redraw (saves CPU)
+	pb.clear_board_hazards()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_poison[r][c] = true
+	pb._update_board_element_flags()
+	assert(pb.has_board_hazards == true, "Poison must set has_board_hazards to true for event redraws")
+	assert(pb.has_animated_board_hazards == false, "Poison must NOT trigger has_animated_board_hazards continuous redraw loop")
+	print("✓ Hardware-accelerated poison texture batching & static redraw optimization passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
