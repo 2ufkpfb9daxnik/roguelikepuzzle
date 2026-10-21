@@ -5057,6 +5057,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		
 		s.position = Vector2(start_x, start_y)
 		s.scale = Vector2(2.0, 2.0)
+		s.z_index = 10
 		s.visible = true
 		flying_swords.append({
 			"node": s,
@@ -5144,7 +5145,7 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 		s.texture = PIECE_TEXTURES[PieceType.SHIELD]
 		s.position = Vector2(12300, 4800)
 		s.scale = Vector2(2.0, 2.0)
-		s.z_index = 1
+		s.z_index = 25  # 敵の突進・攻撃モーション（z_index=5）よりも前面に盾を描画して防御壁として正しく機能させる
 		s.visible = true
 
 		var target_p = Vector2(

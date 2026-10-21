@@ -266,5 +266,42 @@ func _init() -> void:
 	assert("火属性" in queued_skills and "風属性" in queued_skills, "Queued skills must contain both 火属性 and 風属性")
 	print("✓ Stage 1-4 Boss all-skills activation passed!")
 
+	# 14. Test Non-targeted Enemy Idle Animation Continuity During Damage
+	var spr0 = Sprite2D.new()
+	var spr1 = Sprite2D.new()
+	dummy_root.add_child(spr0)
+	dummy_root.add_child(spr1)
+	sm_node.active_enemies = [
+		{"key": "enemy1", "sprite": spr0, "hp": 1000.0, "max_hp": 1000.0, "atk": 100.0},
+		{"key": "enemy2", "sprite": spr1, "hp": 1000.0, "max_hp": 1000.0, "atk": 100.0}
+	]
+	sm_node.start_enemy_idle_animation()
+	assert(spr0.has_meta("idle_tween") and spr0.get_meta("idle_tween").is_valid(), "Enemy 0 must have active idle_tween")
+	assert(spr1.has_meta("idle_tween") and spr1.get_meta("idle_tween").is_valid(), "Enemy 1 must have active idle_tween")
+
+	# Damage Enemy 0: only Enemy 0 should enter _active_single_anims, Enemy 1's idle_tween must continue
+	sm_node.target_enemy_index = 0
+	sm_node.play_single_enemy_animation(0, "damaged")
+	assert(sm_node._active_single_anims.has(spr0), "Enemy 0 must be in _active_single_anims")
+	assert(not sm_node._active_single_anims.has(spr1), "Enemy 1 must NOT be in _active_single_anims")
+	assert(spr1.has_meta("idle_tween"), "Enemy 1 must retain its idle_tween")
+	var itw1 = spr1.get_meta("idle_tween")
+	assert(is_instance_valid(itw1) and itw1.is_valid(), "Enemy 1's idle_tween must CONTINUE running while Enemy 0 is damaged")
+	print("✓ Non-targeted enemy idle continuity during damage passed!")
+
+	# 15. Test Shield z_index Always in Front of Attacking Enemy
+	var dummy_smgr = load("res://score_manager.gd").new()
+	dummy_root.add_child(dummy_smgr)
+	dummy_smgr.divscore[pb.PieceType.SHIELD] = 500
+	pb._spawn_shield_projectiles(dummy_smgr)
+	assert(pb.active_shields.size() > 0, "Active shields must be spawned")
+	var shield_node = pb.active_shields[0]["node"]
+	assert(shield_node.z_index >= 20, "Shield sprite z_index must be >= 20 (got %d)" % shield_node.z_index)
+	# Zoom on attacking enemy sets attacking enemy's z_index to 5
+	sm_node.zoom_on_attacking_enemy(0)
+	assert(spr0.z_index == 5, "Attacking enemy z_index must be 5")
+	assert(shield_node.z_index > spr0.z_index, "Shields (z_index %d) must render in front of attacking enemy (z_index %d)" % [shield_node.z_index, spr0.z_index])
+	print("✓ Shield rendering in front of attacking enemy passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)

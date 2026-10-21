@@ -1304,87 +1304,17 @@ func has_enemy_animation(anim_name: String) -> bool:
 			return true
 	return false
 
-## 敵の待機（Idle）アニメーションをループ再生開始
+## 敵の待機（Idle）アニメーションをループ再生開始（全敵を個別自律ループで再生し、1体が被弾しても他が固まらない）
 func start_enemy_idle_animation() -> void:
-	if not has_enemy_animation("idle"):
+	if active_enemies.is_empty():
 		return
-	if is_playing_custom_animation:
-		return
-	_play_idle_loop()
-func _play_idle_loop() -> void:
-	if active_enemies.size() == 0:
-		return
-	
-	if _idle_tween and _idle_tween.is_valid():
-		_idle_tween.kill()
-		_idle_tween = null
-	if _rush_tween and _rush_tween.is_valid():
-		_rush_tween.kill()
-		_rush_tween = null
-
-	var base_key = active_enemies[0]["key"]
-	var base_anims = ENEMY_ANIMATION_SHEETS.get(base_key, {})
-	var base_info = base_anims.get("idle", {"total_frames": 1, "fps": 1.0})
-	var total_f: int = base_info.get("total_frames", 1)
-	var fps: float = base_info.get("fps", 1.0)
-	var duration = float(total_f) / maxf(1.0, fps)
-
 	for e in active_enemies:
-		var spr = e["sprite"]
-		var e_key = e["key"]
-		var e_anims = ENEMY_ANIMATION_SHEETS.get(e_key, {})
-		if not e_anims.has("idle"):
-			continue
-		
-		var anim_info = e_anims["idle"]
-		var sheet_path = anim_info.get("path", "")
-		var sheet_tex: Texture2D = _get_anim_texture(sheet_path)
-		if sheet_tex == null:
-			continue
+		var spr = e.get("sprite")
+		if is_instance_valid(spr) and not _active_single_anims.has(spr):
+			play_single_idle_loop(e)
 
-		var hf: int = anim_info["hframes"]
-		var vf: int = anim_info["vframes"]
-		var should_flip: bool = anim_info.get("flip_h", false)
-		var scale_mult: float = anim_info.get("scale_mult", 1.0)
-		var offset_pos: Vector2 = anim_info.get("offset", Vector2.ZERO)
-
-		if is_instance_valid(spr):
-			if not spr.has_meta("anim_orig_tex"):
-				spr.set_meta("anim_orig_tex", spr.texture)
-				spr.set_meta("anim_orig_scale", spr.get_meta("base_scale", spr.scale))
-				spr.set_meta("anim_orig_pos", spr.position)
-				
-			var orig_tex = spr.get_meta("anim_orig_tex")
-			var orig_s = spr.get_meta("anim_orig_scale")
-			var orig_p = spr.get_meta("anim_orig_pos")
-			
-			var frame_w = sheet_tex.get_size().x / float(hf)
-			var orig_w = orig_tex.get_size().x if orig_tex else frame_w
-			var target_scale = orig_s * (float(orig_w) / float(frame_w)) * scale_mult
-			
-			spr.texture = sheet_tex
-			spr.hframes = hf
-			spr.vframes = vf
-			spr.frame = 0
-			spr.scale = target_scale
-			spr.flip_h = should_flip
-			spr.position = orig_p + offset_pos
-			spr.material = _get_or_create_edge_fade_material()
-			spr.set_meta("anim_total_f", anim_info.get("total_frames", 1))
-
-	_idle_tween = create_tween().set_loops()
-	_idle_tween.tween_method(func(f_idx: int):
-		if not is_playing_custom_animation:
-			for e in active_enemies:
-				var spr = e["sprite"]
-				if _active_single_anims.has(spr):
-					continue
-				if is_instance_valid(spr) and spr.has_meta("anim_total_f"):
-					var e_total_f = spr.get_meta("anim_total_f")
-					# 各敵のフレーム数に合わせてループさせる（フレーム数が違っても対応）
-					var e_frame = f_idx % e_total_f
-					spr.frame = clampi(e_frame, 0, e_total_f - 1)
-	, 0, total_f - 1, duration)
+func _play_idle_loop() -> void:
+	start_enemy_idle_animation()
 ## 敵の連番スプライトシートアニメーションを再生
 func play_enemy_animation(anim_name: String, on_complete: Callable = Callable()) -> bool:
 	if active_enemies.size() == 0:
@@ -1406,6 +1336,12 @@ func play_enemy_animation(anim_name: String, on_complete: Callable = Callable())
 	if _idle_tween and _idle_tween.is_valid():
 		_idle_tween.kill()
 		_idle_tween = null
+	for e in active_enemies:
+		var e_spr = e.get("sprite")
+		if is_instance_valid(e_spr) and e_spr.has_meta("idle_tween"):
+			var itw = e_spr.get_meta("idle_tween")
+			if is_instance_valid(itw) and itw is Tween and itw.is_valid():
+				itw.kill()
 	if _anim_tween and _anim_tween.is_valid():
 		_anim_tween.kill()
 		_anim_tween = null
@@ -2523,11 +2459,15 @@ func play_single_idle_loop(target) -> void:
 			e = active_enemies[target]
 	elif target is Dictionary and target.has("sprite"):
 		e = target
-	if e == null:
+	if e == null or not (e is Dictionary):
 		return
-	var spr: Sprite2D = e["sprite"]
-	var e_key = e["key"]
-	var e_anims = ENEMY_ANIMATION_SHEETS.get(e_key, {})
+	var spr = e.get("sprite", null)
+	if not is_instance_valid(spr) or not (spr is Sprite2D):
+		return
+	var e_key = e.get("key", e.get("enemy_key", ""))
+	if e_key == "" or not ENEMY_ANIMATION_SHEETS.has(e_key):
+		return
+	var e_anims = ENEMY_ANIMATION_SHEETS[e_key]
 	if not e_anims.has("idle"):
 		return
 		
