@@ -34,13 +34,15 @@ func _init() -> void:
 	assert(sm.active_enemies.size() == 1, "Stage 1 Battle 1 must have 1 enemy")
 	var e0 = sm.active_enemies[0]
 	assert(e0.has("intent_badge") and is_instance_valid(e0["intent_badge"]), "Enemy must have intent_badge")
-	print("✓ Enemy spawned with intent_badge!")
+	assert(e0.has("intent_panel") and is_instance_valid(e0["intent_panel"]), "Enemy must have intent_panel")
+	print("✓ Enemy spawned with intent_badge and stylized intent_panel!")
 
 	# 2. Test Intent Badge Updates
 	pb._decide_enemy_actions(sm)
 	var badge_text = e0["intent_badge"].text
 	assert(not badge_text.is_empty(), "Intent badge text must not be empty after _decide_enemy_actions")
-	print("✓ Intent badge updated with text: ", badge_text)
+	assert(badge_text.contains("次の行動"), "Intent badge text must contain '次の行動' header (got: %s)" % badge_text)
+	print("✓ Intent badge updated with clear NEXT action header and text: ", badge_text)
 
 	# 3. Test Fire Skill (No Free Bombs, sets grid_fire, direct damage)
 	var old_player_hp = sm.myhp

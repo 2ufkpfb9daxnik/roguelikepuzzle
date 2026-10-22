@@ -423,6 +423,58 @@ func _play_encounter_smoke(chosen_x: float = 1552.5, chosen_y: float = 210.0, sm
 			smoke.queue_free()
 	)
 
+## 行動予告用UI（枠付きパネル＋浮遊アニメーション＋種別ヘッダー）を生成
+func _create_intent_ui(bar_bg_pos: Vector2, parent_node: Node, is_summon_wait: bool = false, initial_atk: int = 1000) -> Dictionary:
+	var intent_panel = PanelContainer.new()
+	intent_panel.name = "IntentPanel"
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.06, 0.07, 0.12, 0.92)
+	panel_style.border_color = Color(0.73, 0.41, 0.78, 0.95) if is_summon_wait else Color(1.0, 0.32, 0.32, 0.95)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(6)
+	panel_style.content_margin_left = 6
+	panel_style.content_margin_right = 6
+	panel_style.content_margin_top = 3
+	panel_style.content_margin_bottom = 3
+	panel_style.shadow_color = Color(0, 0, 0, 0.5)
+	panel_style.shadow_size = 4
+	panel_style.shadow_offset = Vector2(0, 2)
+	intent_panel.add_theme_stylebox_override("panel", panel_style)
+	intent_panel.size = Vector2(210, 42)
+	intent_panel.position = bar_bg_pos + Vector2(-55, -92)
+	intent_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var intent_badge = RichTextLabel.new()
+	intent_badge.name = "IntentBadge"
+	intent_badge.bbcode_enabled = true
+	intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intent_badge.fit_content = true
+	intent_badge.scroll_active = false
+	intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
+	intent_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
+	intent_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
+	intent_badge.add_theme_font_size_override("normal_font_size", 14)
+	intent_badge.add_theme_font_size_override("bold_font_size", 14)
+	intent_badge.add_theme_constant_override("outline_size", 4)
+	intent_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	intent_badge.custom_minimum_size = Vector2(198, 36)
+
+	if is_summon_wait:
+		intent_badge.text = "[center][color=#E1BEE7][font_size=11]▼ 次の行動 (NEXT)[/font_size][/color]\n[b][color=#BA68C8]🔮 召喚待機[/color][/b][/center]"
+	else:
+		intent_badge.text = "[center][color=#FFD54F][font_size=11]▼ 次の行動 (NEXT)[/font_size][/color]\n[b][color=#FF5252]⚔️ 攻撃 (%d)[/color][/b][/center]" % initial_atk
+
+	intent_panel.add_child(intent_badge)
+	parent_node.add_child(intent_panel)
+
+	# ふわふわ浮遊するアニメーション演出（一目で次の行動予告だと認識可能）
+	var base_panel_y = intent_panel.position.y
+	var tw_float = intent_panel.create_tween().set_loops()
+	tw_float.tween_property(intent_panel, "position:y", base_panel_y - 3.0, 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw_float.tween_property(intent_panel, "position:y", base_panel_y + 1.0, 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	return {"panel": intent_panel, "badge": intent_badge}
+
 ## 敵の行動予告（頭上インジケーター）を更新
 func update_enemy_intents(actions: Array) -> void:
 	var enemy_intents: Dictionary = {} # { enemy_idx: Array[String] }
@@ -459,11 +511,33 @@ func update_enemy_intents(actions: Array) -> void:
 		var e_item = active_enemies[i]
 		if e_item.has("intent_badge") and is_instance_valid(e_item["intent_badge"]):
 			var badge: RichTextLabel = e_item["intent_badge"]
+			var acts_str = ""
+			var b_col = Color(1.0, 0.32, 0.32, 0.95) # 赤色（通常攻撃）
 			if enemy_intents.has(i) and not enemy_intents[i].is_empty():
-				badge.text = "[center][b]" + " ＋ ".join(enemy_intents[i]) + "[/b][/center]"
+				acts_str = " ＋ ".join(enemy_intents[i])
+				var first_act = enemy_intents[i][0]
+				if "召喚" in first_act: b_col = Color(0.73, 0.41, 0.78, 0.95)
+				elif "落雷" in first_act: b_col = Color(1.0, 0.84, 0.0, 0.95)
+				elif "暗雲" in first_act: b_col = Color(0.88, 0.25, 0.98, 0.95)
+				elif "爆炎" in first_act: b_col = Color(1.0, 0.24, 0.0, 0.95)
+				elif "氷結" in first_act: b_col = Color(0.50, 0.87, 0.92, 0.95)
+				elif "水没" in first_act: b_col = Color(0.0, 0.90, 1.0, 0.95)
+				elif "突風" in first_act: b_col = Color(0.39, 1.0, 0.85, 0.95)
+				elif "猛毒" in first_act: b_col = Color(0.67, 0.28, 0.74, 0.95)
+				elif "落石" in first_act: b_col = Color(0.74, 0.67, 0.64, 0.95)
+				elif "苗木" in first_act: b_col = Color(0.46, 1.0, 0.01, 0.95)
+				elif "黄金" in first_act: b_col = Color(1.0, 0.96, 0.62, 0.95)
 			else:
 				var atk_val = int(e_item.get("atk", 1000))
-				badge.text = "[center][b][color=#FF5252]⚔️ 攻撃 (%d)[/color][/b][/center]" % atk_val
+				acts_str = "[color=#FF5252]⚔️ 攻撃 (%d)[/color]" % atk_val
+
+			badge.text = "[center][color=#FFD54F][font_size=11]▼ 次の行動 (NEXT)[/font_size][/color]\n[b][font_size=14]%s[/font_size][/b][/center]" % acts_str
+
+			if e_item.has("intent_panel") and is_instance_valid(e_item["intent_panel"]):
+				var panel: PanelContainer = e_item["intent_panel"]
+				var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
+				if style:
+					style.border_color = b_col
 
 func _ready() -> void:
 	_setup_enemy_viewport_container()
@@ -880,6 +954,8 @@ func debug_start_stage5_boss() -> void:
 		if e.has("hp_lbl") and is_instance_valid(e["hp_lbl"]): e["hp_lbl"].queue_free()
 		if e.has("target_badge") and is_instance_valid(e["target_badge"]): e["target_badge"].queue_free()
 		if e.has("target_frame") and is_instance_valid(e["target_frame"]): e["target_frame"].queue_free()
+		if e.has("intent_panel") and is_instance_valid(e["intent_panel"]): e["intent_panel"].queue_free()
+		elif e.has("intent_badge") and is_instance_valid(e["intent_badge"]): e["intent_badge"].queue_free()
 	active_enemies.clear()
 	enemy = null
 	
@@ -1126,23 +1202,9 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			target_badge.visible = (i == 0)
 			parent_node.add_child(target_badge)
 
-			var intent_badge = RichTextLabel.new()
-			intent_badge.name = "IntentBadge"
-			intent_badge.bbcode_enabled = true
-			intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			intent_badge.fit_content = true
-			intent_badge.scroll_active = false
-			intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
-			intent_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
-			intent_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
-			intent_badge.add_theme_font_size_override("normal_font_size", 15)
-			intent_badge.add_theme_font_size_override("bold_font_size", 15)
-			intent_badge.add_theme_constant_override("outline_size", 5)
-			intent_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-			intent_badge.size = Vector2(340, 30)
-			intent_badge.position = bar_bg.position + Vector2(-120, -70)
-			intent_badge.text = "[center][b][color=#FF5252]⚔️ 攻撃 (%d)[/color][/b][/center]" % int(e_atk)
-			parent_node.add_child(intent_badge)
+			var intent_ui = _create_intent_ui(bar_bg.position, parent_node, false, int(e_atk))
+			var intent_panel = intent_ui["panel"]
+			var intent_badge = intent_ui["badge"]
 
 			var lbl = RichTextLabel.new()
 			lbl.bbcode_enabled = true
@@ -1178,7 +1240,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			active_enemies.append({
 				"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
 				"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
-				"target_badge": target_badge, "target_frame": target_frame, "intent_badge": intent_badge, "sp_data": sp_data
+				"target_badge": target_badge, "target_frame": target_frame, "intent_panel": intent_panel, "intent_badge": intent_badge, "sp_data": sp_data
 			})
 
 	target_enemy_index = 0
@@ -1336,23 +1398,9 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	target_badge.visible = false
 	parent_node.add_child(target_badge)
 
-	var intent_badge = RichTextLabel.new()
-	intent_badge.name = "IntentBadge"
-	intent_badge.bbcode_enabled = true
-	intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	intent_badge.fit_content = true
-	intent_badge.scroll_active = false
-	intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
-	intent_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
-	intent_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
-	intent_badge.add_theme_font_size_override("normal_font_size", 15)
-	intent_badge.add_theme_font_size_override("bold_font_size", 15)
-	intent_badge.add_theme_constant_override("outline_size", 5)
-	intent_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	intent_badge.size = Vector2(340, 30)
-	intent_badge.position = bar_bg.position + Vector2(-120, -70)
-	intent_badge.text = "[center][b][color=#BA68C8]召喚待機[/color][/b][/center]"
-	parent_node.add_child(intent_badge)
+	var intent_ui = _create_intent_ui(bar_bg.position, parent_node, true)
+	var intent_panel = intent_ui["panel"]
+	var intent_badge = intent_ui["badge"]
 
 	var lbl = RichTextLabel.new()
 	lbl.bbcode_enabled = true
@@ -1388,7 +1436,7 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	var new_e = {
 		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
 		"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
-		"target_badge": target_badge, "target_frame": target_frame, "intent_badge": intent_badge, "sp_data": sp_data,
+		"target_badge": target_badge, "target_frame": target_frame, "intent_panel": intent_panel, "intent_badge": intent_badge, "sp_data": sp_data,
 		"just_summoned": true
 	}
 	active_enemies.append(new_e)
@@ -1815,7 +1863,8 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 				if e_data.has("hp_lbl") and is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
 				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
 				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
-				if e_data.has("intent_badge") and is_instance_valid(e_data["intent_badge"]): e_data["intent_badge"].queue_free()
+				if e_data.has("intent_panel") and is_instance_valid(e_data["intent_panel"]): e_data["intent_panel"].queue_free()
+				elif e_data.has("intent_badge") and is_instance_valid(e_data["intent_badge"]): e_data["intent_badge"].queue_free()
 				active_enemies.remove_at(target_idx)
 				hide_enemy_hover_tooltip()
 				if target_enemy_index >= 0:
@@ -2053,6 +2102,10 @@ func isdead() -> void:
 		if e.has("bar_fg") and is_instance_valid(e["bar_fg"]): e["bar_fg"].queue_free()
 		if is_instance_valid(e["lbl"]): e["lbl"].queue_free()
 		if is_instance_valid(e["hp_lbl"]): e["hp_lbl"].queue_free()
+		if e.has("target_badge") and is_instance_valid(e["target_badge"]): e["target_badge"].queue_free()
+		if e.has("target_frame") and is_instance_valid(e["target_frame"]): e["target_frame"].queue_free()
+		if e.has("intent_panel") and is_instance_valid(e["intent_panel"]): e["intent_panel"].queue_free()
+		elif e.has("intent_badge") and is_instance_valid(e["intent_badge"]): e["intent_badge"].queue_free()
 	active_enemies.clear()
 	enemy = null
 		
