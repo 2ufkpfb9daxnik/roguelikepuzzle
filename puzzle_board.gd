@@ -724,7 +724,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if is_in_bounds and grid_electrified.size() == GRID_ROWS and grid_electrified[row_idx][col_idx]:
 			grid_electrified[row_idx][col_idx] = false
 			if sm:
-				var shock_dmg = minf(sm.myhpmax * 0.05, 300.0) if sm.myhpmax > 0 else 300.0
+				var shock_dmg = minf(sm.myhpmax * 0.08, 500.0) if sm.myhpmax > 0 else 500.0
 				sm.calchp(0.0, shock_dmg)
 				var rm_br = _get_relic_manager()
 				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
@@ -3646,7 +3646,7 @@ func _start_breaking_animation() -> void:
 		if grid_electrified.size() == GRID_ROWS and grid_electrified[cell.x][cell.y]:
 			grid_electrified[cell.x][cell.y] = false
 			if stage_mgr:
-				var shock_dmg = minf(stage_mgr.myhpmax * 0.05, 300.0) if stage_mgr.myhpmax > 0 else 300.0
+				var shock_dmg = minf(stage_mgr.myhpmax * 0.08, 500.0) if stage_mgr.myhpmax > 0 else 500.0
 				stage_mgr.calchp(0.0, shock_dmg)
 				var rm_br = _get_relic_manager()
 				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
@@ -6335,10 +6335,26 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
 	var s_name = "神罰・ジャッジメントサンダー" if is_boss else "ギガスパーク"
-	var s_desc = "【落雷】帯電したコマを動かすと感電反動ダメージ！"
+	var s_desc = "【神罰落雷】広範囲のコマを帯電！さらに直接雷撃ダメージ！" if is_boss else "【落雷】帯電したコマを動かすと感電反動ダメージ！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss, s_desc)
 	var st_idx = _get_stage_index()
-	var count = randi_range(5 + int(st_idx * 0.8), 6 + int(st_idx * 0.8)) if is_boss else randi_range(1 + int(st_idx * 0.6), 2 + int(st_idx * 0.6))
+	var count = randi_range(7 + int(st_idx * 0.8), 9 + int(st_idx * 0.8)) if is_boss else randi_range(1 + int(st_idx * 0.6), 2 + int(st_idx * 0.6))
+
+	if is_boss:
+		var sm_bolt = _get_stage_manager()
+		if sm_bolt and sm_bolt.myhp > 0:
+			var direct_dmg = 500.0 * pow(10.0, max(0, sm_bolt.stage - 1))
+			var total_shield_pool: float = 0.0
+			for el in current_shield_pools:
+				total_shield_pool += current_shield_pools[el]
+			total_shield_pool = maxf(total_shield_pool, float(active_shields.size()))
+			var blocked = minf(total_shield_pool * (100.0 * pow(10.0, max(0, sm_bolt.stage - 1))), direct_dmg * 0.5)
+			var actual_dmg = maxf(0.0, direct_dmg - blocked)
+			if actual_dmg > 0.0:
+				sm_bolt.calchp(0.0, actual_dmg)
+				_emit_combat_event("damage", "enemy", "ally", actual_dmg, "thunder", false, "normal")
+				_spawn_screen_flash(Color(1.0, 0.9, 0.2, 0.35), 0.2)
+				_trigger_screen_shake(15.0)
 
 	for i in range(count):
 		var r = randi() % GRID_ROWS

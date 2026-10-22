@@ -49,8 +49,8 @@ const ENEMY_TEXTURES: Dictionary = {
 const STAGE_ENEMIES: Array[Dictionary] = [
 	{ # Stage 1 (草原)
 		"names": ["enemy4", "enemy5", "enemy8", "enemy12", "enemy15", "enemy24"],
-		"hp": [10000, 3000, 4000, 7500, 6000, 20000],
-		"atk": [1500, 1000, 1500, 2000, 1700, 1900]
+		"hp": [10000, 3000, 4000, 7500, 6000, 45000],
+		"atk": [1500, 1000, 1500, 2000, 1700, 2200]
 	},
 	{ # Stage 2 (洞窟)
 		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy5", "enemy14"],
@@ -99,7 +99,7 @@ const ENEMY_SPECIES: Dictionary = {
 	"enemy21": {"name": "ブラックバイパー", "element": "毒属性", "race": "毒属性", "skills": ["毒属性", "闇属性"], "color": "#AB47BC"},
 	"enemy22": {"name": "ヴェノムバイパー", "element": "毒属性", "race": "毒属性", "skills": ["毒属性", "地属性"], "color": "#AB47BC"},
 	"enemy23": {"name": "エルダートレント", "element": "木属性", "race": "木属性", "color": "#8BC34A"},
-	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "color": "#FFD700"},
+	"enemy24": {"name": "冥狼フェンリル", "element": "雷属性", "race": "雷属性", "skills": ["雷属性", "闇属性"], "color": "#FFD700"},
 }
 
 # 敵の連番スプライトシート定義（全24キャラの攻撃・スキル・待機・被弾アニメーション）

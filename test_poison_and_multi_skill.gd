@@ -474,5 +474,26 @@ func _init() -> void:
 	assert(title_inst.diff_desc_lbl != null, "TitleScreen should have diff_desc_lbl")
 	print("✓ Difficulty System (SettingsManager, StageManager scaling, TitleScreen) passed!")
 
+	# 20. Test Stage 1 Boss (冥狼フェンリル) Enhanced HP & Multi-Skill System
+	assert(sm_script.STAGE_ENEMIES[0]["hp"][5] == 45000, "Stage 1 Boss HP should be 45000")
+	assert(sm_script.STAGE_ENEMIES[0]["atk"][5] == 2200, "Stage 1 Boss ATK should be 2200")
+	var fenrir_data = sm_script.ENEMY_SPECIES["enemy24"]
+	assert(fenrir_data["name"] == "冥狼フェンリル", "enemy24 must be 冥狼フェンリル")
+	assert(fenrir_data.has("skills") and "雷属性" in fenrir_data["skills"] and "闇属性" in fenrir_data["skills"], "冥狼フェンリル must have 雷属性 and 闇属性 skills")
+
+	# Test Stage 1 Boss action decision produces all skills
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.NORMAL)
+	sm_node.stage = 1
+	sm_node.stage_enemy = 5
+	sm_node.enemycount = 0
+	sm_node.make_enemy(true)
+	pb._decide_enemy_actions(sm_node)
+	var scheduled_skills: Array[String] = []
+	for act in pb._enemy_turn_actions:
+		if act.get("action") == "skill":
+			scheduled_skills.append(act.get("chosen_skill", ""))
+	assert(scheduled_skills.has("雷属性") and scheduled_skills.has("闇属性"), "Stage 1 Boss must execute both 雷属性 and 闇属性 every turn! Got %s" % str(scheduled_skills))
+	print("✓ Stage 1 Boss (冥狼フェンリル) enhanced HP (45000) & multi-skill (雷+闇) passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
