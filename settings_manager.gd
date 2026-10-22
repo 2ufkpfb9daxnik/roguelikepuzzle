@@ -10,6 +10,58 @@ var bgm_volume: float = 0.2   # 0.0 ~ 1.0
 var se_volume: float = 0.2    # 0.0 ~ 1.0
 var game_speed: float = 1.0   # 0.5 ~ 3.0
 
+enum Difficulty {
+	EASY = 0,
+	NORMAL = 1,
+	HARD = 2
+}
+
+var difficulty: int = Difficulty.NORMAL
+signal difficulty_changed(new_diff: int)
+
+const DIFFICULTY_NAMES: Dictionary = {
+	Difficulty.EASY: "EASY",
+	Difficulty.NORMAL: "NORMAL",
+	Difficulty.HARD: "HARD"
+}
+
+const DIFFICULTY_LABELS: Dictionary = {
+	Difficulty.EASY: "イージー (EASY)",
+	Difficulty.NORMAL: "ノーマル (NORMAL)",
+	Difficulty.HARD: "ハード (HARD)"
+}
+
+const DIFFICULTY_DESCS: Dictionary = {
+	Difficulty.EASY: "敵の体力・攻撃力が25%低下。初心者やカジュアルに楽しみたい方向け。",
+	Difficulty.NORMAL: "標準的な難易度。通常のゲームバランスで楽しめます。",
+	Difficulty.HARD: "敵の体力+40%、攻撃力+35%。戦略と連鎖が試される上級者向け。"
+}
+
+const DIFFICULTY_HP_MULTS: Dictionary = {
+	Difficulty.EASY: 0.75,
+	Difficulty.NORMAL: 1.0,
+	Difficulty.HARD: 1.40
+}
+
+const DIFFICULTY_ATK_MULTS: Dictionary = {
+	Difficulty.EASY: 0.75,
+	Difficulty.NORMAL: 1.0,
+	Difficulty.HARD: 1.35
+}
+
+func get_difficulty_hp_mult() -> float:
+	return DIFFICULTY_HP_MULTS.get(difficulty, 1.0)
+
+func get_difficulty_atk_mult() -> float:
+	return DIFFICULTY_ATK_MULTS.get(difficulty, 1.0)
+
+func set_difficulty(d: int) -> void:
+	difficulty = clampi(d, Difficulty.EASY, Difficulty.HARD)
+	emit_signal("difficulty_changed", difficulty)
+
+func get_difficulty_name() -> String:
+	return DIFFICULTY_NAMES.get(difficulty, "NORMAL")
+
 # 元のピッチ記憶用 Dictionary: { Node: float }
 var _default_pitches: Dictionary = {}
 
@@ -274,7 +326,7 @@ func _create_settings_dialog() -> void:
 	
 	# 中央モーダルパネル（カジノ風ダークゴールドフレーム）
 	var panel_w = 860.0
-	var panel_h = 750.0
+	var panel_h = 860.0
 	var modal = Control.new()
 	modal.name = "ModalPanel"
 	modal.size = Vector2(panel_w, panel_h)
@@ -491,7 +543,75 @@ func _create_settings_dialog() -> void:
 		spd_val_lbl.text = "%.1fx" % v
 	)
 	
-	# --- 5. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
+	# --- 5. 難易度設定 (DIFFICULTY) ---
+	cur_y += 128.0
+	var diff_title = Label.new()
+	diff_title.text = "👑 ゲーム難易度 (DIFFICULTY)"
+	diff_title.add_theme_font_override("font", CUSTOM_FONT)
+	diff_title.add_theme_font_size_override("font_size", 24)
+	diff_title.position = Vector2(50, cur_y)
+	modal.add_child(diff_title)
+
+	var diff_desc_modal = RichTextLabel.new()
+	diff_desc_modal.bbcode_enabled = true
+	diff_desc_modal.fit_content = false
+	diff_desc_modal.scroll_active = false
+	diff_desc_modal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	diff_desc_modal.add_theme_font_override("normal_font", CUSTOM_FONT)
+	diff_desc_modal.add_theme_font_size_override("normal_font_size", 18)
+	diff_desc_modal.position = Vector2(50, cur_y + 80)
+	diff_desc_modal.size = Vector2(panel_w - 100, 30)
+	modal.add_child(diff_desc_modal)
+
+	var diff_btn_w = (panel_w - 100.0 - 24.0) / 3.0
+	var diff_btns: Array[Button] = []
+	var diff_data = [
+		{"name": "EASY", "diff": Difficulty.EASY, "color": Color(0.0, 0.95, 1.0)},
+		{"name": "NORMAL", "diff": Difficulty.NORMAL, "color": Color(1.0, 0.84, 0.0)},
+		{"name": "HARD", "diff": Difficulty.HARD, "color": Color(1.0, 0.28, 0.28)}
+	]
+
+	var update_diff_modal_visual = func():
+		for i in range(diff_btns.size()):
+			var b = diff_btns[i]
+			var d_item = diff_data[i]
+			var is_sel = (d_item["diff"] == difficulty)
+			var st = StyleBoxFlat.new()
+			st.set_corner_radius_all(10)
+			if is_sel:
+				st.set_border_width_all(3)
+				st.border_color = d_item["color"]
+				st.bg_color = d_item["color"].darkened(0.7)
+				st.bg_color.a = 0.95
+				b.text = "★ " + d_item["name"]
+				b.add_theme_color_override("font_color", d_item["color"])
+			else:
+				st.set_border_width_all(2)
+				st.border_color = Color(0.4, 0.45, 0.55, 0.8)
+				st.bg_color = Color(0.12, 0.14, 0.20, 0.85)
+				b.text = d_item["name"]
+				b.add_theme_color_override("font_color", Color(0.7, 0.75, 0.8))
+			b.add_theme_stylebox_override("normal", st)
+		diff_desc_modal.text = "[color=#E0E0E0]%s[/color]" % DIFFICULTY_DESCS.get(difficulty, "")
+
+	for i in range(diff_data.size()):
+		var d_info = diff_data[i]
+		var d_btn = Button.new()
+		d_btn.add_theme_font_override("font", CUSTOM_FONT)
+		d_btn.add_theme_font_size_override("font_size", 22)
+		d_btn.position = Vector2(50 + (diff_btn_w + 12.0) * i, cur_y + 36)
+		d_btn.size = Vector2(diff_btn_w, 40)
+		var target_diff = d_info["diff"]
+		d_btn.pressed.connect(func():
+			set_difficulty(target_diff)
+			update_diff_modal_visual.call()
+		)
+		modal.add_child(d_btn)
+		diff_btns.append(d_btn)
+
+	update_diff_modal_visual.call()
+
+	# --- 6. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
 	var current_scene_name = ""
 	var tree = _get_tree_safe()
 	if tree and tree.current_scene:

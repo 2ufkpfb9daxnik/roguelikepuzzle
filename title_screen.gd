@@ -18,6 +18,10 @@ const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 var settings_btn: Button = null
 var quit_btn: Button = null
 
+var diff_title_lbl: RichTextLabel = null
+var diff_buttons: Array[Button] = []
+var diff_desc_lbl: RichTextLabel = null
+
 func _ready() -> void:
 	# ルートControlを確実に全画面（Full Rect）に初期化
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -38,6 +42,12 @@ func _ready() -> void:
 
 	# 次のステージシーン（current_stage.tscn）をバックグラウンドで非同期先読み開始
 	ResourceLoader.load_threaded_request("res://current_stage.tscn")
+
+	# 設定変更のリアルタイム連動
+	var sm = get_node_or_null("/root/SettingsManager")
+	if sm and sm.has_signal("difficulty_changed"):
+		if not sm.difficulty_changed.is_connected(_on_difficulty_changed):
+			sm.difficulty_changed.connect(_on_difficulty_changed)
 
 	_setup_ui_elements()
 	_update_layout()
@@ -162,6 +172,116 @@ func _setup_ui_elements() -> void:
 	)
 	add_child(quit_btn)
 
+	# 4. 難易度選択セクション (DIFFICULTY SELECTOR)
+	diff_title_lbl = RichTextLabel.new()
+	diff_title_lbl.name = "DifficultyTitle"
+	diff_title_lbl.bbcode_enabled = true
+	diff_title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	diff_title_lbl.fit_content = false
+	diff_title_lbl.scroll_active = false
+	diff_title_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	diff_title_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+	diff_title_lbl.add_theme_constant_override("outline_size", 6)
+	diff_title_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	diff_title_lbl.add_theme_font_size_override("normal_font_size", 22)
+	diff_title_lbl.add_theme_font_size_override("bold_font_size", 22)
+	diff_title_lbl.text = "[center][b][color=#FFD700]DIFFICULTY[/color] [color=#E0E0E0]/ 難易度選択[/color][/b][/center]"
+	add_child(diff_title_lbl)
+
+	diff_buttons.clear()
+	var diff_data = [
+		{"name": "EASY", "diff": 0},
+		{"name": "NORMAL", "diff": 1},
+		{"name": "HARD", "diff": 2}
+	]
+
+	for item in diff_data:
+		var btn = Button.new()
+		btn.name = "DiffButton_" + item["name"]
+		btn.add_theme_font_override("font", CUSTOM_FONT)
+		btn.add_theme_constant_override("outline_size", 5)
+		btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		btn.add_theme_font_size_override("font_size", 24)
+		var d_val = item["diff"]
+		btn.pressed.connect(func():
+			if click_se: click_se.play()
+			var sm = get_node_or_null("/root/SettingsManager")
+			if sm and sm.has_method("set_difficulty"):
+				sm.set_difficulty(d_val)
+			_update_difficulty_ui()
+		)
+		add_child(btn)
+		diff_buttons.append(btn)
+
+	diff_desc_lbl = RichTextLabel.new()
+	diff_desc_lbl.name = "DifficultyDesc"
+	diff_desc_lbl.bbcode_enabled = true
+	diff_desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	diff_desc_lbl.fit_content = false
+	diff_desc_lbl.scroll_active = false
+	diff_desc_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	diff_desc_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+	diff_desc_lbl.add_theme_constant_override("outline_size", 6)
+	diff_desc_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	diff_desc_lbl.add_theme_font_size_override("normal_font_size", 20)
+	diff_desc_lbl.add_theme_font_size_override("bold_font_size", 20)
+	add_child(diff_desc_lbl)
+
+	_update_difficulty_ui()
+
+func _on_difficulty_changed(_new_diff: int) -> void:
+	_update_difficulty_ui()
+
+## 難易度UIの選択状態および説明テキストのリアルタイム更新
+func _update_difficulty_ui() -> void:
+	var sm = get_node_or_null("/root/SettingsManager")
+	var cur_diff = sm.difficulty if (sm and "difficulty" in sm) else 1
+	
+	for i in range(diff_buttons.size()):
+		var btn = diff_buttons[i]
+		var is_selected = (i == cur_diff)
+		var style = StyleBoxFlat.new()
+		style.set_corner_radius_all(10)
+		
+		if is_selected:
+			style.set_border_width_all(3)
+			if i == 0: # EASY
+				style.bg_color = Color(0.04, 0.22, 0.28, 0.95)
+				style.border_color = Color(0.0, 0.95, 1.0, 1.0)
+				btn.text = "★ EASY"
+				btn.add_theme_color_override("font_color", Color(0.0, 1.0, 1.0, 1.0))
+			elif i == 1: # NORMAL
+				style.bg_color = Color(0.24, 0.18, 0.04, 0.95)
+				style.border_color = Color(1.0, 0.84, 0.0, 1.0)
+				btn.text = "★ NORMAL"
+				btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2, 1.0))
+			else: # HARD
+				style.bg_color = Color(0.28, 0.06, 0.08, 0.95)
+				style.border_color = Color(1.0, 0.28, 0.28, 1.0)
+				btn.text = "★ HARD"
+				btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4, 1.0))
+		else:
+			style.set_border_width_all(2)
+			style.bg_color = Color(0.10, 0.11, 0.16, 0.82)
+			style.border_color = Color(0.35, 0.38, 0.45, 0.8)
+			btn.add_theme_color_override("font_color", Color(0.65, 0.7, 0.75, 0.9))
+			if i == 0: btn.text = "EASY"
+			elif i == 1: btn.text = "NORMAL"
+			else: btn.text = "HARD"
+			
+		btn.add_theme_stylebox_override("normal", style)
+		var hover_style = style.duplicate()
+		hover_style.bg_color = hover_style.bg_color.lightened(0.12)
+		btn.add_theme_stylebox_override("hover", hover_style)
+
+	if diff_desc_lbl:
+		if cur_diff == 0:
+			diff_desc_lbl.text = "[center][b][color=#00E5FF]◆ EASY: 敵HP/ATK 75% （パズルを気軽に楽しみたい方向け）[/color][/b][/center]"
+		elif cur_diff == 1:
+			diff_desc_lbl.text = "[center][b][color=#FFD700]◆ NORMAL: 敵HP/ATK 100% （標準的なゲームバランス）[/color][/b][/center]"
+		else:
+			diff_desc_lbl.text = "[center][b][color=#FF5252]◆ HARD: 敵HP 140% / ATK 135% （戦略と連鎖が試される上級者向け）[/color][/b][/center]"
+
 ## 画面解像度・アスペクト比に応じた完璧な中央揃えレイアウト再計算
 func _update_layout() -> void:
 	var vp_rect = get_viewport_rect()
@@ -183,20 +303,38 @@ func _update_layout() -> void:
 
 	# タイトルロゴ
 	if title_label != null:
-		title_label.position = Vector2(0, vp_h * 0.15)
-		title_label.size = Vector2(vp_w, 200)
+		title_label.position = Vector2(0, vp_h * 0.12)
+		title_label.size = Vector2(vp_w, 180)
 
 	# サブタイトル
 	if desc_label != null:
-		desc_label.position = Vector2(0, vp_h * 0.38)
-		desc_label.size = Vector2(vp_w, 80)
+		desc_label.position = Vector2(0, vp_h * 0.32)
+		desc_label.size = Vector2(vp_w, 70)
 
 	# ボタン群（中央揃えでバランス良く縦並び）
 	var btn_w: float = 480.0
-	var btn_h: float = 84.0
-	var btn_gap: float = 24.0
+	var btn_h: float = 80.0
+	var btn_gap: float = 20.0
 	var btn_x: float = (vp_w - btn_w) * 0.5
-	var start_y: float = vp_h * 0.49
+
+	# 難易度選択セクションのレイアウト
+	var diff_y: float = vp_h * 0.43
+	var diff_btn_w: float = (btn_w - 24.0) / 3.0 # 152 px each
+	var diff_btn_h: float = 50.0
+
+	if diff_title_lbl != null:
+		diff_title_lbl.position = Vector2(btn_x, diff_y)
+		diff_title_lbl.size = Vector2(btn_w, 30.0)
+
+	for i in range(diff_buttons.size()):
+		diff_buttons[i].position = Vector2(btn_x + i * (diff_btn_w + 12.0), diff_y + 34.0)
+		diff_buttons[i].size = Vector2(diff_btn_w, diff_btn_h)
+
+	if diff_desc_lbl != null:
+		diff_desc_lbl.position = Vector2(btn_x - 160.0, diff_y + 34.0 + diff_btn_h + 8.0)
+		diff_desc_lbl.size = Vector2(btn_w + 320.0, 32.0)
+
+	var start_y: float = diff_y + 34.0 + diff_btn_h + 8.0 + 36.0 + 10.0
 
 	if start_btn != null:
 		start_btn.position = Vector2(btn_x, start_y)

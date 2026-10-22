@@ -180,11 +180,10 @@ const FEVER_INTRO_FRAMES: int = 60
 # 速度シミュレーション累積
 var _sim_accumulator: float = 0.0
 
-## 現在のゲーム設定速度を取得
-func _get_game_speed() -> float:
+## 設定マネージャーを取得
+func _get_settings_manager() -> Node:
 	if _cached_settings_manager and is_instance_valid(_cached_settings_manager):
-		if "game_speed" in _cached_settings_manager:
-			return _cached_settings_manager.game_speed
+		return _cached_settings_manager
 	
 	var root_node = null
 	if is_inside_tree() and get_tree():
@@ -195,9 +194,33 @@ func _get_game_speed() -> float:
 		var sm_autoload = root_node.get_node_or_null("SettingsManager")
 		if sm_autoload:
 			_cached_settings_manager = sm_autoload
-			if "game_speed" in sm_autoload:
-				return sm_autoload.game_speed
+			return _cached_settings_manager
+	return null
+
+## 現在のゲーム設定速度を取得
+func _get_game_speed() -> float:
+	var sm = _get_settings_manager()
+	if sm and "game_speed" in sm:
+		return sm.game_speed
 	return Engine.time_scale
+
+## 難易度に応じた敵HP倍率を取得 (EASY: 0.75, NORMAL: 1.0, HARD: 1.40)
+func _get_difficulty_hp_mult() -> float:
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("get_difficulty_hp_mult"):
+		return sm.get_difficulty_hp_mult()
+	return 1.0
+
+## 難易度に応じた敵ATK倍率を取得 (EASY: 0.75, NORMAL: 1.0, HARD: 1.35)
+func _get_difficulty_atk_mult() -> float:
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("get_difficulty_atk_mult"):
+		return sm.get_difficulty_atk_mult()
+	return 1.0
+
+## 難易度変更時のイベントハンドラ
+func _on_difficulty_changed(_new_diff: int) -> void:
+	label_control()
 
 var facearr: Array[Node2D] = []
 
@@ -366,7 +389,10 @@ func _ready() -> void:
 	else:
 		add_child(_vfx_container)
 
-	_cached_settings_manager = get_node_or_null("/root/SettingsManager")
+	_cached_settings_manager = _get_settings_manager()
+	if _cached_settings_manager and _cached_settings_manager.has_signal("difficulty_changed"):
+		if not _cached_settings_manager.difficulty_changed.is_connected(_on_difficulty_changed):
+			_cached_settings_manager.difficulty_changed.connect(_on_difficulty_changed)
 	_cached_score_manager = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
 	_cached_puzzle_board = get_parent().get_node_or_null("PuzzleBoard") if get_parent() else null
 
@@ -454,7 +480,14 @@ func _ready() -> void:
 ## ステージラベル・表示の更新
 func label_control() -> void:
 	if label:
-		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color][/b]" % stage
+		var sm = _get_settings_manager()
+		var diff_badge = ""
+		if sm and "difficulty" in sm:
+			if sm.difficulty == 0:
+				diff_badge = " [color=#00E5FF][EASY][/color]"
+			elif sm.difficulty == 2:
+				diff_badge = " [color=#FF5252][HARD][/color]"
+		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s[/b]" % [stage, diff_badge]
 	if label2:
 		label2.text = ""
 
@@ -961,8 +994,10 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 				pb.set("encolor", en.modulate.r)
 				current_enemy_key = ename
 				first_color_set = true
-			var e_hp = r_hp * stage_mult
-			var e_atk = r_atk * stage_mult
+			var diff_hp_mult: float = _get_difficulty_hp_mult()
+			var diff_atk_mult: float = _get_difficulty_atk_mult()
+			var e_hp = r_hp * stage_mult * diff_hp_mult
+			var e_atk = r_atk * stage_mult * diff_atk_mult
 			ehp += e_hp
 			ehpmax += e_hp
 			enemyat += e_atk
@@ -1133,9 +1168,11 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 			var s_path = a_info.get("path", "")
 			_get_anim_texture(s_path)
 
-	# 4. ステータス加算（ボスの取り巻きとして適正なHP・ATK）
-	var e_hp = r_hp * stage_mult
-	var e_atk = r_atk * stage_mult
+	# 4. ステータス加算（ボスの取り巻きとして適正なHP・ATK、難易度倍率反映）
+	var diff_hp_mult: float = _get_difficulty_hp_mult()
+	var diff_atk_mult: float = _get_difficulty_atk_mult()
+	var e_hp = r_hp * stage_mult * diff_hp_mult
+	var e_atk = r_atk * stage_mult * diff_atk_mult
 	ehp += e_hp
 	ehpmax += e_hp
 	enemyat += e_atk

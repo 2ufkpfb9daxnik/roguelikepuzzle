@@ -375,5 +375,104 @@ func _init() -> void:
 	assert(delay_bar.size.x == healed_green_w, "Delay bar must immediately expand to match healed green bar width (no lag)")
 	print("✓ Yellow delay bar animation and heal sync passed!")
 
+	# 19. Test Difficulty System (SettingsManager, StageManager scaling, TitleScreen)
+	var settings_mgr_script = load("res://settings_manager.gd")
+	var smgr_inst = settings_mgr_script.new()
+	assert(smgr_inst.Difficulty.EASY == 0, "Difficulty.EASY must be 0")
+	assert(smgr_inst.Difficulty.NORMAL == 1, "Difficulty.NORMAL must be 1")
+	assert(smgr_inst.Difficulty.HARD == 2, "Difficulty.HARD must be 2")
+
+	# Check default difficulty is NORMAL
+	assert(smgr_inst.difficulty == smgr_inst.Difficulty.NORMAL, "Default difficulty must be NORMAL")
+	assert(is_equal_approx(smgr_inst.get_difficulty_hp_mult(), 1.0), "NORMAL HP mult must be 1.0")
+	assert(is_equal_approx(smgr_inst.get_difficulty_atk_mult(), 1.0), "NORMAL ATK mult must be 1.0")
+	assert(smgr_inst.get_difficulty_name() == "NORMAL", "NORMAL name must be 'NORMAL'")
+
+	# Check EASY difficulty
+	var diff_changed_signal_fired: Array = []
+	smgr_inst.difficulty_changed.connect(func(new_d): diff_changed_signal_fired.append(new_d))
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.EASY)
+	assert(smgr_inst.difficulty == smgr_inst.Difficulty.EASY, "Difficulty should be set to EASY")
+	assert(diff_changed_signal_fired.size() == 1 and diff_changed_signal_fired[0] == 0, "difficulty_changed should fire with EASY (0)")
+	assert(is_equal_approx(smgr_inst.get_difficulty_hp_mult(), 0.75), "EASY HP mult must be 0.75")
+	assert(is_equal_approx(smgr_inst.get_difficulty_atk_mult(), 0.75), "EASY ATK mult must be 0.75")
+	assert(smgr_inst.get_difficulty_name() == "EASY", "EASY name must be 'EASY'")
+
+	# Check HARD difficulty
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.HARD)
+	assert(smgr_inst.difficulty == smgr_inst.Difficulty.HARD, "Difficulty should be set to HARD")
+	assert(diff_changed_signal_fired.size() == 2 and diff_changed_signal_fired[1] == 2, "difficulty_changed should fire with HARD (2)")
+	assert(is_equal_approx(smgr_inst.get_difficulty_hp_mult(), 1.40), "HARD HP mult must be 1.40")
+	assert(is_equal_approx(smgr_inst.get_difficulty_atk_mult(), 1.35), "HARD ATK mult must be 1.35")
+	assert(smgr_inst.get_difficulty_name() == "HARD", "HARD name must be 'HARD'")
+
+	# Check StageManager multipliers link
+	sm_node._cached_settings_manager = smgr_inst
+	assert(is_equal_approx(sm_node._get_difficulty_hp_mult(), 1.40), "StageManager should retrieve HARD hp mult 1.40")
+	assert(is_equal_approx(sm_node._get_difficulty_atk_mult(), 1.35), "StageManager should retrieve HARD atk mult 1.35")
+
+	# Check StageManager label badge
+	sm_node.label = RichTextLabel.new()
+	sm_node.stage = 3
+	sm_node.label_control()
+	assert("[HARD]" in sm_node.label.text, "Stage label on HARD must contain [HARD], got %s" % sm_node.label.text)
+
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.EASY)
+	sm_node.label_control()
+	assert("[EASY]" in sm_node.label.text, "Stage label on EASY must contain [EASY], got %s" % sm_node.label.text)
+
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.NORMAL)
+	sm_node.label_control()
+	assert(not ("[EASY]" in sm_node.label.text) and not ("[HARD]" in sm_node.label.text), "Stage label on NORMAL should not have EASY or HARD badge, got %s" % sm_node.label.text)
+
+	# Check Enemy HP and ATK scaling in make_enemy
+	var parent_n = Node2D.new()
+	parent_n.name = "EnemyParent"
+	dummy_root.add_child(parent_n)
+
+	# 1. NORMAL difficulty make_enemy (boss spawn ensures deterministic base enemy)
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.NORMAL)
+	sm_node.stage = 1
+	sm_node.stage_enemy = 5
+	sm_node.enemycount = 0
+	sm_node.make_enemy(true)
+	assert(sm_node.active_enemies.size() == 1, "Stage 1 Boss should have 1 enemy")
+	var normal_hp = sm_node.active_enemies[0]["hp"]
+	var normal_atk = sm_node.active_enemies[0]["atk"]
+
+	# 2. EASY difficulty make_enemy
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.EASY)
+	sm_node.stage = 1
+	sm_node.stage_enemy = 5
+	sm_node.enemycount = 0
+	sm_node.make_enemy(true)
+	assert(sm_node.active_enemies.size() == 1, "Stage 1 Boss should have 1 enemy")
+	var easy_hp = sm_node.active_enemies[0]["hp"]
+	var easy_atk = sm_node.active_enemies[0]["atk"]
+	assert(is_equal_approx(easy_hp, normal_hp * 0.75), "EASY enemy HP must be 75% of NORMAL")
+	assert(is_equal_approx(easy_atk, normal_atk * 0.75), "EASY enemy ATK must be 75% of NORMAL")
+
+	# 3. HARD difficulty make_enemy
+	smgr_inst.set_difficulty(smgr_inst.Difficulty.HARD)
+	sm_node.stage = 1
+	sm_node.stage_enemy = 5
+	sm_node.enemycount = 0
+	sm_node.make_enemy(true)
+	assert(sm_node.active_enemies.size() == 1, "Stage 1 Boss should have 1 enemy")
+	var hard_hp = sm_node.active_enemies[0]["hp"]
+	var hard_atk = sm_node.active_enemies[0]["atk"]
+	assert(is_equal_approx(hard_hp, normal_hp * 1.40), "HARD enemy HP must be 140% of NORMAL")
+	assert(is_equal_approx(hard_atk, normal_atk * 1.35), "HARD enemy ATK must be 135% of NORMAL")
+
+	# Test TitleScreen UI setup and difficulty buttons
+	var title_script = load("res://title_screen.gd")
+	var title_inst = Control.new()
+	title_inst.set_script(title_script)
+	title_inst._setup_ui_elements()
+	assert(title_inst.diff_buttons.size() == 3, "TitleScreen should have 3 difficulty buttons")
+	assert(title_inst.diff_title_lbl != null, "TitleScreen should have diff_title_lbl")
+	assert(title_inst.diff_desc_lbl != null, "TitleScreen should have diff_desc_lbl")
+	print("✓ Difficulty System (SettingsManager, StageManager scaling, TitleScreen) passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
