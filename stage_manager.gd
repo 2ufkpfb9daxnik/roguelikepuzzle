@@ -2477,10 +2477,6 @@ func _on_movefront_pressed() -> void:
 		if choose_buff_rect: choose_buff_rect.visible = false
 		_set_buff_buttons_visible(false)
 
-		# 戦闘勝利ボーナス: 次の戦闘へ進む際に体力を25%回復（体力を上昇・維持しやすく調整）
-		var battle_heal = myhpmax * 0.25
-		calchp(0.0, -battle_heal)
-
 		if stage_enemy >= 4:
 			isdanger = true
 			dangerinterval = 0
