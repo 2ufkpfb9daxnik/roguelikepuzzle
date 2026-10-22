@@ -218,6 +218,13 @@ func _get_difficulty_atk_mult() -> float:
 		return sm.get_difficulty_atk_mult()
 	return 1.0
 
+## 難易度に応じた敵スキル強度倍率を取得 (EASY: 0.70, NORMAL: 1.0, HARD: 1.35)
+func _get_difficulty_skill_mult() -> float:
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("get_difficulty_skill_mult"):
+		return sm.get_difficulty_skill_mult()
+	return 1.0
+
 ## 難易度変更時のイベントハンドラ
 func _on_difficulty_changed(_new_diff: int) -> void:
 	label_control()
@@ -382,8 +389,8 @@ func _play_summon_smoke(chosen_x: float, chosen_y: float = 240.0) -> void:
 			smoke.queue_free()
 	)
 
-## 出現時・エンカウント時の煙エフェクト（確実に画面中央・敵位置で再生し、綺麗にフェードアウト・消去）
-func _play_encounter_smoke(chosen_x: float, chosen_y: float = 210.0, smoke_scale: float = 0.5) -> void:
+## 出現時・エンカウント時の煙エフェクト（敵画面全体をいっぱいに覆うよう再生し、綺麗にフェードアウト・消去）
+func _play_encounter_smoke(chosen_x: float = 1552.5, chosen_y: float = 210.0, smoke_scale_x: float = 0.68, smoke_scale_y: float = 0.65) -> void:
 	var base_kemuri: AnimatedSprite2D = null
 	if _enemy_zoom_root:
 		base_kemuri = _enemy_zoom_root.get_node_or_null("kemuri") as AnimatedSprite2D
@@ -398,7 +405,7 @@ func _play_encounter_smoke(chosen_x: float, chosen_y: float = 210.0, smoke_scale
 	smoke.name = "EncounterSmoke_" + str(Time.get_ticks_msec()) + "_" + str(randi() % 1000)
 	smoke.visible = true
 	smoke.position = Vector2(chosen_x, chosen_y)
-	smoke.scale = Vector2(smoke_scale, smoke_scale)
+	smoke.scale = Vector2(smoke_scale_x, smoke_scale_y)
 	smoke.z_index = 25
 	smoke.modulate = Color.WHITE
 	smoke.frame = 0
@@ -1058,7 +1065,6 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			if initial_spawn_count == 3: base_x = 1310 + i * 240
 			en.position = Vector2(base_x, 250)
 			parent_node.add_child(en)
-			_play_encounter_smoke(base_x, 210.0, 0.55 if is_boss else 0.45)
 			if ENEMY_ANIMATION_SHEETS.has(ename):
 				var anims = ENEMY_ANIMATION_SHEETS[ename]
 				for a_key in anims:
@@ -1177,6 +1183,9 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 
 	target_enemy_index = 0
 	_update_target_indicator()
+
+	# 出現煙エフェクト（敵画面全体いっぱいに覆うよう再生）
+	_play_encounter_smoke(1552.5, 210.0, 0.68, 0.65)
 
 	if active_enemies.size() > 0:
 		enemy = active_enemies[0]["sprite"]

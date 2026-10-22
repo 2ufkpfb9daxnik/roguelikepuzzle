@@ -32,9 +32,9 @@ const DIFFICULTY_LABELS: Dictionary = {
 }
 
 const DIFFICULTY_DESCS: Dictionary = {
-	Difficulty.EASY: "敵の体力・攻撃力が25%低下。初心者やカジュアルに楽しみたい方向け。",
+	Difficulty.EASY: "敵の体力・攻撃力・スキル強度が約30%低下。初心者やカジュアルに楽しみたい方向け。",
 	Difficulty.NORMAL: "標準的な難易度。通常のゲームバランスで楽しめます。",
-	Difficulty.HARD: "敵の体力+40%、攻撃力+35%。戦略と連鎖が試される上級者向け。"
+	Difficulty.HARD: "敵の体力+40%、攻撃力+35%、スキル強度+35%。戦略と連鎖が試される上級者向け。"
 }
 
 const DIFFICULTY_HP_MULTS: Dictionary = {
@@ -49,11 +49,20 @@ const DIFFICULTY_ATK_MULTS: Dictionary = {
 	Difficulty.HARD: 1.35
 }
 
+const DIFFICULTY_SKILL_MULTS: Dictionary = {
+	Difficulty.EASY: 0.70,
+	Difficulty.NORMAL: 1.0,
+	Difficulty.HARD: 1.35
+}
+
 func get_difficulty_hp_mult() -> float:
 	return DIFFICULTY_HP_MULTS.get(difficulty, 1.0)
 
 func get_difficulty_atk_mult() -> float:
 	return DIFFICULTY_ATK_MULTS.get(difficulty, 1.0)
+
+func get_difficulty_skill_mult() -> float:
+	return DIFFICULTY_SKILL_MULTS.get(difficulty, 1.0)
 
 func set_difficulty(d: int) -> void:
 	difficulty = clampi(d, Difficulty.EASY, Difficulty.HARD)

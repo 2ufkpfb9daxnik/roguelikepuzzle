@@ -120,5 +120,46 @@ func _init() -> void:
 	assert(pb._last_hovered_cell == Vector2i(0, 0), "Hover tooltip must work even outside IDLE state! (got %s)" % str(pb._last_hovered_cell))
 	print("✓ Board cell hover tooltip works outside IDLE state!")
 
+	# 8. Test Full-Screen Kemuri Smoke Filling Entire Enemy Screen
+	# Base kemuri sprite
+	var base_kem = AnimatedSprite2D.new()
+	base_kem.name = "kemuri"
+	var sf = SpriteFrames.new()
+	sf.add_animation("new_animation")
+	base_kem.sprite_frames = sf
+	sm.add_child(base_kem)
+	sm._play_encounter_smoke()
+	var smoke_found = false
+	var parent_target = sm._enemy_zoom_root if sm._enemy_zoom_root != null else sm
+	for child in parent_target.get_children():
+		if child is AnimatedSprite2D and child.name.begins_with("EncounterSmoke_"):
+			smoke_found = true
+			assert(child.position.x == 1552.5 and child.position.y == 210.0, "Kemuri position must be center of enemy viewport (1552.5, 210)")
+			assert(child.scale.x >= 0.65 and child.scale.y >= 0.60, "Kemuri scale must fill entire enemy viewport (got %f, %f)" % [child.scale.x, child.scale.y])
+			child.queue_free()
+			break
+	assert(smoke_found, "Encounter smoke instance must be created")
+	print("✓ Encounter smoke fills entire enemy screen area (1552.5, 210.0, scale 0.68x0.65)!")
+
+	# 9. Test Difficulty Skill Multipliers (EASY: 0.70, NORMAL: 1.0, HARD: 1.35)
+	var smgr_script = load("res://settings_manager.gd")
+	var smgr = Node.new()
+	smgr.name = "SettingsManager"
+	smgr.set_script(smgr_script)
+	dummy_root.add_child(smgr)
+
+	smgr.set_difficulty(smgr.Difficulty.EASY)
+	assert(is_equal_approx(smgr.get_difficulty_skill_mult(), 0.70), "EASY difficulty skill mult must be 0.70")
+	assert(is_equal_approx(pb._get_difficulty_skill_mult(), 0.70), "PuzzleBoard skill mult on EASY must be 0.70")
+
+	smgr.set_difficulty(smgr.Difficulty.NORMAL)
+	assert(is_equal_approx(smgr.get_difficulty_skill_mult(), 1.00), "NORMAL difficulty skill mult must be 1.00")
+	assert(is_equal_approx(pb._get_difficulty_skill_mult(), 1.00), "PuzzleBoard skill mult on NORMAL must be 1.00")
+
+	smgr.set_difficulty(smgr.Difficulty.HARD)
+	assert(is_equal_approx(smgr.get_difficulty_skill_mult(), 1.35), "HARD difficulty skill mult must be 1.35")
+	assert(is_equal_approx(pb._get_difficulty_skill_mult(), 1.35), "PuzzleBoard skill mult on HARD must be 1.35")
+	print("✓ Difficulty skill scaling (EASY 0.70, NORMAL 1.0, HARD 1.35) verified!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

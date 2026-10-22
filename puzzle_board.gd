@@ -724,7 +724,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if is_in_bounds and grid_electrified.size() == GRID_ROWS and grid_electrified[row_idx][col_idx]:
 			grid_electrified[row_idx][col_idx] = false
 			if sm:
-				var shock_dmg = minf(sm.myhpmax * 0.08, 500.0) if sm.myhpmax > 0 else 500.0
+				var shock_dmg = (minf(sm.myhpmax * 0.08, 500.0) if sm.myhpmax > 0 else 500.0) * _get_difficulty_skill_mult()
 				sm.calchp(0.0, shock_dmg)
 				var rm_br = _get_relic_manager()
 				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
@@ -3656,7 +3656,7 @@ func _start_breaking_animation() -> void:
 			grid_cursed[cell.x][cell.y] = false
 			var st_idx = _get_stage_index()
 			var curse_pct = 0.04 + st_idx * 0.01
-			var curse_dmg = minf(stage_mgr.myhpmax * curse_pct, 100.0 + st_idx * 100.0) if stage_mgr and stage_mgr.myhpmax > 0 else 50.0
+			var curse_dmg = (minf(stage_mgr.myhpmax * curse_pct, 100.0 + st_idx * 100.0) if stage_mgr and stage_mgr.myhpmax > 0 else 50.0) * _get_difficulty_skill_mult()
 			if stage_mgr:
 				stage_mgr.calchp(0.0, curse_dmg)
 				var rm_br = _get_relic_manager()
@@ -5338,6 +5338,36 @@ func _select_enemy_skill(e: Dictionary, sm: Node2D) -> String:
 	
 	return str(sp_data.get("element", sp_data.get("race", "無属性")))
 
+var _cached_settings_manager: Node = null
+
+func _get_settings_manager() -> Node:
+	if _cached_settings_manager and is_instance_valid(_cached_settings_manager):
+		return _cached_settings_manager
+	var root_node = null
+	if is_inside_tree() and get_tree():
+		root_node = get_tree().root
+	elif Engine.get_main_loop() is SceneTree:
+		root_node = (Engine.get_main_loop() as SceneTree).root
+	if root_node:
+		var sm_autoload = root_node.get_node_or_null("SettingsManager")
+		if sm_autoload:
+			_cached_settings_manager = sm_autoload
+			return _cached_settings_manager
+	var p = get_parent()
+	while p:
+		if p.has_node("SettingsManager"):
+			_cached_settings_manager = p.get_node("SettingsManager")
+			return _cached_settings_manager
+		p = p.get_parent()
+	return null
+
+## 難易度に応じた敵スキル強度倍率を取得 (EASY: 0.70, NORMAL: 1.0, HARD: 1.35)
+func _get_difficulty_skill_mult() -> float:
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("get_difficulty_skill_mult"):
+		return sm.get_difficulty_skill_mult()
+	return 1.0
+
 func _decide_enemy_actions(sm: Node2D) -> bool:
 	_enemy_turn_actions.clear()
 	var has_skill = false
@@ -5381,7 +5411,8 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 				
 				var action = "attack"
 				var chosen_skill = ""
-				if is_boss or randf() < 0.5:
+				var skill_chance = 0.50 * _get_difficulty_skill_mult()
+				if is_boss or randf() < skill_chance:
 					action = "skill"
 					has_skill = true
 					chosen_skill = _select_enemy_skill(e, sm)
@@ -6097,7 +6128,9 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var s_desc = "【水没】盤面を水浸しにして操作を妨害！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#00E5FF", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(5 + st_idx, 6 + st_idx) if is_boss else randi_range(1 + int(st_idx * 1.5), 2 + int(st_idx * 1.5))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6150,7 +6183,9 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 	var s_desc = "【氷結】コマを凍結させて移動不能にする！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#80DEEA", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(1 + int(st_idx * 0.8), 2 + int(st_idx * 0.8))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6193,6 +6228,7 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var base_min = mini(GRID_COLUMNS - 1, 2 + int(st_idx / 3)) if is_boss else mini(GRID_COLUMNS - 1, 1 + (1 if st_idx >= 3 else 0))
 	var base_max = mini(GRID_COLUMNS, 2 + int((st_idx + 1) / 2)) if is_boss else mini(GRID_COLUMNS - 1, 1 + (1 if st_idx >= 3 else 0))
 	var num_cols = randi_range(base_min, base_max)
+	num_cols = maxi(1, int(round(float(num_cols) * _get_difficulty_skill_mult())))
 
 	var cols: Array[int] = []
 	var col_pool: Array[int] = []
@@ -6256,8 +6292,10 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var s_desc = "【吸血苗木】毎ターン生命力を吸収する苗木を植え付ける！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#69F0AE", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(3 + int(st_idx / 3), 3 + int((st_idx + 1) / 2)) if is_boss else (1 + int(st_idx / 3))
-	var drain_hp = (80 + st_idx * 15) if is_boss else (15 + st_idx * 15)
+	count = maxi(1, int(round(float(count) * diff_m)))
+	var drain_hp = int(round(float((80 + st_idx * 15) if is_boss else (15 + st_idx * 15)) * diff_m))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6318,7 +6356,9 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var s_desc = "【石化】動かせない障害物の岩石を配置！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFB74D", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(1 + int(st_idx * 0.5), 2 + int(st_idx * 0.5))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -6354,12 +6394,14 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 	var s_desc = "【神罰落雷】広範囲のコマを帯電！さらに直接雷撃ダメージ！" if is_boss else "【落雷】帯電したコマを動かすと感電反動ダメージ！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(7 + int(st_idx * 0.8), 9 + int(st_idx * 0.8)) if is_boss else randi_range(1 + int(st_idx * 0.6), 2 + int(st_idx * 0.6))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	if is_boss:
 		var sm_bolt = _get_stage_manager()
 		if sm_bolt and sm_bolt.myhp > 0:
-			var direct_dmg = 500.0 * pow(10.0, max(0, sm_bolt.stage - 1))
+			var direct_dmg = 500.0 * pow(10.0, max(0, sm_bolt.stage - 1)) * diff_m
 			var total_shield_pool: float = 0.0
 			for el in current_shield_pools:
 				total_shield_pool += current_shield_pools[el]
@@ -6443,7 +6485,9 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	})
 
 	# 呪いコマ生成（盾やパンを優先的に呪う）
+	var diff_m = _get_difficulty_skill_mult()
 	var curse_count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(1 + int(st_idx * 0.5), 2 + int(st_idx * 0.5))
+	curse_count = maxi(1, int(round(float(curse_count) * diff_m)))
 	var cands: Array[Vector2i] = []
 	var other_cands: Array[Vector2i] = []
 
@@ -6494,7 +6538,9 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var s_desc = "【黄金化】重要コマを黄金像に変化！隣接消去で破壊せよ！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FFD700", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(3 + int(st_idx * 0.75), 4 + int(st_idx * 0.75)) if is_boss else (1 + int(st_idx / 2))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var sm = _get_stage_manager()
 	# プレイヤーピンチ時は盾、それ以外は剣を優先してスカコマ化
@@ -6545,13 +6591,15 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var s_desc = "【爆炎】盤面を炎上延焼させ、プレイヤーに直撃火傷ダメージ！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(2 + int(st_idx * 0.6), 3 + int(st_idx * 0.6))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	# プレイヤーへの直撃ダメージ（盾で一部軽減可能）
 	var sm_fire = _get_stage_manager()
 	if sm_fire:
 		var stage_scale: float = pow(10.0, max(0, sm_fire.stage - 1))
-		var base_dmg: float = (80.0 + st_idx * 30.0) if is_boss else (30.0 + st_idx * 15.0)
+		var base_dmg: float = ((80.0 + st_idx * 30.0) if is_boss else (30.0 + st_idx * 15.0)) * diff_m
 		var direct_dmg: float = base_dmg * stage_scale
 		var total_shield_pool: float = 0.0
 		if sm_fire.has_method("get_total_shields"):
@@ -6594,7 +6642,9 @@ func _cast_enemy_poison_skill(is_boss: bool, show_banner: bool = true) -> Array[
 	var s_desc = "【猛毒】盤面に猛毒を放つ！毎ターン隣接マスへ伝染（水マスは2倍速で伝染）！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#AB47BC", is_boss, s_desc)
 	var st_idx = _get_stage_index()
+	var diff_m = _get_difficulty_skill_mult()
 	var count = randi_range(5 + st_idx, 6 + st_idx) if is_boss else randi_range(2 + int(st_idx * 0.5), 3 + int(st_idx * 0.5))
+	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
@@ -7043,7 +7093,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 				is_boss_enemy = sm.is_current_boss
 		var base_fog_dmg: float = (50.0 + st_idx * 20.0) if is_boss_enemy else (20.0 + st_idx * 10.0)
 		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
-		var cur_fog_dmg: float = base_fog_dmg * stage_scale
+		var cur_fog_dmg: float = base_fog_dmg * stage_scale * _get_difficulty_skill_mult()
 		total_fog_dmg += cur_fog_dmg
 
 		_spawn_floating_text(fog_center_pos, "瘴気ダメージ -%d" % int(cur_fog_dmg), Color(0.85, 0.3, 0.95))
@@ -7080,7 +7130,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			elif "is_current_boss" in sm: is_boss_enemy = sm.is_current_boss
 		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
 		var base_p_dmg: float = (25.0 + st_idx * 12.0) if is_boss_enemy else (12.0 + st_idx * 6.0)
-		var total_poison_dmg: float = base_p_dmg * stage_scale * float(poison_tiles.size())
+		var total_poison_dmg: float = base_p_dmg * stage_scale * float(poison_tiles.size()) * _get_difficulty_skill_mult()
 		
 		for pt in poison_tiles.slice(0, 3):
 			var pt_pos = get_cell_position(pt.x, pt.y)
@@ -7113,7 +7163,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			elif "is_current_boss" in sm: is_boss_enemy = sm.is_current_boss
 		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
 		var base_f_dmg: float = (30.0 + st_idx * 15.0) if is_boss_enemy else (15.0 + st_idx * 8.0)
-		var total_fire_dmg: float = base_f_dmg * stage_scale * float(fire_tiles.size())
+		var total_fire_dmg: float = base_f_dmg * stage_scale * float(fire_tiles.size()) * _get_difficulty_skill_mult()
 		for ft in fire_tiles.slice(0, 3):
 			var ft_pos = get_cell_position(ft.x, ft.y)
 			_spawn_explosion_effect(ft_pos)
