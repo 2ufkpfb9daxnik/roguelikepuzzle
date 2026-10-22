@@ -135,7 +135,7 @@ var shop_items: Array[Dictionary] = [
 		"desc": "プレイヤーの最大HPを大幅に増加させ、増加分だけ即座に回復します。",
 		"icon_path": "res://Texture/food/bread_cut.png",
 		"color": Color("#00E676"),
-		"cost": 4000,
+		"cost": 2000,
 		"level": 0
 	}
 ]
@@ -1890,7 +1890,7 @@ func _update_buff_button_labels() -> void:
 	# 1. ショップカードの更新
 	var sm = _get_stage_manager()
 	var stage_num: int = sm.stage if sm and "stage" in sm else 1
-	var hp_step: int = int(1000.0 * pow(10.0, maxf(0.0, float(stage_num - 1))))
+	var hp_step: int = int(2500.0 * pow(10.0, maxf(0.0, float(stage_num - 1))))
 
 	for i in range(mini(shop_items.size(), shop_card_refs.size())):
 		var item = shop_items[i]
@@ -2105,7 +2105,7 @@ func _purchase_buff(slot_idx: int) -> void:
 				var sm = _get_stage_manager()
 				if sm:
 					var stage_scale: float = pow(10.0, maxf(0.0, float(sm.stage - 1)))
-					var hp_gain: float = 1000.0 * stage_scale
+					var hp_gain: float = 2500.0 * stage_scale
 					sm.myhpmax += hp_gain
 					sm.myhp = minf(sm.myhpmax, sm.myhp + hp_gain)
 

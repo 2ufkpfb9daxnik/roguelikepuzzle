@@ -4890,7 +4890,14 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		# 待機時間を一切挟まず、即座に敵が攻撃（スキル発動時やスプライトシート再生時は演出確認のため待機時間を確保）
 		var has_custom_atk = sm and sm.has_method("has_enemy_animation") and sm.has_enemy_animation("attack")
 		if interval == 0:
-			is_casting_skill_turn = _decide_enemy_actions(sm)
+			if _enemy_turn_actions.is_empty():
+				is_casting_skill_turn = _decide_enemy_actions(sm)
+			else:
+				is_casting_skill_turn = false
+				for act in _enemy_turn_actions:
+					if act.get("action", "") in ["skill", "summon"]:
+						is_casting_skill_turn = true
+						break
 			has_enemy_attacked = false
 			has_enemy_skilled = false
 			var anten = get_node_or_null("anten")
@@ -4979,7 +4986,14 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 				interval = base_time + 144 * isattack + 128 * isblock
 
 	elif interval == base_time + 1 + 144 * isattack + 128 * isblock:
-		is_casting_skill_turn = _decide_enemy_actions(sm)
+		if _enemy_turn_actions.is_empty():
+			is_casting_skill_turn = _decide_enemy_actions(sm)
+		else:
+			is_casting_skill_turn = false
+			for act in _enemy_turn_actions:
+				if act.get("action", "") in ["skill", "summon"]:
+					is_casting_skill_turn = true
+					break
 		has_enemy_attacked = false
 		has_enemy_skilled = false
 
@@ -5151,7 +5165,7 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 		s.visible = true
 
 		var target_p = Vector2(
-			7200.0 / float(max(1, spawn_shield_cnt)) * i + 12300.0,
+			7200.0 * (float(i) + 0.5) / float(max(1, spawn_shield_cnt)) + 12300.0,
 			-1000.0 / float(max(1, spawn_shield_cnt * 2)) * (randi() % max(1, spawn_shield_cnt * 2)) + 3800.0
 		)
 		var v = Vector2(abs(s.position.x - target_p.x) / 108.0, abs(s.position.y - target_p.y) / 108.0)
@@ -5372,6 +5386,8 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 					has_skill = true
 					chosen_skill = _select_enemy_skill(e, sm)
 				_enemy_turn_actions.append({"enemy_index": i, "enemy_data": e, "action": action, "chosen_skill": chosen_skill})
+	if sm and sm.has_method("update_enemy_intents"):
+		sm.update_enemy_intents(_enemy_turn_actions)
 	return has_skill
 
 func _spawn_slash_effect(pos: Vector2) -> void:
@@ -6522,30 +6538,49 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	_redraw_board_effects()
 	return _targets
 
-## 9. 火属性スキル: 燃焼爆弾コマ生成＆盤面炎上（通常1〜2個、ボスは初期4〜5個から緩やかに増加）
+## 9. 火属性スキル: 盤面炎上＆直撃爆炎（プレイヤーへの直撃ダメージ＋盤面炎上。爆弾生成によるプレイヤー有利化を廃止）
 func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
-	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "インフェルノバースト"
-	var s_desc = "【爆炎】燃焼爆弾を生成し、盤面を炎上延焼させる！"
+	var s_name = "獄炎焦土・ヘルフレイム" if is_boss else "ブレイズブラスト"
+	var s_desc = "【爆炎】盤面を炎上延焼させ、プレイヤーに直撃火傷ダメージ！"
 	if show_banner: _show_enemy_skill_banner(s_name, "#FF1744", is_boss, s_desc)
 	var st_idx = _get_stage_index()
-	var count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(1 + int(st_idx * 0.6), 2 + int(st_idx * 0.6))
+	var count = randi_range(4 + int(st_idx * 0.75), 5 + int(st_idx * 0.75)) if is_boss else randi_range(2 + int(st_idx * 0.6), 3 + int(st_idx * 0.6))
+
+	# プレイヤーへの直撃ダメージ（盾で一部軽減可能）
+	var sm_fire = _get_stage_manager()
+	if sm_fire:
+		var stage_scale: float = pow(10.0, max(0, sm_fire.stage - 1))
+		var base_dmg: float = (80.0 + st_idx * 30.0) if is_boss else (30.0 + st_idx * 15.0)
+		var direct_dmg: float = base_dmg * stage_scale
+		var total_shield_pool: float = 0.0
+		if sm_fire.has_method("get_total_shields"):
+			total_shield_pool = float(sm_fire.get_total_shields())
+		elif "active_shields" in sm_fire and sm_fire.active_shields != null:
+			total_shield_pool = float(sm_fire.active_shields.size())
+		total_shield_pool = maxf(total_shield_pool, float(active_shields.size()))
+		var blocked = minf(total_shield_pool * (100.0 * stage_scale), direct_dmg * 0.5)
+		var actual_dmg = maxf(0.0, direct_dmg - blocked)
+		if actual_dmg > 0.0:
+			sm_fire.calchp(0.0, actual_dmg)
+			_emit_combat_event("damage", "enemy", "ally", actual_dmg, "fire", false, "normal")
+			_spawn_screen_flash(Color(1.0, 0.3, 0.1, 0.35), 0.2)
+			_trigger_screen_shake(12.0)
 
 	var cands: Array[Vector2i] = []
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
-				if special_item.size() == GRID_ROWS and special_item[r][c] == SpecialItemType.NONE:
+				if grid_fire.size() == GRID_ROWS and grid_fire[r][c] == 0:
 					cands.append(Vector2i(r, c))
 	cands.shuffle()
 
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
-		special_item[p.x][p.y] = SpecialItemType.BOMB
-		if is_bomb.size() == GRID_ROWS: is_bomb[p.x][p.y] = true
+		grid_fire[p.x][p.y] = 1
 		var cell_p = get_cell_position(p.x, p.y)
-		_spawn_floating_text(cell_p, "炎上", Color(1.0, 0.4, 0.1))
+		_spawn_floating_text(cell_p, "炎上！", Color(1.0, 0.4, 0.1))
 		_spawn_explosion_effect(cell_p)
 		_targets.append(cell_p)
 
@@ -6970,6 +7005,8 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	interval = 0
 	current_total_shields = 0
 	_restore_score_label_positions()
+	if sm and "active_enemies" in sm and not sm.active_enemies.is_empty() and not sm.isdeadf and sm.ehp > 0:
+		_decide_enemy_actions(sm)
 
 	if sm and not sm.isfevertime and sm.fevergage >= 7000.0:
 		sm.fevertime()
@@ -7058,6 +7095,36 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			_emit_combat_event("damage", "enemy", "ally", total_poison_dmg, "poison")
 			var rm_poi = _get_relic_manager()
 			if rm_poi: rm_poi.on_backlash_damage("poison", total_poison_dmg)
+			if sm.myhp <= 0:
+				_trigger_gameover(sm)
+
+	# 炎マス（grid_fire）による持続火傷ダメージ
+	var fire_tiles: Array[Vector2i] = []
+	if grid_fire.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_fire[r][c] > 0:
+					fire_tiles.append(Vector2i(r, c))
+	if not fire_tiles.is_empty():
+		var st_idx = _get_stage_index()
+		var is_boss_enemy: bool = false
+		if sm:
+			if sm.has_method("is_boss_battle"): is_boss_enemy = sm.is_boss_battle()
+			elif "is_current_boss" in sm: is_boss_enemy = sm.is_current_boss
+		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
+		var base_f_dmg: float = (30.0 + st_idx * 15.0) if is_boss_enemy else (15.0 + st_idx * 8.0)
+		var total_fire_dmg: float = base_f_dmg * stage_scale * float(fire_tiles.size())
+		for ft in fire_tiles.slice(0, 3):
+			var ft_pos = get_cell_position(ft.x, ft.y)
+			_spawn_explosion_effect(ft_pos)
+		var center_ft = fire_tiles[fire_tiles.size() / 2]
+		_spawn_floating_text(get_cell_position(center_ft.x, center_ft.y), "火傷ダメージ -%d" % int(total_fire_dmg), Color(1.0, 0.45, 0.1))
+		if sm:
+			_spawn_screen_flash(Color(0.8, 0.2, 0.1, 0.22), 0.15)
+			sm.calchp(0.0, total_fire_dmg)
+			_emit_combat_event("damage", "enemy", "ally", total_fire_dmg, "fire")
+			var rm_f = _get_relic_manager()
+			if rm_f: rm_f.on_backlash_damage("fire", total_fire_dmg)
 			if sm.myhp <= 0:
 				_trigger_gameover(sm)
 
@@ -7428,7 +7495,7 @@ func _hide_cell_hover_tooltip() -> void:
 
 ## マウスホバー中の効果マス（特殊アイテム、盤面ギミック、属性コマ）の説明ツールチップ更新
 func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
-	if selected_cell.x != -1 or is_holding or current_state != BoardState.IDLE:
+	if is_holding:
 		_hide_cell_hover_tooltip()
 		return
 
@@ -7584,6 +7651,26 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 			else:
 				desc += "\n[color=#BA68C8]※瘴気の暗雲内（毎ターン瘴気ダメージ / マッチで霧払い可 / 残り%dターン）[/color]" % f_turns
 			break
+
+	# 4. 通常のコマ説明（特殊効果やギミックがない場合でもコマ情報を表示）
+	if title.is_empty() and grid_n.size() == GRID_ROWS and r < grid_n.size() and c < grid_n[r].size() and grid_i[r][c] != -1:
+		var p_type = grid_n[r][c]
+		match p_type:
+			PieceType.SWORD:
+				title = "[b][color=#FF5252]⚔️ 剣のコマ[/color][/b]"
+				desc = "[font_size=19]マッチすると剣を放ち、敵に物理ダメージを与えます。[/font_size]"
+			PieceType.SHIELD:
+				title = "[b][color=#448AFF]🛡️ 盾のコマ[/color][/b]"
+				desc = "[font_size=19]マッチすると盾を展開し、敵からの攻撃やスキルダメージを軽減・防御します。[/font_size]"
+			PieceType.FOOD:
+				title = "[b][color=#69F0AE]🍞 食糧（パン）のコマ[/color][/b]"
+				desc = "[font_size=19]マッチするとプレイヤーのHPを回復します。[/font_size]"
+			PieceType.POTION:
+				title = "[b][color=#E040FB]🧪 秘薬（ポーション）のコマ[/color][/b]"
+				desc = "[font_size=19]マッチするとスコアを獲得し、フィーバーゲージを溜めます。[/font_size]"
+			PieceType.COIN:
+				title = "[b][color=#FFD700]🪙 コインのコマ[/color][/b]"
+				desc = "[font_size=19]マッチするとゴールドを獲得し、ショップでの強化に役立ちます。[/font_size]"
 
 	if not title.is_empty():
 		var rm_ui = _get_relic_ui_manager()

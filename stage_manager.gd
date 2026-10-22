@@ -328,16 +328,16 @@ func _setup_enemy_viewport_container() -> void:
 		if bg_node and bg_node.get_parent() == self:
 			bg_node.reparent(_enemy_zoom_root)
 
-	var p = get_parent()
-	if p:
-		var base_k = p.get_node_or_null("kemuri")
-		if base_k and base_k.get_parent() != _enemy_zoom_root:
-			base_k.reparent(_enemy_zoom_root)
-			base_k.visible = false
-			base_k.stop()
-			base_k.position = Vector2(-1e9, -1e9)
-			if not base_k.animation_finished.is_connected(_on_kemuri_finished):
-				base_k.animation_finished.connect(_on_kemuri_finished)
+	var base_k = get_node_or_null("kemuri")
+	if base_k == null and get_parent():
+		base_k = get_parent().get_node_or_null("kemuri")
+	if base_k and base_k.get_parent() != _enemy_zoom_root:
+		base_k.reparent(_enemy_zoom_root)
+		base_k.visible = false
+		base_k.stop()
+		base_k.position = Vector2(-1e9, -1e9)
+		if not base_k.animation_finished.is_connected(_on_kemuri_finished):
+			base_k.animation_finished.connect(_on_kemuri_finished)
 
 func _on_kemuri_finished() -> void:
 	var kemuri = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
@@ -351,6 +351,8 @@ func _play_summon_smoke(chosen_x: float, chosen_y: float = 240.0) -> void:
 	var base_kemuri: AnimatedSprite2D = null
 	if _enemy_zoom_root:
 		base_kemuri = _enemy_zoom_root.get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null:
+		base_kemuri = get_node_or_null("kemuri") as AnimatedSprite2D
 	if base_kemuri == null and get_parent():
 		base_kemuri = get_parent().get_node_or_null("kemuri") as AnimatedSprite2D
 	if base_kemuri == null:
@@ -379,6 +381,82 @@ func _play_summon_smoke(chosen_x: float, chosen_y: float = 240.0) -> void:
 			smoke.stop()
 			smoke.queue_free()
 	)
+
+## 出現時・エンカウント時の煙エフェクト（確実に画面中央・敵位置で再生し、綺麗にフェードアウト・消去）
+func _play_encounter_smoke(chosen_x: float, chosen_y: float = 210.0, smoke_scale: float = 0.5) -> void:
+	var base_kemuri: AnimatedSprite2D = null
+	if _enemy_zoom_root:
+		base_kemuri = _enemy_zoom_root.get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null:
+		base_kemuri = get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null and get_parent():
+		base_kemuri = get_parent().get_node_or_null("kemuri") as AnimatedSprite2D
+	if base_kemuri == null:
+		return
+	
+	var smoke = base_kemuri.duplicate() as AnimatedSprite2D
+	smoke.name = "EncounterSmoke_" + str(Time.get_ticks_msec()) + "_" + str(randi() % 1000)
+	smoke.visible = true
+	smoke.position = Vector2(chosen_x, chosen_y)
+	smoke.scale = Vector2(smoke_scale, smoke_scale)
+	smoke.z_index = 25
+	smoke.modulate = Color.WHITE
+	smoke.frame = 0
+	
+	var parent_target = _enemy_zoom_root if _enemy_zoom_root != null else self
+	parent_target.add_child(smoke)
+	smoke.play("new_animation")
+	
+	var tw = smoke.create_tween()
+	tw.tween_interval(0.55)
+	tw.tween_property(smoke, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(func():
+		if is_instance_valid(smoke):
+			smoke.stop()
+			smoke.queue_free()
+	)
+
+## 敵の行動予告（頭上インジケーター）を更新
+func update_enemy_intents(actions: Array) -> void:
+	var enemy_intents: Dictionary = {} # { enemy_idx: Array[String] }
+	for act in actions:
+		if typeof(act) != TYPE_DICTIONARY:
+			continue
+		var idx = act.get("enemy_index", 0)
+		if not enemy_intents.has(idx):
+			enemy_intents[idx] = []
+		var a_type = act.get("action", "attack")
+		var e_info = act.get("enemy_data", {})
+		var atk_val = int(e_info.get("atk", 1000))
+		match a_type:
+			"attack":
+				enemy_intents[idx].append("[color=#FF5252]⚔️ 攻撃 (%d)[/color]" % atk_val)
+			"summon":
+				enemy_intents[idx].append("[color=#BA68C8]🔮 使徒召喚[/color]")
+			"skill":
+				var sk = act.get("chosen_skill", "")
+				match sk:
+					"雷属性": enemy_intents[idx].append("[color=#FFD600]⚡ 落雷＆帯電[/color]")
+					"闇属性": enemy_intents[idx].append("[color=#E040FB]☠️ 暗雲＆呪詛[/color]")
+					"火属性": enemy_intents[idx].append("[color=#FF3D00]🔥 爆炎＆炎上[/color]")
+					"氷属性": enemy_intents[idx].append("[color=#80DEEA]❄️ 氷結妨害[/color]")
+					"水属性": enemy_intents[idx].append("[color=#00E5FF]💧 水没妨害[/color]")
+					"風属性": enemy_intents[idx].append("[color=#64FFDA]🌪️ 突風一掃[/color]")
+					"毒属性": enemy_intents[idx].append("[color=#AB47BC]🧪 猛毒拡散[/color]")
+					"地属性": enemy_intents[idx].append("[color=#BCAAA4]🪨 巨大落石[/color]")
+					"木属性": enemy_intents[idx].append("[color=#76FF03]🌱 吸血苗木[/color]")
+					"光属性": enemy_intents[idx].append("[color=#FFF59D]✨ 黄金化[/color]")
+					_: enemy_intents[idx].append("[color=#FFD54F]✦ %s[/color]" % sk)
+
+	for i in range(active_enemies.size()):
+		var e_item = active_enemies[i]
+		if e_item.has("intent_badge") and is_instance_valid(e_item["intent_badge"]):
+			var badge: RichTextLabel = e_item["intent_badge"]
+			if enemy_intents.has(i) and not enemy_intents[i].is_empty():
+				badge.text = "[center][b]" + " ＋ ".join(enemy_intents[i]) + "[/b][/center]"
+			else:
+				var atk_val = int(e_item.get("atk", 1000))
+				badge.text = "[center][b][color=#FF5252]⚔️ 攻撃 (%d)[/color][/b][/center]" % atk_val
 
 func _ready() -> void:
 	_setup_enemy_viewport_container()
@@ -927,14 +1005,10 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	else:
 		if field_bgm: field_bgm.seek(0.0); field_bgm.play()
 	interval = 0
-	var kemuri = _enemy_zoom_root.get_node_or_null("kemuri") if _enemy_zoom_root else (get_parent().get_node_or_null("kemuri") if get_parent() else null)
-	if kemuri:
-		kemuri.visible = true
-		kemuri.frame = 0
-		kemuri.position = Vector2(1552.375, 210.125)
-		kemuri.scale = Vector2(0.558789, 0.546875)
-		kemuri.modulate = Color.WHITE
-		kemuri.play()
+	var p_node = get_parent()
+	if p_node:
+		var se = p_node.get_node_or_null("syutsugen")
+		if se: se.play()
 
 	active_enemies.clear()
 	ehp = 0.0
@@ -984,6 +1058,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			if initial_spawn_count == 3: base_x = 1310 + i * 240
 			en.position = Vector2(base_x, 250)
 			parent_node.add_child(en)
+			_play_encounter_smoke(base_x, 210.0, 0.55 if is_boss else 0.45)
 			if ENEMY_ANIMATION_SHEETS.has(ename):
 				var anims = ENEMY_ANIMATION_SHEETS[ename]
 				for a_key in anims:
@@ -1045,6 +1120,24 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			target_badge.visible = (i == 0)
 			parent_node.add_child(target_badge)
 
+			var intent_badge = RichTextLabel.new()
+			intent_badge.name = "IntentBadge"
+			intent_badge.bbcode_enabled = true
+			intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			intent_badge.fit_content = true
+			intent_badge.scroll_active = false
+			intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
+			intent_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
+			intent_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
+			intent_badge.add_theme_font_size_override("normal_font_size", 15)
+			intent_badge.add_theme_font_size_override("bold_font_size", 15)
+			intent_badge.add_theme_constant_override("outline_size", 5)
+			intent_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+			intent_badge.size = Vector2(340, 30)
+			intent_badge.position = bar_bg.position + Vector2(-120, -70)
+			intent_badge.text = "[center][b][color=#FF5252]⚔️ 攻撃 (%d)[/color][/b][/center]" % int(e_atk)
+			parent_node.add_child(intent_badge)
+
 			var lbl = RichTextLabel.new()
 			lbl.bbcode_enabled = true
 			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1079,7 +1172,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			active_enemies.append({
 				"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
 				"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
-				"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data
+				"target_badge": target_badge, "target_frame": target_frame, "intent_badge": intent_badge, "sp_data": sp_data
 			})
 
 	target_enemy_index = 0
@@ -1094,6 +1187,19 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 
 	ehppar = 1.0
 	enemycount += 1
+
+	# 出現SE再生
+	var syutsugen_se = get_node_or_null("syutsugen")
+	if syutsugen_se == null and _enemy_zoom_root:
+		syutsugen_se = _enemy_zoom_root.get_node_or_null("syutsugen")
+	if syutsugen_se == null and get_parent():
+		syutsugen_se = get_parent().get_node_or_null("syutsugen")
+	if syutsugen_se and syutsugen_se.has_method("play"):
+		syutsugen_se.play()
+
+	# 行動予告バッジの初期化
+	if pb and pb.has_method("_decide_enemy_actions"):
+		pb._decide_enemy_actions(self)
 
 ## 5番目のボス（冥王デモニアス等）による仲間召喚スキル
 func summon_boss_minion(specific_ename: String = "") -> Dictionary:
@@ -1221,6 +1327,24 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	target_badge.visible = false
 	parent_node.add_child(target_badge)
 
+	var intent_badge = RichTextLabel.new()
+	intent_badge.name = "IntentBadge"
+	intent_badge.bbcode_enabled = true
+	intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intent_badge.fit_content = true
+	intent_badge.scroll_active = false
+	intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
+	intent_badge.add_theme_font_override("normal_font", CUSTOM_FONT)
+	intent_badge.add_theme_font_override("bold_font", CUSTOM_FONT)
+	intent_badge.add_theme_font_size_override("normal_font_size", 15)
+	intent_badge.add_theme_font_size_override("bold_font_size", 15)
+	intent_badge.add_theme_constant_override("outline_size", 5)
+	intent_badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	intent_badge.size = Vector2(340, 30)
+	intent_badge.position = bar_bg.position + Vector2(-120, -70)
+	intent_badge.text = "[center][b][color=#BA68C8]召喚待機[/color][/b][/center]"
+	parent_node.add_child(intent_badge)
+
 	var lbl = RichTextLabel.new()
 	lbl.bbcode_enabled = true
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1255,7 +1379,7 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	var new_e = {
 		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
 		"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
-		"target_badge": target_badge, "target_frame": target_frame, "sp_data": sp_data,
+		"target_badge": target_badge, "target_frame": target_frame, "intent_badge": intent_badge, "sp_data": sp_data,
 		"just_summoned": true
 	}
 	active_enemies.append(new_e)
@@ -1682,6 +1806,7 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 				if e_data.has("hp_lbl") and is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
 				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
 				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
+				if e_data.has("intent_badge") and is_instance_valid(e_data["intent_badge"]): e_data["intent_badge"].queue_free()
 				active_enemies.remove_at(target_idx)
 				hide_enemy_hover_tooltip()
 				if target_enemy_index >= 0:
@@ -1707,7 +1832,11 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 			if is_instance_valid(t_spr):
 				var cur_anim = _active_single_anims.get(t_spr, "")
 				if cur_anim != "attack" and cur_anim != "skill":
-					play_single_enemy_animation(target_idx, "damaged")
+					var now_sec = Time.get_ticks_msec() / 1000.0
+					var last_dmg_time = t_spr.get_meta("last_damaged_time", -999.0)
+					if (now_sec - last_dmg_time) >= 0.10: # 0.1秒の間隔を設けて被ダメモーションが固まるのを防止
+						t_spr.set_meta("last_damaged_time", now_sec)
+						play_single_enemy_animation(target_idx, "damaged")
 
 	var sum_hp = 0.0
 	for e in active_enemies:
@@ -2347,6 +2476,10 @@ func _on_movefront_pressed() -> void:
 		if move_front_btn: move_front_btn.visible = false
 		if choose_buff_rect: choose_buff_rect.visible = false
 		_set_buff_buttons_visible(false)
+
+		# 戦闘勝利ボーナス: 次の戦闘へ進む際に体力を25%回復（体力を上昇・維持しやすく調整）
+		var battle_heal = myhpmax * 0.25
+		calchp(0.0, -battle_heal)
 
 		if stage_enemy >= 4:
 			isdanger = true
