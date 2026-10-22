@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 class_name CombatUIManager
 
 const POPUP_POOL_SIZE = 16
@@ -36,6 +36,7 @@ func _init_player_delay_bar() -> void:
 	if not hpbar1: return
 	
 	player_hp_delay_bar = ColorRect.new()
+	player_hp_delay_bar.name = "player_hp_delay_bar"
 	player_hp_delay_bar.color = Color(1.0, 0.9, 0.2, 1.0)
 	player_hp_delay_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	player_hp_delay_bar.z_index = hpbar1.z_index - 1
@@ -115,7 +116,9 @@ func _show_player_damage(amount: float, element: String = "", blocked: float = 0
 		btw.parallel().tween_property(blbl, "modulate:a", 0.0, POPUP_DURATION * 0.5).set_delay(POPUP_DURATION * 0.5)
 		btw.tween_callback(func(): blbl.visible = false)
 	if is_instance_valid(player_hp_delay_bar):
-		# hpbar1 already declared
+		var sm_mgr = get_node_or_null("../../StageManager")
+		if sm_mgr and sm_mgr.has_method("displayhp"):
+			sm_mgr.displayhp()
 		if hpbar1:
 			var target_w = hpbar1.size.x
 			var old_w = player_hp_delay_bar.size.x
@@ -123,12 +126,21 @@ func _show_player_damage(amount: float, element: String = "", blocked: float = 0
 				player_hp_delay_bar.color = Color(1.0, 0.9, 0.2, 1.0)
 				if player_hp_delay_bar.has_meta("tw"):
 					var old_tw = player_hp_delay_bar.get_meta("tw")
-					if is_instance_valid(old_tw): old_tw.kill()
+					if is_instance_valid(old_tw) and old_tw is Tween:
+						old_tw.kill()
 				var bar_tw = create_tween()
 				player_hp_delay_bar.set_meta("tw", bar_tw)
-				bar_tw.tween_interval(0.3)
-				bar_tw.tween_property(player_hp_delay_bar, "size:x", target_w, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				bar_tw.tween_interval(0.2)
+				bar_tw.tween_property(player_hp_delay_bar, "size:x", float(target_w), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				bar_tw.tween_callback(func():
+					if is_instance_valid(player_hp_delay_bar) and is_instance_valid(hpbar1):
+						player_hp_delay_bar.size.x = hpbar1.size.x
+				)
 			else:
+				if player_hp_delay_bar.has_meta("tw"):
+					var old_tw = player_hp_delay_bar.get_meta("tw")
+					if is_instance_valid(old_tw) and old_tw is Tween:
+						old_tw.kill()
 				player_hp_delay_bar.size.x = target_w
 
 func _show_player_heal(amount: float) -> void:
@@ -156,9 +168,15 @@ func _show_player_heal(amount: float) -> void:
 	tw.tween_callback(func(): lbl.visible = false)
 	
 	if is_instance_valid(player_hp_delay_bar):
-		# hpbar1 already declared
+		var sm_mgr = get_node_or_null("../../StageManager")
+		if sm_mgr and sm_mgr.has_method("displayhp"):
+			sm_mgr.displayhp()
 		if hpbar1:
 			var target_w = hpbar1.size.x
+			if player_hp_delay_bar.has_meta("tw"):
+				var old_tw = player_hp_delay_bar.get_meta("tw")
+				if is_instance_valid(old_tw) and old_tw is Tween:
+					old_tw.kill()
 			player_hp_delay_bar.size.x = target_w
 			
 			if hpbar1.has_meta("tw"):

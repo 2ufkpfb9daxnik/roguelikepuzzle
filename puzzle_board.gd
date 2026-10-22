@@ -4864,9 +4864,10 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		isblock = 0
 		if score_mgr:
 			var s_cnt = min(int((sm.ehp if sm else 0) / swordt), int(score_mgr.divscore[PieceType.SWORD] / (swordt * 100.0)))
-			var stage_idx = sm.stage - 1 if sm else 0
-			var max_heal = 50 * int(pow(10, stage_idx)) - int((sm.myhp if sm else 0) / (foodt * 100.0))
-			var f_cnt = min(max_heal, int(score_mgr.divscore[PieceType.FOOD] / (foodt * 100.0)))
+			var food_heal_unit: float = maxf(1.0, foodt * 100.0)
+			var needed_heal: float = maxf(0.0, (sm.myhpmax - sm.myhp) if sm else 0.0)
+			var max_heal: int = int(ceil(needed_heal / food_heal_unit))
+			var f_cnt = min(max_heal, int(score_mgr.divscore[PieceType.FOOD] / food_heal_unit))
 			var max_gage = 0 if (sm and sm.isfevertime) else maxi(0, 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont)))
 			var p_cnt = min(max_gage, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
 			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and not sm.isfevertime and sm.fevergage < 7000.0) or turn_skill_log.size() > 0:
@@ -5074,10 +5075,11 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 		msisvalid = true
 
 	# 食料（生成数最大24個制限・回復量100%保持）
-	var stage_idx = sm.stage - 1 if sm else 0
-	var max_heal_cap: int = 50 * int(pow(10, stage_idx)) - int((sm.myhp if sm else 0) / (foodt * 100.0))
-	var raw_food_cnt: int = min(max_heal_cap, int(score_mgr.divscore[PieceType.FOOD] / (foodt * 100.0)))
-	score_mgr.divscore[PieceType.FOOD] -= int(raw_food_cnt * foodt * 100.0)
+	var food_heal_unit: float = maxf(1.0, foodt * 100.0)
+	var needed_heal_cap: float = maxf(0.0, (sm.myhpmax - sm.myhp) if sm else 0.0)
+	var max_heal_cap: int = int(ceil(needed_heal_cap / food_heal_unit))
+	var raw_food_cnt: int = min(max_heal_cap, int(score_mgr.divscore[PieceType.FOOD] / food_heal_unit))
+	score_mgr.divscore[PieceType.FOOD] -= int(raw_food_cnt * food_heal_unit)
 	var food_cnt: int = clampi(raw_food_cnt, 0, MAX_COMBAT_PROJECTILES)
 	var heal_per_food: float = (float(raw_food_cnt) / float(max(1, food_cnt))) * 100.0
 	for i in range(food_cnt):

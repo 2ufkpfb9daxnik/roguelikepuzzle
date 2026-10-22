@@ -218,6 +218,7 @@ var _last_is_boss: bool = false
 var _last_fever_pct: int = -999999
 var _last_fever_count: int = -999999
 var _cached_hp_bar: ColorRect = null
+var _cached_delay_bar: ColorRect = null
 var _cached_fever_bar: ColorRect = null
 var _cached_fever_count_lbl = null
 var _last_updated_bg_stage: int = -1
@@ -1592,6 +1593,7 @@ func reset_enemy_zoom(duration: float = 0.18) -> void:
 func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = null) -> void:
 	myhp = clampf(myhp - damage_to_player, 0.0, myhpmax)
 	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
+	displayhp()
 	
 	if damage_to_enemy > 0.0 and active_enemies.size() > 0:
 		var target_idx: int = -1
@@ -1688,25 +1690,28 @@ func calcgage(potion: float) -> void:
 ## HPバー表示の更新
 func displayhp() -> void:
 	for e in active_enemies:
-		var p = e["hp"] / e["max_hp"] if e["max_hp"] > 0 else 0
+		if not (e is Dictionary): continue
+		var max_hp = e.get("max_hp", e.get("hp", 1.0))
+		var cur_hp = e.get("hp", 0.0)
+		var p = (cur_hp / max_hp) if max_hp > 0 else 0.0
 		var target_w = p * 100.0
 		
-		if is_instance_valid(e["bar_green"]):
+		if e.has("bar_green") and is_instance_valid(e.get("bar_green")):
 			e["bar_green"].size = Vector2(target_w, 10.0)
 			
-		if is_instance_valid(e["bar_red"]):
+		if e.has("bar_red") and is_instance_valid(e.get("bar_red")):
 			var cur_w = e["bar_red"].size.x
 			if cur_w > target_w:
 				e["bar_red"].size.x = max(target_w, cur_w - 0.75)
 			else:
 				e["bar_red"].size.x = target_w
 				
-		if is_instance_valid(e["hp_lbl"]):
-			var cur_hp_int = int(e["hp"])
+		if e.has("hp_lbl") and is_instance_valid(e.get("hp_lbl")):
+			var cur_hp_int = int(cur_hp)
 			var last_hp = e.get("last_hp_int", -1)
 			if cur_hp_int != last_hp:
 				e["last_hp_int"] = cur_hp_int
-				e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(e["max_hp"])) + "[/color][/center]"
+				e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(max_hp)) + "[/color][/center]"
 				
 	if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl):
 		enemy_race_lbl.visible = false
@@ -1721,7 +1726,37 @@ func displayhp() -> void:
 	if _cached_hp_bar == null or not is_instance_valid(_cached_hp_bar):
 		_cached_hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1") as ColorRect if get_parent() else null
 	if _cached_hp_bar:
-		_cached_hp_bar.size = Vector2(min(int(myhppar * 725.0), 725), 26.0)
+		var target_w = min(int(myhppar * 725.0), 725)
+		_cached_hp_bar.size = Vector2(target_w, 26.0)
+		
+		# 遅延黄色ゲージ（player_hp_delay_bar）の同期・アニメーション追従処理
+		if _cached_delay_bar == null or not is_instance_valid(_cached_delay_bar):
+			var sm_node = _get_score_manager()
+			if sm_node:
+				_cached_delay_bar = sm_node.get_node_or_null("player_hp_delay_bar") as ColorRect
+		if _cached_delay_bar and is_instance_valid(_cached_delay_bar):
+			if _cached_delay_bar.size.x < target_w:
+				# 回復時：黄色ゲージを即座に緑ゲージまで拡張
+				if _cached_delay_bar.has_meta("tw"):
+					var old_tw = _cached_delay_bar.get_meta("tw")
+					if is_instance_valid(old_tw) and old_tw is Tween: old_tw.kill()
+				_cached_delay_bar.size.x = target_w
+			elif _cached_delay_bar.size.x > target_w:
+				# 被ダメージ時：未開始のTweenがあれば黄色ゲージが0（緑ゲージに一致）になるまでアニメーション
+				var has_active_tw = false
+				if _cached_delay_bar.has_meta("tw"):
+					var cur_tw = _cached_delay_bar.get_meta("tw")
+					if is_instance_valid(cur_tw) and cur_tw is Tween and cur_tw.is_valid():
+						has_active_tw = true
+				if not has_active_tw:
+					var tw = create_tween()
+					_cached_delay_bar.set_meta("tw", tw)
+					tw.tween_interval(0.2)
+					tw.tween_property(_cached_delay_bar, "size:x", float(target_w), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+					tw.tween_callback(func():
+						if is_instance_valid(_cached_delay_bar) and is_instance_valid(_cached_hp_bar):
+							_cached_delay_bar.size.x = _cached_hp_bar.size.x
+					)
 		
 		if player_hp_lbl == null or not is_instance_valid(player_hp_lbl):
 			player_hp_lbl = RichTextLabel.new()
@@ -2234,8 +2269,10 @@ func _on_stagechangeb_pressed() -> void:
 	if not isstageclear:
 		return
 		
-	myhp *= 10.0
-	myhpmax *= 10.0
+	# ステージ進行時に体力が自動増加しないよう保持（現在HP・最大HPは維持）
+	myhp = clampf(myhp, 0.0, myhpmax)
+	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
+	displayhp()
 	isstageclear = false
 	stage_enemy = 1
 	stage += 1

@@ -303,5 +303,77 @@ func _init() -> void:
 	assert(shield_node.z_index > spr0.z_index, "Shields (z_index %d) must render in front of attacking enemy (z_index %d)" % [shield_node.z_index, spr0.z_index])
 	print("✓ Shield rendering in front of attacking enemy passed!")
 
+	# 16. Test Advancing Stage Does NOT Automatically Increase Player HP
+	sm_node.stage = 1
+	sm_node.myhp = 3500.0
+	sm_node.myhpmax = 6000.0
+	sm_node.isstageclear = true
+	sm_node._on_stagechangeb_pressed()
+	assert(sm_node.stage == 2, "Stage should advance to 2")
+	assert(sm_node.myhp == 3500.0, "Player current HP must NOT automatically increase on stage advance (got %f)" % sm_node.myhp)
+	assert(sm_node.myhpmax == 6000.0, "Player max HP must NOT automatically increase on stage advance (got %f)" % sm_node.myhpmax)
+	print("✓ Stage progression without automatic HP increase passed!")
+
+	# 17. Test Healing to Max HP (Does not stop at 5000)
+	sm_node.stage = 1
+	sm_node.myhpmax = 8000.0
+	sm_node.myhp = 4500.0
+	dummy_smgr.divscore[pb.PieceType.FOOD] = 5000
+	pb.foodt = 1.0
+	# Test turn sequence decision
+	var needed_heal_val = maxf(0.0, sm_node.myhpmax - sm_node.myhp)
+	assert(needed_heal_val == 3500.0, "Needed heal should be 3500")
+	var f_cnt_val = min(int(ceil(needed_heal_val / 100.0)), int(dummy_smgr.divscore[pb.PieceType.FOOD] / 100.0))
+	assert(f_cnt_val == 35, "Should plan to consume 35 food items to heal 3500 HP")
+	# Spawn food projectiles
+	pb._spawn_attack_projectiles(sm_node, dummy_smgr)
+	assert(dummy_smgr.divscore[pb.PieceType.FOOD] == 1500, "Should have consumed 3500 score, leaving 1500")
+	assert(pb.flying_foods.size() > 0, "Flying food projectiles must be spawned")
+	# Simulate food projectiles landing
+	for item in pb.flying_foods:
+		item["t"] = 100.0 # Force land
+	pb.movefoods()
+	assert(is_equal_approx(sm_node.myhp, 8000.0), "Player HP must reach max HP (8000.0), got %f" % sm_node.myhp)
+	print("✓ Healing to max HP (beyond 5000 without stopping) passed!")
+
+	# 18. Test Player Yellow Delay Bar Animates Down to 0
+	var hpbar1 = ColorRect.new()
+	hpbar1.name = "hpbar1"
+	hpbar1.position = Vector2(1190, 412)
+	hpbar1.size = Vector2(725, 26)
+	dummy_smgr.add_child(hpbar1)
+	sm_node._cached_hp_bar = hpbar1
+
+	var delay_bar = ColorRect.new()
+	delay_bar.name = "player_hp_delay_bar"
+	delay_bar.position = Vector2(1190, 412)
+	delay_bar.size = Vector2(725, 26)
+	dummy_smgr.add_child(delay_bar)
+	sm_node._cached_delay_bar = delay_bar
+
+	# Player takes 4000 damage from 8000 max HP
+	sm_node.myhp = 8000.0
+	sm_node.myhpmax = 8000.0
+	sm_node.myhppar = 1.0
+	hpbar1.size.x = 725.0
+	delay_bar.size.x = 725.0
+
+	sm_node.calchp(0.0, 4000.0)
+	assert(is_equal_approx(sm_node.myhp, 4000.0), "Player HP should be approx 4000, got %f" % sm_node.myhp)
+	var expected_green_w = int((4000.0 / 8000.0) * 725.0) # 362
+	assert(hpbar1.size.x == expected_green_w, "hpbar1 (green) must immediately drop to post-damage width %d (got %f)" % [expected_green_w, hpbar1.size.x])
+	# Yellow delay bar should have tween active
+	assert(delay_bar.has_meta("tw") and is_instance_valid(delay_bar.get_meta("tw")), "Delay bar must have active tween")
+	var dtw = delay_bar.get_meta("tw")
+	assert(dtw.is_valid(), "Delay bar tween must be valid")
+	# Simulate delay bar caught up to damaged green width, then test heal expansion
+	delay_bar.size.x = expected_green_w
+	sm_node.calchp(0.0, -2000.0) # Heal 2000 -> 6000 HP
+	assert(is_equal_approx(sm_node.myhp, 6000.0), "Player HP should be 6000 after heal")
+	var healed_green_w = int((6000.0 / 8000.0) * 725.0) # 543
+	assert(hpbar1.size.x == healed_green_w, "Green bar must expand immediately to %d" % healed_green_w)
+	assert(delay_bar.size.x == healed_green_w, "Delay bar must immediately expand to match healed green bar width (no lag)")
+	print("✓ Yellow delay bar animation and heal sync passed!")
+
 	print("\nALL POISON & MULTI-SKILL TESTS PASSED SUCCESSFULLY!")
 	quit(0)
