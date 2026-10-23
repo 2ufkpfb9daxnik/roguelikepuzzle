@@ -229,5 +229,87 @@ func _init() -> void:
 	assert(bo._is_ally_cell("grid_water_ally", 3, 4) == false, "BoardOverlay must detect enemy water at (3,4)")
 	print("✓ All 10 player skills, ally non-blocking behavior, and BoardOverlay ally/enemy color differentiation verified!")
 
+	# 13. Test Wind Skill Disadvantageous Tile Clearing (Ally Wind removes enemy hazards, preserves ally benefits)
+	pb._initialize_board(null)
+	# Setup enemy hazards (disadvantageous to player)
+	pb.grid_poison[1][1] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 1, 1, false) # enemy poison
+	pb.grid_cursed[1][2] = true
+	pb._set_ally_flag(pb.grid_cursed_ally, 1, 2, false) # enemy curse
+	pb.grid_electrified[1][3] = true
+	pb._set_ally_flag(pb.grid_electrified_ally, 1, 3, false) # enemy electrified
+	pb.grid_fire[1][4] = 1
+	pb._set_ally_flag(pb.grid_fire_ally, 1, 4, false) # enemy fire
+	pb.grid_ice[1][5] = 2
+	pb._set_ally_flag(pb.grid_ice_ally, 1, 5, false) # enemy ice
+	pb.grid_stones[1][6] = 2
+	pb._set_ally_flag(pb.grid_stones_ally, 1, 6, false) # enemy stone
+	pb.grid_water[1][7] = true
+	pb._set_ally_flag(pb.grid_water_ally, 1, 7, false) # enemy water
+	pb.grid_gold_statue[1][8] = 2
+	pb._set_ally_flag(pb.grid_gold_ally, 1, 8, false) # enemy gold statue
+	pb.grid_fog.append({"rect": Rect2i(2, 2, 2, 2), "turns": 3, "enemy_owned": true}) # enemy dark fog
+	pb.plant_entities.append({"origin": Vector2i(4, 4), "stage": 0, "enemy_planted": true, "drain_amount": 10}) # enemy leech plant
+
+	# Setup ally beneficial tiles (advantageous to player)
+	pb.grid_poison[7][1] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 7, 1, true) # ally medicinal poison
+	pb.grid_fire[7][2] = 1
+	pb._set_ally_flag(pb.grid_fire_ally, 7, 2, true) # ally blue flame
+	pb.grid_ice[7][3] = 1
+	pb._set_ally_flag(pb.grid_ice_ally, 7, 3, true) # ally ice shield
+	pb.grid_stones[7][4] = 2
+	pb._set_ally_flag(pb.grid_stones_ally, 7, 4, true) # ally crystal stone
+	pb.grid_water[7][5] = true
+	pb._set_ally_flag(pb.grid_water_ally, 7, 5, true) # ally stream
+	pb.grid_electrified[7][6] = true
+	pb._set_ally_flag(pb.grid_electrified_ally, 7, 6, true) # ally charge
+	pb.grid_cursed[7][7] = true
+	pb._set_ally_flag(pb.grid_cursed_ally, 7, 7, true) # ally shadow blessing
+	pb.grid_gold_statue[7][8] = 2
+	pb._set_ally_flag(pb.grid_gold_ally, 7, 8, true) # ally holy statue
+	pb.grid_fog.append({"rect": Rect2i(8, 8, 2, 2), "turns": 3, "enemy_owned": false}) # ally starlight fog
+	pb.plant_entities.append({"origin": Vector2i(9, 9), "stage": 1, "enemy_planted": false, "drain_amount": 0}) # ally tree
+
+	# Cast Player Wind Skill
+	pb.cast_player_skill("wind", true)
+
+	# Verify ALL enemy hazards (disadvantageous tiles) are completely wiped out
+	assert(not pb.grid_poison[1][1], "Enemy poison must be cleared by ally wind")
+	assert(not pb.grid_cursed[1][2], "Enemy curse must be cleared by ally wind")
+	assert(not pb.grid_electrified[1][3], "Enemy electrified must be cleared by ally wind")
+	assert(pb.grid_fire[1][4] == 0, "Enemy fire must be extinguished by ally wind")
+	assert(int(pb.grid_ice[1][5]) == 0, "Enemy ice must be shattered by ally wind")
+	assert(int(pb.grid_stones[1][6]) == 0, "Enemy stone must be blown away by ally wind")
+	assert(not pb.grid_water[1][7], "Enemy water must be dried by ally wind")
+	assert(int(pb.grid_gold_statue[1][8]) == 0, "Enemy gold statue must be removed by ally wind")
+	var enemy_fog_remains = false
+	for fog in pb.grid_fog:
+		if fog.get("enemy_owned", true): enemy_fog_remains = true
+	assert(not enemy_fog_remains, "Enemy dark fog must be blown away by ally wind")
+	var enemy_plant_remains = false
+	for pl in pb.plant_entities:
+		if pl.get("enemy_planted", false): enemy_plant_remains = true
+	assert(not enemy_plant_remains, "Enemy leech plant must be uprooted by ally wind")
+
+	# Verify ALL ally beneficial tiles are PRESERVED
+	assert(pb.grid_poison[7][1] and pb.is_ally_poison(7, 1), "Ally medicinal poison must be preserved")
+	assert(pb.grid_fire[7][2] > 0 and pb.is_ally_fire(7, 2), "Ally blue flame must be preserved")
+	assert(int(pb.grid_ice[7][3]) > 0 and pb.is_ally_ice(7, 3), "Ally ice shield must be preserved")
+	assert(int(pb.grid_stones[7][4]) > 0 and pb.is_ally_stone(7, 4), "Ally crystal stone must be preserved")
+	assert(pb.grid_water[7][5] and pb.is_ally_water(7, 5), "Ally stream must be preserved")
+	assert(pb.grid_electrified[7][6] and pb.is_ally_electrified(7, 6), "Ally charge must be preserved")
+	assert(pb.grid_cursed[7][7] and pb.is_ally_cursed(7, 7), "Ally shadow blessing must be preserved")
+	assert(int(pb.grid_gold_statue[7][8]) > 0 and pb.is_ally_gold(7, 8), "Ally holy statue must be preserved")
+	var ally_fog_preserved = false
+	for fog in pb.grid_fog:
+		if not fog.get("enemy_owned", true): ally_fog_preserved = true
+	assert(ally_fog_preserved, "Ally starlight fog must be preserved")
+	var ally_plant_preserved = false
+	for pl in pb.plant_entities:
+		if not pl.get("enemy_planted", false): ally_plant_preserved = true
+	assert(ally_plant_preserved, "Ally tree must be preserved")
+	print("✓ Ally Wind skill verified: completely clears all disadvantageous tiles while strictly preserving ally beneficial tiles!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

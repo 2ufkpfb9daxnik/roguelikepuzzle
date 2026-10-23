@@ -6541,7 +6541,7 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 		})
 		_targets.append(get_cell_position(GRID_ROWS / 2, col))
 
-		# 列上の非コマオブジェクト（木・アイテム・石・水たまり）を吹き飛ばす
+		# 敵にとって不利益なマス（プレイヤーの木・特殊アイテム・プレイヤー有利マス・星影の霧）を吹き飛ばす
 		for plant in plant_entities.duplicate():
 			var occ = _get_plant_occupied_cells(plant)
 			var hit = false
@@ -6549,7 +6549,7 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 				if pcell.y == col:
 					hit = true
 					break
-			if hit:
+			if hit and not plant.get("enemy_planted", false):
 				_damage_plant(plant, 999, "wind_tornado")
 
 		for r in range(GRID_ROWS):
@@ -6559,27 +6559,41 @@ func _cast_enemy_wind_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 				is_bomb[r][col] = false
 			if special_charge.size() == GRID_ROWS:
 				special_charge[r][col] = 0
-			if grid_stones.size() == GRID_ROWS:
+			# プレイヤー側の有利マス（味方属性マス）のみ吹き飛ばす（敵自身の障害物は保持）
+			if grid_stones.size() == GRID_ROWS and is_ally_stone(r, col):
 				grid_stones[r][col] = 0
 				_set_ally_flag(grid_stones_ally, r, col, false)
-			if grid_water.size() == GRID_ROWS:
+			if grid_water.size() == GRID_ROWS and is_ally_water(r, col):
 				grid_water[r][col] = false
 				_set_ally_flag(grid_water_ally, r, col, false)
-			if grid_ice.size() == GRID_ROWS:
+			if grid_ice.size() == GRID_ROWS and is_ally_ice(r, col):
 				grid_ice[r][col] = 0
 				_set_ally_flag(grid_ice_ally, r, col, false)
-			if grid_cursed.size() == GRID_ROWS:
+			if grid_cursed.size() == GRID_ROWS and is_ally_cursed(r, col):
 				grid_cursed[r][col] = false
 				_set_ally_flag(grid_cursed_ally, r, col, false)
-			if grid_poison.size() == GRID_ROWS:
+			if grid_poison.size() == GRID_ROWS and is_ally_poison(r, col):
 				grid_poison[r][col] = false
 				_set_ally_flag(grid_poison_ally, r, col, false)
-			if grid_electrified.size() == GRID_ROWS:
+			if grid_electrified.size() == GRID_ROWS and is_ally_electrified(r, col):
 				grid_electrified[r][col] = false
 				_set_ally_flag(grid_electrified_ally, r, col, false)
-			if grid_gold_statue.size() == GRID_ROWS:
+			if grid_gold_statue.size() == GRID_ROWS and is_ally_gold(r, col):
 				grid_gold_statue[r][col] = 0
 				_set_ally_flag(grid_gold_ally, r, col, false)
+			if grid_fire.size() == GRID_ROWS and is_ally_fire(r, col):
+				grid_fire[r][col] = 0
+				_set_ally_flag(grid_fire_ally, r, col, false)
+
+		# プレイヤー側の星影の霧が竜巻列にかかっていたら解除
+		var fog_idx = grid_fog.size() - 1
+		while fog_idx >= 0:
+			var fog_d = grid_fog[fog_idx]
+			if not fog_d.get("enemy_owned", true):
+				var f_rect: Rect2i = fog_d.get("rect", Rect2i(0, 0, 0, 0))
+				if col >= f_rect.position.y and col < f_rect.position.y + f_rect.size.y:
+					grid_fog.remove_at(fog_idx)
+			fog_idx -= 1
 
 	var rensa_se = get_node_or_null("1rensa")
 	if rensa_se: rensa_se.play()
@@ -8600,26 +8614,94 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				_spawn_stone_break_effect(pos)
 
 		"wind":
-			# 🌪️ 翠嵐の風(自)：敵の猛毒や呪い・暗雲を吹き飛ばし、翠嵐の風エフェクトを展開！
+			# 🌪️ 翠嵐の風(自)：味方にとって不利益なマス（敵の毒・呪い・帯電・炎上・氷結・岩石・水没・黄金像・暗雲・吸血苗木）を全消去して浄化！
+			var cleared_hazard_count: int = 0
+
+			# 1. 敵の毒・呪い・帯電・炎・氷・石・水没・黄金像を消去（味方の有利マスは完全保護）
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
-					if grid_poison[r][c] and not is_ally_poison(r, c):
+					var is_hazard_here: bool = false
+
+					# 敵の毒
+					if grid_poison.size() == GRID_ROWS and grid_poison[r][c] and not is_ally_poison(r, c):
 						grid_poison[r][c] = false
-						affected_positions.append(get_cell_position(r, c))
-					if grid_cursed[r][c] and not is_ally_cursed(r, c):
+						is_hazard_here = true
+					# 敵の呪い
+					if grid_cursed.size() == GRID_ROWS and grid_cursed[r][c] and not is_ally_cursed(r, c):
 						grid_cursed[r][c] = false
-						affected_positions.append(get_cell_position(r, c))
-			var mid_col: int = GRID_COLUMNS / 2
-			active_wind_tornadoes.append({
-				"col": mid_col,
-				"y": BOARD_TOP,
-				"speed": 5500.0,
-				"active": true,
-				"ally": true
-			})
-			var center_pos = get_cell_position(GRID_ROWS / 2, mid_col)
+						is_hazard_here = true
+					# 敵の帯電
+					if grid_electrified.size() == GRID_ROWS and grid_electrified[r][c] and not is_ally_electrified(r, c):
+						grid_electrified[r][c] = false
+						is_hazard_here = true
+					# 敵の炎上
+					if grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0 and not is_ally_fire(r, c):
+						grid_fire[r][c] = 0
+						is_hazard_here = true
+					# 敵の氷結
+					if grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0 and not is_ally_ice(r, c):
+						grid_ice[r][c] = 0
+						is_hazard_here = true
+					# 敵の岩石
+					if grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0 and not is_ally_stone(r, c):
+						grid_stones[r][c] = 0
+						is_hazard_here = true
+					# 敵の水没
+					if grid_water.size() == GRID_ROWS and grid_water[r][c] and not is_ally_water(r, c):
+						grid_water[r][c] = false
+						is_hazard_here = true
+					# 敵の黄金像
+					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and not is_ally_gold(r, c):
+						grid_gold_statue[r][c] = 0
+						is_hazard_here = true
+
+					if is_hazard_here:
+						cleared_hazard_count += 1
+						var c_pos = get_cell_position(r, c)
+						affected_positions.append(c_pos)
+						_spawn_shockwave_ring(c_pos, Color(0.35, 1.0, 0.75), 80.0, 0.25)
+
+			# 2. 敵の瘴気の暗雲（黒い霧）を吹き飛ばし消去
+			var fog_i = grid_fog.size() - 1
+			while fog_i >= 0:
+				var fog = grid_fog[fog_i]
+				if fog.get("enemy_owned", true):
+					var f_rect: Rect2i = fog.get("rect", Rect2i(0, 0, 0, 0))
+					var f_pos = get_cell_position(f_rect.position.x, f_rect.position.y)
+					_spawn_floating_text(f_pos, "暗雲消滅！", Color(0.4, 1.0, 0.8))
+					affected_positions.append(f_pos)
+					grid_fog.remove_at(fog_i)
+					cleared_hazard_count += 1
+				fog_i -= 1
+
+			# 3. 敵の吸血苗木/木を吹き飛ばし消去（味方の苗木は保持）
+			for plant in plant_entities.duplicate():
+				if plant.get("enemy_planted", false):
+					var p_orig = plant.get("origin", Vector2i(0, 0))
+					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					_spawn_floating_text(p_pos, "吸血木消滅！", Color(0.4, 1.0, 0.8))
+					affected_positions.append(p_pos)
+					_damage_plant(plant, 999, "ally_wind_tornado")
+					cleared_hazard_count += 1
+
+			# 4. 盤面を駆け抜ける翠嵐の竜巻エフェクトを展開
+			var tornado_cols: Array[int] = [3, 6, 9]
+			for t_col in tornado_cols:
+				active_wind_tornadoes.append({
+					"col": t_col,
+					"y": BOARD_TOP,
+					"speed": 5500.0,
+					"active": true,
+					"ally": true
+				})
+			var center_pos = get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2)
 			if affected_positions.is_empty():
 				affected_positions.append(center_pos)
+
+			var rensa_se = get_node_or_null("1rensa")
+			if rensa_se: rensa_se.play()
+
+			_spawn_floating_text(center_pos, "🌪️ 翠嵐の浄化！ (不利益マス一掃)" if cleared_hazard_count > 0 else "🌪️ 翠嵐の風！", Color(0.2, 1.0, 0.75))
 
 		"poison":
 			# 🧪 薬毒散布(自)：プレイヤーに無害で毎ターン敵にダメージを与える薬毒マス(自)を2マス生成！（水マスで2倍速拡散）

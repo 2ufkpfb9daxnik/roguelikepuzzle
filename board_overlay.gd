@@ -42,8 +42,12 @@ func _process(delta: float) -> void:
 		var i = board.active_wind_tornadoes.size() - 1
 		while i >= 0:
 			var tor = board.active_wind_tornadoes[i]
-			tor["y"] += tor.get("speed", 4500.0) * delta
-			if tor["y"] > BOARD_TOP + BOARD_HEIGHT + 600.0:
+			var spd: float = tor.get("speed", 4500.0)
+			tor["y"] += spd * delta
+			if spd >= 0.0 and tor["y"] > BOARD_TOP + BOARD_HEIGHT + 600.0:
+				board.active_wind_tornadoes.remove_at(i)
+				removed = true
+			elif spd < 0.0 and tor["y"] < BOARD_TOP - 1600.0:
 				board.active_wind_tornadoes.remove_at(i)
 				removed = true
 			i -= 1
