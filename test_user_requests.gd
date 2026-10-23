@@ -613,7 +613,8 @@ func _init() -> void:
 	for s_item in sc.skill_tree_items:
 		assert(s_item["max_level"] == 20, "Skill %s must have max_level 20" % s_item["id"])
 		assert(s_item["desc_lv"].size() == 20, "Skill %s must have 20 description levels (got: %d)" % [s_item["id"], s_item["desc_lv"].size()])
-	print("✓ All 30 skills registered with 20 levels in ScoreManager verified!")
+		assert(s_item.get("match_recipe", "") != "", "Skill %s must explicitly specify match_recipe" % s_item["id"])
+	print("✓ All 30 skills registered with 20 levels and explicit match_recipes verified!")
 
 	# ==============================================================================
 	# 20. Test Match-Generated Skill Creation: Locked vs Unlocked
@@ -776,6 +777,30 @@ func _init() -> void:
 	pb._detect_and_spawn_special_from_matches()
 	assert(pb.pending_special_spawns.get(Vector2i(2, 3)) == pb.SpecialItemType.DISCO_BALL, "7+ match must spawn DISCO_BALL when unlocked")
 	print("✓ Unlocked 7+ Match correctly generates DISCO_BALL!")
+
+	# 4-Match SHIELD in nature -> ICE_SHIELD
+	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.ICE_SHIELD] = 1
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.SHIELD
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.ICE_SHIELD, "4-Match SHIELD must generate ICE_SHIELD when unlocked")
+	print("✓ Unlocked 4-Match SHIELD correctly generates ICE_SHIELD!")
+
+	# 4-Match POTION in mystic -> POISON_MIST
+	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.POISON_MIST] = 1
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("mystic")
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.POTION
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.POISON_MIST, "4-Match POTION in mystic must generate POISON_MIST when unlocked")
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("")
+	print("✓ Unlocked 4-Match POTION correctly generates POISON_MIST in mystic!")
 
 	# ==============================================================================
 	# 21. Test Poison Immunity Reduction

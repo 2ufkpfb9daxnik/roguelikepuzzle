@@ -133,7 +133,9 @@ enum SpecialItemType {
 	TREE_SPROUT = 9,       # 生命の苗木 (地: 水を吸って3x3大木へ進化, 毎ターン回復, 雷耐久, 火延焼)
 	MAGNET = 10,           # マグネット (互換用)
 	CHARGE_BOMB = 11,      # チャージボム (互換用)
-	GEMINI_BOMB = 12       # ジェミニボム (互換用)
+	GEMINI_BOMB = 12,      # ジェミニボム (互換用)
+	ICE_SHIELD = 13,       # 氷盾・氷晶 (氷: 氷結マス展開・効果進行停止)
+	POISON_MIST = 14       # 薬毒瓶・ポイズンミスト (毒: 免疫薬毒マス展開)
 }
 
 # 落下時の特殊アイテム出現ウェイト（強すぎるアイテムは極小に設定）
@@ -146,7 +148,9 @@ const SPECIAL_DROP_WEIGHTS: Dictionary = {
 	SpecialItemType.CROSS_BOMB: 12.0,      # クロスブレイズ (十字炎)
 	SpecialItemType.COLOR_CONVERTER: 8.0,  # フローラスプレー (同色染め)
 	SpecialItemType.BLACK_HOLE: 2.0,       # ブラックホール (大消滅)
-	SpecialItemType.DISCO_BALL: 1.0        # スターオーブ (全画面消滅・極小)
+	SpecialItemType.DISCO_BALL: 1.0,       # スターオーブ (全画面消滅・極小)
+	SpecialItemType.ICE_SHIELD: 20.0,      # 氷盾 (氷結展開)
+	SpecialItemType.POISON_MIST: 20.0      # 薬毒 (免疫薬毒展開)
 }
 
 
@@ -212,7 +216,9 @@ var special_levels: Dictionary = {
 	SpecialItemType.TREE_SPROUT: 0,
 	SpecialItemType.MAGNET: 0,
 	SpecialItemType.CHARGE_BOMB: 0,
-	SpecialItemType.GEMINI_BOMB: 0
+	SpecialItemType.GEMINI_BOMB: 0,
+	SpecialItemType.ICE_SHIELD: 0,
+	SpecialItemType.POISON_MIST: 0
 }
 
 var last_swap_cells: Array = []
@@ -529,7 +535,7 @@ func sync_special_levels_from_score_manager() -> void:
 			var lvl: int = int(s_item.get("level", 0))
 			var sp_type: int = int(s_item.get("sp_type", -1))
 			if sp_type > 0:
-				special_levels[sp_type] = lvl
+				special_levels[sp_type] = maxi(special_levels.get(sp_type, 0), lvl)
 
 func _initialize_board(collid_template: Node) -> void:
 	_clear_all_combat_projectiles()
@@ -1204,6 +1210,143 @@ func _get_second_dominant_attribute(exclude_att: int) -> int:
 	return best_a
 
 ## 同色コマのn個消し（4消し、5個直線、交差、6個、7個以上）によるスキルコマ手動生成解析
+## マッチ条件と選択カテゴリ・解放状況に応じた特殊スキル駒の選定
+func _select_special_for_match(kind: int, total_count: int, max_line: int, has_cross: bool) -> int:
+	var rm = _get_relic_manager()
+	var cat: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+
+	# 1. カテゴリが Nature の場合 (水・氷・木・風)
+	if cat == "nature":
+		match kind:
+			PieceType.POTION: # 水
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
+					return SpecialItemType.AQUA_SPLASH
+				if max_line >= 5 and special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
+					return SpecialItemType.AQUA_SPLASH
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
+					return SpecialItemType.AQUA_SPLASH
+			PieceType.SHIELD: # 氷
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.ICE_SHIELD, 0) > 0:
+					return SpecialItemType.ICE_SHIELD
+				if max_line >= 5 and special_levels.get(SpecialItemType.ICE_SHIELD, 0) > 0:
+					return SpecialItemType.ICE_SHIELD
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.ICE_SHIELD, 0) > 0:
+					return SpecialItemType.ICE_SHIELD
+			PieceType.FOOD: # 木
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
+					return SpecialItemType.TREE_SPROUT
+				if max_line >= 5 and special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
+					return SpecialItemType.COLOR_CONVERTER
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
+					return SpecialItemType.TREE_SPROUT
+			PieceType.COIN: # 風
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.TORNADO, 0) > 0:
+					return SpecialItemType.TORNADO
+				if max_line >= 5 and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
+					return SpecialItemType.MAGNET
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.TORNADO, 0) > 0:
+					return SpecialItemType.TORNADO
+
+	# 2. カテゴリが Force の場合 (火・雷・土)
+	elif cat == "force":
+		match kind:
+			PieceType.SWORD: # 火
+				if (total_count >= 6 or total_count >= 7) and special_levels.get(SpecialItemType.GEMINI_BOMB, 0) > 0:
+					return SpecialItemType.GEMINI_BOMB
+				if has_cross and special_levels.get(SpecialItemType.CROSS_BOMB, 0) > 0:
+					return SpecialItemType.CROSS_BOMB
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.BOMB, 0) > 0:
+					return SpecialItemType.BOMB
+			PieceType.COIN: # 雷
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.LIGHTNING, 0) > 0:
+					return SpecialItemType.LIGHTNING
+				if max_line >= 5 and special_levels.get(SpecialItemType.GEMINI_BOMB, 0) > 0:
+					return SpecialItemType.GEMINI_BOMB
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.LIGHTNING, 0) > 0:
+					return SpecialItemType.LIGHTNING
+			PieceType.SHIELD: # 土
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
+					return SpecialItemType.CHARGE_BOMB
+				if max_line >= 5 and special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
+					return SpecialItemType.COLOR_CONVERTER
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
+					return SpecialItemType.CHARGE_BOMB
+
+	# 3. カテゴリが Mystic の場合 (毒・光・闇)
+	elif cat == "mystic":
+		match kind:
+			PieceType.POTION: # 毒
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.POISON_MIST, 0) > 0:
+					return SpecialItemType.POISON_MIST
+				if max_line >= 5 and special_levels.get(SpecialItemType.POISON_MIST, 0) > 0:
+					return SpecialItemType.POISON_MIST
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.POISON_MIST, 0) > 0:
+					return SpecialItemType.POISON_MIST
+			PieceType.COIN: # 光
+				if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
+					return SpecialItemType.DISCO_BALL
+				if (has_cross or total_count >= 6 or max_line >= 5) and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
+					return SpecialItemType.DISCO_BALL
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
+					return SpecialItemType.DISCO_BALL
+			PieceType.SWORD: # 闇
+				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
+					return SpecialItemType.BLACK_HOLE
+				if max_line >= 5 and special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
+					return SpecialItemType.BLACK_HOLE
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
+					return SpecialItemType.BLACK_HOLE
+
+	# 4. カテゴリ未選択（または未該当時のフォールバック判定）
+	if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
+		return SpecialItemType.DISCO_BALL
+	if total_count >= 6 and special_levels.get(SpecialItemType.GEMINI_BOMB, 0) > 0:
+		return SpecialItemType.GEMINI_BOMB
+	if has_cross and special_levels.get(SpecialItemType.CROSS_BOMB, 0) > 0:
+		return SpecialItemType.CROSS_BOMB
+
+	if max_line >= 5:
+		match kind:
+			PieceType.SWORD:
+				if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0: return SpecialItemType.LIGHTNING
+				if special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0: return SpecialItemType.BLACK_HOLE
+				if special_levels.get(SpecialItemType.BOMB, 0) > 0: return SpecialItemType.BOMB
+			PieceType.SHIELD:
+				if special_levels.get(SpecialItemType.ICE_SHIELD, 0) > 0: return SpecialItemType.ICE_SHIELD
+				if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0: return SpecialItemType.COLOR_CONVERTER
+				if special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0: return SpecialItemType.CHARGE_BOMB
+			PieceType.COIN:
+				if special_levels.get(SpecialItemType.MAGNET, 0) > 0: return SpecialItemType.MAGNET
+				if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0: return SpecialItemType.LIGHTNING
+				if special_levels.get(SpecialItemType.TORNADO, 0) > 0: return SpecialItemType.TORNADO
+			PieceType.POTION:
+				if special_levels.get(SpecialItemType.POISON_MIST, 0) > 0: return SpecialItemType.POISON_MIST
+				if special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0: return SpecialItemType.BLACK_HOLE
+				if special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0: return SpecialItemType.AQUA_SPLASH
+			PieceType.FOOD:
+				if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0: return SpecialItemType.COLOR_CONVERTER
+				if special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0: return SpecialItemType.TREE_SPROUT
+
+	if total_count >= 4 or max_line >= 4 or has_cross:
+		match kind:
+			PieceType.SWORD:
+				if special_levels.get(SpecialItemType.BOMB, 0) > 0: return SpecialItemType.BOMB
+				if special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0: return SpecialItemType.BLACK_HOLE
+			PieceType.SHIELD:
+				if special_levels.get(SpecialItemType.ICE_SHIELD, 0) > 0: return SpecialItemType.ICE_SHIELD
+				if special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0: return SpecialItemType.CHARGE_BOMB
+			PieceType.COIN:
+				if special_levels.get(SpecialItemType.TORNADO, 0) > 0: return SpecialItemType.TORNADO
+				if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0: return SpecialItemType.LIGHTNING
+				if special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0: return SpecialItemType.DISCO_BALL
+			PieceType.POTION:
+				if special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0: return SpecialItemType.AQUA_SPLASH
+				if special_levels.get(SpecialItemType.POISON_MIST, 0) > 0: return SpecialItemType.POISON_MIST
+			PieceType.FOOD:
+				if special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0: return SpecialItemType.TREE_SPROUT
+
+	return SpecialItemType.NONE
+
 func _detect_and_spawn_special_from_matches() -> void:
 	pending_special_spawns.clear()
 
@@ -1341,64 +1484,7 @@ func _detect_and_spawn_special_from_matches() -> void:
 		var max_line = maxi(max_h, max_v)
 
 		# スキルレシピの選定（優先順位: 7消し > 6消し > 交差 > 5個直線 > 4個消し）
-		var target_sp: int = SpecialItemType.NONE
-
-		# Priority 1: 7個以上同時消し -> スターオーブ (DISCO_BALL = 3)
-		if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
-			target_sp = SpecialItemType.DISCO_BALL
-		# Priority 2: 6個同時消し -> ジェミニボム (GEMINI_BOMB = 12)
-		elif total_count >= 6 and special_levels.get(SpecialItemType.GEMINI_BOMB, 0) > 0:
-			target_sp = SpecialItemType.GEMINI_BOMB
-		# Priority 3: 交差消し (T/L/十字) -> クロスブレイズ (CROSS_BOMB = 2)
-		elif intersections.size() > 0 and special_levels.get(SpecialItemType.CROSS_BOMB, 0) > 0:
-			target_sp = SpecialItemType.CROSS_BOMB
-		# Priority 4: 5個一直線消し (max_line >= 5)
-		elif max_line >= 5:
-			match kind:
-				PieceType.SWORD: # 剣 -> LIGHTNING
-					if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0:
-						target_sp = SpecialItemType.LIGHTNING
-					elif special_levels.get(SpecialItemType.BOMB, 0) > 0:
-						target_sp = SpecialItemType.BOMB
-				PieceType.SHIELD: # 盾 -> COLOR_CONVERTER
-					if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
-						target_sp = SpecialItemType.COLOR_CONVERTER
-					elif special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
-						target_sp = SpecialItemType.CHARGE_BOMB
-				PieceType.COIN: # コイン -> MAGNET
-					if special_levels.get(SpecialItemType.MAGNET, 0) > 0:
-						target_sp = SpecialItemType.MAGNET
-					elif special_levels.get(SpecialItemType.TORNADO, 0) > 0:
-						target_sp = SpecialItemType.TORNADO
-				PieceType.POTION: # ポーション -> BLACK_HOLE
-					if special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
-						target_sp = SpecialItemType.BLACK_HOLE
-					elif special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
-						target_sp = SpecialItemType.AQUA_SPLASH
-				PieceType.FOOD: # パン -> COLOR_CONVERTER
-					if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0:
-						target_sp = SpecialItemType.COLOR_CONVERTER
-					elif special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
-						target_sp = SpecialItemType.TREE_SPROUT
-
-		# Priority 5: 4個消し (total_count >= 4 or max_line >= 4) または上位スキル未解放時のフォールバック
-		if target_sp == SpecialItemType.NONE and (total_count >= 4 or max_line >= 4 or intersections.size() > 0):
-			match kind:
-				PieceType.SWORD: # 剣 -> BOMB
-					if special_levels.get(SpecialItemType.BOMB, 0) > 0:
-						target_sp = SpecialItemType.BOMB
-				PieceType.SHIELD: # 盾 -> CHARGE_BOMB
-					if special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0:
-						target_sp = SpecialItemType.CHARGE_BOMB
-				PieceType.COIN: # コイン -> TORNADO
-					if special_levels.get(SpecialItemType.TORNADO, 0) > 0:
-						target_sp = SpecialItemType.TORNADO
-				PieceType.POTION: # ポーション -> AQUA_SPLASH
-					if special_levels.get(SpecialItemType.AQUA_SPLASH, 0) > 0:
-						target_sp = SpecialItemType.AQUA_SPLASH
-				PieceType.FOOD: # パン -> TREE_SPROUT
-					if special_levels.get(SpecialItemType.TREE_SPROUT, 0) > 0:
-						target_sp = SpecialItemType.TREE_SPROUT
+		var target_sp: int = _select_special_for_match(kind, total_count, max_line, intersections.size() > 0)
 
 		# スキル未解放ならコマは生成しない
 		if target_sp == SpecialItemType.NONE:
@@ -1558,6 +1644,12 @@ func _detonate_specials(start_items: Array) -> void:
 			SpecialItemType.BLACK_HOLE:
 				s_name = "black_hole"
 				s_elem = "dark"
+			SpecialItemType.ICE_SHIELD:
+				s_name = "ice_shield"
+				s_elem = "ice"
+			SpecialItemType.POISON_MIST:
+				s_name = "poison_mist"
+				s_elem = "poison"
 		if s_name != "":
 			var sm_for_log = _get_score_manager()
 			if sm_for_log and sm_for_log.has_method("add_turn_element"):
@@ -1596,6 +1688,10 @@ func _detonate_specials(start_items: Array) -> void:
 				_trigger_charge_bomb(b.x, b.y, pos, queue, exploded_items)
 			SpecialItemType.GEMINI_BOMB:
 				_trigger_gemini_bomb(b.x, b.y, pos, queue, exploded_items)
+			SpecialItemType.ICE_SHIELD:
+				_trigger_ice_shield(b.x, b.y, pos, queue, exploded_items)
+			SpecialItemType.POISON_MIST:
+				_trigger_poison_mist(b.x, b.y, pos, queue, exploded_items)
 			_:
 				_trigger_bomb(b.x, b.y, pos, queue, exploded_items)
 
@@ -1902,6 +1998,40 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 	return true
 
 # --- 各アイテムの個別アクション処理 ---
+
+func _trigger_ice_shield(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+	var lvl: int = max(1, special_levels.get(SpecialItemType.ICE_SHIELD, 1))
+	var tier: int = 1
+	if lvl >= 10: tier = 3
+	elif lvl >= 5: tier = 2
+	cast_player_skill("ice", true, tier)
+	_spawn_shockwave_ring(pos, Color(0.4, 0.9, 1.0), 90.0, 0.25)
+	for dr in range(-1, 2):
+		for dc in range(-1, 2):
+			var nr = r + dr; var nc = c + dc
+			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_i[nr][nc] != -1:
+					ismatched[nr][nc] = true
+					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+					if has_sp and not (Vector2i(nr, nc) in exploded_items):
+						queue.append(Vector2i(nr, nc))
+
+func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+	var lvl: int = max(1, special_levels.get(SpecialItemType.POISON_MIST, 1))
+	var tier: int = 1
+	if lvl >= 10: tier = 3
+	elif lvl >= 5: tier = 2
+	cast_player_skill("poison", true, tier)
+	_spawn_poison_bubble_burst_effect(pos)
+	for dr in range(-1, 2):
+		for dc in range(-1, 2):
+			var nr = r + dr; var nc = c + dc
+			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if grid_i[nr][nc] != -1:
+					ismatched[nr][nc] = true
+					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+					if has_sp and not (Vector2i(nr, nc) in exploded_items):
+						queue.append(Vector2i(nr, nc))
 
 func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.BOMB, 1))
@@ -4797,6 +4927,8 @@ func _process(delta: float) -> void:
 								SpecialItemType.MAGNET: glow_color = Color(1.8, 0.6, 0.2, 1.0)
 								SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
 								SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
+								SpecialItemType.ICE_SHIELD: glow_color = Color(0.2, 1.4, 2.0, 1.0)
+								SpecialItemType.POISON_MIST: glow_color = Color(0.2, 1.8, 0.5, 1.0)
 							piece[p_idx].modulate = glow_color * time_pulse
 						elif not ismatched[r][c] and (selected_piece_idx != p_idx):
 							if piece[p_idx].modulate != Color.WHITE:
@@ -4992,6 +5124,36 @@ func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s
 			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(1.0, 0.75, 0.15, alpha), 9.0 * s)
 			overlay.draw_circle(center + Vector2(-22, 0) * s, 26.0 * s, Color(1.0, 0.3, 0.1, alpha))
 			overlay.draw_circle(center + Vector2(22, 0) * s, 26.0 * s, Color(1.0, 0.8, 0.1, alpha))
+
+		SpecialItemType.ICE_SHIELD: # 13: 氷（❄️シアン六角氷晶マーク）
+			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(0.3, 0.9, 1.0, alpha), 9.0 * s)
+			var arm_len = 46.0 * s
+			for k in range(6):
+				var ang = k * PI / 3.0
+				var dir = Vector2(cos(ang), sin(ang))
+				overlay.draw_line(center, center + dir * arm_len, Color(0.7, 0.95, 1.0, alpha), 5.0 * s)
+				var branch_pos = center + dir * (arm_len * 0.6)
+				var b_dir1 = Vector2(cos(ang + PI / 4.0), sin(ang + PI / 4.0)) * (14.0 * s)
+				var b_dir2 = Vector2(cos(ang - PI / 4.0), sin(ang - PI / 4.0)) * (14.0 * s)
+				overlay.draw_line(branch_pos, branch_pos + b_dir1, Color(0.85, 1.0, 1.0, alpha), 3.5 * s)
+				overlay.draw_line(branch_pos, branch_pos + b_dir2, Color(0.85, 1.0, 1.0, alpha), 3.5 * s)
+			overlay.draw_circle(center, 9.0 * s, Color.WHITE)
+
+		SpecialItemType.POISON_MIST: # 14: 毒（🧪エメラルド薬毒フラスコマーク）
+			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(0.2, 1.0, 0.6, alpha), 9.0 * s)
+			var f_neck = PackedVector2Array([
+				center + Vector2(-10.0, -45.0) * s,
+				center + Vector2(10.0, -45.0) * s,
+				center + Vector2(10.0, -20.0) * s,
+				center + Vector2(30.0, 30.0) * s,
+				center + Vector2(-30.0, 30.0) * s,
+				center + Vector2(-10.0, -20.0) * s
+			])
+			overlay.draw_colored_polygon(f_neck, Color(0.1, 0.85, 0.45, 0.85 * alpha))
+			var f_out = f_neck.duplicate(); f_out.append(f_neck[0])
+			overlay.draw_polyline(f_out, Color(0.05, 0.35, 0.15, alpha), 4.0 * s)
+			overlay.draw_circle(center + Vector2(0.0, 15.0) * s, 10.0 * s, Color(0.5, 1.0, 0.7, alpha))
+			overlay.draw_circle(center + Vector2(12.0, 4.0) * s, 6.0 * s, Color(0.7, 1.0, 0.85, alpha))
 
 		_:
 			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color.WHITE, 8.0 * s)
@@ -8179,6 +8341,12 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 			title = "[b][color=#FF1744]💥 ジェミニボム (Lv%d/20)[/color][/b]" % sp_lvl
 			var split_cnt = mini(8, 2 + int(sp_lvl / 3))
 			desc = "[font_size=19]双子の爆弾が互いに共鳴爆破（計[color=#FFD700]%d箇所[/color]）！\n直線上の全コマを貫通レーザーで消滅させます。（石貫通 %d）[/font_size]" % [split_cnt, 1 + int((sp_lvl - 1) / 4)]
+		SpecialItemType.ICE_SHIELD:
+			title = "[b][color=#80D8FF]❄️ 氷盾・フリージング (Lv%d/20)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]起爆すると自軍氷結マスを展開＆シールド付与！\n氷マスは隣接する効果マスの進行を完全停止させ、炎隣接で融解消滅します。[/font_size]"
+		SpecialItemType.POISON_MIST:
+			title = "[b][color=#00E676]🧪 免疫薬毒・ポイズン (Lv%d/20)[/color][/b]" % sp_lvl
+			desc = "[font_size=19]起爆すると味方の薬毒マスを展開！\n味方毒1マスにつき敵毒ダメージを20%軽減（最大90%免疫）し、敵に毒ダメージを与えます。[/font_size]"
 
 	# 2. 盤面ギミックマス（特殊アイテムが無い場合やマス状態）
 	if title.is_empty():

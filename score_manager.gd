@@ -166,6 +166,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "water_1",
 		"sp_type": 8,
+		"match_recipe": "ポーション 4個消し",
 		"category": "nature",
 		"branch": 0,
 		"tier": 0,
@@ -180,7 +181,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "water_2",
-		"sp_type": -1,
+		"sp_type": 8,
+		"match_recipe": "ポーション 5個直線消し",
 		"category": "nature",
 		"branch": 0,
 		"tier": 1,
@@ -195,7 +197,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "water_3",
-		"sp_type": -1,
+		"sp_type": 8,
+		"match_recipe": "ポーション T/L交差 または 6個以上消し",
 		"category": "nature",
 		"branch": 0,
 		"tier": 2,
@@ -210,7 +213,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "ice_1",
-		"sp_type": -1,
+		"sp_type": 13,
+		"match_recipe": "シールド 4個消し",
 		"category": "nature",
 		"branch": 1,
 		"tier": 0,
@@ -225,7 +229,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "ice_2",
-		"sp_type": -1,
+		"sp_type": 13,
+		"match_recipe": "シールド 5個直線消し",
 		"category": "nature",
 		"branch": 1,
 		"tier": 1,
@@ -240,7 +245,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "ice_3",
-		"sp_type": -1,
+		"sp_type": 13,
+		"match_recipe": "シールド T/L交差 または 6個以上消し",
 		"category": "nature",
 		"branch": 1,
 		"tier": 2,
@@ -256,6 +262,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "wood_1",
 		"sp_type": 9,
+		"match_recipe": "食料 4個消し",
 		"category": "nature",
 		"branch": 2,
 		"tier": 0,
@@ -271,6 +278,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "wood_2",
 		"sp_type": 4,
+		"match_recipe": "食料 5個直線消し",
 		"category": "nature",
 		"branch": 2,
 		"tier": 1,
@@ -285,7 +293,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wood_3",
-		"sp_type": -1,
+		"sp_type": 9,
+		"match_recipe": "食料 T/L交差 または 6個以上消し",
 		"category": "nature",
 		"branch": 2,
 		"tier": 2,
@@ -301,6 +310,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "wind_1",
 		"sp_type": 7,
+		"match_recipe": "コイン 4個消し",
 		"category": "nature",
 		"branch": 3,
 		"tier": 0,
@@ -316,6 +326,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "wind_2",
 		"sp_type": 10,
+		"match_recipe": "コイン 5個直線消し",
 		"category": "nature",
 		"branch": 3,
 		"tier": 1,
@@ -330,7 +341,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wind_3",
-		"sp_type": -1,
+		"sp_type": 7,
+		"match_recipe": "コイン T/L交差 または 6個以上消し",
 		"category": "nature",
 		"branch": 3,
 		"tier": 2,
@@ -346,6 +358,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "fire_1",
 		"sp_type": 1,
+		"match_recipe": "剣 4個消し",
 		"category": "force",
 		"branch": 0,
 		"tier": 0,
@@ -361,6 +374,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "fire_2",
 		"sp_type": 2,
+		"match_recipe": "剣 T/L字交差消し",
 		"category": "force",
 		"branch": 0,
 		"tier": 1,
@@ -375,7 +389,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "fire_3",
-		"sp_type": -1,
+		"sp_type": 12,
+		"match_recipe": "剣 6個以上 / 7個以上消し",
 		"category": "force",
 		"branch": 0,
 		"tier": 2,
@@ -391,6 +406,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "thunder_1",
 		"sp_type": 5,
+		"match_recipe": "コイン 4個消し",
 		"category": "force",
 		"branch": 1,
 		"tier": 0,
@@ -406,6 +422,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "thunder_2",
 		"sp_type": 12,
+		"match_recipe": "コイン 5個直線消し",
 		"category": "force",
 		"branch": 1,
 		"tier": 1,
@@ -420,7 +437,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "thunder_3",
-		"sp_type": -1,
+		"sp_type": 5,
+		"match_recipe": "コイン T/L交差 または 6個以上消し",
 		"category": "force",
 		"branch": 1,
 		"tier": 2,
@@ -436,6 +454,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "earth_1",
 		"sp_type": 11,
+		"match_recipe": "シールド 4個消し",
 		"category": "force",
 		"branch": 2,
 		"tier": 0,
@@ -451,6 +470,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "earth_2",
 		"sp_type": 4,
+		"match_recipe": "シールド 5個直線消し",
 		"category": "force",
 		"branch": 2,
 		"tier": 1,
@@ -465,7 +485,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "earth_3",
-		"sp_type": -1,
+		"sp_type": 11,
+		"match_recipe": "シールド T/L交差 または 6個以上消し",
 		"category": "force",
 		"branch": 2,
 		"tier": 2,
@@ -480,7 +501,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "poison_1",
-		"sp_type": -1,
+		"sp_type": 14,
+		"match_recipe": "ポーション 4個消し",
 		"category": "mystic",
 		"branch": 0,
 		"tier": 0,
@@ -495,7 +517,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "poison_2",
-		"sp_type": -1,
+		"sp_type": 14,
+		"match_recipe": "ポーション 5個直線消し",
 		"category": "mystic",
 		"branch": 0,
 		"tier": 1,
@@ -510,7 +533,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "poison_3",
-		"sp_type": -1,
+		"sp_type": 14,
+		"match_recipe": "ポーション T/L交差 または 6個以上消し",
 		"category": "mystic",
 		"branch": 0,
 		"tier": 2,
@@ -526,6 +550,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "light_1",
 		"sp_type": 3,
+		"match_recipe": "コイン 4個消し",
 		"category": "mystic",
 		"branch": 1,
 		"tier": 0,
@@ -540,7 +565,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "light_2",
-		"sp_type": -1,
+		"sp_type": 3,
+		"match_recipe": "コイン 5個直線消し",
 		"category": "mystic",
 		"branch": 1,
 		"tier": 1,
@@ -555,7 +581,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "light_3",
-		"sp_type": -1,
+		"sp_type": 3,
+		"match_recipe": "コイン T/L交差 または 7個以上消し",
 		"category": "mystic",
 		"branch": 1,
 		"tier": 2,
@@ -571,6 +598,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "dark_1",
 		"sp_type": 6,
+		"match_recipe": "剣 4個消し",
 		"category": "mystic",
 		"branch": 2,
 		"tier": 0,
@@ -585,7 +613,8 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "dark_2",
-		"sp_type": -1,
+		"sp_type": 6,
+		"match_recipe": "剣 5個直線消し",
 		"category": "mystic",
 		"branch": 2,
 		"tier": 1,
@@ -601,6 +630,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "dark_3",
 		"sp_type": 6,
+		"match_recipe": "剣 T/L交差 または 6個以上消し",
 		"category": "mystic",
 		"branch": 2,
 		"tier": 2,
@@ -2560,13 +2590,15 @@ func rebuild_skill_tree_ui() -> void:
 				var d_arr: Array = s_item.get("desc_lv", [])
 				var cur_d = d_arr[clampi(c_lvl - 1, 0, d_arr.size() - 1)] if c_lvl > 0 and not d_arr.is_empty() else (d_arr[0] if not d_arr.is_empty() else "")
 				var next_d = d_arr[clampi(c_lvl, 0, d_arr.size() - 1)] if c_lvl < m_lvl and not d_arr.is_empty() else ""
+				var recipe_str: String = str(s_item.get("match_recipe", ""))
+				var recipe_info: String = "[font_size=20][b][color=#FFD54F]⚡【盤面生成マッチ条件】: %s[/color][/b][/font_size]\n\n" % recipe_str if recipe_str != "" else ""
 				var d_str = ""
 				if c_lvl >= m_lvl:
-					d_str = "[font_size=19][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % cur_d
+					d_str = recipe_info + "[font_size=19][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % cur_d
 				elif c_lvl == 0:
-					d_str = "[font_size=19][color=#AAAAAA]【未習得】[/color]\n習得効果 (Lv1): %s[/font_size]" % next_d
+					d_str = recipe_info + "[font_size=19][color=#AAAAAA]【未習得】[/color]\n習得効果 (Lv1): %s[/font_size]" % next_d
 				else:
-					d_str = "[font_size=19]現在 (Lv%d): %s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [c_lvl, cur_d, c_lvl + 1, next_d]
+					d_str = recipe_info + "[font_size=19]現在 (Lv%d): %s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [c_lvl, cur_d, c_lvl + 1, next_d]
 				r_ui.show_custom_tooltip(t_str, d_str, node_card.get_global_mouse_position(), "shop_skill:" + card_skill_id)
 		)
 		node_card.mouse_exited.connect(func():
@@ -2770,14 +2802,16 @@ func _update_buff_button_labels() -> void:
 			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#9E9E9E"))
 
 		var desc_arr: Array = s_item["desc_lv"]
+		var recipe_str: String = str(s_item.get("match_recipe", ""))
+		var recipe_prefix: String = "[b][color=#FFD54F]【生成: %s】[/color][/b]\n" % recipe_str if recipe_str != "" else ""
 		if is_max:
-			s_ref["s_desc"].text = "[color=#FFD700][b]【最大強化】[/b][/color]\n[color=#FFFFFF]%s[/color]" % desc_arr[clampi(max_lvl - 1, 0, desc_arr.size() - 1)]
+			s_ref["s_desc"].text = recipe_prefix + "[color=#FFD700][b]【最大強化】[/b][/color] %s" % desc_arr[clampi(max_lvl - 1, 0, desc_arr.size() - 1)]
 		elif cur_lvl == 0:
-			s_ref["s_desc"].text = "[color=#B0BEC5]解放効果 (Lv.1):[/color]\n[color=#FFFFFF]%s[/color]" % desc_arr[0]
+			s_ref["s_desc"].text = recipe_prefix + "[color=#B0BEC5]解放効果 (Lv.1):[/color] %s" % desc_arr[0]
 		else:
 			var cur_txt = desc_arr[clampi(cur_lvl - 1, 0, desc_arr.size() - 1)]
 			var next_txt = desc_arr[clampi(cur_lvl, 0, desc_arr.size() - 1)]
-			s_ref["s_desc"].text = "[color=#B0BEC5]現在: %s[/color]\n[color=#FFD700]次(Lv.%d): %s[/color]" % [
+			s_ref["s_desc"].text = recipe_prefix + "[color=#B0BEC5]現在: %s[/color]\n[color=#FFD700]次(Lv.%d): %s[/color]" % [
 				cur_txt, cur_lvl + 1, next_txt
 			]
 
