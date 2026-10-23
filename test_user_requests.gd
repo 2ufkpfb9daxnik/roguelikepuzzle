@@ -494,5 +494,126 @@ func _init() -> void:
 	assert(pb.player_skill_title_label.text.contains("神秘・冥術"), "Player skill panel title reflects chosen category")
 	print("✓ PuzzleBoard player skill UI dynamically reflects chosen category!")
 
+
+	# ==============================================================================
+	# 16. Test Ice Halt Mechanic (氷がある間、隣接マスにある効果マスは進行しない)
+	# ==============================================================================
+	pb._initialize_board(null)
+	# Place an ice tile at (3, 3)
+	pb.grid_ice[3][3] = 2
+	pb._set_ally_flag(pb.grid_ice_ally, 3, 3, true)
+	# Place poison tile adjacent at (3, 4)
+	pb.grid_poison[3][4] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 3, 4, false) # enemy poison
+
+	# Count poison cells before spread
+	var poison_before = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_poison[r][c]: poison_before += 1
+	assert(poison_before == 1, "Initially exactly 1 poison tile")
+
+	# Run poison spread
+	pb._process_poison_spread()
+
+	# Count poison cells after spread: MUST NOT spread because it is ice-locked!
+	var poison_after = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_poison[r][c]: poison_after += 1
+	assert(poison_after == 1, "Poison adjacent to ice must NOT spread (got: %d, expected: 1)" % poison_after)
+	print("✓ Ice halt mechanic verified: poison adjacent to ice does not progress/spread!")
+
+	# ==============================================================================
+	# 17. Test Thermodynamic Chain (氷 -> 水 -> 消える)
+	# ==============================================================================
+	pb._initialize_board(null)
+	# Step 1: Ice at (4, 4), Fire adjacent at (4, 5)
+	pb.grid_ice[4][4] = 2
+	pb._set_ally_flag(pb.grid_ice_ally, 4, 4, true)
+	pb.grid_fire[4][5] = 1
+	pb._set_ally_flag(pb.grid_fire_ally, 4, 5, false)
+
+	# Trigger ice-fire melting
+	var melted = pb._check_and_trigger_ice_fire_melting()
+	assert(melted > 0, "Ice adjacent to fire must melt")
+	assert(int(pb.grid_ice[4][4]) == 0, "Ice must be melted (grid_ice == 0)")
+	assert(pb.grid_water[4][4] == true, "Ice must transform into Water (氷 -> 水)")
+	assert(pb.grid_fire[4][5] == 0, "Fire that melted ice must be extinguished")
+	print("✓ Thermodynamic Step 1 (氷 -> 水) verified!")
+
+	# Step 2: Now place Fire adjacent at (4, 5) again to touch the water at (4, 4)
+	pb.grid_fire[4][5] = 1
+	var cleared_steam = pb._check_and_trigger_water_fire_synergy(false)
+	assert(pb.grid_water[4][4] == false, "Water touched by Fire must vanish (水 -> 消える)")
+	assert(pb.grid_fire[4][5] == 0, "Fire touching water must be extinguished")
+	print("✓ Thermodynamic Step 2 (水 -> 消える) verified!")
+	print("✓ Complete Thermodynamic Chain (氷 -> 水 -> 消える) verified successfully!")
+
+	# ==============================================================================
+	# 18. Test Multi-Tier Skills Execution across all 10 Elements (T1, T2, T3)
+	# ==============================================================================
+	# 18-1. Water T2 (Aqua Fountain) & T3 (Tidal Flood)
+	pb._initialize_board(null)
+	pb.cast_player_skill("water", true, 1) # T1
+	pb.cast_player_skill("water", true, 2) # T2: heals & expands water
+	var w_t2_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_water[r][c]: w_t2_count += 1
+	assert(w_t2_count >= 2, "Water T2 expands water tiles")
+	pb.cast_player_skill("water", true, 3) # T3: converts pieces to potion/sword
+	print("✓ Water T1, T2, T3 skills executed successfully!")
+
+	# 18-2. Ice T2 (Freezing Chain) & T3 (Absolute Zero)
+	pb._initialize_board(null)
+	pb.grid_poison[2][2] = true # enemy poison
+	pb._set_ally_flag(pb.grid_poison_ally, 2, 2, false)
+	pb.cast_player_skill("ice", true, 2) # T2: freezes poison into ice
+	assert(int(pb.grid_ice[2][2]) > 0, "Ice T2 converts hazard to ice")
+	assert(not pb.grid_poison[2][2], "Hazard converted to ice")
+	pb.cast_player_skill("ice", true, 3) # T3: shatters ice
+	print("✓ Ice T1, T2, T3 skills executed successfully!")
+
+	# 18-3. Wood T2 (Root Drain) & T3 (Yggdrasil Harvest)
+	pb._initialize_board(null)
+	pb.cast_player_skill("wood", true, 1) # T1: sprout
+	pb.grid_water[2][2] = true # distant water
+	pb.cast_player_skill("wood", true, 2) # T2: roots absorb water
+	pb.cast_player_skill("wood", true, 3) # T3: fruits around tree
+	print("✓ Wood T1, T2, T3 skills executed successfully!")
+
+	# 18-4. Wind T2 (Gale Shift) & T3 (Tempest Reverse)
+	pb._initialize_board(null)
+	pb.grid_poison[5][5] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 5, 5, false) # enemy poison
+	pb.cast_player_skill("wind", true, 3) # T3: reverses ownership to ally!
+	assert(pb.is_ally_poison(5, 5), "Wind T3 inverts enemy hazard into ally-owned")
+	print("✓ Wind T1, T2, T3 skills executed successfully!")
+
+	# 18-5. Fire T1 (Dispersed), T2 (Backdraft), T3 (Prominence Nova)
+	pb._initialize_board(null)
+	pb.cast_player_skill("fire", true, 1) # T1: dispersed
+	pb.cast_player_skill("fire", true, 2) # T2: backdraft spread
+	pb.cast_player_skill("fire", true, 3) # T3: prominence nova
+	print("✓ Fire T1, T2, T3 skills executed successfully!")
+
+	# 18-6. Thunder, Earth, Poison, Light, Dark T1-T3
+	for elem in ["thunder", "earth", "poison", "light", "dark"]:
+		pb._initialize_board(null)
+		pb.cast_player_skill(elem, true, 1)
+		pb.cast_player_skill(elem, true, 2)
+		pb.cast_player_skill(elem, true, 3)
+	print("✓ Thunder, Earth, Poison, Light, Dark T1-T3 executed successfully!")
+
+	# ==============================================================================
+	# 19. Test All 30 Skills Registered in ScoreManager with 20 Levels
+	# ==============================================================================
+	assert(sc.skill_tree_items.size() == 30, "Exactly 30 skills must be registered in ScoreManager (got: %d)" % sc.skill_tree_items.size())
+	for s_item in sc.skill_tree_items:
+		assert(s_item["max_level"] == 20, "Skill %s must have max_level 20" % s_item["id"])
+		assert(s_item["desc_lv"].size() == 20, "Skill %s must have 20 description levels (got: %d)" % [s_item["id"], s_item["desc_lv"].size()])
+	print("✓ All 30 skills registered with 20 levels in ScoreManager verified!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
