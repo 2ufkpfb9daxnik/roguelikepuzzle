@@ -311,5 +311,88 @@ func _init() -> void:
 	assert(ally_plant_preserved, "Ally tree must be preserved")
 	print("✓ Ally Wind skill verified: completely clears all disadvantageous tiles while strictly preserving ally beneficial tiles!")
 
+	# 14. Test Symmetric Enemy-Object Clearing Across All Other Elemental Skills
+	# 14-1. Water clears enemy fire & electrified
+	pb._initialize_board(null)
+	pb.grid_fire[2][2] = 1; pb._set_ally_flag(pb.grid_fire_ally, 2, 2, false)
+	pb.grid_electrified[2][3] = true; pb._set_ally_flag(pb.grid_electrified_ally, 2, 3, false)
+	pb.cast_player_skill("water", true)
+	assert(pb.grid_fire[2][2] == 0, "Water skill must extinguish enemy fire")
+	assert(not pb.grid_electrified[2][3], "Water skill must wash away enemy electrified")
+	print("✓ Water skill clears enemy fire & electrified!")
+
+	# 14-2. Fire burns enemy leech plants & melts enemy ice
+	pb._initialize_board(null)
+	pb.plant_entities.append({"origin": Vector2i(3, 3), "stage": 0, "enemy_planted": true, "drain_amount": 10})
+	pb.grid_ice[3][4] = 2; pb._set_ally_flag(pb.grid_ice_ally, 3, 4, false)
+	pb.cast_player_skill("fire", true)
+	var enemy_plant_exists = false
+	for pl in pb.plant_entities:
+		if pl.get("enemy_planted", false): enemy_plant_exists = true
+	assert(not enemy_plant_exists, "Fire skill must burn down enemy leech plants")
+	assert(int(pb.grid_ice[3][4]) == 0, "Fire skill must melt enemy ice")
+	print("✓ Fire skill burns enemy leech plants & melts enemy ice!")
+
+	# 14-3. Ice freezes & shatters enemy water and quenches enemy fire
+	pb._initialize_board(null)
+	pb.grid_water[4][4] = true; pb._set_ally_flag(pb.grid_water_ally, 4, 4, false)
+	pb.grid_fire[4][5] = 1; pb._set_ally_flag(pb.grid_fire_ally, 4, 5, false)
+	pb.cast_player_skill("ice", true)
+	assert(not pb.grid_water[4][4], "Ice skill must freeze & shatter enemy water")
+	assert(pb.grid_fire[4][5] == 0, "Ice skill must quench enemy fire")
+	print("✓ Ice skill clears enemy water & fire!")
+
+	# 14-4. Wood purifies & uproots enemy leech plants
+	pb._initialize_board(null)
+	pb.plant_entities.append({"origin": Vector2i(5, 5), "stage": 1, "enemy_planted": true, "drain_amount": 20})
+	pb.cast_player_skill("wood", true)
+	var enemy_plant_remains_after_wood = false
+	for pl in pb.plant_entities:
+		if pl.get("enemy_planted", false): enemy_plant_remains_after_wood = true
+	assert(not enemy_plant_remains_after_wood, "Wood skill must purify & uproot enemy leech plants")
+	print("✓ Wood skill purifies & uproots enemy leech plants!")
+
+	# 14-5. Light clears enemy curses, enemy dark fog, and enemy gold statues
+	pb._initialize_board(null)
+	pb.grid_cursed[6][2] = true; pb._set_ally_flag(pb.grid_cursed_ally, 6, 2, false)
+	pb.grid_gold_statue[6][3] = 2; pb._set_ally_flag(pb.grid_gold_ally, 6, 3, false)
+	pb.grid_fog.append({"rect": Rect2i(6, 4, 2, 2), "turns": 3, "enemy_owned": true})
+	pb.cast_player_skill("light", true)
+	assert(not pb.grid_cursed[6][2], "Light skill must cleanse enemy curses")
+	assert(int(pb.grid_gold_statue[6][3]) == 0, "Light skill must shatter enemy gold statues")
+	var enemy_fog_after_light = false
+	for fog in pb.grid_fog:
+		if fog.get("enemy_owned", true): enemy_fog_after_light = true
+	assert(not enemy_fog_after_light, "Light skill must dispel enemy dark fog")
+	print("✓ Light skill cleanses enemy curses, dark fog, & gold statues!")
+
+	# 14-6. Poison neutralizes enemy poison & decays enemy leech plants
+	pb._initialize_board(null)
+	pb.grid_poison[7][2] = true; pb._set_ally_flag(pb.grid_poison_ally, 7, 2, false)
+	pb.plant_entities.append({"origin": Vector2i(7, 4), "stage": 0, "enemy_planted": true, "drain_amount": 10})
+	pb.cast_player_skill("poison", true)
+	assert(pb.grid_poison[7][2] and pb.is_ally_poison(7, 2), "Poison skill must neutralize enemy poison into ally poison")
+	var enemy_plant_after_poison = false
+	for pl in pb.plant_entities:
+		if pl.get("enemy_planted", false): enemy_plant_after_poison = true
+	assert(not enemy_plant_after_poison, "Poison skill must rot away enemy leech plants")
+	print("✓ Poison skill neutralizes enemy poison & rots enemy leech plants!")
+
+	# 14-7. Dark devours enemy stones, enemy ice, & enemy leech plants
+	pb._initialize_board(null)
+	pb.grid_stones[8][2] = 2; pb._set_ally_flag(pb.grid_stones_ally, 8, 2, false)
+	pb.grid_ice[8][3] = 2; pb._set_ally_flag(pb.grid_ice_ally, 8, 3, false)
+	pb.plant_entities.append({"origin": Vector2i(8, 4), "stage": 0, "enemy_planted": true, "drain_amount": 10})
+	pb.cast_player_skill("dark", true)
+	assert(int(pb.grid_stones[8][2]) == 0, "Dark skill must devour enemy stones")
+	assert(int(pb.grid_ice[8][3]) == 0, "Dark skill must devour enemy ice")
+	var enemy_plant_after_dark = false
+	for pl in pb.plant_entities:
+		if pl.get("enemy_planted", false): enemy_plant_after_dark = true
+	assert(not enemy_plant_after_dark, "Dark skill must devour enemy leech plants")
+	print("✓ Dark skill devours enemy stones, ice, & leech plants into void!")
+
+	print("✓ All 10 skills verified for symmetric enemy-object clearing and interactions!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

@@ -8463,7 +8463,18 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 
 	match skill_key:
 		"water":
-			# 💧 清流展開(自)：移動を阻害しない清流マスを3マス生成し、隣接する炎マスがあれば【水×火シナジー】で共通隣接マスを一掃！
+			# 💧 清流展開(自)：移動を阻害しない清流マスを3マス生成し、敵の炎上・帯電を消去！水×火シナジーも発動！
+			# 敵所有の炎上マス・帯電マスを水流で消火・洗い流して消去
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0 and not is_ally_fire(r, c):
+						grid_fire[r][c] = 0
+						_spawn_steam_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+					if grid_electrified.size() == GRID_ROWS and grid_electrified[r][c] and not is_ally_electrified(r, c):
+						grid_electrified[r][c] = false
+						affected_positions.append(get_cell_position(r, c))
+
 			var candidates: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
@@ -8496,7 +8507,26 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 			_check_and_trigger_water_fire_synergy(is_in_match_phase)
 
 		"fire":
-			# 🔥 蒼炎陣(自)：プレイヤーを火傷させず毎ターン敵にダメージを与える蒼炎マスを2マス＋フレイムボム1個生成！水隣接なら水×火シナジー発動！
+			# 🔥 蒼炎陣(自)：蒼炎マス2マス＋フレイムボム生成！敵の吸血木を燃やし尽くし、敵の氷結を解凍消去！
+			# 敵の吸血苗木/木を業火で燃やし尽くして全消去
+			for plant in plant_entities.duplicate():
+				if plant.get("enemy_planted", false):
+					var p_orig = plant.get("origin", Vector2i(0, 0))
+					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					_spawn_mega_explosion_effect(p_pos, 2)
+					_spawn_floating_text(p_pos, "吸血木焼失！", Color(1.0, 0.4, 0.1))
+					affected_positions.append(p_pos)
+					_burn_plant(plant)
+
+			# 敵の氷結マスを即座に解凍消去
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0 and not is_ally_ice(r, c):
+						grid_ice[r][c] = 0
+						_spawn_ice_break_effect(get_cell_position(r, c))
+						_spawn_steam_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+
 			var candidates: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
@@ -8519,7 +8549,19 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 			_check_and_trigger_water_fire_synergy(is_in_match_phase)
 
 		"ice":
-			# ❄️ 氷盾付与(自)：移動を妨げない氷盾マスを3マス生成！雷と組み合わさると氷×雷3×3砕け散りシナジー！
+			# ❄️ 氷盾付与(自)：氷盾マス3マス＋シールド付与！敵の水没マスを凍結粉砕し、敵の炎上マスを消火消去！
+			# 敵の水没マスを凍結粉砕消去
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if grid_water.size() == GRID_ROWS and grid_water[r][c] and not is_ally_water(r, c):
+						grid_water[r][c] = false
+						_spawn_ice_break_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+					if grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0 and not is_ally_fire(r, c):
+						grid_fire[r][c] = 0
+						_spawn_steam_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+
 			var candidates: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
@@ -8534,18 +8576,29 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				var pos = get_cell_position(cell.x, cell.y)
 				affected_positions.append(pos)
 				_spawn_ice_break_effect(pos)
+			for s_i in range(2):
+				_spawn_shield_projectiles(_get_score_manager())
 
 		"thunder":
-			# ⚡ 紫電共鳴(自)：氷や石を優先的に狙って3発落雷（氷×雷・石×雷シナジーで3×3破片消去！）し、移動時に敵へ放電する充電マス(自)を付与！
+			# ⚡ 紫電共鳴(自)：3発落雷＋充電マス！敵の吸血木に直撃ダメージ、敵の石・氷・黄金像を3x3破片シナジーで粉砕消去！
 			var priority_targets: Array[Vector2i] = []
 			var other_targets: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
-					if _is_plant_cell(r, c): continue
-					if int(grid_ice[r][c]) > 0 or int(grid_stones[r][c]) > 0 or grid_water[r][c]:
+					# 敵の吸血木を最優先ターゲット
+					var plant = _get_plant_at(r, c)
+					if not plant.is_empty() and plant.get("enemy_planted", false):
 						priority_targets.append(Vector2i(r, c))
-					else:
-						other_targets.append(Vector2i(r, c))
+					elif not _is_plant_cell(r, c):
+						if (int(grid_ice[r][c]) > 0 and not is_ally_ice(r, c)) or \
+						   (int(grid_stones[r][c]) > 0 and not is_ally_stone(r, c)) or \
+						   (int(grid_gold_statue[r][c]) > 0 and not is_ally_gold(r, c)) or \
+						   (grid_water[r][c] and not is_ally_water(r, c)):
+							priority_targets.append(Vector2i(r, c))
+						elif int(grid_ice[r][c]) > 0 or int(grid_stones[r][c]) > 0 or grid_water[r][c]:
+							priority_targets.append(Vector2i(r, c))
+						else:
+							other_targets.append(Vector2i(r, c))
 			priority_targets.shuffle()
 			other_targets.shuffle()
 			var all_targets: Array[Vector2i] = []
@@ -8557,14 +8610,40 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				var pos = get_cell_position(cell.x, cell.y)
 				affected_positions.append(pos)
 				_spawn_shock_zap_effect(pos)
-				# 氷×雷・石×雷シナジー発動
+
+				# 敵の吸血木に当たると直撃ダメージ・消去
+				var hit_plant = _get_plant_at(cell.x, cell.y)
+				if not hit_plant.is_empty() and hit_plant.get("enemy_planted", false):
+					_damage_plant(hit_plant, 2, "ally_lightning")
+					_spawn_floating_text(pos, "吸血木落雷直撃！", Color(1.0, 0.9, 0.2))
+
+				# 敵の水没マスに当たると蒸発消去
+				if grid_water.size() == GRID_ROWS and grid_water[cell.x][cell.y] and not is_ally_water(cell.x, cell.y):
+					grid_water[cell.x][cell.y] = false
+					_spawn_steam_effect(pos)
+
+				# 氷×雷・石×雷シナジー発動（敵の氷・石・像を粉砕）
 				_trigger_thunder_shatter_synergy(cell.x, cell.y, is_in_match_phase)
+				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[cell.x][cell.y] > 0 and not is_ally_gold(cell.x, cell.y):
+					grid_gold_statue[cell.x][cell.y] = 0
+					_spawn_gold_shatter_effect(pos)
+
 				# 充電マス(自)として付与
-				grid_electrified[cell.x][cell.y] = true
-				_set_ally_flag(grid_electrified_ally, cell.x, cell.y, true)
+				if not _is_plant_cell(cell.x, cell.y):
+					grid_electrified[cell.x][cell.y] = true
+					_set_ally_flag(grid_electrified_ally, cell.x, cell.y, true)
 
 		"wood":
-			# 🌱 生命の苗木(自)：自分の盤面に苗木を植え、毎ターンHP回復（水吸収で大木へ成長）！
+			# 🌱 生命の苗木(自)：生命の苗木を植樹！敵の吸血苗木/木を駆逐・逆吸収して全消去！
+			for plant in plant_entities.duplicate():
+				if plant.get("enemy_planted", false):
+					var p_orig = plant.get("origin", Vector2i(0, 0))
+					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					_spawn_growth_effect(p_pos, 1)
+					_spawn_floating_text(p_pos, "吸血木駆逐・吸収！", Color(0.4, 1.0, 0.6))
+					affected_positions.append(p_pos)
+					_damage_plant(plant, 999, "ally_wood_purify")
+
 			var cands: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
@@ -8597,21 +8676,48 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				_compact_piece_arrays()
 
 		"earth":
-			# 💎 輝石生成(自)：移動可能な輝石マス(自)を2マス生成！マッチで大地追撃、雷が当たると石×雷シナジーで3×3破片消去！
-			var candidates: Array[Vector2i] = []
+			# 💎 輝石生成(自)：輝石を配置！敵所有マス（敵の毒・火・氷・帯電・水）を優先的に押し潰して消去・輝石に変換！
+			var enemy_hazard_cands: Array[Vector2i] = []
+			var normal_cands: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
 					if not _is_plant_cell(r, c) and int(grid_stones[r][c]) == 0:
-						candidates.append(Vector2i(r, c))
-			candidates.shuffle()
+						var is_enemy_prop = (grid_poison.size() == GRID_ROWS and grid_poison[r][c] and not is_ally_poison(r, c)) or \
+											(grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0 and not is_ally_fire(r, c)) or \
+											(grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0 and not is_ally_ice(r, c)) or \
+											(grid_electrified.size() == GRID_ROWS and grid_electrified[r][c] and not is_ally_electrified(r, c)) or \
+											(grid_water.size() == GRID_ROWS and grid_water[r][c] and not is_ally_water(r, c))
+						if is_enemy_prop:
+							enemy_hazard_cands.append(Vector2i(r, c))
+						else:
+							normal_cands.append(Vector2i(r, c))
+			enemy_hazard_cands.shuffle()
+			normal_cands.shuffle()
+			var candidates: Array[Vector2i] = []
+			candidates.append_array(enemy_hazard_cands)
+			candidates.append_array(normal_cands)
+
 			var count = mini(2, candidates.size())
 			for i in range(count):
 				var cell = candidates[i]
+				# 敵所有マスを粉砕消去
+				if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y] and not is_ally_poison(cell.x, cell.y):
+					grid_poison[cell.x][cell.y] = false
+				if grid_fire.size() == GRID_ROWS and grid_fire[cell.x][cell.y] > 0 and not is_ally_fire(cell.x, cell.y):
+					grid_fire[cell.x][cell.y] = 0
+				if grid_ice.size() == GRID_ROWS and int(grid_ice[cell.x][cell.y]) > 0 and not is_ally_ice(cell.x, cell.y):
+					grid_ice[cell.x][cell.y] = 0
+				if grid_electrified.size() == GRID_ROWS and grid_electrified[cell.x][cell.y] and not is_ally_electrified(cell.x, cell.y):
+					grid_electrified[cell.x][cell.y] = false
+				if grid_water.size() == GRID_ROWS and grid_water[cell.x][cell.y] and not is_ally_water(cell.x, cell.y):
+					grid_water[cell.x][cell.y] = false
+
 				grid_stones[cell.x][cell.y] = 2
 				_set_ally_flag(grid_stones_ally, cell.x, cell.y, true)
 				var pos = get_cell_position(cell.x, cell.y)
 				affected_positions.append(pos)
 				_spawn_stone_break_effect(pos)
+				_spawn_floating_text(pos, "岩盤粉砕・輝石化！", Color(0.3, 0.9, 0.7))
 
 		"wind":
 			# 🌪️ 翠嵐の風(自)：味方にとって不利益なマス（敵の毒・呪い・帯電・炎上・氷結・岩石・水没・黄金像・暗雲・吸血苗木）を全消去して浄化！
@@ -8704,13 +8810,33 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 			_spawn_floating_text(center_pos, "🌪️ 翠嵐の浄化！ (不利益マス一掃)" if cleared_hazard_count > 0 else "🌪️ 翠嵐の風！", Color(0.2, 1.0, 0.75))
 
 		"poison":
-			# 🧪 薬毒散布(自)：プレイヤーに無害で毎ターン敵にダメージを与える薬毒マス(自)を2マス生成！（水マスで2倍速拡散）
-			var candidates: Array[Vector2i] = []
+			# 🧪 薬毒散布(自)：薬毒マス2マス生成！敵の猛毒沼を中和・解毒消去し、敵の吸血木を腐食消去！
+			# 敵の吸血木を腐食枯死させて消去
+			for plant in plant_entities.duplicate():
+				if plant.get("enemy_planted", false):
+					var p_orig = plant.get("origin", Vector2i(0, 0))
+					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					_spawn_poison_bubble_burst_effect(p_pos)
+					_spawn_floating_text(p_pos, "吸血木腐食・枯死！", Color(0.85, 0.35, 0.95))
+					affected_positions.append(p_pos)
+					_damage_plant(plant, 999, "ally_poison_rot")
+
+			# 敵の猛毒沼を優先ターゲットにして中和解毒・味方の薬毒に変換
+			var enemy_poison_cands: Array[Vector2i] = []
+			var other_cands: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
-					if not _is_plant_cell(r, c) and not (grid_poison[r][c] and is_ally_poison(r, c)):
-						candidates.append(Vector2i(r, c))
-			candidates.shuffle()
+					if not _is_plant_cell(r, c):
+						if grid_poison.size() == GRID_ROWS and grid_poison[r][c] and not is_ally_poison(r, c):
+							enemy_poison_cands.append(Vector2i(r, c))
+						elif not (grid_poison.size() == GRID_ROWS and grid_poison[r][c] and is_ally_poison(r, c)):
+							other_cands.append(Vector2i(r, c))
+			enemy_poison_cands.shuffle()
+			other_cands.shuffle()
+			var candidates: Array[Vector2i] = []
+			candidates.append_array(enemy_poison_cands)
+			candidates.append_array(other_cands)
+
 			var count = mini(2, candidates.size())
 			for i in range(count):
 				var cell = candidates[i]
@@ -8719,9 +8845,34 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				var pos = get_cell_position(cell.x, cell.y)
 				affected_positions.append(pos)
 				_spawn_poison_bubble_burst_effect(pos)
+				_spawn_floating_text(pos, "中和・薬毒化！", Color(0.25, 1.0, 0.75))
 
 		"light":
-			# ✨ 聖像降臨(自)：移動可能な聖像マス(自)を1マス生成！マッチで大量のゴールドと光追撃！
+			# ✨ 聖像降臨(自)：聖像生成！聖なる光で敵の呪いコマ・瘴気の暗雲・敵の黄金像を全浄化消去！
+			# 1. 敵の呪いコマを全浄化消去
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if grid_cursed.size() == GRID_ROWS and grid_cursed[r][c] and not is_ally_cursed(r, c):
+						grid_cursed[r][c] = false
+						_spawn_shockwave_ring(get_cell_position(r, c), Color(1.0, 0.95, 0.4), 80.0, 0.22)
+						affected_positions.append(get_cell_position(r, c))
+					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and not is_ally_gold(r, c):
+						grid_gold_statue[r][c] = 0
+						_spawn_gold_shatter_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+
+			# 2. 敵の瘴気の暗雲を全浄化消去
+			var fog_i = grid_fog.size() - 1
+			while fog_i >= 0:
+				var fog = grid_fog[fog_i]
+				if fog.get("enemy_owned", true):
+					var f_rect: Rect2i = fog.get("rect", Rect2i(0, 0, 0, 0))
+					var f_pos = get_cell_position(f_rect.position.x, f_rect.position.y)
+					_spawn_floating_text(f_pos, "聖光浄化！暗雲消滅", Color(1.0, 1.0, 0.5))
+					affected_positions.append(f_pos)
+					grid_fog.remove_at(fog_i)
+				fog_i -= 1
+
 			var candidates: Array[Vector2i] = []
 			for r in range(GRID_ROWS):
 				for c in range(GRID_COLUMNS):
@@ -8735,9 +8886,32 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 				var pos = get_cell_position(cell.x, cell.y)
 				affected_positions.append(pos)
 				_spawn_gold_shatter_effect(pos)
+				_spawn_floating_text(pos, "✨ 聖像降臨！", Color(1.0, 0.95, 0.3))
 
 		"dark":
-			# 🌙 星影の帳(自)：毎ターン敵にダメージを与える2×2の星影の霧(自)と、マッチでHP吸収する影護マス(自)を2マス生成！
+			# 🌙 星影の帳(自)：星影の霧＋影護マス生成！敵の障害物（石・氷・黄金像）や敵の吸血木を闇の虚無へ呑み込んで消去！
+			# 敵の石・氷・黄金像を虚無へ呑み込み消去
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0 and not is_ally_stone(r, c):
+						grid_stones[r][c] = 0
+						_spawn_curse_burst_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+					if grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0 and not is_ally_ice(r, c):
+						grid_ice[r][c] = 0
+						_spawn_curse_burst_effect(get_cell_position(r, c))
+						affected_positions.append(get_cell_position(r, c))
+
+			# 敵の吸血木を虚無で消滅
+			for plant in plant_entities.duplicate():
+				if plant.get("enemy_planted", false):
+					var p_orig = plant.get("origin", Vector2i(0, 0))
+					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					_spawn_curse_burst_effect(p_pos)
+					_spawn_floating_text(p_pos, "吸血木闇呑み！", Color(0.7, 0.3, 1.0))
+					affected_positions.append(p_pos)
+					_damage_plant(plant, 999, "ally_dark_devour")
+
 			var r0 = clampi(randi() % (GRID_ROWS - 1), 0, GRID_ROWS - 2)
 			var c0 = clampi(randi() % (GRID_COLUMNS - 1), 0, GRID_COLUMNS - 2)
 			grid_fog.append({
