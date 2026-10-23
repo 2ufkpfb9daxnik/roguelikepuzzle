@@ -195,6 +195,7 @@ var player_skill_cost: float = 50.0
 var player_skill_ui_panel: Control = null
 var player_skill_energy_bar: ColorRect = null
 var player_skill_energy_lbl: RichTextLabel = null
+var player_skill_title_label: Label = null
 var player_skill_energy_label: Label = null
 var player_skill_buttons: Dictionary = {}
 var enemy_skill_banner: RichTextLabel = null
@@ -8387,6 +8388,7 @@ func _setup_player_skill_ui() -> void:
 	title_lbl.add_theme_font_size_override("font_size", 14)
 	title_lbl.add_theme_color_override("font_color", Color(0.55, 0.98, 1.0))
 	panel.add_child(title_lbl)
+	player_skill_title_label = title_lbl
 
 	var sp_lbl = Label.new()
 	sp_lbl.name = "SkillEnergyLabel"
@@ -8429,15 +8431,43 @@ func _setup_player_skill_ui() -> void:
 
 	_update_player_skill_ui()
 
+func on_element_category_chosen(_cat: String) -> void:
+	_update_player_skill_ui()
+
 func _update_player_skill_ui() -> void:
+	var rm = _get_relic_manager()
+	var chosen_cat: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+
+	if player_skill_title_label != null and is_instance_valid(player_skill_title_label):
+		match chosen_cat:
+			"nature":
+				player_skill_title_label.text = "✦ 盤面スキル【自然・生命】"
+			"force":
+				player_skill_title_label.text = "✦ 盤面スキル【元素・破壊】"
+			"mystic":
+				player_skill_title_label.text = "✦ 盤面スキル【神秘・冥術】"
+			_:
+				player_skill_title_label.text = "✦ 盤面スキル (自・有利)"
+
 	if player_skill_energy_label != null and is_instance_valid(player_skill_energy_label):
 		player_skill_energy_label.text = "SP: %d / %d (消費%d)" % [int(player_skill_energy), int(player_skill_max_energy), int(player_skill_cost)]
 	var can_use: bool = (player_skill_energy >= player_skill_cost) and (current_state == BoardState.IDLE) and not is_enemy_turn_in_progress
+
+	var category_elements: Array = []
+	match chosen_cat:
+		"nature": category_elements = ["water", "ice", "wood", "wind"]
+		"force": category_elements = ["fire", "thunder", "earth"]
+		"mystic": category_elements = ["poison", "light", "dark"]
+
 	for sk_key in player_skill_buttons.keys():
 		var btn: Button = player_skill_buttons[sk_key]
 		if btn != null and is_instance_valid(btn):
-			btn.disabled = not can_use
-			btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if can_use else Color(0.65, 0.70, 0.75, 0.85)
+			var in_chosen_cat: bool = category_elements.is_empty() or (sk_key in category_elements)
+			btn.disabled = not (can_use and in_chosen_cat)
+			if in_chosen_cat:
+				btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if can_use else Color(0.65, 0.70, 0.75, 0.85)
+			else:
+				btn.modulate = Color(0.35, 0.38, 0.42, 0.50)
 
 func _on_player_skill_button_pressed(skill_key: String) -> void:
 	if current_state != BoardState.IDLE or is_enemy_turn_in_progress:
@@ -8680,15 +8710,33 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true) -> Array[Vec
 					cleared_hazard_count += 1
 				fog_i -= 1
 
-			# 3. 敵所有の吸血苗木/木を吹き飛ばし消去（自軍の苗木は保持）
+			# 3. 敵所有の吸血苗木/木を吹き飛ばし消去（自軍の苗木は保持。駒は消さず敵効果のみ消去）
 			for plant in plant_entities.duplicate():
 				if plant.get("enemy_planted", false):
 					var p_orig = plant.get("origin", Vector2i(0, 0))
 					var p_pos = get_cell_position(p_orig.x, p_orig.y)
+					var occ_cells = _get_plant_occupied_cells(plant)
 					_spawn_floating_text(p_pos, "吸血木消滅！", Color(0.4, 1.0, 0.8))
 					affected_positions.append(p_pos)
 					_damage_plant(plant, 999, "ally_wind_tornado")
 					cleared_hazard_count += 1
+					# 木が消えた後のマスに駒がない場合は正常な駒を復元（駒が消去された状態にしない）
+					for occ in occ_cells:
+						if occ.x >= 0 and occ.x < GRID_ROWS and occ.y >= 0 and occ.y < GRID_COLUMNS:
+							if grid_i.size() == GRID_ROWS and grid_i[occ.x][occ.y] == -1:
+								var chosen_kind = randi() % CELL_KINDS
+								grid_n[occ.x][occ.y] = chosen_kind
+								grid_att[occ.x][occ.y] = chosen_kind % 5
+								var sprite: Sprite2D = Sprite2D.new()
+								sprite.texture = PIECE_TEXTURES[chosen_kind]
+								sprite.position = get_cell_position(occ.x, occ.y)
+								sprite.scale = cellsize
+								sprite.modulate = Color.WHITE
+								_add_element_mark_to_sprite(sprite)
+								add_child(sprite)
+								grid_i[occ.x][occ.y] = piece.size()
+								piece.append(sprite)
+								piececollid.append(null)
 
 			# 4. 盤面を駆け抜ける翠嵐の竜巻エフェクトを展開
 			var tornado_cols: Array[int] = [3, 6, 9]

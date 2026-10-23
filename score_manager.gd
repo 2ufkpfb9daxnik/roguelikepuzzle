@@ -140,12 +140,35 @@ var shop_items: Array[Dictionary] = [
 	}
 ]
 
+# 属性カテゴリー別ツリー定義（全属性を3分類）
+const CATEGORY_TREE_DEFS: Dictionary = {
+	"nature": {
+		"title": "🌿 自然・生命系スキルツリー (水・氷・木・風)",
+		"banner": "🌿 【自然・生命】水・氷・木・風のスキルを解放・強化します。ポーションを消費して解放・強化できます。",
+		"branch_titles": ["💧 水・清流系", "🌱 木・自然系", "🌪️ 風・浄化系"],
+		"branch_colors": [Color("#00B0FF"), Color("#76FF03"), Color("#00E676")]
+	},
+	"force": {
+		"title": "🔥 元素・破壊系スキルツリー (火・雷・地)",
+		"banner": "🔥 【元素・破壊】火・雷・地のスキルを解放・強化します。ポーションを消費して解放・強化できます。",
+		"branch_titles": ["🔥 炎・爆破系", "⚡ 雷・電磁系", "💎 地・蓄撃系"],
+		"branch_colors": [Color("#FF6D00"), Color("#FFD600"), Color("#FFAB00")]
+	},
+	"mystic": {
+		"title": "🔮 神秘・冥術系スキルツリー (毒・光・闇)",
+		"banner": "🔮 【神秘・冥術】毒・光・闇のスキルを解放・強化します。ポーションを消費して解放・強化できます。",
+		"branch_titles": ["✨ 光・聖像系", "🌙 闇・重力系", "🧪 毒・冥瘴系"],
+		"branch_colors": [Color("#FFF176"), Color("#BA68C8"), Color("#00E5FF")]
+	}
+}
+
 # スキルツリー定義（余剰ポーション使用：スキル獲得・生成能力解放・強化）
 var skill_tree_items: Array[Dictionary] = [
-	# --- Branch 0: 炎・爆破系 ---
+	# === 1. 元素・破壊系 (Force: 火・雷・地) ===
 	{
 		"id": "bomb",
 		"sp_type": 1,
+		"category": "force",
 		"branch": 0,
 		"tier": 0,
 		"req_id": "",
@@ -164,6 +187,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "cross_bomb",
 		"sp_type": 2,
+		"category": "force",
 		"branch": 0,
 		"tier": 1,
 		"req_id": "bomb",
@@ -182,6 +206,7 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "gemini_bomb",
 		"sp_type": 12,
+		"category": "force",
 		"branch": 0,
 		"tier": 2,
 		"req_id": "cross_bomb",
@@ -197,11 +222,70 @@ var skill_tree_items: Array[Dictionary] = [
 		"level": 0,
 		"max_level": 20
 	},
-	# --- Branch 1: 水・自然系 ---
+	{
+		"id": "lightning",
+		"sp_type": 5,
+		"category": "force",
+		"branch": 1,
+		"tier": 0,
+		"req_id": "",
+		"name": "ライトニング",
+		"short_label": "雷",
+		"desc_lv": [
+			"【剣の5個直線消しで生成】盤面3箇所に落雷(水たまり感電連鎖)",
+			"5箇所落雷＋着弾点周囲に感電衝撃波拡散",
+			"8箇所超落雷＋全水たまり同時誘爆＋【剣5消しで2個同時生成】解放！"
+		],
+		"color": Color("#FFEA00"),
+		"cost": 2000,
+		"level": 0,
+		"max_level": 20
+	},
+	{
+		"id": "magnet",
+		"sp_type": 10,
+		"category": "force",
+		"branch": 1,
+		"tier": 1,
+		"req_id": "lightning",
+		"name": "マグネットストーム",
+		"short_label": "磁",
+		"desc_lv": [
+			"【コイン5個直線消しで生成】同種コマ8個を中央へ引き寄せ大連結",
+			"同種コマ12個を強力吸引＋一斉4マッチ化",
+			"画面内の同種コマ18個を超磁力で集結＋【コイン5消しで2個同時生成】解放！"
+		],
+		"color": Color("#40C4FF"),
+		"cost": 4000,
+		"level": 0,
+		"max_level": 20
+	},
+	{
+		"id": "charge_bomb",
+		"sp_type": 11,
+		"category": "force",
+		"branch": 2,
+		"tier": 0,
+		"req_id": "",
+		"name": "チャージボム",
+		"short_label": "蓄",
+		"desc_lv": [
+			"【盾の4個消しで生成】隣接消去で蓄電し3段階チャージ後大爆発",
+			"蓄電チャージ速度2倍＆爆発範囲が5×5マスへ拡大",
+			"超蓄電ギガバースト(画面半面大掃討)＋【盾4消しで2個同時生成】解放！"
+		],
+		"color": Color("#FFAB00"),
+		"cost": 1500,
+		"level": 0,
+		"max_level": 20
+	},
+
+	# === 2. 自然・生命系 (Nature: 水・氷・木・風) ===
 	{
 		"id": "aqua_splash",
 		"sp_type": 8,
-		"branch": 1,
+		"category": "nature",
+		"branch": 0,
 		"tier": 0,
 		"req_id": "",
 		"name": "アクアスプラッシュ",
@@ -219,9 +303,10 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "tree_sprout",
 		"sp_type": 9,
+		"category": "nature",
 		"branch": 1,
-		"tier": 1,
-		"req_id": "aqua_splash",
+		"tier": 0,
+		"req_id": "",
 		"name": "生命の苗木",
 		"short_label": "樹",
 		"desc_lv": [
@@ -237,8 +322,9 @@ var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "color_converter",
 		"sp_type": 4,
+		"category": "nature",
 		"branch": 1,
-		"tier": 2,
+		"tier": 1,
 		"req_id": "tree_sprout",
 		"name": "フローラスプレー",
 		"short_label": "染",
@@ -252,10 +338,10 @@ var skill_tree_items: Array[Dictionary] = [
 		"level": 0,
 		"max_level": 20
 	},
-	# --- Branch 2: 風・雷電系 ---
 	{
 		"id": "tornado",
 		"sp_type": 7,
+		"category": "nature",
 		"branch": 2,
 		"tier": 0,
 		"req_id": "",
@@ -271,67 +357,34 @@ var skill_tree_items: Array[Dictionary] = [
 		"level": 0,
 		"max_level": 20
 	},
+
+	# === 3. 神秘・冥術系 (Mystic: 毒・光・闇) ===
 	{
-		"id": "lightning",
-		"sp_type": 5,
-		"branch": 2,
-		"tier": 1,
-		"req_id": "tornado",
-		"name": "ライトニング",
-		"short_label": "雷",
-		"desc_lv": [
-			"【剣の5個直線消しで生成】盤面3箇所に落雷(水たまり感電連鎖)",
-			"5箇所落雷＋着弾点周囲に感電衝撃波拡散",
-			"8箇所超落雷＋全水たまり同時誘爆＋【剣5消しで2個同時生成】解放！"
-		],
-		"color": Color("#FFEA00"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "magnet",
-		"sp_type": 10,
-		"branch": 2,
-		"tier": 2,
-		"req_id": "lightning",
-		"name": "マグネットストーム",
-		"short_label": "磁",
-		"desc_lv": [
-			"【コイン5個直線消しで生成】同種コマ8個を中央へ引き寄せ大連結",
-			"同種コマ12個を強力吸引＋一斉4マッチ化",
-			"画面内の同種コマ18個を超磁力で集結＋【コイン5消しで2個同時生成】解放！"
-		],
-		"color": Color("#40C4FF"),
-		"cost": 5000,
-		"level": 0,
-		"max_level": 20
-	},
-	# --- Branch 3: 時空・究極系 ---
-	{
-		"id": "charge_bomb",
-		"sp_type": 11,
-		"branch": 3,
+		"id": "disco_ball",
+		"sp_type": 3,
+		"category": "mystic",
+		"branch": 0,
 		"tier": 0,
 		"req_id": "",
-		"name": "チャージボム",
-		"short_label": "蓄",
+		"name": "スターオーブ",
+		"short_label": "光",
 		"desc_lv": [
-			"【盾の4個消しで生成】隣接消去で蓄電し3段階チャージ後大爆発",
-			"蓄電チャージ速度2倍＆爆発範囲が5×5マスへ拡大",
-			"超蓄電ギガバースト(画面半面大掃討)＋【盾4消しで2個同時生成】解放！"
+			"【7個以上同時消しで生成】画面内の最多属性コマを一斉破壊",
+			"最多属性を一斉破壊＋消去スコア＆攻撃力2倍",
+			"画面内の最多2属性を一斉破壊する奇跡＋【7個消しで2個同時生成】解放！"
 		],
-		"color": Color("#FFAB00"),
-		"cost": 1500,
+		"color": Color("#FFF176"),
+		"cost": 2500,
 		"level": 0,
 		"max_level": 20
 	},
 	{
 		"id": "black_hole",
 		"sp_type": 6,
-		"branch": 3,
-		"tier": 1,
-		"req_id": "charge_bomb",
+		"category": "mystic",
+		"branch": 1,
+		"tier": 0,
+		"req_id": "",
 		"name": "ブラックホール",
 		"short_label": "闇",
 		"desc_lv": [
@@ -339,26 +392,27 @@ var skill_tree_items: Array[Dictionary] = [
 			"周囲7×7マスを重力渦に吸引＋敵の行動カウントを1遅延",
 			"周囲9×9マス超重力吸引＋【ポーション5消しで2個同時生成】解放！"
 		],
-		"color": Color("#7C4DFF"),
-		"cost": 4000,
+		"color": Color("#BA68C8"),
+		"cost": 3000,
 		"level": 0,
 		"max_level": 20
 	},
 	{
-		"id": "disco_ball",
-		"sp_type": 3,
-		"branch": 3,
-		"tier": 2,
-		"req_id": "black_hole",
-		"name": "スターオーブ",
-		"short_label": "星",
+		"id": "poison_mist",
+		"sp_type": 0,
+		"category": "mystic",
+		"branch": 2,
+		"tier": 0,
+		"req_id": "",
+		"name": "薬毒散布・深淵",
+		"short_label": "毒",
 		"desc_lv": [
-			"【7個以上同時消しで生成】画面内の最多属性コマを一斉破壊",
-			"最多属性を一斉破壊＋消去スコア＆攻撃力2倍",
-			"画面内の最多2属性を一斉破壊する奇跡＋【7個消しで2個同時生成】解放！"
+			"【毒消し・マッチで生成】敵盤面へ猛毒沼を散布し持続ダメージ",
+			"毒ダメージ1.5倍＋水たまり接触時に拡散速度2倍",
+			"超猛毒拡散＋敵への持続ダメージ加速！"
 		],
-		"color": Color("#E040FB"),
-		"cost": 8000,
+		"color": Color("#00E5FF"),
+		"cost": 1500,
 		"level": 0,
 		"max_level": 20
 	}
@@ -707,6 +761,29 @@ static func get_skill_descriptions(skill_id: String) -> Array[String]:
 				"【4個同時生成】解放！＋超新星爆発",
 				"消去攻撃力5倍＋盤面全域95%消滅",
 				"【神格解放】銀河を統べるステラオーブ！盤面全コマ一斉完全消滅＆銀河崩壊の究極ダメージ！"
+			]
+		"poison_mist":
+			return [
+				"【毒消し・マッチで生成】敵盤面へ猛毒沼を散布し毎ターンダメージ",
+				"毒ダメージ1.5倍＋水たまり接触時に拡散速度2倍",
+				"超猛毒拡散＋【2個同時生成】解放！",
+				"毒ダメージ2.0倍＋敵行動カウント遅延確率UP",
+				"散布範囲拡大＋味方HP吸収効果付与",
+				"毒ダメージ2.5倍＋盤面の障害物を腐食劣化",
+				"敵全体への腐食毒素付与＋持続ターン延長",
+				"毒ダメージ3.0倍＋水たまり全域即時毒沼化",
+				"毒マス消去時に追加スコア＆フィーバー蓄積",
+				"【3個同時生成】解放！＋広域猛毒散布",
+				"毒ダメージ3.5倍＋敵の攻撃力10%減少",
+				"毒素爆発＋周囲の石・氷を腐食粉砕",
+				"HP吸収率2倍＋持続ダメージ加速",
+				"毒ダメージ4.0倍＋盤面半面毒沼化",
+				"敵攻撃力20%減少＋毒素侵食",
+				"毒ダメージ4.5倍＋即死級持続毒",
+				"全域毒沼化＋水×毒連鎖大拡散",
+				"【4個同時生成】解放！＋超速腐食",
+				"毒ダメージ5.0倍＋敵防御力半減",
+				"【神格解放】万物を融解する神毒の霧！敵の全ステータス大幅低下＆超猛毒殲滅！"
 			]
 		_:
 			return [
@@ -1635,33 +1712,112 @@ func _setup_shop_page_controls() -> void:
 	skill_tree_container.visible = false
 	shop_root_panel.add_child(skill_tree_container)
 
-	var skill_banner = Label.new()
-	skill_banner.position = Vector2(8, 0)
-	skill_banner.size = Vector2(1644, 32)
-	skill_banner.text = "🌿 余剰ポーションを消費してスキルを解放・強化（最大Lv3）します。上段の解放で下段が解禁されます"
-	skill_banner.add_theme_font_override("font", jp_font)
-	skill_banner.add_theme_font_size_override("font_size", 21)
-	skill_banner.add_theme_color_override("font_color", Color(0.95, 0.65, 1.0))
-	skill_tree_container.add_child(skill_banner)
+	rebuild_skill_tree_ui()
+	_switch_shop_view_mode(0)
 
-	var branch_titles = [
-		"🔥 炎・爆破系",
-		"💧 水・自然系",
-		"⚡ 風・雷電系",
-		"✨ 時空・究極系"
-	]
-	var branch_colors = [
-		Color("#FF6D00"),
-		Color("#00B0FF"),
-		Color("#00E676"),
-		Color("#E040FB")
-	]
+func _get_relic_manager() -> Node:
+	if not is_inside_tree() or get_tree() == null:
+		var p = get_parent()
+		if p: return p.get_node_or_null("RelicManager")
+		return null
+	var root = get_tree().get_root()
+	if root == null: return null
+	return root.find_child("RelicManager", true, false)
 
-	var col_w: float = 397.0
-	var col_gap: float = 24.0
+var _rendered_skill_category: String = "__unset__"
 
-	for b in range(4):
-		var bx: float = b * (col_w + col_gap)
+func on_element_category_chosen(_cat_key: String) -> void:
+	rebuild_skill_tree_ui()
+
+## 選択された属性カテゴリーに応じてスキルツリーUIを動的に構築
+func rebuild_skill_tree_ui() -> void:
+	if skill_tree_container == null or not is_instance_valid(skill_tree_container):
+		return
+
+	var jp_font = _get_jp_font()
+	var rm = _get_relic_manager()
+	var cat_key: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+
+	_rendered_skill_category = cat_key
+
+	for ch in skill_tree_container.get_children():
+		ch.queue_free()
+	skill_node_refs.clear()
+
+	# カテゴリー未選択時（最初の敵を倒す前）
+	if cat_key == "" or not CATEGORY_TREE_DEFS.has(cat_key):
+		var banner = Label.new()
+		banner.position = Vector2(8, 20)
+		banner.size = Vector2(1644, 40)
+		banner.text = "⚔️ 最初の敵を撃破すると【3つの属性カテゴリー】から1つ選択できます。選択した系統のスキルツリーが解放・表示されます。"
+		banner.add_theme_font_override("font", jp_font)
+		banner.add_theme_font_size_override("font_size", 22)
+		banner.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		skill_tree_container.add_child(banner)
+
+		# 3つのカテゴリーの概要カードを表示
+		var preview_cats = ["nature", "force", "mystic"]
+		var c_w = 480.0
+		var c_gap = 40.0
+		var start_x = (1660.0 - (3.0 * c_w + 2.0 * c_gap)) / 2.0
+		for i in range(3):
+			var c_k = preview_cats[i]
+			var c_info = CATEGORY_TREE_DEFS[c_k]
+			var card = Panel.new()
+			card.position = Vector2(start_x + i * (c_w + c_gap), 90.0)
+			card.size = Vector2(c_w, 580.0)
+			var c_style = StyleBoxFlat.new()
+			c_style.bg_color = Color(0.10, 0.12, 0.16, 0.95)
+			c_style.border_color = c_info["branch_colors"][0]
+			c_style.set_border_width_all(3)
+			c_style.set_corner_radius_all(16)
+			card.add_theme_stylebox_override("panel", c_style)
+			skill_tree_container.add_child(card)
+
+			var c_lbl = Label.new()
+			c_lbl.position = Vector2(16, 24)
+			c_lbl.size = Vector2(c_w - 32, 40)
+			c_lbl.text = c_info["title"]
+			c_lbl.add_theme_font_override("font", jp_font)
+			c_lbl.add_theme_font_size_override("font_size", 24)
+			c_lbl.add_theme_color_override("font_color", c_info["branch_colors"][0].lightened(0.3))
+			c_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			card.add_child(c_lbl)
+
+			var c_desc = RichTextLabel.new()
+			c_desc.position = Vector2(24, 80)
+			c_desc.size = Vector2(c_w - 48, 460)
+			c_desc.bbcode_enabled = true
+			var desc_text = "[font_size=19][color=#CCCCCC]系統特徴:[/color]\n" + c_info["banner"] + "\n\n[color=#FFD54F]含まれるスキル系列:[/color]\n"
+			for b_t in c_info["branch_titles"]:
+				desc_text += "・" + b_t + "\n"
+			desc_text += "\n[color=#888888]※最初の戦闘勝利時に選択可能[/color][/font_size]"
+			c_desc.text = desc_text
+			c_desc.add_theme_font_override("normal_font", jp_font)
+			card.add_child(c_desc)
+		return
+
+	# カテゴリー選択済みの場合：選択されたカテゴリーのツリーを表示！
+	var cat_data = CATEGORY_TREE_DEFS[cat_key]
+	var banner = Label.new()
+	banner.position = Vector2(8, 0)
+	banner.size = Vector2(1644, 32)
+	banner.text = cat_data["banner"]
+	banner.add_theme_font_override("font", jp_font)
+	banner.add_theme_font_size_override("font_size", 21)
+	banner.add_theme_color_override("font_color", Color(0.95, 0.65, 1.0))
+	skill_tree_container.add_child(banner)
+
+	var branch_titles: Array = cat_data["branch_titles"]
+	var branch_colors: Array = cat_data["branch_colors"]
+
+	var col_w: float = 520.0
+	var col_gap: float = 36.0
+	var offset_x: float = (1660.0 - (3.0 * col_w + 2.0 * col_gap)) / 2.0
+
+	for b in range(3):
+		var bx: float = offset_x + b * (col_w + col_gap)
 		var bhdr = Panel.new()
 		bhdr.position = Vector2(bx, 34)
 		bhdr.size = Vector2(col_w, 42)
@@ -1698,12 +1854,14 @@ func _setup_shop_page_controls() -> void:
 			arrow_lbl.add_theme_color_override("font_color", branch_colors[b].lightened(0.25))
 			skill_tree_container.add_child(arrow_lbl)
 
-	skill_node_refs.clear()
 	for s_idx in range(skill_tree_items.size()):
 		var s_item = skill_tree_items[s_idx]
+		if s_item.get("category", "") != cat_key:
+			continue
+
 		var branch: int = int(s_item["branch"])
 		var tier: int = int(s_item["tier"])
-		var nx: float = branch * (col_w + col_gap)
+		var nx: float = offset_x + branch * (col_w + col_gap)
 		var ny: float = 82.0 + tier * 232.0
 
 		var node_card = Panel.new()
@@ -1737,7 +1895,7 @@ func _setup_shop_page_controls() -> void:
 
 		var s_title = Label.new()
 		s_title.position = Vector2(78, 12)
-		s_title.size = Vector2(306, 30)
+		s_title.size = Vector2(col_w - 90, 30)
 		s_title.text = s_item["name"]
 		s_title.add_theme_font_override("font", jp_font)
 		s_title.add_theme_font_size_override("font_size", 22)
@@ -1748,7 +1906,7 @@ func _setup_shop_page_controls() -> void:
 
 		var s_lvl = Label.new()
 		s_lvl.position = Vector2(78, 42)
-		s_lvl.size = Vector2(306, 26)
+		s_lvl.size = Vector2(col_w - 90, 26)
 		s_lvl.add_theme_font_override("font", jp_font)
 		s_lvl.add_theme_font_size_override("font_size", 17)
 		s_lvl.add_theme_constant_override("outline_size", 4)
@@ -1806,13 +1964,14 @@ func _setup_shop_page_controls() -> void:
 		)
 
 		skill_node_refs.append({
+			"s_idx": s_idx,
 			"card": node_card,
 			"s_lvl": s_lvl,
 			"s_desc": s_desc,
 			"s_btn": s_btn
 		})
 
-	_switch_shop_view_mode(0)
+	_update_buff_button_labels()
 
 func _switch_shop_view_mode(mode: int) -> void:
 	current_view_mode = mode
@@ -1820,6 +1979,11 @@ func _switch_shop_view_mode(mode: int) -> void:
 		shop_view_container.visible = (mode == 0)
 	if skill_tree_container:
 		skill_tree_container.visible = (mode == 1)
+		if mode == 1:
+			var rm = _get_relic_manager()
+			var cur_cat: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+			if cur_cat != _rendered_skill_category:
+				rebuild_skill_tree_ui()
 
 	var click_se = get_parent().get_node_or_null("click") if get_parent() else null
 	if click_se and is_shop_open:
@@ -1945,9 +2109,11 @@ func _update_buff_button_labels() -> void:
 		btn.add_theme_stylebox_override("disabled", btn_style)
 
 	# 2. スキルツリーノードの更新
-	for s_idx in range(mini(skill_tree_items.size(), skill_node_refs.size())):
+	for s_ref in skill_node_refs:
+		var s_idx = int(s_ref.get("s_idx", -1))
+		if s_idx < 0 or s_idx >= skill_tree_items.size():
+			continue
 		var s_item = skill_tree_items[s_idx]
-		var s_ref = skill_node_refs[s_idx]
 		var cur_lvl: int = int(s_item["level"])
 		var max_lvl: int = int(s_item.get("max_level", 3))
 		var is_max: bool = (cur_lvl >= max_lvl)

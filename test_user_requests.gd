@@ -309,7 +309,13 @@ func _init() -> void:
 	for pl in pb.plant_entities:
 		if not pl.get("enemy_planted", false): ally_plant_preserved = true
 	assert(ally_plant_preserved, "Ally tree must be preserved")
-	print("✓ Ally Wind skill verified: completely clears all disadvantageous tiles while strictly preserving ally beneficial tiles!")
+
+	# Verify Wind Skill NEVER clears normal pieces (pieces are preserved, ismatched is untouched)
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			assert(not pb.ismatched[r][c], "Wind skill must never set ismatched on pieces")
+			assert(pb.grid_n[r][c] != -1, "Wind skill must never delete or erase normal pieces (got -1 at %d,%d)" % [r, c])
+	print("✓ Ally Wind skill verified: completely clears all disadvantageous tiles, strictly preserves ally tiles, and NEVER erases pieces!")
 
 	# 14. Test Symmetric Self-Owned Element Generation Across All Other Skills (No unneeded clears, exact symmetric generation)
 	# 14-1. Water generates ally water (stream)
@@ -406,6 +412,87 @@ func _init() -> void:
 	print("✓ Dark skill creates ally-owned dark fog & curse tiles!")
 
 	print("✓ Full symmetry verified: wind clears opponent-owned objects, and all other 9 skills generate self-owned objects without unneeded clears!")
+
+	# 15. Test 3 Element Categories, First Enemy Relic Choice, & Skill Tree Display Filtering
+	# 15-1. Verify 3 Element Categories Definition
+	assert(RelicDatabase.ELEMENT_CATEGORIES.has("nature"), "ELEMENT_CATEGORIES must contain 'nature'")
+	assert(RelicDatabase.ELEMENT_CATEGORIES.has("force"), "ELEMENT_CATEGORIES must contain 'force'")
+	assert(RelicDatabase.ELEMENT_CATEGORIES.has("mystic"), "ELEMENT_CATEGORIES must contain 'mystic'")
+	var nat_elems = RelicDatabase.ELEMENT_CATEGORIES["nature"]["elements"]
+	var frc_elems = RelicDatabase.ELEMENT_CATEGORIES["force"]["elements"]
+	var mys_elems = RelicDatabase.ELEMENT_CATEGORIES["mystic"]["elements"]
+	assert("water" in nat_elems and "ice" in nat_elems and "wood" in nat_elems and "wind" in nat_elems, "Nature elements match")
+	assert("fire" in frc_elems and "thunder" in frc_elems and "earth" in frc_elems, "Force elements match")
+	assert("poison" in mys_elems and "light" in mys_elems and "dark" in mys_elems, "Mystic elements match")
+	print("✓ 3 Element Categories (Nature:水氷木風, Force:火雷地, Mystic:毒光闇) verified!")
+
+	# 15-2. Verify First Enemy Relic Selection UI produces the 3 Category Relics
+	var rm_script = load("res://relic_manager.gd")
+	var rm = rm_script.new()
+	rm.name = "RelicManager"
+	dummy_root.add_child(rm)
+
+	var rui_script = load("res://relic_selection_ui.gd")
+	var rui = rui_script.new()
+	dummy_root.add_child(rui)
+	rui._ready()
+
+	# When no category is chosen yet, choices must be exactly the 3 category relics
+	assert(not rm.has_chosen_element_category(), "Initially no element category chosen")
+	# Re-populate choices with rm in tree
+	rui._populate_choices()
+	# The 3 choices in the UI
+	assert(rui.hbox.get_child_count() == 3, "First enemy clear must offer exactly 3 category choices")
+	assert(rui.title_label.text.contains("属性カテゴリー"), "Title must indicate attribute category selection")
+	assert(not rui.skip_btn.visible, "Skip button must be hidden on category relic selection")
+	print("✓ First enemy relic selection correctly presents the 3 Element Category relics!")
+
+	# 15-3. Test selecting "nature" category relic
+	rm.add_relic("relic_cat_nature")
+	assert(rm.has_chosen_element_category(), "RelicManager has chosen category")
+	assert(rm.get_chosen_element_category() == "nature", "Chosen category is 'nature'")
+	var base_dmg = 1000.0
+	var boosted_water_dmg = rm.modify_damage_dealt(base_dmg, {"element_name": "water"})
+	assert(boosted_water_dmg >= 1300.0, "Nature category grants +30%% damage boost to water (got: %f)" % boosted_water_dmg)
+	print("✓ Category selection sets category and grants +30% elemental damage bonus!")
+
+	# 15-4. Test Skill Tree in ScoreManager reflects the chosen category
+	sc.set_shop_ui_visible(true)
+	sc._switch_shop_view_mode(1) # Switch to Skill Tree view
+	sc.rebuild_skill_tree_ui()
+
+	# In Nature category, skill_node_refs must ONLY contain skills belonging to 'nature'
+	for s_ref in sc.skill_node_refs:
+		var s_idx = s_ref["s_idx"]
+		var s_item = sc.skill_tree_items[s_idx]
+		assert(s_item["category"] == "nature", "Skill tree node must belong to 'nature' (got: %s, id: %s)" % [s_item["category"], s_item["id"]])
+	print("✓ Skill tree dynamically filters and displays only Nature skills when 'nature' is chosen!")
+
+	# 15-5. Test switching category to 'force'
+	rm.set_chosen_element_category("force")
+	sc.rebuild_skill_tree_ui()
+	assert(not sc.skill_node_refs.is_empty(), "Skill tree nodes must be populated for 'force'")
+	for s_ref in sc.skill_node_refs:
+		var s_idx = s_ref["s_idx"]
+		var s_item = sc.skill_tree_items[s_idx]
+		assert(s_item["category"] == "force", "Skill tree node must belong to 'force' (got: %s, id: %s)" % [s_item["category"], s_item["id"]])
+	print("✓ Skill tree dynamically filters and displays only Force skills when 'force' is chosen!")
+
+	# 15-6. Test switching category to 'mystic'
+	rm.set_chosen_element_category("mystic")
+	sc.rebuild_skill_tree_ui()
+	assert(not sc.skill_node_refs.is_empty(), "Skill tree nodes must be populated for 'mystic'")
+	for s_ref in sc.skill_node_refs:
+		var s_idx = s_ref["s_idx"]
+		var s_item = sc.skill_tree_items[s_idx]
+		assert(s_item["category"] == "mystic", "Skill tree node must belong to 'mystic' (got: %s, id: %s)" % [s_item["category"], s_item["id"]])
+	print("✓ Skill tree dynamically filters and displays only Mystic skills when 'mystic' is chosen!")
+
+	# 15-7. Test PuzzleBoard Player Skill UI reflects chosen category
+	pb._setup_player_skill_ui()
+	pb._update_player_skill_ui()
+	assert(pb.player_skill_title_label.text.contains("神秘・冥術"), "Player skill panel title reflects chosen category")
+	print("✓ PuzzleBoard player skill UI dynamically reflects chosen category!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

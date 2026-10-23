@@ -8,10 +8,30 @@ const RELIC_DAMAGE_REDUCTION_CAP: float = 0.5 # 被ダメージ軽減合計上�
 signal relic_triggered(relic_id: String)
 signal relic_added(relic_id: String)
 signal relic_leveled_up(relic_id: String, new_level: int)
+signal element_category_chosen(category_key: String)
 
 # 所持データ: { "id": level(int) }
 var owned_relics: Dictionary = {}
 var temp_state: Dictionary = {}
+var chosen_element_category: String = ""
+
+func has_chosen_element_category() -> bool:
+	return chosen_element_category != ""
+
+func get_chosen_element_category() -> String:
+	return chosen_element_category
+
+func set_chosen_element_category(cat_key: String) -> void:
+	chosen_element_category = cat_key
+	emit_signal("element_category_chosen", cat_key)
+	var p = get_parent()
+	if p:
+		var sc = p.get_node_or_null("ScoreManager")
+		if sc and sc.has_method("on_element_category_chosen"):
+			sc.on_element_category_chosen(cat_key)
+		var pb = p.get_node_or_null("PuzzleBoard")
+		if pb and pb.has_method("on_element_category_chosen"):
+			pb.on_element_category_chosen(cat_key)
 
 func _process(_delta: float) -> void:
 	if DEBUG_RELIC and Input.is_key_pressed(KEY_R) and Input.is_action_just_pressed("ui_accept"):
@@ -24,6 +44,10 @@ func add_relic(id: String) -> void:
 		return
 		
 	var max_l = RelicDatabase.get_max_level(id)
+	var r_data = RelicDatabase.get_relic(id)
+	if r_data.has("element_category"):
+		set_chosen_element_category(str(r_data["element_category"]))
+
 	if not owned_relics.has(id):
 		owned_relics[id] = 1
 		print("Relic Added: ", id, " (Lv1)")
@@ -72,6 +96,7 @@ func get_param(id: String, key: String, default_val = null) -> Variant:
 
 func reset_run() -> void:
 	owned_relics.clear()
+	chosen_element_category = ""
 	if is_inside_tree() and get_tree():
 		for c in get_tree().get_nodes_in_group("relic_ui"):
 			c.queue_free()
@@ -79,10 +104,13 @@ func reset_run() -> void:
 
 # セーブ・ロード対応
 func serialize_relics() -> Dictionary:
-	return owned_relics.duplicate()
+	var res = owned_relics.duplicate()
+	res["_chosen_element_category"] = chosen_element_category
+	return res
 
 func deserialize_relics(data: Variant) -> void:
 	owned_relics.clear()
+	chosen_element_category = ""
 	if data is Array:
 		for item in data:
 			var s_id = str(item)
@@ -90,6 +118,9 @@ func deserialize_relics(data: Variant) -> void:
 				owned_relics[s_id] = 1
 	elif data is Dictionary:
 		for k in data.keys():
+			if str(k) == "_chosen_element_category":
+				chosen_element_category = str(data[k])
+				continue
 			var s_id = str(k)
 			if RelicDatabase.RELICS.has(s_id):
 				var max_lvl = RelicDatabase.get_max_level(s_id)
@@ -262,6 +293,27 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		
 	var bonus_mult = 0.0
 	var flat_add = 0.0
+
+	# 属性カテゴリーレリックによる30%ボーナス
+	var el_str: String = ""
+	if context.has("element_name"):
+		el_str = str(context["element_name"])
+	elif context.has("element"):
+		var el_val = context["element"]
+		if el_val is String:
+			el_str = el_val
+		elif el_val is int and el_val != 0:
+			el_str = ElementData.get_element_name(el_val)
+
+	if has_relic("relic_cat_nature") and el_str in ["water", "ice", "wood", "wind"]:
+		bonus_mult += 0.30
+		emit_signal("relic_triggered", "relic_cat_nature")
+	elif has_relic("relic_cat_force") and el_str in ["fire", "thunder", "earth"]:
+		bonus_mult += 0.30
+		emit_signal("relic_triggered", "relic_cat_force")
+	elif has_relic("relic_cat_mystic") and el_str in ["poison", "light", "dark"]:
+		bonus_mult += 0.30
+		emit_signal("relic_triggered", "relic_cat_mystic")
 	
 	if has_relic("chain_ring") and temp_state.get("chain_ring_active", false):
 		bonus_mult += float(get_param("chain_ring", "damage_bonus", 0.20))

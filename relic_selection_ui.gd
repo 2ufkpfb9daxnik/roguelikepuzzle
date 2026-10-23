@@ -71,62 +71,94 @@ func _ready() -> void:
 	_populate_choices()
 
 func _populate_choices() -> void:
-	var rm = get_tree().get_root().find_child("RelicManager", true, false)
+	var rm: Node = null
+	if is_inside_tree() and get_tree() and get_tree().get_root():
+		rm = get_tree().get_root().find_child("RelicManager", true, false)
+	if not rm:
+		var p = get_parent()
+		while p:
+			if p.name == "RelicManager":
+				rm = p
+				break
+			var f = p.find_child("RelicManager", true, false)
+			if f:
+				rm = f
+				break
+			p = p.get_parent()
+
 	if not rm:
 		call_deferred("_on_skip_pressed")
 		return
-		
-	# 候補プール: 最大レベル未満のレリックのみ
-	var pool: Array[String] = []
-	for r_id in RelicDatabase.RELICS.keys():
-		if not rm.is_max_level(r_id):
-			pool.append(r_id)
-			
-	if pool.is_empty():
-		# 候補が0個なら画面を出さずに終了
-		call_deferred("_on_skip_pressed")
+
+	if hbox == null:
 		return
 		
+	for ch in hbox.get_children():
+		hbox.remove_child(ch)
+		ch.queue_free()
+		
 	var choices: Array[String] = []
-	var pool_copy = pool.duplicate()
-	var pick_count = mini(3, pool_copy.size())
-	
-	for _i in range(pick_count):
-		# 各候補の重みを計算
-		var weights: Array[float] = []
-		var total_weight: float = 0.0
-		for r_id in pool_copy:
-			var r_data = RelicDatabase.get_relic(r_id)
-			var rarity = r_data.get("rarity", "common")
-			var base_w = RELIC_WEIGHT_COMMON
-			if rarity == "uncommon":
-				base_w = RELIC_WEIGHT_UNCOMMON
-			elif rarity == "rare":
-				base_w = RELIC_WEIGHT_RARE
-			elif rarity == "epic":
-				base_w = RELIC_WEIGHT_EPIC
-			elif rarity == "legendary":
-				base_w = RELIC_WEIGHT_LEGENDARY
-			elif rarity == "cursed":
-				base_w = RELIC_WEIGHT_CURSED
+
+	# 最初の敵撃破後（属性カテゴリー未選択の場合）：3つの属性カテゴリーから選択
+	if not rm.has_chosen_element_category():
+		title_label.text = "【属性カテゴリー選択】使用する属性系統を選択してください"
+		title_label.add_theme_font_size_override("font_size", 44)
+		if skip_btn:
+			skip_btn.visible = false # カテゴリー選択は必須選択
+		choices = ["relic_cat_nature", "relic_cat_force", "relic_cat_mystic"]
+	else:
+		# 候補プール: 通常レリックのみ（カテゴリーレリック除外）、最大レベル未満
+		var pool: Array[String] = []
+		for r_id in RelicDatabase.RELICS.keys():
+			if r_id.begins_with("relic_cat_"):
+				continue
+			if not rm.is_max_level(r_id):
+				pool.append(r_id)
 				
-			var w = base_w
-			if rm.has_relic(r_id):
-				w *= RELIC_OWNED_WEIGHT_MULT
-			weights.append(w)
-			total_weight += w
+		if pool.is_empty():
+			# 候補が0個なら画面を出さずに終了
+			call_deferred("_on_skip_pressed")
+			return
 			
-		var roll = randf() * total_weight
-		var cumulative: float = 0.0
-		var chosen_idx: int = 0
-		for idx in range(pool_copy.size()):
-			cumulative += weights[idx]
-			if roll <= cumulative:
-				chosen_idx = idx
-				break
+		var pool_copy = pool.duplicate()
+		var pick_count = mini(3, pool_copy.size())
+		
+		for _i in range(pick_count):
+			# 各候補の重みを計算
+			var weights: Array[float] = []
+			var total_weight: float = 0.0
+			for r_id in pool_copy:
+				var r_data = RelicDatabase.get_relic(r_id)
+				var rarity = r_data.get("rarity", "common")
+				var base_w = RELIC_WEIGHT_COMMON
+				if rarity == "uncommon":
+					base_w = RELIC_WEIGHT_UNCOMMON
+				elif rarity == "rare":
+					base_w = RELIC_WEIGHT_RARE
+				elif rarity == "epic":
+					base_w = RELIC_WEIGHT_EPIC
+				elif rarity == "legendary":
+					base_w = RELIC_WEIGHT_LEGENDARY
+				elif rarity == "cursed":
+					base_w = RELIC_WEIGHT_CURSED
+					
+				var w = base_w
+				if rm.has_relic(r_id):
+					w *= RELIC_OWNED_WEIGHT_MULT
+				weights.append(w)
+				total_weight += w
 				
-		choices.append(pool_copy[chosen_idx])
-		pool_copy.remove_at(chosen_idx)
+			var roll = randf() * total_weight
+			var cumulative: float = 0.0
+			var chosen_idx: int = 0
+			for idx in range(pool_copy.size()):
+				cumulative += weights[idx]
+				if roll <= cumulative:
+					chosen_idx = idx
+					break
+					
+			choices.append(pool_copy[chosen_idx])
+			pool_copy.remove_at(chosen_idx)
 		
 	for c_id in choices:
 		var c_data = RelicDatabase.get_relic(c_id)
