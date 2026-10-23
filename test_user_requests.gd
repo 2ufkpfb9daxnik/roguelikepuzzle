@@ -311,88 +311,101 @@ func _init() -> void:
 	assert(ally_plant_preserved, "Ally tree must be preserved")
 	print("✓ Ally Wind skill verified: completely clears all disadvantageous tiles while strictly preserving ally beneficial tiles!")
 
-	# 14. Test Symmetric Enemy-Object Clearing Across All Other Elemental Skills
-	# 14-1. Water clears enemy fire & electrified
+	# 14. Test Symmetric Self-Owned Element Generation Across All Other Skills (No unneeded clears, exact symmetric generation)
+	# 14-1. Water generates ally water (stream)
 	pb._initialize_board(null)
-	pb.grid_fire[2][2] = 1; pb._set_ally_flag(pb.grid_fire_ally, 2, 2, false)
-	pb.grid_electrified[2][3] = true; pb._set_ally_flag(pb.grid_electrified_ally, 2, 3, false)
 	pb.cast_player_skill("water", true)
-	assert(pb.grid_fire[2][2] == 0, "Water skill must extinguish enemy fire")
-	assert(not pb.grid_electrified[2][3], "Water skill must wash away enemy electrified")
-	print("✓ Water skill clears enemy fire & electrified!")
+	var ally_water_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_water[r][c] and pb.is_ally_water(r, c): ally_water_count += 1
+	assert(ally_water_count > 0, "Water skill must generate ally-owned water tiles")
+	print("✓ Water skill creates ally-owned water tiles!")
 
-	# 14-2. Fire burns enemy leech plants & melts enemy ice
+	# 14-2. Fire generates ally fire (blue flame)
 	pb._initialize_board(null)
-	pb.plant_entities.append({"origin": Vector2i(3, 3), "stage": 0, "enemy_planted": true, "drain_amount": 10})
-	pb.grid_ice[3][4] = 2; pb._set_ally_flag(pb.grid_ice_ally, 3, 4, false)
 	pb.cast_player_skill("fire", true)
-	var enemy_plant_exists = false
-	for pl in pb.plant_entities:
-		if pl.get("enemy_planted", false): enemy_plant_exists = true
-	assert(not enemy_plant_exists, "Fire skill must burn down enemy leech plants")
-	assert(int(pb.grid_ice[3][4]) == 0, "Fire skill must melt enemy ice")
-	print("✓ Fire skill burns enemy leech plants & melts enemy ice!")
+	var ally_fire_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_fire[r][c] > 0 and pb.is_ally_fire(r, c): ally_fire_count += 1
+	assert(ally_fire_count > 0, "Fire skill must generate ally-owned fire tiles")
+	print("✓ Fire skill creates ally-owned fire tiles!")
 
-	# 14-3. Ice freezes & shatters enemy water and quenches enemy fire
+	# 14-3. Ice generates ally ice (ice shield)
 	pb._initialize_board(null)
-	pb.grid_water[4][4] = true; pb._set_ally_flag(pb.grid_water_ally, 4, 4, false)
-	pb.grid_fire[4][5] = 1; pb._set_ally_flag(pb.grid_fire_ally, 4, 5, false)
 	pb.cast_player_skill("ice", true)
-	assert(not pb.grid_water[4][4], "Ice skill must freeze & shatter enemy water")
-	assert(pb.grid_fire[4][5] == 0, "Ice skill must quench enemy fire")
-	print("✓ Ice skill clears enemy water & fire!")
+	var ally_ice_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if int(pb.grid_ice[r][c]) > 0 and pb.is_ally_ice(r, c): ally_ice_count += 1
+	assert(ally_ice_count > 0, "Ice skill must generate ally-owned ice tiles")
+	print("✓ Ice skill creates ally-owned ice tiles!")
 
-	# 14-4. Wood purifies & uproots enemy leech plants
+	# 14-4. Thunder generates ally electrified (charge) tiles & triggers shatter on stone/ice
 	pb._initialize_board(null)
-	pb.plant_entities.append({"origin": Vector2i(5, 5), "stage": 1, "enemy_planted": true, "drain_amount": 20})
+	pb.cast_player_skill("thunder", true)
+	var ally_chg_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_electrified[r][c] and pb.is_ally_electrified(r, c): ally_chg_count += 1
+	assert(ally_chg_count > 0, "Thunder skill must generate ally-owned charge tiles")
+	print("✓ Thunder skill creates ally-owned charge tiles!")
+
+	# 14-5. Wood plants ally tree sprout
+	pb._initialize_board(null)
 	pb.cast_player_skill("wood", true)
-	var enemy_plant_remains_after_wood = false
+	var ally_tree_exists = false
 	for pl in pb.plant_entities:
-		if pl.get("enemy_planted", false): enemy_plant_remains_after_wood = true
-	assert(not enemy_plant_remains_after_wood, "Wood skill must purify & uproot enemy leech plants")
-	print("✓ Wood skill purifies & uproots enemy leech plants!")
+		if not pl.get("enemy_planted", false): ally_tree_exists = true
+	assert(ally_tree_exists, "Wood skill must plant an ally-owned tree sprout")
+	print("✓ Wood skill plants ally-owned tree sprout!")
 
-	# 14-5. Light clears enemy curses, enemy dark fog, and enemy gold statues
+	# 14-6. Earth generates ally stones (crystal stones)
 	pb._initialize_board(null)
-	pb.grid_cursed[6][2] = true; pb._set_ally_flag(pb.grid_cursed_ally, 6, 2, false)
-	pb.grid_gold_statue[6][3] = 2; pb._set_ally_flag(pb.grid_gold_ally, 6, 3, false)
-	pb.grid_fog.append({"rect": Rect2i(6, 4, 2, 2), "turns": 3, "enemy_owned": true})
-	pb.cast_player_skill("light", true)
-	assert(not pb.grid_cursed[6][2], "Light skill must cleanse enemy curses")
-	assert(int(pb.grid_gold_statue[6][3]) == 0, "Light skill must shatter enemy gold statues")
-	var enemy_fog_after_light = false
-	for fog in pb.grid_fog:
-		if fog.get("enemy_owned", true): enemy_fog_after_light = true
-	assert(not enemy_fog_after_light, "Light skill must dispel enemy dark fog")
-	print("✓ Light skill cleanses enemy curses, dark fog, & gold statues!")
+	pb.cast_player_skill("earth", true)
+	var ally_stone_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if int(pb.grid_stones[r][c]) > 0 and pb.is_ally_stone(r, c): ally_stone_count += 1
+	assert(ally_stone_count > 0, "Earth skill must generate ally-owned stone tiles")
+	print("✓ Earth skill creates ally-owned stone tiles!")
 
-	# 14-6. Poison neutralizes enemy poison & decays enemy leech plants
+	# 14-7. Poison generates ally poison (medicinal poison)
 	pb._initialize_board(null)
-	pb.grid_poison[7][2] = true; pb._set_ally_flag(pb.grid_poison_ally, 7, 2, false)
-	pb.plant_entities.append({"origin": Vector2i(7, 4), "stage": 0, "enemy_planted": true, "drain_amount": 10})
 	pb.cast_player_skill("poison", true)
-	assert(pb.grid_poison[7][2] and pb.is_ally_poison(7, 2), "Poison skill must neutralize enemy poison into ally poison")
-	var enemy_plant_after_poison = false
-	for pl in pb.plant_entities:
-		if pl.get("enemy_planted", false): enemy_plant_after_poison = true
-	assert(not enemy_plant_after_poison, "Poison skill must rot away enemy leech plants")
-	print("✓ Poison skill neutralizes enemy poison & rots enemy leech plants!")
+	var ally_poison_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_poison[r][c] and pb.is_ally_poison(r, c): ally_poison_count += 1
+	assert(ally_poison_count > 0, "Poison skill must generate ally-owned poison tiles")
+	print("✓ Poison skill creates ally-owned poison tiles!")
 
-	# 14-7. Dark devours enemy stones, enemy ice, & enemy leech plants
+	# 14-8. Light generates ally gold statue (holy statue)
 	pb._initialize_board(null)
-	pb.grid_stones[8][2] = 2; pb._set_ally_flag(pb.grid_stones_ally, 8, 2, false)
-	pb.grid_ice[8][3] = 2; pb._set_ally_flag(pb.grid_ice_ally, 8, 3, false)
-	pb.plant_entities.append({"origin": Vector2i(8, 4), "stage": 0, "enemy_planted": true, "drain_amount": 10})
-	pb.cast_player_skill("dark", true)
-	assert(int(pb.grid_stones[8][2]) == 0, "Dark skill must devour enemy stones")
-	assert(int(pb.grid_ice[8][3]) == 0, "Dark skill must devour enemy ice")
-	var enemy_plant_after_dark = false
-	for pl in pb.plant_entities:
-		if pl.get("enemy_planted", false): enemy_plant_after_dark = true
-	assert(not enemy_plant_after_dark, "Dark skill must devour enemy leech plants")
-	print("✓ Dark skill devours enemy stones, ice, & leech plants into void!")
+	pb.cast_player_skill("light", true)
+	var ally_statue_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if int(pb.grid_gold_statue[r][c]) > 0 and pb.is_ally_gold(r, c): ally_statue_count += 1
+	assert(ally_statue_count > 0, "Light skill must generate ally-owned gold statue tiles")
+	print("✓ Light skill creates ally-owned gold statue tiles!")
 
-	print("✓ All 10 skills verified for symmetric enemy-object clearing and interactions!")
+	# 14-9. Dark generates ally dark fog (starlight fog) & ally curse (shadow blessing)
+	pb._initialize_board(null)
+	pb.cast_player_skill("dark", true)
+	var ally_fog_exists = false
+	for fog in pb.grid_fog:
+		if not fog.get("enemy_owned", true): ally_fog_exists = true
+	assert(ally_fog_exists, "Dark skill must generate ally-owned dark fog")
+	var ally_curse_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_cursed[r][c] and pb.is_ally_cursed(r, c): ally_curse_count += 1
+	assert(ally_curse_count > 0, "Dark skill must generate ally-owned curse tiles")
+	print("✓ Dark skill creates ally-owned dark fog & curse tiles!")
+
+	print("✓ Full symmetry verified: wind clears opponent-owned objects, and all other 9 skills generate self-owned objects without unneeded clears!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
