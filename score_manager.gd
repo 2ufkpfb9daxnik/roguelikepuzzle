@@ -270,7 +270,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wood_2",
-		"sp_type": -1,
+		"sp_type": 4,
 		"category": "nature",
 		"branch": 2,
 		"tier": 1,
@@ -315,7 +315,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wind_2",
-		"sp_type": -1,
+		"sp_type": 10,
 		"category": "nature",
 		"branch": 3,
 		"tier": 1,
@@ -405,7 +405,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "thunder_2",
-		"sp_type": -1,
+		"sp_type": 12,
 		"category": "force",
 		"branch": 1,
 		"tier": 1,
@@ -450,7 +450,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "earth_2",
-		"sp_type": -1,
+		"sp_type": 4,
 		"category": "force",
 		"branch": 2,
 		"tier": 1,
@@ -669,7 +669,12 @@ func _format_comma(value: int) -> String:
 # 外部ノード（親経由）の遅延取得用ヘルパー
 func _get_puzzle_board() -> Node2D:
 	var p = get_parent()
-	return p.get_node_or_null("PuzzleBoard") if p else null
+	if p:
+		var node = p.get_node_or_null("PuzzleBoard")
+		if node: return node
+	if is_inside_tree() and get_tree() and get_tree().get_root():
+		return get_tree().get_root().find_child("PuzzleBoard", true, false)
+	return null
 
 func _get_stage_manager() -> Node2D:
 	var p = get_parent()

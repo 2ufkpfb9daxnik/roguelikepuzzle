@@ -201,18 +201,18 @@ var player_skill_buttons: Dictionary = {}
 var enemy_skill_banner: RichTextLabel = null
 var plant_entities: Array[Dictionary] = [] # [{"origin": Vector2i, "stage": int(0:苗,1:若木,2:大木3x3), "absorbed_water": int, "thunder_hp": int, "enemy_planted": bool, "drain_amount": int}]
 var special_levels: Dictionary = {
-	SpecialItemType.BOMB: 1,
-	SpecialItemType.CROSS_BOMB: 1,
-	SpecialItemType.DISCO_BALL: 1,
-	SpecialItemType.COLOR_CONVERTER: 1,
-	SpecialItemType.LIGHTNING: 1,
-	SpecialItemType.BLACK_HOLE: 1,
-	SpecialItemType.TORNADO: 1,
-	SpecialItemType.AQUA_SPLASH: 1,
-	SpecialItemType.TREE_SPROUT: 1,
-	SpecialItemType.MAGNET: 1,
-	SpecialItemType.CHARGE_BOMB: 1,
-	SpecialItemType.GEMINI_BOMB: 1
+	SpecialItemType.BOMB: 0,
+	SpecialItemType.CROSS_BOMB: 0,
+	SpecialItemType.DISCO_BALL: 0,
+	SpecialItemType.COLOR_CONVERTER: 0,
+	SpecialItemType.LIGHTNING: 0,
+	SpecialItemType.BLACK_HOLE: 0,
+	SpecialItemType.TORNADO: 0,
+	SpecialItemType.AQUA_SPLASH: 0,
+	SpecialItemType.TREE_SPROUT: 0,
+	SpecialItemType.MAGNET: 0,
+	SpecialItemType.CHARGE_BOMB: 0,
+	SpecialItemType.GEMINI_BOMB: 0
 }
 
 var last_swap_cells: Array = []
@@ -521,6 +521,16 @@ func _ready() -> void:
 	_restore_score_label_positions()
 
 ## 盤面の初期化（初期状態で3マッチが発生しないよう配置・定数テクスチャによる確実な属性紐付け）
+## ScoreManagerのスキルツリーで解放されたスキルレベルを盤面に同期
+func sync_special_levels_from_score_manager() -> void:
+	var sm = _get_score_manager()
+	if sm and "skill_tree_items" in sm:
+		for s_item in sm.skill_tree_items:
+			var lvl: int = int(s_item.get("level", 0))
+			var sp_type: int = int(s_item.get("sp_type", -1))
+			if sp_type > 0:
+				special_levels[sp_type] = lvl
+
 func _initialize_board(collid_template: Node) -> void:
 	_clear_all_combat_projectiles()
 	grid_n.clear()

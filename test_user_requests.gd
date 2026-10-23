@@ -616,12 +616,13 @@ func _init() -> void:
 	print("✓ All 30 skills registered with 20 levels in ScoreManager verified!")
 
 	# ==============================================================================
-	# 20. Test Match-Generated Skill Creation Recipes (4-match, 5-match, Cross, 6, 7+)
+	# 20. Test Match-Generated Skill Creation: Locked vs Unlocked
 	# ==============================================================================
 	pb._initialize_board(null)
-	assert(pb.special_levels[pb.SpecialItemType.BOMB] >= 1, "BOMB must be unlocked by default")
-	assert(pb.special_levels[pb.SpecialItemType.LIGHTNING] >= 1, "LIGHTNING must be unlocked by default")
-	assert(pb.special_levels[pb.SpecialItemType.CROSS_BOMB] >= 1, "CROSS_BOMB must be unlocked by default")
+	
+	# Verify that all skills start at level 0 (LOCKED)
+	for sp in pb.special_levels:
+		assert(pb.special_levels[sp] == 0, "All skills must start locked at level 0 (sp %d was %d)" % [sp, pb.special_levels[sp]])
 
 	# Helper lambda to reset board to a clean state with 0 matches
 	var clean_board = func():
@@ -634,7 +635,7 @@ func _init() -> void:
 				pb.is_bomb[r][c] = false
 				pb.grid_stones[r][c] = 0
 
-	# Test 20-1: 4-match SWORD (cols 2..5 at row 5) -> BOMB
+	# 20-A. Verify that LOCKED skills do NOT generate any special items
 	clean_board.call()
 	pb.grid_n[5][1] = pb.PieceType.SHIELD
 	pb.grid_n[5][6] = pb.PieceType.SHIELD
@@ -642,56 +643,96 @@ func _init() -> void:
 		pb.grid_n[5][c] = pb.PieceType.SWORD
 	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns.has(Vector2i(5, 3)), "4 swords must schedule a spawn at pivot (5, 3)")
-	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.BOMB, "4 swords must spawn BOMB")
-	print("✓ 4-Match SWORD correctly generates BOMB!")
+	assert(pb.pending_special_spawns.is_empty(), "4 swords must NOT spawn BOMB when BOMB is locked")
 
-	# Test 20-2: 4-match POTION (cols 2..5 at row 5) -> AQUA_SPLASH
+	# 5 swords in a line when locked
 	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][7] = pb.PieceType.SHIELD
+	for c in range(2, 7):
+		pb.grid_n[5][c] = pb.PieceType.SWORD
+	pb.last_swap_cells = [Vector2i(5, 4), Vector2i(6, 4)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.is_empty(), "5 swords must NOT spawn LIGHTNING when LIGHTNING is locked")
+	print("✓ Locked skills correctly do NOT generate special skill items from matches!")
+
+	# 20-B. Test unlocking via ScoreManager skill tree purchase
+	var fire_1_idx: int = -1
+	for idx in range(sc.skill_tree_items.size()):
+		if sc.skill_tree_items[idx]["id"] == "fire_1":
+			fire_1_idx = idx
+			break
+	assert(fire_1_idx != -1, "fire_1 must exist in skill_tree_items")
+	sc.divscore[pb.PieceType.POTION] = 10000
+	sc._purchase_skill(fire_1_idx)
+	assert(sc.skill_tree_items[fire_1_idx]["level"] >= 1, "fire_1 must be level 1 after purchase")
+	assert(pb.special_levels[pb.SpecialItemType.BOMB] >= 1, "Purchasing fire_1 must unlock BOMB in puzzle board")
+
+	# Now 4 swords match DOES spawn BOMB!
+	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.BOMB] = 1 # Re-set to 1 after clean_board
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][6] = pb.PieceType.SHIELD
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.SWORD
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.has(Vector2i(5, 3)), "4 swords must spawn BOMB after unlocking")
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.BOMB, "Spawned item must be BOMB")
+	print("✓ Unlocking skill in SkillTree enables match generation for BOMB!")
+
+	# 20-C. Test all other unlocked match recipes
+	# 4-match POTION -> AQUA_SPLASH
+	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.AQUA_SPLASH] = 1
 	pb.grid_n[5][1] = pb.PieceType.SHIELD
 	pb.grid_n[5][6] = pb.PieceType.SHIELD
 	for c in range(2, 6):
 		pb.grid_n[5][c] = pb.PieceType.POTION
 	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.AQUA_SPLASH, "4 potions must spawn AQUA_SPLASH")
-	print("✓ 4-Match POTION correctly generates AQUA_SPLASH!")
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.AQUA_SPLASH, "4 potions must spawn AQUA_SPLASH when unlocked")
+	print("✓ Unlocked 4-Match POTION correctly generates AQUA_SPLASH!")
 
-	# Test 20-3: 4-match FOOD (cols 2..5 at row 5) -> TREE_SPROUT
+	# 4-match FOOD -> TREE_SPROUT
 	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.TREE_SPROUT] = 1
 	pb.grid_n[5][1] = pb.PieceType.SHIELD
 	pb.grid_n[5][6] = pb.PieceType.SHIELD
 	for c in range(2, 6):
 		pb.grid_n[5][c] = pb.PieceType.FOOD
 	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.TREE_SPROUT, "4 food pieces must spawn TREE_SPROUT")
-	print("✓ 4-Match FOOD correctly generates TREE_SPROUT!")
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.TREE_SPROUT, "4 food pieces must spawn TREE_SPROUT when unlocked")
+	print("✓ Unlocked 4-Match FOOD correctly generates TREE_SPROUT!")
 
-	# Test 20-4: 5-match in a line SWORD (cols 2..6 at row 5) -> LIGHTNING
+	# 5-match in a line SWORD -> LIGHTNING
 	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.LIGHTNING] = 1
 	pb.grid_n[5][1] = pb.PieceType.SHIELD
 	pb.grid_n[5][7] = pb.PieceType.SHIELD
 	for c in range(2, 7):
 		pb.grid_n[5][c] = pb.PieceType.SWORD
 	pb.last_swap_cells = [Vector2i(5, 4), Vector2i(6, 4)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.LIGHTNING, "5 swords in a line must spawn LIGHTNING")
-	print("✓ 5-Match in a line SWORD correctly generates LIGHTNING!")
+	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.LIGHTNING, "5 swords in a line must spawn LIGHTNING when unlocked")
+	print("✓ Unlocked 5-Match in a line SWORD correctly generates LIGHTNING!")
 
-	# Test 20-5: 5-match in a line POTION (cols 2..6 at row 5) -> BLACK_HOLE
+	# 5-match in a line POTION -> BLACK_HOLE
 	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.BLACK_HOLE] = 1
 	pb.grid_n[5][1] = pb.PieceType.SHIELD
 	pb.grid_n[5][7] = pb.PieceType.SHIELD
 	for c in range(2, 7):
 		pb.grid_n[5][c] = pb.PieceType.POTION
 	pb.last_swap_cells = [Vector2i(5, 4), Vector2i(6, 4)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.BLACK_HOLE, "5 potions in a line must spawn BLACK_HOLE")
-	print("✓ 5-Match in a line POTION correctly generates BLACK_HOLE!")
+	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.BLACK_HOLE, "5 potions in a line must spawn BLACK_HOLE when unlocked")
+	print("✓ Unlocked 5-Match in a line POTION correctly generates BLACK_HOLE!")
 
-	# Test 20-6: Cross / T-shape match -> CROSS_BOMB
+	# Cross / T-shape match -> CROSS_BOMB
 	pb.pending_special_spawns.clear()
+	pb.special_levels[pb.SpecialItemType.CROSS_BOMB] = 1
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
 			pb.grid_n[r][c] = 0
@@ -701,12 +742,12 @@ func _init() -> void:
 	pb.grid_n[2][3] = 2; pb.grid_n[4][3] = 2
 	pb.last_swap_cells = [Vector2i(3, 3), Vector2i(3, 5)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns.has(Vector2i(3, 3)), "T-match must spawn at intersection (3, 3)")
-	assert(pb.pending_special_spawns[Vector2i(3, 3)] == pb.SpecialItemType.CROSS_BOMB, "T-match must spawn CROSS_BOMB")
-	print("✓ T/L Cross-Match correctly generates CROSS_BOMB!")
+	assert(pb.pending_special_spawns[Vector2i(3, 3)] == pb.SpecialItemType.CROSS_BOMB, "T-match must spawn CROSS_BOMB when unlocked")
+	print("✓ Unlocked T/L Cross-Match correctly generates CROSS_BOMB!")
 
-	# Test 20-7: 6 simultaneous match -> GEMINI_BOMB
+	# 6 simultaneous match -> GEMINI_BOMB
 	pb.pending_special_spawns.clear()
+	pb.special_levels[pb.SpecialItemType.GEMINI_BOMB] = 1
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
 			pb.grid_n[r][c] = 0
@@ -716,11 +757,12 @@ func _init() -> void:
 		pb.grid_n[5][c] = 2
 	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.GEMINI_BOMB, "6 match must spawn GEMINI_BOMB")
-	print("✓ 6 simultaneous match correctly generates GEMINI_BOMB!")
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.GEMINI_BOMB, "6 match must spawn GEMINI_BOMB when unlocked")
+	print("✓ Unlocked 6 simultaneous match correctly generates GEMINI_BOMB!")
 
-	# Test 20-8: 7+ simultaneous match -> DISCO_BALL
+	# 7+ simultaneous match -> DISCO_BALL
 	pb.pending_special_spawns.clear()
+	pb.special_levels[pb.SpecialItemType.DISCO_BALL] = 1
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
 			pb.grid_n[r][c] = 0
@@ -732,8 +774,8 @@ func _init() -> void:
 	pb.grid_n[4][3] = 2     # 7th
 	pb.last_swap_cells = [Vector2i(2, 3), Vector2i(1, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns.get(Vector2i(2, 3)) == pb.SpecialItemType.DISCO_BALL, "7+ match must spawn DISCO_BALL")
-	print("✓ 7+ Match correctly generates DISCO_BALL!")
+	assert(pb.pending_special_spawns.get(Vector2i(2, 3)) == pb.SpecialItemType.DISCO_BALL, "7+ match must spawn DISCO_BALL when unlocked")
+	print("✓ Unlocked 7+ Match correctly generates DISCO_BALL!")
 
 	# ==============================================================================
 	# 21. Test Poison Immunity Reduction
