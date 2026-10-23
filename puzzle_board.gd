@@ -201,18 +201,18 @@ var player_skill_buttons: Dictionary = {}
 var enemy_skill_banner: RichTextLabel = null
 var plant_entities: Array[Dictionary] = [] # [{"origin": Vector2i, "stage": int(0:苗,1:若木,2:大木3x3), "absorbed_water": int, "thunder_hp": int, "enemy_planted": bool, "drain_amount": int}]
 var special_levels: Dictionary = {
-	SpecialItemType.BOMB: 0,
-	SpecialItemType.CROSS_BOMB: 0,
-	SpecialItemType.DISCO_BALL: 0,
-	SpecialItemType.COLOR_CONVERTER: 0,
-	SpecialItemType.LIGHTNING: 0,
-	SpecialItemType.BLACK_HOLE: 0,
-	SpecialItemType.TORNADO: 0,
-	SpecialItemType.AQUA_SPLASH: 0,
-	SpecialItemType.TREE_SPROUT: 0,
-	SpecialItemType.MAGNET: 0,
-	SpecialItemType.CHARGE_BOMB: 0,
-	SpecialItemType.GEMINI_BOMB: 0
+	SpecialItemType.BOMB: 1,
+	SpecialItemType.CROSS_BOMB: 1,
+	SpecialItemType.DISCO_BALL: 1,
+	SpecialItemType.COLOR_CONVERTER: 1,
+	SpecialItemType.LIGHTNING: 1,
+	SpecialItemType.BLACK_HOLE: 1,
+	SpecialItemType.TORNADO: 1,
+	SpecialItemType.AQUA_SPLASH: 1,
+	SpecialItemType.TREE_SPROUT: 1,
+	SpecialItemType.MAGNET: 1,
+	SpecialItemType.CHARGE_BOMB: 1,
+	SpecialItemType.GEMINI_BOMB: 1
 }
 
 var last_swap_cells: Array = []
@@ -541,6 +541,7 @@ func _initialize_board(collid_template: Node) -> void:
 	grid_cursed.clear()
 	grid_poison.clear()
 	grid_gold_statue.clear()
+	plant_entities.clear()
 	_init_ally_grids()
 
 	var area_node = get_node_or_null("Area2D")
@@ -7198,7 +7199,7 @@ func _process_fire_spread() -> void:
 	_check_and_trigger_water_fire_synergy(false)
 	_redraw_board_effects()
 
-## 毒の毎ターン伝染処理（隣接マスへの伝染、水にぬれたマスは2倍速く伝染）
+## 毒の毎ターン伝染処理（隣接マスへの伝染、水にぬれたマスは2倍速く伝染、味方毒と敵毒の相互侵攻）
 func _process_poison_spread() -> void:
 	if grid_poison.size() != GRID_ROWS:
 		return
@@ -7226,10 +7227,17 @@ func _process_poison_spread() -> void:
 		next_poison.append(row)
 		next_poison_ally.append(row_ally)
 
-	var newly_infected: Array[Vector2i] = []
-	var water_spread_occurred: bool = false
+	# 侵攻圧力マップの構築（隣接する味方毒・敵毒からの侵攻圧力を合算）
+	var ally_pressure: Array = []
+	var enemy_pressure: Array = []
+	for r in range(GRID_ROWS):
+		var row_ap: Array[int] = []
+		var row_ep: Array[int] = []
+		row_ap.resize(GRID_COLUMNS); row_ap.fill(0)
+		row_ep.resize(GRID_COLUMNS); row_ep.fill(0)
+		ally_pressure.append(row_ap)
+		enemy_pressure.append(row_ep)
 
-	# 既存の毒マスから隣接マスへ伝染（氷が隣接している間は進行停止！）
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			if not grid_poison[r][c]:
@@ -7239,60 +7247,94 @@ func _process_poison_spread() -> void:
 
 			var is_src_ally: bool = is_ally_poison(r, c)
 			var is_src_wet: bool = (grid_water.size() == GRID_ROWS and grid_water[r][c])
+			var base_weight: int = 2 if is_src_wet else 1
 
 			for offset in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
 				var nr = r + offset.x
 				var nc = c + offset.y
 				if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
 					continue
-				if _is_plant_cell(nr, nc) or grid_i[nr][nc] == -1:
-					continue
-				if _is_cell_ice_locked(nr, nc):
+				if _is_plant_cell(nr, nc) or grid_i[nr][nc] == -1 or _is_cell_ice_locked(nr, nc):
 					continue
 
-				# 1段階目の隣接マス伝染
+				if is_src_ally:
+					ally_pressure[nr][nc] += base_weight
+				else:
+					enemy_pressure[nr][nc] += base_weight
+
+				# 水にぬれたマスによる2マス先への加速伝染
 				var is_tgt_wet: bool = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
-				if not next_poison[nr][nc]:
-					next_poison[nr][nc] = true
-					next_poison_ally[nr][nc] = is_src_ally
-					newly_infected.append(Vector2i(nr, nc))
-
-				# 「水にぬれたマスは2倍速く伝染する」
-				# 伝染元が水マス、または伝染先が水マスの場合、2倍の速度（2マス先まで）で伝染！
 				if is_src_wet or is_tgt_wet:
-					water_spread_occurred = true
-					# 同方向の2マス先へ伝染
 					var nr2 = r + offset.x * 2
 					var nc2 = c + offset.y * 2
 					if nr2 >= 0 and nr2 < GRID_ROWS and nc2 >= 0 and nc2 < GRID_COLUMNS:
-						if not _is_plant_cell(nr2, nc2) and grid_i[nr2][nc2] != -1:
-							if not _is_cell_ice_locked(nr2, nc2):
-								if not next_poison[nr2][nc2]:
-									next_poison[nr2][nc2] = true
-									next_poison_ally[nr2][nc2] = is_src_ally
-									newly_infected.append(Vector2i(nr2, nc2))
+						if not _is_plant_cell(nr2, nc2) and grid_i[nr2][nc2] != -1 and not _is_cell_ice_locked(nr2, nc2):
+							if is_src_ally:
+								ally_pressure[nr2][nc2] += 1
+							else:
+								enemy_pressure[nr2][nc2] += 1
 
-					# 水マス(nr, nc)からの周囲伝染加速
-					if is_tgt_wet:
-						for offset2 in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
-							var nnr = nr + offset2.x
-							var nnc = nc + offset2.y
-							if nnr >= 0 and nnr < GRID_ROWS and nnc >= 0 and nnc < GRID_COLUMNS:
-								if not _is_plant_cell(nnr, nnc) and grid_i[nnr][nnc] != -1:
-									if not _is_cell_ice_locked(nnr, nnc):
-										if not next_poison[nnr][nnc]:
-											next_poison[nnr][nnc] = true
-											next_poison_ally[nnr][nnc] = is_src_ally
-											newly_infected.append(Vector2i(nnr, nnc))
+	var newly_infected: Array[Vector2i] = []
+	var invaded_ally_cells: Array[Vector2i] = []
+	var invaded_enemy_cells: Array[Vector2i] = []
+	var water_spread_occurred: bool = false
+
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if _is_plant_cell(r, c) or grid_i[r][c] == -1 or _is_cell_ice_locked(r, c):
+				continue
+
+			var ap = ally_pressure[r][c]
+			var ep = enemy_pressure[r][c]
+			var is_wet = (grid_water.size() == GRID_ROWS and grid_water[r][c])
+
+			if not grid_poison[r][c]:
+				# 空きマスへの伝染拡大
+				if ap > 0 or ep > 0:
+					next_poison[r][c] = true
+					if ap > ep:
+						next_poison_ally[r][c] = true
+					elif ep > ap:
+						next_poison_ally[r][c] = false
+					else:
+						next_poison_ally[r][c] = (randf() < 0.5)
+					newly_infected.append(Vector2i(r, c))
+					if is_wet: water_spread_occurred = true
+			else:
+				# 既存の毒マスへの相互侵攻（味方毒 vs 敵毒）
+				var is_curr_ally = is_ally_poison(r, c)
+				if is_curr_ally:
+					# 敵の侵攻圧力が自陣維持力(味方圧力+1)を上回れば侵蝕
+					var ally_def = ap + 1
+					if ep > ally_def or (ep >= ally_def and randf() < 0.5):
+						next_poison_ally[r][c] = false
+						invaded_enemy_cells.append(Vector2i(r, c))
+				else:
+					# 味方の浄化圧力が敵陣維持力(敵圧力+1)を上回れば浄化侵攻
+					var enemy_def = ep + 1
+					if ap > enemy_def or (ap >= enemy_def and randf() < 0.5):
+						next_poison_ally[r][c] = true
+						invaded_ally_cells.append(Vector2i(r, c))
 
 	grid_poison = next_poison
 	grid_poison_ally = next_poison_ally
 
-	# 伝染時の演出
+	# 演出
+	if not invaded_ally_cells.is_empty():
+		for p in invaded_ally_cells.slice(0, 3):
+			_spawn_poison_bubble_burst_effect(get_cell_position(p.x, p.y))
+		var first_pos = get_cell_position(invaded_ally_cells[0].x, invaded_ally_cells[0].y)
+		_spawn_floating_text(first_pos, "🧪 薬毒浄化侵攻！", Color(0.25, 1.0, 0.75))
+
+	if not invaded_enemy_cells.is_empty():
+		for p in invaded_enemy_cells.slice(0, 3):
+			_spawn_poison_bubble_burst_effect(get_cell_position(p.x, p.y))
+		var first_pos = get_cell_position(invaded_enemy_cells[0].x, invaded_enemy_cells[0].y)
+		_spawn_floating_text(first_pos, "☠ 猛毒侵蝕！", Color(0.85, 0.25, 0.95))
+
 	if not newly_infected.is_empty():
 		for p in newly_infected.slice(0, 3):
 			_spawn_poison_bubble_burst_effect(get_cell_position(p.x, p.y))
-
 		var first_pos = get_cell_position(newly_infected[0].x, newly_infected[0].y)
 		if water_spread_occurred:
 			_spawn_floating_text(first_pos, "💧 猛毒水流伝染！(2倍速)", Color(0.40, 0.90, 1.0))
@@ -7604,11 +7646,22 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		var base_p_dmg: float = (25.0 + st_idx * 12.0) if is_boss_enemy else (12.0 + st_idx * 6.0)
 		var total_poison_dmg: float = base_p_dmg * stage_scale * float(enemy_poison_tiles.size()) * _get_difficulty_skill_mult()
 		
+		# 味方毒による毒素抗体・免疫バリア（味方毒1マスごとに20%軽減、最大90%軽減）
+		var immunity_rate: float = 0.0
+		if not ally_poison_tiles.is_empty():
+			immunity_rate = clampf(float(ally_poison_tiles.size()) * 0.20, 0.0, 0.90)
+
+		var center_pt = enemy_poison_tiles[enemy_poison_tiles.size() / 2]
+		if immunity_rate > 0.0:
+			var orig_dmg = total_poison_dmg
+			total_poison_dmg = maxf(1.0, total_poison_dmg * (1.0 - immunity_rate))
+			var reduced_amt = orig_dmg - total_poison_dmg
+			_spawn_floating_text(get_cell_position(center_pt.x, center_pt.y) + Vector2(0, -35), "🧪 毒素免疫！ 毒ダメージ-%d%% (-%d)" % [int(immunity_rate * 100.0), int(reduced_amt)], Color(0.25, 1.0, 0.75))
+
 		for pt in enemy_poison_tiles.slice(0, 3):
 			var pt_pos = get_cell_position(pt.x, pt.y)
 			_spawn_poison_bubble_burst_effect(pt_pos)
 		
-		var center_pt = enemy_poison_tiles[enemy_poison_tiles.size() / 2]
 		_spawn_floating_text(get_cell_position(center_pt.x, center_pt.y), "猛毒ダメージ -%d" % int(total_poison_dmg), Color(0.85, 0.35, 0.95))
 		
 		if sm:

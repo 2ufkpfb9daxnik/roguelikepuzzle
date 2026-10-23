@@ -615,5 +615,216 @@ func _init() -> void:
 		assert(s_item["desc_lv"].size() == 20, "Skill %s must have 20 description levels (got: %d)" % [s_item["id"], s_item["desc_lv"].size()])
 	print("✓ All 30 skills registered with 20 levels in ScoreManager verified!")
 
+	# ==============================================================================
+	# 20. Test Match-Generated Skill Creation Recipes (4-match, 5-match, Cross, 6, 7+)
+	# ==============================================================================
+	pb._initialize_board(null)
+	assert(pb.special_levels[pb.SpecialItemType.BOMB] >= 1, "BOMB must be unlocked by default")
+	assert(pb.special_levels[pb.SpecialItemType.LIGHTNING] >= 1, "LIGHTNING must be unlocked by default")
+	assert(pb.special_levels[pb.SpecialItemType.CROSS_BOMB] >= 1, "CROSS_BOMB must be unlocked by default")
+
+	# Helper lambda to reset board to a clean state with 0 matches
+	var clean_board = func():
+		pb._initialize_board(null)
+		pb.pending_special_spawns.clear()
+		for r in range(pb.GRID_ROWS):
+			for c in range(pb.GRID_COLUMNS):
+				pb.grid_n[r][c] = (r * 2 + c) % 5
+				pb.special_item[r][c] = pb.SpecialItemType.NONE
+				pb.is_bomb[r][c] = false
+				pb.grid_stones[r][c] = 0
+
+	# Test 20-1: 4-match SWORD (cols 2..5 at row 5) -> BOMB
+	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][6] = pb.PieceType.SHIELD
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.SWORD
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.has(Vector2i(5, 3)), "4 swords must schedule a spawn at pivot (5, 3)")
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.BOMB, "4 swords must spawn BOMB")
+	print("✓ 4-Match SWORD correctly generates BOMB!")
+
+	# Test 20-2: 4-match POTION (cols 2..5 at row 5) -> AQUA_SPLASH
+	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][6] = pb.PieceType.SHIELD
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.POTION
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.AQUA_SPLASH, "4 potions must spawn AQUA_SPLASH")
+	print("✓ 4-Match POTION correctly generates AQUA_SPLASH!")
+
+	# Test 20-3: 4-match FOOD (cols 2..5 at row 5) -> TREE_SPROUT
+	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][6] = pb.PieceType.SHIELD
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.FOOD
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns[Vector2i(5, 3)] == pb.SpecialItemType.TREE_SPROUT, "4 food pieces must spawn TREE_SPROUT")
+	print("✓ 4-Match FOOD correctly generates TREE_SPROUT!")
+
+	# Test 20-4: 5-match in a line SWORD (cols 2..6 at row 5) -> LIGHTNING
+	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][7] = pb.PieceType.SHIELD
+	for c in range(2, 7):
+		pb.grid_n[5][c] = pb.PieceType.SWORD
+	pb.last_swap_cells = [Vector2i(5, 4), Vector2i(6, 4)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.LIGHTNING, "5 swords in a line must spawn LIGHTNING")
+	print("✓ 5-Match in a line SWORD correctly generates LIGHTNING!")
+
+	# Test 20-5: 5-match in a line POTION (cols 2..6 at row 5) -> BLACK_HOLE
+	clean_board.call()
+	pb.grid_n[5][1] = pb.PieceType.SHIELD
+	pb.grid_n[5][7] = pb.PieceType.SHIELD
+	for c in range(2, 7):
+		pb.grid_n[5][c] = pb.PieceType.POTION
+	pb.last_swap_cells = [Vector2i(5, 4), Vector2i(6, 4)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns[Vector2i(5, 4)] == pb.SpecialItemType.BLACK_HOLE, "5 potions in a line must spawn BLACK_HOLE")
+	print("✓ 5-Match in a line POTION correctly generates BLACK_HOLE!")
+
+	# Test 20-6: Cross / T-shape match -> CROSS_BOMB
+	pb.pending_special_spawns.clear()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = 0
+			pb.special_item[r][c] = pb.SpecialItemType.NONE
+			pb.is_bomb[r][c] = false
+	pb.grid_n[3][2] = 2; pb.grid_n[3][3] = 2; pb.grid_n[3][4] = 2
+	pb.grid_n[2][3] = 2; pb.grid_n[4][3] = 2
+	pb.last_swap_cells = [Vector2i(3, 3), Vector2i(3, 5)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.has(Vector2i(3, 3)), "T-match must spawn at intersection (3, 3)")
+	assert(pb.pending_special_spawns[Vector2i(3, 3)] == pb.SpecialItemType.CROSS_BOMB, "T-match must spawn CROSS_BOMB")
+	print("✓ T/L Cross-Match correctly generates CROSS_BOMB!")
+
+	# Test 20-7: 6 simultaneous match -> GEMINI_BOMB
+	pb.pending_special_spawns.clear()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = 0
+			pb.special_item[r][c] = pb.SpecialItemType.NONE
+			pb.is_bomb[r][c] = false
+	for c in range(1, 7):
+		pb.grid_n[5][c] = 2
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.GEMINI_BOMB, "6 match must spawn GEMINI_BOMB")
+	print("✓ 6 simultaneous match correctly generates GEMINI_BOMB!")
+
+	# Test 20-8: 7+ simultaneous match -> DISCO_BALL
+	pb.pending_special_spawns.clear()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = 0
+			pb.special_item[r][c] = pb.SpecialItemType.NONE
+			pb.is_bomb[r][c] = false
+	for c in range(1, 6):
+		pb.grid_n[2][c] = 2 # 5 pieces
+	pb.grid_n[3][3] = 2     # 6th
+	pb.grid_n[4][3] = 2     # 7th
+	pb.last_swap_cells = [Vector2i(2, 3), Vector2i(1, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.get(Vector2i(2, 3)) == pb.SpecialItemType.DISCO_BALL, "7+ match must spawn DISCO_BALL")
+	print("✓ 7+ Match correctly generates DISCO_BALL!")
+
+	# ==============================================================================
+	# 21. Test Poison Immunity Reduction
+	# ==============================================================================
+	pb._initialize_board(null)
+	pb.plant_entities.clear()
+	sm.myhp = 5000.0
+	sm.myhpmax = 5000.0
+
+	# Case A: 2 Enemy Poison tiles, 0 Ally Poison tiles
+	pb.grid_poison[1][1] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 1, 1, false) # Enemy
+	pb.grid_poison[1][2] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 1, 2, false) # Enemy
+
+	var hp_before_no_immunity = sm.myhp
+	pb._reset_turn(sm, null)
+	var dmg_no_immunity = hp_before_no_immunity - sm.myhp
+	assert(dmg_no_immunity > 0, "Enemy poison must deal damage")
+
+	# Case B: 2 Enemy Poison tiles + 3 Ally Poison tiles (Immunity: 3 * 20% = 60% reduction)
+	pb._initialize_board(null)
+	pb.plant_entities.clear()
+	sm.myhp = 5000.0
+	sm.myhpmax = 5000.0
+	pb.grid_poison[1][1] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 1, 1, false) # Enemy
+	pb.grid_poison[1][2] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 1, 2, false) # Enemy
+	pb.grid_poison[4][4] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 4, 4, true)  # Ally
+	pb.grid_poison[4][5] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 4, 5, true)  # Ally
+	pb.grid_poison[5][4] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 5, 4, true)  # Ally
+
+	var hp_before_with_immunity = sm.myhp
+	pb._reset_turn(sm, null)
+	var dmg_with_immunity = hp_before_with_immunity - sm.myhp
+	assert(dmg_with_immunity < dmg_no_immunity, "Ally poison must reduce enemy poison damage via immunity (got %f with vs %f without)" % [dmg_with_immunity, dmg_no_immunity])
+	var expected_dmg_approx = dmg_no_immunity * (1.0 - 0.60)
+	assert(absf(dmg_with_immunity - expected_dmg_approx) <= 2.0, "Immunity should mitigate ~60% poison damage")
+	print("✓ Poison immunity verified: 3 ally poison tiles mitigated 60% of enemy poison damage!")
+
+	# ==============================================================================
+	# 22. Test Mutual Poison Invasion (Ally into Enemy, and Enemy into Ally)
+	# ==============================================================================
+	# 22-1. Ally Poison Invades Enemy Poison:
+	# Place 1 Enemy poison at (3, 3) surrounded by 2 Ally poison at (3, 2) and (2, 3)
+	pb._initialize_board(null)
+	pb.grid_poison[3][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 3, 3, false) # Enemy poison at (3, 3)
+	pb.grid_poison[3][2] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 3, 2, true)  # Ally poison at (3, 2)
+	pb.grid_poison[2][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 2, 3, true)  # Ally poison at (2, 3)
+
+	assert(not pb.is_ally_poison(3, 3), "(3, 3) starts as Enemy poison")
+	pb._process_poison_spread()
+	assert(pb.grid_poison[3][3] == true, "(3, 3) must remain poison")
+	assert(pb.is_ally_poison(3, 3) == true, "Ally poison pressure (2) must conquer and purify isolated Enemy poison (3, 3) into Ally poison!")
+	print("✓ Ally poison successfully invaded and purified Enemy poison tile!")
+
+	# 22-2. Enemy Poison Invades Ally Poison:
+	# Place 1 Ally poison at (3, 3) surrounded by 2 Enemy poison at (3, 2) and (2, 3)
+	pb._initialize_board(null)
+	pb.grid_poison[3][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 3, 3, true)  # Ally poison at (3, 3)
+	pb.grid_poison[3][2] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 3, 2, false) # Enemy poison at (3, 2)
+	pb.grid_poison[2][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 2, 3, false) # Enemy poison at (2, 3)
+
+	assert(pb.is_ally_poison(3, 3), "(3, 3) starts as Ally poison")
+	pb._process_poison_spread()
+	assert(pb.grid_poison[3][3] == true, "(3, 3) must remain poison")
+	assert(pb.is_ally_poison(3, 3) == false, "Enemy poison pressure (2) must conquer and corrupt isolated Ally poison (3, 3) into Enemy poison!")
+	print("✓ Enemy poison successfully invaded and corrupted Ally poison tile!")
+
+	# 22-3. Water tile conducts accelerated poison invasion:
+	# Place 1 Enemy poison at (4, 4), and 1 Ally poison at (4, 3) with WATER at (4, 3)
+	pb._initialize_board(null)
+	pb.grid_poison[4][4] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 4, 4, false) # Enemy poison at (4, 4)
+	pb.grid_poison[4][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 4, 3, true)  # Ally poison at (4, 3)
+	pb.grid_water[4][3] = true                          # Water conducts double pressure (ap = 2)!
+
+	pb._process_poison_spread()
+	assert(pb.is_ally_poison(4, 4) == true, "Wet Ally poison tile (pressure 2) must overpower and conquer dry Enemy poison tile (4, 4)!")
+	print("✓ Water tile accelerates poison invasion pressure as designed!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

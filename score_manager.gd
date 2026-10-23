@@ -165,7 +165,7 @@ const CATEGORY_TREE_DEFS: Dictionary = {
 var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "water_1",
-		"sp_type": -1,
+		"sp_type": 8,
 		"category": "nature",
 		"branch": 0,
 		"tier": 0,
@@ -255,7 +255,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wood_1",
-		"sp_type": -1,
+		"sp_type": 9,
 		"category": "nature",
 		"branch": 2,
 		"tier": 0,
@@ -300,7 +300,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "wind_1",
-		"sp_type": -1,
+		"sp_type": 7,
 		"category": "nature",
 		"branch": 3,
 		"tier": 0,
@@ -345,7 +345,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "fire_1",
-		"sp_type": -1,
+		"sp_type": 1,
 		"category": "force",
 		"branch": 0,
 		"tier": 0,
@@ -360,7 +360,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "fire_2",
-		"sp_type": -1,
+		"sp_type": 2,
 		"category": "force",
 		"branch": 0,
 		"tier": 1,
@@ -390,7 +390,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "thunder_1",
-		"sp_type": -1,
+		"sp_type": 5,
 		"category": "force",
 		"branch": 1,
 		"tier": 0,
@@ -435,7 +435,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "earth_1",
-		"sp_type": -1,
+		"sp_type": 11,
 		"category": "force",
 		"branch": 2,
 		"tier": 0,
@@ -525,7 +525,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "light_1",
-		"sp_type": -1,
+		"sp_type": 3,
 		"category": "mystic",
 		"branch": 1,
 		"tier": 0,
@@ -570,7 +570,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "dark_1",
-		"sp_type": -1,
+		"sp_type": 6,
 		"category": "mystic",
 		"branch": 2,
 		"tier": 0,
@@ -600,7 +600,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "dark_3",
-		"sp_type": -1,
+		"sp_type": 6,
 		"category": "mystic",
 		"branch": 2,
 		"tier": 2,

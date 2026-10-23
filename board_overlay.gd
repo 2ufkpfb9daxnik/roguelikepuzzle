@@ -585,16 +585,31 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 		else:
 			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🔥 炎上(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.55, 0.35))
 
-## 毒属性の猛毒沼マス描画（自＝エメラルド薬毒、敵＝紫黒の猛毒沼）
+## 毒属性の猛毒沼マス描画（自＝エメラルド薬毒・免疫リング、敵＝紫黒の猛毒沼・危険警告）
 func _draw_poison_tile(r: int, c: int) -> void:
 	var is_ally = _is_ally_cell("grid_poison_ally", r, c)
 	var is_wet: bool = ("grid_water" in board and board.grid_water.size() == GRID_ROWS and board.grid_water[r][c])
 	var tex = POISON_TILE_WET_TEX if is_wet else POISON_TILE_DRY_TEX
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
-	var mod_col = Color(0.25, 1.0, 0.55, 0.92) if is_ally else Color(1.0, 1.0, 1.0, 1.0)
-	draw_texture_rect(tex, rect, false, mod_col)
-	var border_col = Color(0.25, 1.0, 0.60, 0.92) if is_ally else Color(0.85, 0.25, 0.95, 0.88)
-	draw_rect(rect.grow(-4.0), border_col, false, 10.0)
+	var center = rect.get_center()
+
+	if is_ally:
+		var mod_col = Color(0.20, 1.0, 0.65, 0.95)
+		draw_texture_rect(tex, rect, false, mod_col)
+		var border_col = Color(0.25, 1.0, 0.70, 0.95)
+		draw_rect(rect.grow(-4.0), border_col, false, 10.0)
+		# 免疫オーラサークル
+		draw_arc(center, 80.0, 0.0, TAU, 24, Color(0.35, 1.0, 0.80, 0.75), 6.0)
+		draw_circle(center, 18.0, Color(0.40, 1.0, 0.85, 0.60))
+		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🧪 免疫薬毒(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.35, 1.0, 0.75))
+	else:
+		var mod_col = Color(0.95, 0.30, 1.0, 0.95)
+		draw_texture_rect(tex, rect, false, mod_col)
+		var border_col = Color(0.85, 0.20, 0.95, 0.92)
+		draw_rect(rect.grow(-4.0), border_col, false, 10.0)
+		# 危険コア
+		draw_circle(center, 22.0, Color(0.60, 0.10, 0.70, 0.70))
+		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "☠ 猛毒(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.95, 0.40, 1.0))
 
 ## 水タイルの描画（自＝エメラルドアクアの清流、敵＝深海パープルブルーの水没）
 func _draw_water_tile(r: int, c: int, pulse: float) -> void:
