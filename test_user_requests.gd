@@ -6,6 +6,11 @@ func _init() -> void:
 	var sm_script = load("res://stage_manager.gd")
 	var pb_script = load("res://puzzle_board.gd")
 	var sc_script = load("res://score_manager.gd")
+	var bo_script = load("res://board_overlay.gd")
+	if sm_script == null or pb_script == null or sc_script == null or bo_script == null:
+		printerr("ERROR: Failed to load one or more scripts!")
+		quit(1)
+		return
 
 	var dummy_root = Node2D.new()
 	var sm = Node2D.new()
@@ -162,6 +167,67 @@ func _init() -> void:
 	assert(is_equal_approx(smgr.get_difficulty_skill_mult(), 1.35), "HARD difficulty skill mult must be 1.35")
 	assert(is_equal_approx(pb._get_difficulty_skill_mult(), 1.35), "PuzzleBoard skill mult on HARD must be 1.35")
 	print("✓ Difficulty skill scaling (EASY 0.70, NORMAL 1.0, HARD 1.35) verified!")
+
+	# 10. Test Water x Fire Synergy (clears commonly adjacent cells, extinguishes Water & Fire without clearing Water/Fire pieces)
+	pb._initialize_board(null)
+	# Place Water at (5, 5) and Fire at (5, 6)
+	# Commonly adjacent cells to both (5, 5) and (5, 6) are (4, 5), (4, 6), (6, 5), (6, 6)
+	var orig_w_kind = pb.grid_n[5][5]
+	var orig_f_kind = pb.grid_n[5][6]
+	pb.grid_water[5][5] = true
+	pb.grid_fire[5][6] = 1
+	var cleared_common = pb._check_and_trigger_water_fire_synergy(true)
+	assert(not pb.grid_water[5][5], "Water at (5,5) must be extinguished after Water x Fire synergy")
+	assert(pb.grid_fire[5][6] == 0, "Fire at (5,6) must be extinguished after Water x Fire synergy")
+	assert(not pb.ismatched[5][5], "Piece directly on Water (5,5) must NOT be cleared")
+	assert(not pb.ismatched[5][6], "Piece directly on Fire (5,6) must NOT be cleared")
+	assert(pb.grid_n[5][5] == orig_w_kind and pb.grid_n[5][6] == orig_f_kind, "Pieces on Water & Fire must remain intact")
+	assert(pb.ismatched[4][5] and pb.ismatched[4][6] and pb.ismatched[6][5] and pb.ismatched[6][6], "All 4 commonly adjacent cells (4,5),(4,6),(6,5),(6,6) must be cleared!")
+	assert(cleared_common == 4, "Water x Fire synergy on orthogonally adjacent pair must clear exactly 4 common neighbors (got %d)" % cleared_common)
+	print("✓ Water x Fire synergy verified: cleared 4 commonly adjacent cells while extinguishing Water & Fire intact!")
+
+	# 11. Test Ice x Lightning & Stone x Lightning Synergy (3x3 shard splash)
+	pb._initialize_board(null)
+	pb.grid_ice[6][6] = 2
+	var ice_shattered = pb._trigger_thunder_shatter_synergy(6, 6, true)
+	assert(int(pb.grid_ice[6][6]) == 0, "Ice at (6,6) must shatter completely on lightning hit")
+	assert(ice_shattered == 9, "Ice x Lightning synergy must clear 3x3 (9 cells) around (6,6), got %d" % ice_shattered)
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			assert(pb.ismatched[6 + dr][6 + dc], "3x3 cell (%d,%d) must be matched by Ice x Lightning shatter" % [6 + dr, 6 + dc])
+
+	pb._initialize_board(null)
+	pb.grid_stones[6][6] = 2
+	var stone_shattered = pb._trigger_thunder_shatter_synergy(6, 6, true)
+	assert(int(pb.grid_stones[6][6]) == 0, "Stone at (6,6) must shatter completely on lightning hit")
+	assert(stone_shattered == 9, "Stone x Lightning synergy must clear 3x3 (9 cells) around (6,6), got %d" % stone_shattered)
+	print("✓ Ice x Lightning and Stone x Lightning 3x3 shatter synergies verified!")
+
+	# 12. Test PvP Symmetric Self Skills (10 elements, ally=true, no self-harm, movable, distinct visual state)
+	var bo = bo_script.new()
+	bo.board = pb
+	dummy_root.add_child(bo)
+
+	for sk in ["water", "fire", "ice", "thunder", "wood", "earth", "wind", "poison", "light", "dark"]:
+		pb._initialize_board(null)
+		var hp_before = sm.myhp
+		var ehp_before = sm.ehp
+		var positions = pb.cast_player_skill(sk, true)
+		assert(not positions.is_empty(), "Player skill '%s' must affect board positions" % sk)
+		assert(sm.myhp >= hp_before, "Player skill '%s' must NEVER reduce player HP" % sk)
+		assert(sm.ehp < ehp_before, "Player skill '%s' must deal damage to enemy" % sk)
+
+	# Verify ally water/ice/stone/gold do NOT block swap and board_overlay identifies ally vs enemy
+	pb._initialize_board(null)
+	pb._apply_water_to_cell(3, 3, true)
+	pb._apply_water_to_cell(3, 4, false)
+	assert(pb.is_ally_water(3, 3), "(3,3) must be ally water")
+	assert(not pb.is_ally_water(3, 4), "(3,4) must be enemy water")
+	assert(not pb._is_cell_blocked_for_swap(3, 3), "Ally water at (3,3) must NOT block swap!")
+	assert(pb._is_cell_blocked_for_swap(3, 4), "Enemy water at (3,4) MUST block swap!")
+	assert(bo._is_ally_cell("grid_water_ally", 3, 3) == true, "BoardOverlay must detect ally water at (3,3)")
+	assert(bo._is_ally_cell("grid_water_ally", 3, 4) == false, "BoardOverlay must detect enemy water at (3,4)")
+	print("✓ All 10 player skills, ally non-blocking behavior, and BoardOverlay ally/enemy color differentiation verified!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
