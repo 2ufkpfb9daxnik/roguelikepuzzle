@@ -893,5 +893,89 @@ func _init() -> void:
 	assert(pb.is_ally_poison(4, 4) == true, "Wet Ally poison tile (pressure 2) must overpower and conquer dry Enemy poison tile (4, 4)!")
 	print("✓ Water tile accelerates poison invasion pressure as designed!")
 
+	# ==============================================================================
+	# 23. Test Enemy Damage Source Display and Enhanced Elemental Hit Effects
+	# ==============================================================================
+	var cui = CombatUIManager.new()
+	dummy_root.add_child(cui)
+	cui._ready()
+
+	var dummy_enemy = Sprite2D.new()
+	dummy_enemy.position = Vector2(500, 300)
+	dummy_root.add_child(dummy_enemy)
+
+	# 23-1. Poison damage displays explicit "(毒ダメージ)" and spawns poison VFX and flash
+	cui._show_enemy_damage(120.0, dummy_enemy, false, "ally_poison")
+	var found_poison_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(毒ダメージ)"):
+			found_poison_lbl = true
+			assert(lbl.text.contains("120"), "Damage amount 120 must be included")
+			break
+	assert(found_poison_lbl, "Poison damage must display (毒ダメージ)")
+	assert(dummy_enemy.modulate != Color.WHITE, "Enemy sprite must flash with elemental tint on poison hit")
+
+	# Check EnemyHitEffectNode spawned
+	var found_vfx = false
+	for ch in cui.get_children():
+		if ch is CombatUIManager.EnemyHitEffectNode:
+			assert(ch.vfx_type == "poison", "Poison hit must spawn poison VFX")
+			found_vfx = true
+			break
+	assert(found_vfx, "EnemyHitEffectNode must be spawned for poison hit")
+	print("✓ Enemy poison damage explicitly displays (毒ダメージ) and triggers poison VFX and flash!")
+
+	# 23-2. Verify Fire, Thunder, Ice, Synergy, and Skill damage tags
+	cui._show_enemy_damage(250.0, dummy_enemy, false, "ally_fire")
+	var found_fire_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(火傷ダメージ)"):
+			found_fire_lbl = true
+			break
+	assert(found_fire_lbl, "Ally fire damage must display (火傷ダメージ)")
+
+	cui._show_enemy_damage(300.0, dummy_enemy, false, "thunder")
+	var found_thunder_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(雷撃ダメージ)"):
+			found_thunder_lbl = true
+			break
+	assert(found_thunder_lbl, "Thunder damage must display (雷撃ダメージ)")
+
+	cui._show_enemy_damage(180.0, dummy_enemy, false, "ice")
+	var found_ice_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(冷気ダメージ)"):
+			found_ice_lbl = true
+			break
+	assert(found_ice_lbl, "Ice damage must display (冷気ダメージ)")
+
+	cui._show_enemy_damage(360.0, dummy_enemy, false, "steam_synergy")
+	var found_steam_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(蒸気消去ダメージ)"):
+			found_steam_lbl = true
+			break
+	assert(found_steam_lbl, "Steam synergy damage must display (蒸気消去ダメージ)")
+
+	cui._show_enemy_damage(320.0, dummy_enemy, false, "shatter_synergy")
+	var found_shatter_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(砕破ダメージ)"):
+			found_shatter_lbl = true
+			break
+	assert(found_shatter_lbl, "Shatter synergy damage must display (砕破ダメージ)")
+
+	cui._show_enemy_damage(400.0, dummy_enemy, false, "player_skill_poison")
+	var found_pskill_lbl = false
+	for lbl in cui.popup_pool:
+		if lbl.visible and lbl.text.contains("(毒スキルダメージ)"):
+			found_pskill_lbl = true
+			break
+	assert(found_pskill_lbl, "Player skill poison must display (毒スキルダメージ)")
+
+	print("✓ Enemy damage labels explicitly display all damage sources with rich tags!")
+
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

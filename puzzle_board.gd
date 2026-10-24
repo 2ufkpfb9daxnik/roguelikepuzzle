@@ -1850,6 +1850,7 @@ func _check_and_trigger_water_fire_synergy(in_match_phase: bool = false, queue: 
 	if cleared_count > 0 and sm and not in_match_phase:
 		var syn_dmg = float(cleared_count) * 180.0 * stage_scale
 		sm.calchp(syn_dmg, 0.0, sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1)
+		_emit_combat_event("damage", "ally", "enemy", syn_dmg, "steam_synergy")
 
 	_redraw_board_effects()
 	return cleared_count
@@ -1970,6 +1971,7 @@ func _trigger_thunder_shatter_synergy(r: int, c: int, in_match_phase: bool = fal
 	if cleared > 0 and sm and not in_match_phase:
 		var syn_dmg = float(cleared) * 160.0 * stage_scale
 		sm.calchp(syn_dmg, 0.0, sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1)
+		_emit_combat_event("damage", "ally", "enemy", syn_dmg, "shatter_synergy")
 
 	_redraw_board_effects()
 	return cleared
@@ -4119,6 +4121,7 @@ func _start_breaking_animation() -> void:
 				if stage_mgr:
 					var bonus_el_dmg = 220.0 * stage_scale_b
 					stage_mgr.calchp(bonus_el_dmg, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
+					_emit_combat_event("damage", "ally", "enemy", bonus_el_dmg, "ally_electrified")
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 充電追撃！", Color(0.35, 1.0, 0.85))
 			else:
 				if stage_mgr:
@@ -4136,6 +4139,7 @@ func _start_breaking_animation() -> void:
 				if stage_mgr:
 					var drain_v = 150.0 * stage_scale_b
 					stage_mgr.calchp(drain_v, -drain_v, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
+					_emit_combat_event("damage", "ally", "enemy", drain_v, "ally_drain")
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "🌙 影護吸収！", Color(0.45, 1.0, 0.95))
 			else:
 				var st_idx = _get_stage_index()
@@ -4166,7 +4170,9 @@ func _start_breaking_animation() -> void:
 			grid_poison[cell.x][cell.y] = false
 			_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
 			if was_ally_po and stage_mgr:
-				stage_mgr.calchp(200.0 * stage_scale_b, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
+				var pb_dmg = 200.0 * stage_scale_b
+				stage_mgr.calchp(pb_dmg, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
+				_emit_combat_event("damage", "ally", "enemy", pb_dmg, "ally_poison_blade")
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "🧪 毒刃追撃！", Color(0.35, 1.0, 0.65))
 			else:
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "✨ 解毒！", Color(0.65, 1.0, 0.75))
