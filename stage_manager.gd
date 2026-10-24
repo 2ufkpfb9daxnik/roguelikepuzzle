@@ -1026,7 +1026,9 @@ func _input(event: InputEvent) -> void:
 
 func get_enemy_element(target_specifier = null) -> String:
 	var target_dict = {}
-	if target_specifier is Sprite2D:
+	if typeof(target_specifier) == TYPE_OBJECT and not is_instance_valid(target_specifier):
+		target_specifier = null
+	if is_instance_valid(target_specifier) and target_specifier is Sprite2D:
 		for e in active_enemies:
 			if e.get("sprite") == target_specifier:
 				target_dict = e
@@ -1815,7 +1817,9 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 	
 	if damage_to_enemy > 0.0 and active_enemies.size() > 0:
 		var target_idx: int = -1
-		if target_specifier is Sprite2D:
+		if typeof(target_specifier) == TYPE_OBJECT and not is_instance_valid(target_specifier):
+			target_specifier = null
+		if is_instance_valid(target_specifier) and target_specifier is Sprite2D:
 			for idx in range(active_enemies.size()):
 				if active_enemies[idx].get("sprite") == target_specifier:
 					target_idx = idx
@@ -2553,9 +2557,11 @@ func _on_movefront_pressed() -> void:
 			deadinterval = 0
 
 func play_single_enemy_animation(target, anim_name: String, on_complete: Callable = Callable()) -> bool:
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return false
 	var e = null
 	var enemy_index: int = -1
-	if target is Sprite2D:
+	if is_instance_valid(target) and target is Sprite2D:
 		for idx in range(active_enemies.size()):
 			if active_enemies[idx].get("sprite") == target:
 				e = active_enemies[idx]
@@ -2688,8 +2694,10 @@ func play_single_enemy_animation(target, anim_name: String, on_complete: Callabl
 
 ## 敵のアニメーション所要時間（秒）を正確に取得（スプライトシートのアニメーション長さに完全準拠）
 func get_enemy_animation_duration(target, anim_name: String) -> float:
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return 0.45
 	var e = null
-	if target is Sprite2D:
+	if is_instance_valid(target) and target is Sprite2D:
 		for item in active_enemies:
 			if item.get("sprite") == target:
 				e = item
@@ -2713,8 +2721,10 @@ func get_enemy_animation_duration(target, anim_name: String) -> float:
 	return maxf(0.45, duration)
 
 func play_single_idle_loop(target) -> void:
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return
 	var e = null
-	if target is Sprite2D:
+	if is_instance_valid(target) and target is Sprite2D:
 		for item in active_enemies:
 			if item.get("sprite") == target:
 				e = item

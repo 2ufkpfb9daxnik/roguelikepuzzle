@@ -1285,10 +1285,10 @@ func _select_special_for_match(kind: int, total_count: int, max_line: int, has_c
 			PieceType.COIN: # 光
 				if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
 					return SpecialItemType.DISCO_BALL
-				if (has_cross or total_count >= 6 or max_line >= 5) and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
-					return SpecialItemType.DISCO_BALL
-				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
-					return SpecialItemType.DISCO_BALL
+				if (has_cross or total_count >= 6 or max_line >= 5) and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
+					return SpecialItemType.MAGNET
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
+					return SpecialItemType.MAGNET
 			PieceType.SWORD: # 闇
 				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
 					return SpecialItemType.BLACK_HOLE
@@ -2306,12 +2306,17 @@ func _trigger_disco_ball(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 			target_attrs.append(sec_att)
 
 	var stone_dmg: int = 1 + int((lvl - 1) / 4)
+	var max_clear: int = (5 + lvl) if lvl < 10 else 999
+	var cleared_count: int = 0
 	for nr in range(GRID_ROWS):
 		for nc in range(GRID_COLUMNS):
 			if grid_att[nr][nc] in target_attrs and grid_i[nr][nc] != -1:
+				if cleared_count >= max_clear:
+					break
 				ismatched[nr][nc] = true
-				if lvl >= 2:
-					var blast_reach = 1 if lvl < 9 else 2
+				cleared_count += 1
+				if lvl >= 8:
+					var blast_reach = 1 if lvl < 16 else 2
 					for dr in range(-blast_reach, blast_reach + 1):
 						for dc in range(-blast_reach, blast_reach + 1):
 							var ar = nr + dr
@@ -7824,10 +7829,10 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		var base_p_dmg: float = (25.0 + st_idx * 12.0) if is_boss_enemy else (12.0 + st_idx * 6.0)
 		var total_poison_dmg: float = base_p_dmg * stage_scale * float(enemy_poison_tiles.size()) * _get_difficulty_skill_mult()
 		
-		# 味方毒による毒素抗体・免疫バリア（味方毒1マスごとに20%軽減、最大90%軽減）
+		# 味方毒による毒素抗体・免疫バリア（味方毒1マスごとに5%軽減、最大40%軽減）
 		var immunity_rate: float = 0.0
 		if not ally_poison_tiles.is_empty():
-			immunity_rate = clampf(float(ally_poison_tiles.size()) * 0.20, 0.0, 0.90)
+			immunity_rate = clampf(float(ally_poison_tiles.size()) * 0.05, 0.0, 0.40)
 
 		var center_pt = enemy_poison_tiles[enemy_poison_tiles.size() / 2]
 		if immunity_rate > 0.0:
@@ -9554,9 +9559,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_gold_shatter_effect(pos)
-				var shield_gain = (150.0 + sk_lvl * 30.0) * stage_scale
+				var shield_gain = (80.0 + sk_lvl * 15.0) * stage_scale
 				_apply_skill_shield(shield_gain)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (60.0 + sk_lvl * 10.0) * stage_scale
 			elif tier == 2:
 				# ✨ 光T2【プリズム・レイ】：聖像間のライン上の妨害マス浄化＆同色変換確定マッチ
 				var statues: Array[Vector2i] = []

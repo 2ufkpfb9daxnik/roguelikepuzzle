@@ -309,7 +309,7 @@ func _on_combat_event(event: Dictionary) -> void:
 	if event.type == "damage":
 		if typeof(event.target) == TYPE_STRING and event.target == "ally":
 			_show_player_damage(event.amount, event.get("element", ""), event.get("blocked_amount", 0.0))
-		elif event.target is Node:
+		elif typeof(event.target) == TYPE_OBJECT and is_instance_valid(event.target) and event.target is Node:
 			_show_enemy_damage(event.amount, event.target, event.get("is_critical", false), event.get("element", ""), event.get("effectiveness", "normal"))
 	elif event.type == "heal":
 		if typeof(event.target) == TYPE_STRING and event.target == "ally":

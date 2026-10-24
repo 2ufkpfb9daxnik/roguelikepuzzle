@@ -549,7 +549,7 @@ var skill_tree_items: Array[Dictionary] = [
 	},
 	{
 		"id": "light_1",
-		"sp_type": 3,
+		"sp_type": 10,
 		"match_recipe": "コイン 4個消し",
 		"category": "mystic",
 		"branch": 1,
@@ -720,9 +720,9 @@ func _init() -> void:
 static func get_skill_descriptions(skill_id: String) -> Array[String]:
 	var legacy_map: Dictionary = {
 		"bomb": "fire_1", "cross_bomb": "fire_2", "gemini_bomb": "fire_3",
-		"lightning": "thunder_1", "magnet": "thunder_2", "charge_bomb": "thunder_3",
+		"lightning": "thunder_1", "charge_bomb": "thunder_3",
 		"aqua_splash": "water_1", "tree_sprout": "wood_1", "color_converter": "wood_2",
-		"tornado": "wind_1", "disco_ball": "light_1", "black_hole": "dark_3",
+		"tornado": "wind_1", "disco_ball": "light_3", "magnet": "light_1", "black_hole": "dark_3",
 		"poison_mist": "poison_1"
 	}
 	var real_id = legacy_map.get(skill_id, skill_id)
@@ -2068,9 +2068,9 @@ func get_unlocked_skills() -> Array[Dictionary]:
 func get_skill_by_id(skill_id: String) -> Dictionary:
 	var legacy_map: Dictionary = {
 		"bomb": "fire_1", "cross_bomb": "fire_2", "gemini_bomb": "fire_3",
-		"lightning": "thunder_1", "magnet": "thunder_2", "charge_bomb": "thunder_3",
+		"lightning": "thunder_1", "charge_bomb": "thunder_3",
 		"aqua_splash": "water_1", "tree_sprout": "wood_1", "color_converter": "wood_2",
-		"tornado": "wind_1", "disco_ball": "light_1", "black_hole": "dark_3",
+		"tornado": "wind_1", "disco_ball": "light_3", "magnet": "light_1", "black_hole": "dark_3",
 		"poison_mist": "poison_1"
 	}
 	var real_id = legacy_map.get(skill_id, skill_id)

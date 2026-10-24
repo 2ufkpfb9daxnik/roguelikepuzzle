@@ -801,6 +801,19 @@ func _init() -> void:
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 	print("✓ Unlocked 4-Match POTION correctly generates POISON_MIST in mystic!")
+	# 4-Match COIN in mystic -> MAGNET
+	clean_board.call()
+	pb.special_levels[pb.SpecialItemType.MAGNET] = 1
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("mystic")
+	for c in range(2, 6):
+		pb.grid_n[5][c] = pb.PieceType.COIN
+	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
+	pb._detect_and_spawn_special_from_matches()
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.MAGNET, "4-Match COIN in mystic must generate MAGNET when unlocked")
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("")
+	print("✓ Unlocked 4-Match COIN correctly generates MAGNET in mystic (balanced, not DISCO_BALL)!")
 
 	# ==============================================================================
 	# 21. Test Poison Immunity Reduction
@@ -821,7 +834,7 @@ func _init() -> void:
 	var dmg_no_immunity = hp_before_no_immunity - sm.myhp
 	assert(dmg_no_immunity > 0, "Enemy poison must deal damage")
 
-	# Case B: 2 Enemy Poison tiles + 3 Ally Poison tiles (Immunity: 3 * 20% = 60% reduction)
+	# Case B: 2 Enemy Poison tiles + 3 Ally Poison tiles (Immunity: 3 * 5% = 15% reduction)
 	pb._initialize_board(null)
 	pb.plant_entities.clear()
 	sm.myhp = 5000.0
@@ -841,9 +854,9 @@ func _init() -> void:
 	pb._reset_turn(sm, null)
 	var dmg_with_immunity = hp_before_with_immunity - sm.myhp
 	assert(dmg_with_immunity < dmg_no_immunity, "Ally poison must reduce enemy poison damage via immunity (got %f with vs %f without)" % [dmg_with_immunity, dmg_no_immunity])
-	var expected_dmg_approx = dmg_no_immunity * (1.0 - 0.60)
-	assert(absf(dmg_with_immunity - expected_dmg_approx) <= 2.0, "Immunity should mitigate ~60% poison damage")
-	print("✓ Poison immunity verified: 3 ally poison tiles mitigated 60% of enemy poison damage!")
+	var expected_dmg_approx = dmg_no_immunity * (1.0 - 0.15)
+	assert(absf(dmg_with_immunity - expected_dmg_approx) <= 2.0, "Immunity should mitigate ~15% poison damage")
+	print("✓ Poison immunity verified: 3 ally poison tiles mitigated 15% of enemy poison damage!")
 
 	# ==============================================================================
 	# 22. Test Mutual Poison Invasion (Ally into Enemy, and Enemy into Ally)
@@ -975,6 +988,25 @@ func _init() -> void:
 	assert(found_pskill_lbl, "Player skill poison must display (毒スキルダメージ)")
 
 	print("✓ Enemy damage labels explicitly display all damage sources with rich tags!")
+	# ==============================================================================
+	# 24. Test Freed Instance Safety (Left operand of 'is' error prevention)
+	# ==============================================================================
+	var immediately_freed = Sprite2D.new()
+	immediately_freed.free()
+
+	assert(sm.play_single_enemy_animation(immediately_freed, "damaged") == false, "play_single_enemy_animation with freed target must return false without error")
+	assert(sm.get_enemy_animation_duration(immediately_freed, "damaged") >= 0.45, "get_enemy_animation_duration with freed target must return default without error")
+	sm.play_single_idle_loop(immediately_freed)
+	sm.calchp(10.0, 0.0, immediately_freed)
+	assert(sm.get_enemy_element(immediately_freed) != "", "get_enemy_element with freed target must return default without error")
+
+	cui._on_combat_event({
+		"type": "damage",
+		"target": immediately_freed,
+		"amount": 50.0,
+		"element": "poison"
+	})
+	print("✓ Freed instance safety verified: no errors with freed instances!")
 
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
