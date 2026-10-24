@@ -611,36 +611,36 @@ bbcode_enabled = true
 [node name="status" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1190.0
-offset_top = 548.0
+offset_top = 544.0
 offset_right = 1615.0
-offset_bottom = 1020.0
+offset_bottom = 944.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1192.0
-offset_top = 550.0
+offset_top = 546.0
 offset_right = 1613.0
-offset_bottom = 1018.0
+offset_bottom = 942.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="elem_status" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1625.0
-offset_top = 548.0
+offset_top = 544.0
 offset_right = 1915.0
-offset_bottom = 1020.0
+offset_bottom = 944.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="elem_status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1627.0
-offset_top = 550.0
+offset_top = 546.0
 offset_right = 1913.0
-offset_bottom = 1018.0
+offset_bottom = 942.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
@@ -842,6 +842,7 @@ theme_override_font_sizes/normal_font_size = 38
 theme_override_font_sizes/bold_font_size = 38
 bbcode_enabled = true
 text = "[center]COMBO[/center]"
+scroll_active = false
 tab_size = 10
 script = SubResource("GDScript_t23u5")
 
@@ -858,6 +859,7 @@ theme_override_font_sizes/mono_font_size = 64
 theme_override_font_sizes/normal_font_size = 64
 theme_override_font_sizes/bold_font_size = 64
 bbcode_enabled = true
+scroll_active = false
 text = "[center]0[/center]"
 tab_size = 10
 script = SubResource("GDScript_t23u5")
@@ -1061,28 +1063,30 @@ script = ExtResource("3_tkwor")
 
 [node name="StageLabel" type="RichTextLabel" parent="StageManager"]
 offset_left = 20.0
-offset_top = 74.0
-offset_right = 230.0
-offset_bottom = 154.0
+offset_top = 16.0
+offset_right = 380.0
+offset_bottom = 76.0
 theme_override_font_sizes/bold_italics_font_size = 48
 theme_override_font_sizes/italics_font_size = 48
 theme_override_font_sizes/mono_font_size = 48
 theme_override_font_sizes/normal_font_size = 48
 theme_override_font_sizes/bold_font_size = 48
 bbcode_enabled = true
+scroll_active = false
 text = "[tornado radius=5 freq=2]こんにちは[/tornado]
 "
 
 [node name="StageLabel2" type="RichTextLabel" parent="StageManager"]
 z_index = -1
 offset_left = 20.0
-offset_top = 74.0
-offset_right = 230.0
-offset_bottom = 154.0
+offset_top = 16.0
+offset_right = 380.0
+offset_bottom = 76.0
 theme_override_font_sizes/bold_italics_font_size = 48
 theme_override_font_sizes/italics_font_size = 48
 theme_override_font_sizes/mono_font_size = 48
 theme_override_font_sizes/normal_font_size = 48
+scroll_active = false
 theme_override_font_sizes/bold_font_size = 48
 bbcode_enabled = true
 text = "[tornado radius=5 freq=2]こんにちは[/tornado]

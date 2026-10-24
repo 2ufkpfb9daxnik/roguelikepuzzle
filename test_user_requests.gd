@@ -1057,34 +1057,50 @@ func _init() -> void:
 
 	score_mgr_node._ready()
 
-	# 1. 敵画面の真下にスコア欄 (Directly below enemy screen: y = 472.0, h = 68.0, w = 725.0)
+	# 1. 敵画面の真下にスコア欄 (Directly below enemy screen: y = 472.0, h = 66.0, w = 725.0)
 	var sc_rect_node = score_mgr_node.get_node_or_null("score_rect") as ColorRect
 	assert(sc_rect_node != null, "score_rect node must exist")
 	assert(sc_rect_node.position.y == 472.0, "score_rect must be positioned directly below enemy screen at y=472.0")
 	assert(sc_rect_node.size.x == 725.0, "score_rect must span enemy screen width 725.0")
-	assert(sc_rect_node.size.y >= 60.0, "score_rect must have enlarged height >= 60.0")
+	assert(sc_rect_node.size.y == 66.0, "score_rect must have height 66.0")
 	assert(score_mgr_node.label.visible == true, "Score label must be visible")
 	score_mgr_node.totalScore = 12345
 	score_mgr_node.update_score_label()
 	assert(score_mgr_node.label.text.contains("12,345"), "Score label must display formatted totalScore")
 
-	# 2. その下にアイテム値欄（左側・大幅拡大 y = 548.0, w = 425.0, h = 472.0）
-	assert(score_mgr_node.status_rect.position.y == 548.0, "status_rect (items) must be below score at y=548.0")
+	# 2. その下にアイテム値欄（左側・盤面下端 y=944 に下端一致: y = 544.0, w = 425.0, h = 400.0）
+	assert(score_mgr_node.status_rect.position.y == 544.0, "status_rect (items) must start at y=544.0")
 	assert(score_mgr_node.status_rect.position.x == 1190.0, "status_rect must be on left side at x=1190.0")
 	assert(score_mgr_node.status_rect.size.x == 425.0, "status_rect width must be 425.0")
-	assert(score_mgr_node.status_rect.size.y >= 450.0, "status_rect height must be enlarged to >= 450.0 (got %f)" % score_mgr_node.status_rect.size.y)
+	assert(score_mgr_node.status_rect.size.y == 400.0, "status_rect height must be 400.0")
+	var status_bottom = score_mgr_node.status_rect.position.y + score_mgr_node.status_rect.size.y
+	assert(is_equal_approx(status_bottom, 944.0), "status_rect bottom must align with board bottom at y=944.0 (got %f)" % status_bottom)
 	assert(score_mgr_node.status_rect.position.y > sc_rect_node.position.y, "Item values must be below Score section")
 
-	# 3. アイテム値の横に選択した属性値欄（右側・横並び配置 x = 1625.0, y = 548.0, w = 290.0, h = 472.0）
+	# 3. アイテム値の横に選択した属性値欄（右側・横並び配置 x = 1625.0, y = 544.0, w = 290.0, h = 400.0, 下端 y=944）
 	var el_rect_node = score_mgr_node.get_node_or_null("elem_status") as ColorRect
 	assert(el_rect_node != null, "elem_status node must exist")
 	assert(el_rect_node.position.x == 1625.0, "elem_status must be placed on the right side next to items at x=1625.0")
 	assert(is_equal_approx(el_rect_node.position.y, score_mgr_node.status_rect.position.y), "elem_status must be vertically aligned with status_rect (side-by-side)")
 	assert(el_rect_node.position.x > score_mgr_node.status_rect.position.x, "Selected attribute values must be next to (right of) item values")
 	assert(el_rect_node.size.x == 290.0, "elem_status width must be 290.0")
-	assert(el_rect_node.size.y >= 450.0, "elem_status height must match enlarged items panel >= 450.0")
+	assert(el_rect_node.size.y == 400.0, "elem_status height must be 400.0")
+	var elem_status_bottom = el_rect_node.position.y + el_rect_node.size.y
+	assert(is_equal_approx(elem_status_bottom, 944.0), "elem_status bottom must align with board bottom at y=944.0 (got %f)" % elem_status_bottom)
 
-	# 4. 属性カテゴリー選択に応じた動的表示の検証
+	# 4. 属性値未定の場合の検証（何も表示せず枠線のみ）
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("")
+	score_mgr_node.update_elem_labels()
+	assert(score_mgr_node.elem_category_elements.is_empty(), "When attribute is undetermined, elem_category_elements must be empty")
+	assert(score_mgr_node.elem_category_header_label != null, "elem_category_header_label must exist")
+	assert(score_mgr_node.elem_category_header_label.text == "", "Undetermined header text must be empty string")
+	assert(score_mgr_node.elem_category_header_label.visible == false, "Undetermined header must not be visible")
+	var el_vline = score_mgr_node.get_node_or_null("elem_v_line") as ColorRect
+	if el_vline:
+		assert(el_vline.visible == false, "Internal grid vertical line must be hidden when attribute is undetermined")
+
+	# 5. 属性カテゴリー選択に応じた動的表示の検証
 	# Test nature category
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("nature")
@@ -1113,12 +1129,52 @@ func _init() -> void:
 	assert(score_mgr_node.elem_category_elements[1]["key"] == "light", "Element 1 must be light")
 	assert(score_mgr_node.elem_category_elements[2]["key"] == "dark", "Element 2 must be dark")
 
+	# 6. Combo scrollbar elimination
+	if score_mgr_node.combo_label:
+		assert(score_mgr_node.combo_label.scroll_active == false, "combo_label must have scroll_active = false to prevent scrollbars")
+	if score_mgr_node.combocount_label:
+		assert(score_mgr_node.combocount_label.scroll_active == false, "combocount_label must have scroll_active = false to prevent scrollbars")
+
 	# Clean up test nodes
 	score_mgr_node.queue_free()
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 
-	print("✓ UI layout under enemy screen (Score on top, enlarged Items & Attribute values side-by-side) verified!")
+	# 7. Test StageLabel higher position and current battle display in stage_manager
+	var stage_lbl = RichTextLabel.new()
+	stage_lbl.name = "StageLabel"
+	sm.add_child(stage_lbl)
+	sm.label = stage_lbl
+
+	sm.stage = 1
+	sm.stage_enemy = 1
+	sm.label_control()
+	assert(sm.label != null, "sm.label must exist")
+	assert(sm.label.position.y == 16.0, "StageLabel must be moved up to y=16.0 (got %f)" % sm.label.position.y)
+	assert(sm.label.scroll_active == false, "StageLabel must have scroll_active = false")
+	assert(sm.label.text.contains("STAGE"), "StageLabel must contain STAGE")
+	assert(sm.label.text.contains("(1/5)"), "StageLabel must display current match counter (1/5) (got %s)" % sm.label.text)
+
+	sm.stage_enemy = 5
+	sm.label_control()
+	assert(sm.label.text.contains("(BOSS)"), "StageLabel must display (BOSS) on 5th match (got %s)" % sm.label.text)
+
+	# 8. Test Relic and Skill panel boxes
+	var relic_ui = load("res://relic_ui_manager.gd").new()
+	dummy_root.add_child(relic_ui)
+	relic_ui._ready()
+	var skill_box = relic_ui.get_node_or_null("skill_rect") as ColorRect
+	assert(skill_box != null, "skill_rect must exist in RelicUIManager")
+	assert(skill_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "skill_rect must have matching gold border")
+	assert(skill_box.position.y >= 950.0, "skill_rect must be positioned below board (y >= 950.0)")
+
+	var relic_box = relic_ui.get_node_or_null("relic_rect") as ColorRect
+	assert(relic_box != null, "relic_rect must exist in RelicUIManager")
+	assert(relic_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "relic_rect must have matching gold border")
+	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
+	relic_ui.queue_free()
+
+	print("✓ UI layout (bottom alignment at 944, undetermined attribute box, battle counter, combo scrollbar fix, skill/relic panels) verified!")
 
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")

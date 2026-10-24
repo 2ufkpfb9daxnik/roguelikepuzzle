@@ -87,10 +87,10 @@ const PIECE_TEXTURES: Array[Texture2D] = [
 ]
 
 # スコア欄ラベルの初期座標とピッチ定数（ScoreManager内の敵画面左端配置に厳密に完全固定）
-const SCORE_LABEL_BASE_X: float = 1256.0
-const SCORE_LABEL_BASE_Y: float = 476.0
-const SCORE_LABEL_PITCH: float = 54.0
-const SCORE_LABEL_BASE_SCALE: Vector2 = Vector2(0.5, 0.5)
+const SCORE_LABEL_BASE_X: float = 1276.0
+const SCORE_LABEL_BASE_Y: float = 560.0
+const SCORE_LABEL_PITCH: float = 79.2
+const SCORE_LABEL_BASE_SCALE: Vector2 = Vector2(0.50, 0.50)
 
 # 事前ロード済みオーディオ（実行時ディスクI/Oフリーズ完全排除）
 const SWORD_HIT_SE: AudioStream = preload("res://Sound/剣で斬る3.mp3")
@@ -398,7 +398,8 @@ func _restore_score_label_positions() -> void:
 				lbl.modulate = Color.WHITE
 			var icn = sm.get_node_or_null("score_icon" + str(i))
 			if icn:
-				icn.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + 9.0
+				icn.position.x = 1204.0
+				icn.position.y = 546.0 + 79.2 * float(i) + 16.6
 
 
 
@@ -5225,7 +5226,7 @@ func moveswords() -> void:
 		if t >= 0:
 			var progress = t / 50.0
 			var ease_p = progress
-			var sp = item.get("start_pos", Vector2(12300, 5200))
+			var sp = item.get("start_pos", Vector2(12200, 6648))
 			var tp = item.get("target_pos", Vector2(12300, 2700))
 			var cp = item.get("control_pos", Vector2((sp.x + tp.x)/2.0, sp.y - 2000.0))
 			
@@ -5326,8 +5327,8 @@ func moveshields() -> void:
 		var v: Vector2 = item["v"]
 
 		if t >= 0:
-			s.position.x = min(target_p.x, 12300.0 + v.x * t * 10.0)
-			s.position.y = max(target_p.y, 4800.0 - v.y * t * 10.0)
+			s.position.x = min(target_p.x, 12200.0 + v.x * t * 10.0)
+			s.position.y = max(target_p.y, 5856.0 - v.y * t * 10.0)
 
 		if s.position.distance_to(target_p) < 20.0 and not item["has_arrived"]:
 			item["has_arrived"] = true
@@ -5353,7 +5354,7 @@ func movefoods() -> void:
 		
 		if t >= 0:
 			s.position.x += 10.0 + item.get("rnd", 0.0)
-			s.position.y = -pow(t, 2) + 6800.0
+			s.position.y = -pow(t, 2) + 9024.0
 
 		item["t"] = t + 1.0
 
@@ -5386,7 +5387,7 @@ func movepotions() -> void:
 		
 		if t >= 0:
 			s.position.x += 10.0 + item.get("rnd", 0.0)
-			s.position.y = -pow(t, 2) + 6800.0
+			s.position.y = -pow(t, 2) + 8232.0
 
 		item["t"] = t + 1.0
 
@@ -5406,14 +5407,14 @@ func movepotions() -> void:
 ## 消滅した駒が右側のステータス枠へ吸い込まれるアニメーション（高速・キビキビ吸入）
 func movecell() -> void:
 	var remaining: Array[Dictionary] = []
-	var target_ys = [4600.0, 5100.0, 5600.0, 6100.0, 6600.0]
+	var target_ys = [5856.0, 6648.0, 7440.0, 8232.0, 9024.0]
 
 	for item in flying_cells:
 		var s: Sprite2D = item["node"]
 		var kind: int = clampi(item["kind"] % 5, 0, 4)
 		var dest_y: float = target_ys[kind]
 
-		var dist_x: float = 12100.0 - s.position.x
+		var dist_x: float = 12200.0 - s.position.x
 		var speed_x: float = maxf(450.0, dist_x * 0.28)
 		s.position.x += minf(speed_x, dist_x)
 
@@ -5421,7 +5422,7 @@ func movecell() -> void:
 		var speed_y: float = maxf(160.0, dist_y * 0.28)
 		s.position.y = move_toward(s.position.y, dest_y, speed_y)
 
-		if s.position.x >= 12100.0 and absf(s.position.y - dest_y) < 25.0:
+		if s.position.x >= 12200.0 and absf(s.position.y - dest_y) < 25.0:
 			_return_sprite_to_pool(s)
 		else:
 			remaining.append(item)
@@ -5529,7 +5530,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 					lbl.modulate = Color.WHITE
 				var icn = score_mgr.get_node_or_null("score_icon" + str(i))
 				if icn:
-					icn.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + 9.0 + hop_y
+					icn.position.x = 1204.0
+					icn.position.y = 546.0 + 79.2 * float(i) + 16.6 + hop_y
 	else:
 		# バウンド終了後および攻撃フェーズ中は、初期位置・通常スケール・白色に復帰固定
 		_restore_score_label_positions()
@@ -5644,8 +5646,8 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 				target_spr = spr
 				target_pos = self.to_local(spr.global_position)
 		
-		var start_x = 12300.0
-		var start_y = 5300.0
+		var start_x = 12200.0
+		var start_y = 6648.0
 		var start_p = Vector2(start_x, start_y)
 		var mid_x = (start_p.x + target_pos.x) / 2.0
 		var mid_y = (start_p.y + target_pos.y) / 2.0
@@ -5683,7 +5685,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	for i in range(food_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.FOOD]
-		s.position = Vector2(12300, 6800)
+		s.position = Vector2(12200, 9024)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
 		flying_foods.append({
@@ -5703,7 +5705,7 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	for i in range(potion_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.POTION]
-		s.position = Vector2(12300, 6300)
+		s.position = Vector2(12200, 8232)
 		s.scale = Vector2(2.0, 2.0)
 		s.visible = true
 		flying_potions.append({
@@ -5743,7 +5745,7 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 	for i in range(spawn_shield_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SHIELD]
-		s.position = Vector2(12300, 4800)
+		s.position = Vector2(12200, 5856)
 		s.scale = Vector2(2.0, 2.0)
 		s.z_index = 25  # 敵の突進・攻撃モーション（z_index=5）よりも前面に盾を描画して防御壁として正しく機能させる
 		s.visible = true

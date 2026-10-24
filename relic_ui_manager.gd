@@ -24,14 +24,48 @@ func _ready() -> void:
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 220~930, y: 970), 右側 = 所持レリック欄 (x: 950~1880, y: 970) ---
-	# 設定ボタン (x: 38..198, y: 980..1036) および盤面下端 (y=944) との被りを完全解消
+	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 216..926, y: 952..1066), 右側 = 所持レリック欄 (x: 942..1904, y: 952..1066) ---
+	# 設定ボタン (x: 38..198, y: 980..1036) および盤面下端 (y=944) と美しく調和する金枠パネル
+	var gold_border = Color(0.960784, 1.0, 0.0901961, 1.0)
+	var bg_dark = Color(0.04, 0.05, 0.08, 1.0)
+	var div_color = Color(0.960784, 1.0, 0.0901961, 0.75)
 
-	# 左側: 【スキル】
+	# 1. スキル欄の外枠・内枠・区切り線
+	var skill_rect = ColorRect.new()
+	skill_rect.name = "skill_rect"
+	skill_rect.position = Vector2(216.0, 952.0)
+	skill_rect.size = Vector2(710.0, 114.0)
+	skill_rect.color = gold_border
+	skill_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_rect.z_index = -10
+	add_child(skill_rect)
+
+	var skill2_rect = ColorRect.new()
+	skill2_rect.name = "skill2_rect"
+	skill2_rect.position = Vector2(218.0, 954.0)
+	skill2_rect.size = Vector2(706.0, 110.0)
+	skill2_rect.color = bg_dark
+	skill2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill2_rect.z_index = -9
+	add_child(skill2_rect)
+
+	var skill_vline = ColorRect.new()
+	skill_vline.name = "skill_vline"
+	skill_vline.position = Vector2(330.0, 954.0)
+	skill_vline.size = Vector2(2.0, 110.0)
+	skill_vline.color = div_color
+	skill_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_vline.z_index = -8
+	add_child(skill_vline)
+
+	# 左側: 【スキル】タグ
 	var skill_tag = Label.new()
+	skill_tag.name = "skill_tag"
 	skill_tag.text = "【スキル】"
-	skill_tag.position = Vector2(220, 984)
-	skill_tag.size = Vector2(104, 36)
+	skill_tag.position = Vector2(220.0, 988.0)
+	skill_tag.size = Vector2(108.0, 40.0)
+	skill_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	skill_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	skill_tag.add_theme_font_override("font", sys_font)
 	skill_tag.add_theme_font_size_override("font_size", 18)
 	skill_tag.add_theme_color_override("font_color", Color(1.0, 0.55, 0.90))
@@ -40,18 +74,50 @@ func _ready() -> void:
 	add_child(skill_tag)
 
 	skill_container = HFlowContainer.new()
-	skill_container.position = Vector2(330, 970)
-	skill_container.size = Vector2(600, 70)
+	skill_container.name = "skill_container"
+	skill_container.position = Vector2(338.0, 960.0)
+	skill_container.size = Vector2(580.0, 98.0)
 	skill_container.add_theme_constant_override("h_separation", 8)
 	skill_container.add_theme_constant_override("v_separation", 8)
 	skill_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(skill_container)
 
-	# 右側: 【レリック】
+	# 2. レリック欄の外枠・内枠・区切り線
+	var relic_rect = ColorRect.new()
+	relic_rect.name = "relic_rect"
+	relic_rect.position = Vector2(942.0, 952.0)
+	relic_rect.size = Vector2(962.0, 114.0)
+	relic_rect.color = gold_border
+	relic_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_rect.z_index = -10
+	add_child(relic_rect)
+
+	var relic2_rect = ColorRect.new()
+	relic2_rect.name = "relic2_rect"
+	relic2_rect.position = Vector2(944.0, 954.0)
+	relic2_rect.size = Vector2(958.0, 110.0)
+	relic2_rect.color = bg_dark
+	relic2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic2_rect.z_index = -9
+	add_child(relic2_rect)
+
+	var relic_vline = ColorRect.new()
+	relic_vline.name = "relic_vline"
+	relic_vline.position = Vector2(1066.0, 954.0)
+	relic_vline.size = Vector2(2.0, 110.0)
+	relic_vline.color = div_color
+	relic_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relic_vline.z_index = -8
+	add_child(relic_vline)
+
+	# 右側: 【レリック】タグ
 	var relic_tag = Label.new()
+	relic_tag.name = "relic_tag"
 	relic_tag.text = "【レリック】"
-	relic_tag.position = Vector2(950, 984)
-	relic_tag.size = Vector2(104, 36)
+	relic_tag.position = Vector2(948.0, 988.0)
+	relic_tag.size = Vector2(116.0, 40.0)
+	relic_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	relic_tag.add_theme_font_override("font", sys_font)
 	relic_tag.add_theme_font_size_override("font_size", 18)
 	relic_tag.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
@@ -60,8 +126,9 @@ func _ready() -> void:
 	add_child(relic_tag)
 
 	container = HFlowContainer.new()
-	container.position = Vector2(1060, 970)
-	container.size = Vector2(670, 70)
+	container.name = "relic_container"
+	container.position = Vector2(1074.0, 960.0)
+	container.size = Vector2(824.0, 98.0)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE

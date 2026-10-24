@@ -639,6 +639,9 @@ func _ready() -> void:
 ## ステージラベル・表示の更新
 func label_control() -> void:
 	if label:
+		label.position = Vector2(20.0, 16.0)
+		label.size = Vector2(380.0, 60.0)
+		label.scroll_active = false
 		var sm = _get_settings_manager()
 		var diff_badge = ""
 		if sm and "difficulty" in sm:
@@ -646,8 +649,16 @@ func label_control() -> void:
 				diff_badge = " [color=#00E5FF][EASY][/color]"
 			elif sm.difficulty == 2:
 				diff_badge = " [color=#FF5252][HARD][/color]"
-		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s[/b]" % [stage, diff_badge]
+		var battle_str = ""
+		if is_boss_battle() or stage_enemy >= 5:
+			battle_str = " [color=#FF5252](BOSS)[/color]"
+		else:
+			battle_str = " [color=#FFFFFF](%d/5)[/color]" % stage_enemy
+		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s%s[/b]" % [stage, battle_str, diff_badge]
 	if label2:
+		label2.position = Vector2(20.0, 16.0)
+		label2.size = Vector2(380.0, 60.0)
+		label2.scroll_active = false
 		label2.text = ""
 
 ## 敵の撃破または前進によるカウント加算
@@ -662,6 +673,7 @@ func add_stage_label() -> void:
 		if rm: rm.on_stage_clear()
 	else:
 		stage_enemy += 1
+	label_control()
 
 ## スコア基準チェック
 func score_check() -> void:
@@ -1077,6 +1089,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	var is_boss: bool = spawn_as_boss or (stage_enemy == 5)
 	is_current_boss = is_boss
 	if is_boss: stage_enemy = 5
+	label_control()
 	_set_buff_buttons_visible(false)
 	if choose_buff_rect: choose_buff_rect.visible = false
 	if move_front_btn: move_front_btn.visible = false
