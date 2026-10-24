@@ -1008,6 +1008,113 @@ func _init() -> void:
 	})
 	print("✓ Freed instance safety verified: no errors with freed instances!")
 
+	# ==============================================================================
+	# 25. Test Poison Skill Piece (POISON_MIST) Clearance & Ally Poison Deployment
+	# ==============================================================================
+	pb.special_levels[pb.SpecialItemType.POISON_MIST] = 1
+	var mist_r = 4
+	var mist_c = 4
+	pb.special_item[mist_r][mist_c] = pb.SpecialItemType.POISON_MIST
+	pb.is_bomb[mist_r][mist_c] = true
+	var queue_test: Array = []
+	var exploded_test: Dictionary = {Vector2i(mist_r, mist_c): true}
+	pb._trigger_poison_mist(mist_r, mist_c, pb.get_cell_position(mist_r, mist_c), queue_test, exploded_test)
+
+	assert(pb.ismatched[mist_r][mist_c] == true, "Poison skill piece at (r, c) must be marked matched for deletion")
+	assert(pb.special_item[mist_r][mist_c] == pb.SpecialItemType.NONE, "SpecialItemType must be cleared to NONE on detonation")
+	assert(pb.is_bomb[mist_r][mist_c] == false, "is_bomb must be cleared to false on detonation")
+	assert(pb.grid_poison[mist_r][mist_c] == true, "Center cell must have poison ground deployed")
+	assert(pb.is_ally_poison(mist_r, mist_c) == true, "Center cell poison must be ally poison")
+	assert(pb.grid_poison[mist_r - 1][mist_c] == true, "Surrounding cells must have poison ground deployed")
+	assert(pb.is_ally_poison(mist_r - 1, mist_c) == true, "Surrounding cell poison must be ally poison")
+	# Surrounding normal cells must not be broken
+	assert(pb.ismatched[mist_r - 1][mist_c] == false, "Surrounding normal cells must not be destroyed by poison mist")
+	print("✓ Poison skill piece clearance and ally poison deployment verified!")
+
+	# ==============================================================================
+	# 26. Test Vertical UI Hierarchy Under Enemy Screen (Score -> Items -> Selected Category Elements)
+	# ==============================================================================
+	var score_mgr_node = load("res://score_manager.gd").new()
+	score_mgr_node.name = "TestScoreManager"
+	dummy_root.add_child(score_mgr_node)
+	score_mgr_node.relic_manager_ref = rm
+
+	# Setup mock UI nodes for ScoreManager
+	var mock_label = RichTextLabel.new()
+	mock_label.name = "RichTextLabel"
+	score_mgr_node.add_child(mock_label)
+	score_mgr_node.label = mock_label
+
+	var mock_status = ColorRect.new()
+	mock_status.name = "status"
+	score_mgr_node.add_child(mock_status)
+	score_mgr_node.status_rect = mock_status
+
+	var mock_status2 = ColorRect.new()
+	mock_status2.name = "status2"
+	score_mgr_node.add_child(mock_status2)
+	score_mgr_node.status2_rect = mock_status2
+
+	score_mgr_node._ready()
+
+	# 1. 敵画面の真下にスコア欄 (Directly below enemy screen: y = 472.0)
+	var sc_rect_node = score_mgr_node.get_node_or_null("score_rect") as ColorRect
+	assert(sc_rect_node != null, "score_rect node must exist")
+	assert(sc_rect_node.position.y == 472.0, "score_rect must be positioned directly below enemy screen at y=472.0")
+	assert(sc_rect_node.size.x == 725.0, "score_rect must span enemy screen width 725.0")
+	assert(score_mgr_node.label.visible == true, "Score label must be visible")
+	score_mgr_node.totalScore = 12345
+	score_mgr_node.update_score_label()
+	assert(score_mgr_node.label.text.contains("12,345"), "Score label must display formatted totalScore")
+
+	# 2. その下にアイテム値 (Below score: y = 528.0)
+	assert(score_mgr_node.status_rect.position.y == 528.0, "status_rect (items) must be below score at y=528.0")
+	assert(score_mgr_node.status_rect.size.x == 725.0, "status_rect must span enemy screen width 725.0")
+	assert(score_mgr_node.status_rect.position.y > sc_rect_node.position.y, "Item values must be below Score section")
+
+	# 3. その下に選択した属性値欄 (Below items: y = 714.0)
+	var el_rect_node = score_mgr_node.get_node_or_null("elem_status") as ColorRect
+	assert(el_rect_node != null, "elem_status node must exist")
+	assert(el_rect_node.position.y == 714.0, "elem_status must be positioned below items at y=714.0")
+	assert(el_rect_node.size.x == 725.0, "elem_status must span enemy screen width 725.0")
+	assert(el_rect_node.position.y > score_mgr_node.status_rect.position.y, "Selected attribute values must be below Item values")
+
+	# 4. 属性カテゴリー選択に応じた動的表示の検証
+	# Test nature category
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("nature")
+	score_mgr_node.update_elem_labels()
+	assert(score_mgr_node.elem_category_elements.size() == 4, "Nature category must have 4 elements: water, ice, wood, wind")
+	assert(score_mgr_node.elem_category_elements[0]["key"] == "water", "Element 0 must be water")
+	assert(score_mgr_node.elem_category_elements[1]["key"] == "ice", "Element 1 must be ice")
+	assert(score_mgr_node.elem_category_elements[2]["key"] == "wood", "Element 2 must be wood")
+	assert(score_mgr_node.elem_category_elements[3]["key"] == "wind", "Element 3 must be wind")
+
+	# Test force category
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("force")
+	score_mgr_node.update_elem_labels()
+	assert(score_mgr_node.elem_category_elements.size() == 3, "Force category must have 3 elements: fire, thunder, earth")
+	assert(score_mgr_node.elem_category_elements[0]["key"] == "fire", "Element 0 must be fire")
+	assert(score_mgr_node.elem_category_elements[1]["key"] == "thunder", "Element 1 must be thunder")
+	assert(score_mgr_node.elem_category_elements[2]["key"] == "earth", "Element 2 must be earth")
+
+	# Test mystic category
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("mystic")
+	score_mgr_node.update_elem_labels()
+	assert(score_mgr_node.elem_category_elements.size() == 3, "Mystic category must have 3 elements: poison, light, dark")
+	assert(score_mgr_node.elem_category_elements[0]["key"] == "poison", "Element 0 must be poison")
+	assert(score_mgr_node.elem_category_elements[1]["key"] == "light", "Element 1 must be light")
+	assert(score_mgr_node.elem_category_elements[2]["key"] == "dark", "Element 2 must be dark")
+
+	# Clean up test nodes
+	score_mgr_node.queue_free()
+	if rm and rm.has_method("set_chosen_element_category"):
+		rm.set_chosen_element_category("")
+
+	print("✓ Vertical UI layout under enemy screen (Score -> Items -> Selected Attribute Values) verified!")
+
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

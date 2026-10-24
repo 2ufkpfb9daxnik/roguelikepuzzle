@@ -674,6 +674,54 @@ const TEXTURE_FILE: Array[String] = ["shield_cut", "sword_cut", "coin_cut", "pot
 @onready var template_score_label: RichTextLabel = get_node_or_null("RichTextLabel3")
 
 const ELEM_KEYS: Array[String] = ["fire", "water", "wind", "thunder", "light", "dark"]
+var _rendered_elem_category: String = "__unset__"
+var elem_category_header_label: RichTextLabel = null
+var elem_category_elements: Array = []
+var relic_manager_ref: Node = null
+
+const CATEGORY_ELEMENT_DEFS: Dictionary = {
+	"nature": {
+		"title": "🌿 選択属性：自然・生命（水・氷・木・風）",
+		"color": "00E676",
+		"elements": [
+			{"key": "water", "name": "水 (ウォーター)", "color": "00B0FF", "icon": "res://Texture/element/water.png", "emoji": "💧"},
+			{"key": "ice", "name": "氷 (アイス)", "color": "80D8FF", "icon": "res://Texture/element/water.png", "emoji": "❄️"},
+			{"key": "wood", "name": "木 (ウッド)", "color": "76FF03", "icon": "", "emoji": "🌱"},
+			{"key": "wind", "name": "風 (ウインド)", "color": "69F0AE", "icon": "res://Texture/element/wind.png", "emoji": "🌪️"}
+		]
+	},
+	"force": {
+		"title": "🔥 選択属性：元素・破壊（火・雷・地）",
+		"color": "FF3D00",
+		"elements": [
+			{"key": "fire", "name": "火 (ファイア)", "color": "FF3D00", "icon": "res://Texture/element/fire.png", "emoji": "🔥"},
+			{"key": "thunder", "name": "雷 (サンダー)", "color": "FFD600", "icon": "res://Texture/element/thunder.png", "emoji": "⚡"},
+			{"key": "earth", "name": "地 (アース)", "color": "D7CCC8", "icon": "", "emoji": "🪨"}
+		]
+	},
+	"mystic": {
+		"title": "🔮 選択属性：神秘・冥術（毒・光・闇）",
+		"color": "E040FB",
+		"elements": [
+			{"key": "poison", "name": "毒 (ポイズン)", "color": "B388FF", "icon": "res://Texture/element/poison_tile_dry.png", "emoji": "🧪"},
+			{"key": "light", "name": "光 (ライト)", "color": "FFF59D", "icon": "res://Texture/element/light.png", "emoji": "✨"},
+			{"key": "dark", "name": "闇 (ダーク)", "color": "EA80FC", "icon": "res://Texture/element/dark.png", "emoji": "🌙"}
+		]
+	}
+}
+
+func _get_chosen_element_category() -> String:
+	var rm = _get_relic_manager()
+	if rm and rm.has_method("get_chosen_element_category"):
+		return rm.get_chosen_element_category()
+	return ""
+
+func get_element_count(elem_key: String) -> int:
+	var total: int = int(turn_element_counts.get(elem_key, 0))
+	var e_enum = ElementData.get_element_from_name(elem_key)
+	if e_enum != ElementData.Element.NONE:
+		total += int(turn_element_counts.get(e_enum, 0))
+	return total
 const ELEM_COLORS: Array[String] = ["FF6633", "4C99FF", "66E666", "E6E633", "FFE699", "B34CE6"]
 
 var divscorelabel: Array[RichTextLabel] = []
@@ -1427,10 +1475,45 @@ func _ready() -> void:
 		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# スコアラベルの非表示化（得点表示消去）
+	# 0. レリックマネージャーのシグナル接続
+	var rm = _get_relic_manager()
+	if rm and rm.has_signal("element_category_chosen"):
+		if not rm.is_connected("element_category_chosen", Callable(self, "on_element_category_chosen")):
+			rm.connect("element_category_chosen", Callable(self, "on_element_category_chosen"))
+
+	# 1. 敵画面の真下: スコア欄の初期化 (x: 1190.0, y: 472.0, w: 725.0, h: 50.0)
+	var sc_rect = get_node_or_null("score_rect") as ColorRect
+	if sc_rect == null:
+		sc_rect = ColorRect.new()
+		sc_rect.name = "score_rect"
+		sc_rect.z_index = -10
+		sc_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
+		add_child(sc_rect)
+	sc_rect.position = Vector2(1190.0, 472.0)
+	sc_rect.size = Vector2(725.0, 50.0)
+
+	var sc2_rect = get_node_or_null("score2_rect") as ColorRect
+	if sc2_rect == null:
+		sc2_rect = ColorRect.new()
+		sc2_rect.name = "score2_rect"
+		sc2_rect.z_index = -10
+		sc2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sc2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
+		add_child(sc2_rect)
+	sc2_rect.position = Vector2(1192.0, 474.0)
+	sc2_rect.size = Vector2(721.0, 46.0)
+
 	if label != null:
-		label.text = ""
-		label.visible = false
+		label.visible = true
+		label.position = Vector2(1204.0, 477.0)
+		label.size = Vector2(700.0, 42.0)
+		label.z_index = 2
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.add_theme_font_override("normal_font", CUSTOM_FONT)
+		label.add_theme_font_override("bold_font", CUSTOM_FONT)
+		label.add_theme_constant_override("outline_size", 8)
+		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	if label2 != null:
 		label2.text = ""
 		label2.visible = false
@@ -1443,17 +1526,16 @@ func _ready() -> void:
 			score_lbl.add_theme_constant_override("outline_size", 8)
 			score_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 			divscorelabel.append(score_lbl)
-	
 
-	# 各値ステータスパネルの初期化（敵の画面左端 x: 1190.0 を基準に固定幅340.0、高さ275.0）
+	# 2. その下: アイテム値パネルの初期化 (x: 1190.0, y: 528.0, w: 725.0, h: 180.0)
 	if status_rect != null:
-		status_rect.position = Vector2(1190.0, 472.0)
-		status_rect.size = Vector2(340.0, 275.0)
+		status_rect.position = Vector2(1190.0, 528.0)
+		status_rect.size = Vector2(725.0, 180.0)
 	if status2_rect != null:
-		status2_rect.position = Vector2(1192.0, 474.0)
-		status2_rect.size = Vector2(336.0, 271.0)
+		status2_rect.position = Vector2(1192.0, 530.0)
+		status2_rect.size = Vector2(721.0, 176.0)
 
-	# 各値アイコン（左セル x: 1192..1250 の中央に独立配置）
+	# 各値アイコン（行 y: 530.0 + 35.2 * i に独立配置）
 	for i in range(5):
 		var icn_name = "score_icon" + str(i)
 		var icn = get_node_or_null(icn_name) as TextureRect
@@ -1467,66 +1549,19 @@ func _ready() -> void:
 		var tex_path = "res://Texture/%s/%s.png" % [TEXTURE_DIR[i], TEXTURE_FILE[i]]
 		if ResourceLoader.exists(tex_path):
 			icn.texture = load(tex_path)
-		icn.position = Vector2(1203.0, 474.0 + 54.0 * float(i) + 9.0)
-		icn.size = Vector2(36.0, 36.0)
+		var row_y = 530.0 + 35.2 * float(i)
+		icn.position = Vector2(1203.0, row_y + 4.0)
+		icn.size = Vector2(28.0, 28.0)
 		icn.z_index = 2
 
 	for i in range(mini(5, divscorelabel.size())):
 		var sc_lbl = divscorelabel[i]
-		sc_lbl.position = Vector2(1256.0, 476.0 + 54.0 * float(i))
-		sc_lbl.scale = Vector2(0.5, 0.5)
+		var row_y = 530.0 + 35.2 * float(i)
+		sc_lbl.position = Vector2(1250.0, row_y + 2.0)
+		sc_lbl.scale = Vector2(0.36, 0.36)
 
-	# 属性ステータスパネルの初期化（敵の画面中央 x: 1553.0 を基準に固定幅340.0、高さ275.0）
-	if elem_status_rect == null:
-		elem_status_rect = ColorRect.new()
-		elem_status_rect.name = "elem_status"
-		elem_status_rect.z_index = -10
-		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		elem_status_rect.color = Color(0.960784, 1, 0.0901961, 1)
-		add_child(elem_status_rect)
-	elem_status_rect.position = Vector2(1553.0, 472.0)
-	elem_status_rect.size = Vector2(340.0, 275.0)
-
-	if elem_status2_rect == null:
-		elem_status2_rect = ColorRect.new()
-		elem_status2_rect.name = "elem_status2"
-		elem_status2_rect.z_index = -10
-		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		elem_status2_rect.color = Color(0, 0, 0, 1)
-		add_child(elem_status2_rect)
-	elem_status2_rect.position = Vector2(1555.0, 474.0)
-	elem_status2_rect.size = Vector2(336.0, 271.0)
-
-	# 属性アイコン（左セル x: 1555..1613 の中央に独立配置）
-	for k in range(6):
-		var el_icn_name = "elem_icon" + str(k + 1)
-		var el_icn = get_node_or_null(el_icn_name) as TextureRect
-		if el_icn == null:
-			el_icn = TextureRect.new()
-			el_icn.name = el_icn_name
-			el_icn.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			el_icn.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			el_icn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			add_child(el_icn)
-		var el_tex_path = "res://Texture/element/%s.png" % ELEM_KEYS[k]
-		if ResourceLoader.exists(el_tex_path):
-			el_icn.texture = load(el_tex_path)
-		el_icn.position = Vector2(1568.0, 474.0 + 45.16 * float(k) + 6.5)
-		el_icn.size = Vector2(32.0, 32.0)
-		el_icn.z_index = 2
-
-	if divscorelabel.size() > 0:
-		for k in range(6):
-			var el_lbl = divscorelabel[0].duplicate()
-			el_lbl.name = "elem_score" + str(k + 1)
-			el_lbl.position = Vector2(1619.0, 478.0 + float(k) * 45.16)
-			el_lbl.scale = Vector2(0.5, 0.5)
-			el_lbl.text = ""
-			add_child(el_lbl)
-			elem_labels.append(el_lbl)
-		update_elem_labels()
-
-	_setup_grid_lines()
+	# 3. その下: 選択した属性値パネルの初期化 (x: 1190.0, y: 714.0, w: 725.0, h: 170.0)
+	_setup_elem_status_panel()
 
 	var pb = _get_puzzle_board()
 	var row_count: int = pb.grid_row if pb and "grid_row" in pb else 15
@@ -1715,9 +1750,11 @@ func update_score_label() -> void:
 	for i in range(mini(5, divscore.size())):
 		_last_divscore[i] = divscore[i]
 		
-	# 得点表示は消去・非表示
-	label.text = ""
-	label.visible = false
+	# 敵画面真下のスコア欄更新
+	if label != null:
+		label.visible = true
+		var combo_str = "  [color=#00E5FF](%d COMBO)[/color]" % combocount if combocount > 1 else ""
+		label.text = "[font_size=28][b][color=#FFD700]SCORE :[/color]  [color=#FFFFFF]%s[/color][/b]%s[/font_size]" % [_format_comma(totalScore), combo_str]
 	if label2 != null:
 		label2.text = ""
 		label2.visible = false
@@ -1737,11 +1774,11 @@ func update_score_label() -> void:
 			ATT_COLORS[i], formatted_val, breakdown_text
 		]
 
-	# 欄の横幅は固定（ユーザー要望に完全準拠: 340.0px / 内枠 336.0px）
+	# アイテム値欄のサイズ維持 (横幅725.0px / 内枠721.0px)
 	if status_rect != null:
-		status_rect.size = Vector2(340.0, 275.0)
+		status_rect.size = Vector2(725.0, 180.0)
 	if status2_rect != null:
-		status2_rect.size = Vector2(336.0, 271.0)
+		status2_rect.size = Vector2(721.0, 176.0)
 
 	if combocount_label != null:
 		combocount_label.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % combocount
@@ -2356,18 +2393,30 @@ func _setup_shop_page_controls() -> void:
 	_switch_shop_view_mode(0)
 
 func _get_relic_manager() -> Node:
-	if not is_inside_tree() or get_tree() == null:
-		var p = get_parent()
-		if p: return p.get_node_or_null("RelicManager")
-		return null
-	var root = get_tree().get_root()
-	if root == null: return null
-	return root.find_child("RelicManager", true, false)
+	if relic_manager_ref != null and is_instance_valid(relic_manager_ref):
+		return relic_manager_ref
+	var p = get_parent()
+	if p:
+		var rm = p.get_node_or_null("RelicManager")
+		if rm: return rm
+		rm = p.find_child("RelicManager", true, false)
+		if rm: return rm
+	if is_inside_tree() and get_tree() != null:
+		var root = get_tree().get_root()
+		if root:
+			var rm = root.find_child("RelicManager", true, false)
+			if rm: return rm
+	return null
 
 var _rendered_skill_category: String = "__unset__"
 
-func on_element_category_chosen(_cat_key: String) -> void:
+func on_element_category_chosen(cat_key: String) -> void:
 	rebuild_skill_tree_ui()
+	_setup_elem_status_panel(cat_key)
+	update_elem_labels()
+
+func set_chosen_category(cat_key: String) -> void:
+	on_element_category_chosen(cat_key)
 
 ## 選択された属性カテゴリーに応じてスキルツリーUIを動的に構築
 func rebuild_skill_tree_ui() -> void:
@@ -3011,19 +3060,132 @@ func _on_buffselectbutton_5_pressed() -> void:
 	_purchase_buff(5)
 
 
-func update_elem_labels() -> void:
-	if elem_labels.size() == 0: return
-	for k in range(1, 7):
-		var count = turn_element_counts.get(k, 0)
-		var val_str = _format_comma(count)
-		var c = ELEM_COLORS[k - 1]
-		elem_labels[k - 1].text = "[b][color=#%s]%s[/color][/b]" % [c, val_str]
+func _setup_elem_status_panel(force_cat: String = "") -> void:
+	var cat = force_cat
+	if cat.is_empty():
+		cat = _get_chosen_element_category()
+	if cat.is_empty():
+		cat = "nature" # レリック選択前のデフォルト表示
+	_rendered_elem_category = cat
 
-	# 欄の横幅は固定（ユーザー要望に完全準拠: 340.0px / 内枠 336.0px）
+	var cat_def = CATEGORY_ELEMENT_DEFS.get(cat, CATEGORY_ELEMENT_DEFS["nature"])
+	elem_category_elements = cat_def["elements"]
+
+	if elem_status_rect == null:
+		elem_status_rect = ColorRect.new()
+		elem_status_rect.name = "elem_status"
+		elem_status_rect.z_index = -10
+		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(elem_status_rect)
+	elem_status_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
+	elem_status_rect.position = Vector2(1190.0, 714.0)
+	elem_status_rect.size = Vector2(725.0, 170.0)
+
+	if elem_status2_rect == null:
+		elem_status2_rect = ColorRect.new()
+		elem_status2_rect.name = "elem_status2"
+		elem_status2_rect.z_index = -10
+		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(elem_status2_rect)
+	elem_status2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
+	elem_status2_rect.position = Vector2(1192.0, 716.0)
+	elem_status2_rect.size = Vector2(721.0, 166.0)
+
+	# 属性カテゴリーヘッダーラベル
+	if elem_category_header_label == null:
+		elem_category_header_label = RichTextLabel.new()
+		elem_category_header_label.name = "elem_category_header"
+		elem_category_header_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		elem_category_header_label.bbcode_enabled = true
+		elem_category_header_label.scroll_active = false
+		elem_category_header_label.add_theme_font_override("normal_font", CUSTOM_FONT)
+		elem_category_header_label.add_theme_font_override("bold_font", CUSTOM_FONT)
+		elem_category_header_label.add_theme_constant_override("outline_size", 6)
+		elem_category_header_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		add_child(elem_category_header_label)
+	elem_category_header_label.position = Vector2(1204.0, 718.0)
+	elem_category_header_label.size = Vector2(700.0, 26.0)
+
+	var actual_cat = force_cat if not force_cat.is_empty() else _get_chosen_element_category()
+	if actual_cat.is_empty():
+		elem_category_header_label.text = "[font_size=18][b][color=#AAAAAA]属性値：【レリック選択で属性確定】[/color] [color=#666666](%s)[/color][/b][/font_size]" % cat_def["title"]
+	else:
+		elem_category_header_label.text = "[font_size=18][b][color=#%s]%s[/color][/b][/font_size]" % [cat_def["color"], cat_def["title"]]
+
+	# 既存のアイコン・ラベルのクリア
+	for lbl in elem_labels:
+		if is_instance_valid(lbl):
+			lbl.queue_free()
+	elem_labels.clear()
+
+	for k in range(12):
+		var old_icn = get_node_or_null("elem_icon" + str(k + 1))
+		if old_icn: old_icn.queue_free()
+
+	# 属性アイコンとラベルの生成
+	var num_elems = elem_category_elements.size()
+	var start_y = 744.0
+	var avail_h = 134.0
+	var row_h = avail_h / float(maxi(1, num_elems))
+
+	for k in range(num_elems):
+		var elem_info = elem_category_elements[k]
+		var el_y = start_y + row_h * float(k)
+
+		var el_icn = TextureRect.new()
+		el_icn.name = "elem_icon" + str(k + 1)
+		el_icn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		el_icn.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		el_icn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		el_icn.z_index = 2
+		add_child(el_icn)
+		if elem_info["icon"] != "" and ResourceLoader.exists(elem_info["icon"]):
+			el_icn.texture = load(elem_info["icon"])
+			if elem_info["key"] == "ice":
+				el_icn.modulate = Color(0.5, 0.9, 1.0, 1.0)
+		el_icn.position = Vector2(1205.0, el_y + (row_h - 26.0) / 2.0)
+		el_icn.size = Vector2(26.0, 26.0)
+
+		var el_lbl = RichTextLabel.new()
+		el_lbl.name = "elem_score" + str(k + 1)
+		el_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		el_lbl.bbcode_enabled = true
+		el_lbl.scroll_active = false
+		el_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+		el_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+		el_lbl.add_theme_constant_override("outline_size", 8)
+		el_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		el_lbl.position = Vector2(1250.0, el_y + (row_h - 26.0) / 2.0)
+		el_lbl.size = Vector2(1500.0, 70.0)
+		el_lbl.scale = Vector2(0.38, 0.38)
+		add_child(el_lbl)
+		elem_labels.append(el_lbl)
+
+	_setup_grid_lines()
+	update_elem_labels()
+
+func update_elem_labels() -> void:
+	var cur_cat = _get_chosen_element_category()
+	if cur_cat != "" and cur_cat != _rendered_elem_category:
+		_setup_elem_status_panel(cur_cat)
+		return
+
+	if elem_labels.size() == 0 or elem_category_elements.size() == 0:
+		return
+
+	for k in range(mini(elem_labels.size(), elem_category_elements.size())):
+		var elem_info = elem_category_elements[k]
+		var count = get_element_count(elem_info["key"])
+		var val_str = _format_comma(count)
+		elem_labels[k].text = "[font_size=32][b][color=#%s]%s %s[/color] :  [color=#FFFFFF]%s[/color][/b][/font_size]" % [
+			elem_info["color"], elem_info["emoji"], elem_info["name"], val_str
+		]
+
+	# 選択した属性値欄のサイズ維持 (横幅725.0px / 内枠721.0px)
 	if elem_status_rect != null:
-		elem_status_rect.size = Vector2(340.0, 275.0)
+		elem_status_rect.size = Vector2(725.0, 170.0)
 	if elem_status2_rect != null:
-		elem_status2_rect.size = Vector2(336.0, 271.0)
+		elem_status2_rect.size = Vector2(721.0, 166.0)
 
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()
@@ -3034,7 +3196,7 @@ func reset_turn_elements() -> void:
 func get_turn_sword_element_counts() -> Dictionary:
 	return turn_sword_element_counts.duplicate()
 
-func add_turn_element(el: int, amount: int) -> void:
+func add_turn_element(el: Variant, amount: int) -> void:
 	turn_element_counts[el] = turn_element_counts.get(el, 0) + amount
 	update_elem_labels()
 
@@ -3042,8 +3204,8 @@ func add_turn_element(el: int, amount: int) -> void:
 func _setup_grid_lines() -> void:
 	var line_color = Color(0.960784, 1.0, 0.0901961, 0.75)
 	
-	# --- 1. 各値の欄 (敵画面左端 x: 1192..1528, y: 474..745, 5行) ---
-	# 垂直区切り線（シンボルと値の境界: x = 1250.0）
+	# --- 1. アイテム値の欄 (敵画面下 x: 1192..1913, y: 530..706, 5行) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1242.0）
 	var st_vline = get_node_or_null("status_v_line") as ColorRect
 	if st_vline == null:
 		st_vline = ColorRect.new()
@@ -3051,13 +3213,12 @@ func _setup_grid_lines() -> void:
 		st_vline.z_index = -5
 		st_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(st_vline)
-	st_vline.position = Vector2(1250.0, 474.0)
-	st_vline.size = Vector2(2.0, 271.0)
+	st_vline.position = Vector2(1242.0, 530.0)
+	st_vline.size = Vector2(2.0, 176.0)
 	st_vline.color = line_color
 	
-	# 水平区切り線（シンボル同士の境界: 4本）
-	var st_h_ys = [528.0, 582.0, 636.0, 690.0]
-	for idx in range(st_h_ys.size()):
+	# 水平区切り線（アイテム行同士の境界: 4本）
+	for idx in range(4):
 		var line_name = "status_h_line_" + str(idx)
 		var st_hline = get_node_or_null(line_name) as ColorRect
 		if st_hline == null:
@@ -3066,12 +3227,12 @@ func _setup_grid_lines() -> void:
 			st_hline.z_index = -5
 			st_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(st_hline)
-		st_hline.position = Vector2(1192.0, st_h_ys[idx])
-		st_hline.size = Vector2(336.0, 2.0)
+		st_hline.position = Vector2(1192.0, 530.0 + 35.2 * float(idx + 1))
+		st_hline.size = Vector2(721.0, 2.0)
 		st_hline.color = line_color
 
-	# --- 2. 属性の値の欄 (敵画面中央 x: 1555..1891, y: 474..745, 6行) ---
-	# 垂直区切り線（シンボルと値の境界: x = 1613.0）
+	# --- 2. 選択属性値の欄 (敵画面下 x: 1192..1913, y: 716..882) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1242.0）
 	var el_vline = get_node_or_null("elem_v_line") as ColorRect
 	if el_vline == null:
 		el_vline = ColorRect.new()
@@ -3079,13 +3240,26 @@ func _setup_grid_lines() -> void:
 		el_vline.z_index = -5
 		el_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(el_vline)
-	el_vline.position = Vector2(1613.0, 474.0)
-	el_vline.size = Vector2(2.0, 271.0)
+	el_vline.position = Vector2(1242.0, 744.0)
+	el_vline.size = Vector2(2.0, 134.0)
 	el_vline.color = line_color
 	
-	# 水平区切り線（シンボル同士の境界: 5本）
-	var el_h_ys = [519.0, 564.0, 609.0, 654.0, 700.0]
-	for idx in range(el_h_ys.size()):
+	# ヘッダー下部区切り線
+	var el_hdr_line = get_node_or_null("elem_h_line_hdr") as ColorRect
+	if el_hdr_line == null:
+		el_hdr_line = ColorRect.new()
+		el_hdr_line.name = "elem_h_line_hdr"
+		el_hdr_line.z_index = -5
+		el_hdr_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(el_hdr_line)
+	el_hdr_line.position = Vector2(1192.0, 742.0)
+	el_hdr_line.size = Vector2(721.0, 2.0)
+	el_hdr_line.color = line_color
+
+	# 水平区切り線（属性行同士の境界）
+	var num_elems = elem_category_elements.size()
+	var row_h = 134.0 / float(maxi(1, num_elems))
+	for idx in range(num_elems - 1):
 		var line_name = "elem_h_line_" + str(idx)
 		var el_hline = get_node_or_null(line_name) as ColorRect
 		if el_hline == null:
@@ -3094,6 +3268,11 @@ func _setup_grid_lines() -> void:
 			el_hline.z_index = -5
 			el_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(el_hline)
-		el_hline.position = Vector2(1555.0, el_h_ys[idx])
-		el_hline.size = Vector2(336.0, 2.0)
+		el_hline.position = Vector2(1192.0, 744.0 + row_h * float(idx + 1))
+		el_hline.size = Vector2(721.0, 2.0)
 		el_hline.color = line_color
+	
+	# 余剰ラインがあれば非表示
+	for idx in range(num_elems - 1, 8):
+		var extra_line = get_node_or_null("elem_h_line_" + str(idx))
+		if extra_line: extra_line.visible = false

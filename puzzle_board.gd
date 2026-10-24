@@ -223,6 +223,7 @@ var special_levels: Dictionary = {
 
 var last_swap_cells: Array = []
 var pending_special_spawns: Dictionary = {} # Vector2i -> int (SpecialItemType)
+var poison_mist_detonated_cells: Dictionary = {}
 var steady_spark_triggered_this_turn: bool = false
 
 # 演出用状態
@@ -2020,20 +2021,47 @@ func _trigger_ice_shield(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 
 func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.POISON_MIST, 1))
-	var tier: int = 1
-	if lvl >= 10: tier = 3
-	elif lvl >= 5: tier = 2
-	cast_player_skill("poison", true, tier)
+	var radius: int = 1 # Lv1: 3x3
+	if lvl >= 14:
+		radius = 3 # 7x7
+	elif lvl >= 6:
+		radius = 2 # 5x5
+
+	# 起爆した毒スキル駒自体は確実にマッチ消去対象とし、特殊アイテム・爆弾属性を解除
+	ismatched[r][c] = true
+	if special_item.size() == GRID_ROWS:
+		special_item[r][c] = SpecialItemType.NONE
+	if is_bomb.size() == GRID_ROWS:
+		is_bomb[r][c] = false
+	poison_mist_detonated_cells[Vector2i(r, c)] = true
+
 	_spawn_poison_bubble_burst_effect(pos)
-	for dr in range(-1, 2):
-		for dc in range(-1, 2):
-			var nr = r + dr; var nc = c + dc
+
+	var sm = _get_stage_manager()
+	var stage_scale: float = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
+	var poison_dmg: float = (90.0 + float(lvl) * 20.0) * stage_scale
+	if sm:
+		sm.calchp(poison_dmg, 0.0, sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1)
+		_emit_combat_event("damage", "ally", "enemy", poison_dmg, "player_skill_poison")
+
+	_ensure_ally_grids()
+	for dr in range(-radius, radius + 1):
+		for dc in range(-radius, radius + 1):
+			var nr = r + dr
+			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				if grid_i[nr][nc] != -1:
-					ismatched[nr][nc] = true
-					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-					if has_sp and not (Vector2i(nr, nc) in exploded_items):
-						queue.append(Vector2i(nr, nc))
+				if not _is_plant_cell(nr, nc):
+					grid_poison[nr][nc] = true
+					_set_ally_flag(grid_poison_ally, nr, nc, true)
+					if not (dr == 0 and dc == 0):
+						_spawn_poison_bubble_burst_effect(get_cell_position(nr, nc))
+				var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+				if has_sp and not (Vector2i(nr, nc) in exploded_items):
+					queue.append(Vector2i(nr, nc))
+
+	_spawn_floating_text(pos, "🧪 薬毒散布！", Color(0.2, 1.0, 0.6))
+	if board_bg:
+		board_bg.queue_redraw()
 
 func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.BOMB, 1))
@@ -4170,7 +4198,8 @@ func _start_breaking_animation() -> void:
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "消火", Color(0.4, 0.8, 1.0))
 
 		# 猛毒沼マス上でコマがマッチ消去された場合、解毒・浄化（自分の薬毒なら敵へ毒刃追撃）
-		if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y]:
+		# ※ただし今回のスキルで薬毒瓶自体が起爆したセルは解毒・毒刃をスキップ（薬毒マスを維持）
+		if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y] and not poison_mist_detonated_cells.has(cell):
 			var was_ally_po = is_ally_poison(cell.x, cell.y)
 			grid_poison[cell.x][cell.y] = false
 			_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
@@ -4311,10 +4340,15 @@ func _start_breaking_animation() -> void:
 			grid_cursed[cell.x][cell.y] = false
 			_set_ally_flag(grid_cursed_ally, cell.x, cell.y, false)
 		if grid_poison.size() == GRID_ROWS:
-			grid_poison[cell.x][cell.y] = false
-			_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
+			if not poison_mist_detonated_cells.has(cell):
+				grid_poison[cell.x][cell.y] = false
+				_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
+			else:
+				grid_poison[cell.x][cell.y] = true
+				_set_ally_flag(grid_poison_ally, cell.x, cell.y, true)
 
 	pending_special_spawns.clear()
+	poison_mist_detonated_cells.clear()
 	_redraw_board_effects()
 	_compact_piece_arrays()
 	_start_continuous_falling()
