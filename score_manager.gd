@@ -681,31 +681,31 @@ var relic_manager_ref: Node = null
 
 const CATEGORY_ELEMENT_DEFS: Dictionary = {
 	"nature": {
-		"title": "🌿 選択属性：自然・生命（水・氷・木・風）",
+		"title": "🌿 自然・生命",
 		"color": "00E676",
 		"elements": [
-			{"key": "water", "name": "水 (ウォーター)", "color": "00B0FF", "icon": "res://Texture/element/water.png", "emoji": "💧"},
-			{"key": "ice", "name": "氷 (アイス)", "color": "80D8FF", "icon": "res://Texture/element/water.png", "emoji": "❄️"},
-			{"key": "wood", "name": "木 (ウッド)", "color": "76FF03", "icon": "", "emoji": "🌱"},
-			{"key": "wind", "name": "風 (ウインド)", "color": "69F0AE", "icon": "res://Texture/element/wind.png", "emoji": "🌪️"}
+			{"key": "water", "name": "水", "color": "00B0FF", "icon": "res://Texture/element/water.png", "emoji": "💧"},
+			{"key": "ice", "name": "氷", "color": "80D8FF", "icon": "res://Texture/element/water.png", "emoji": "❄️"},
+			{"key": "wood", "name": "木", "color": "76FF03", "icon": "", "emoji": "🌱"},
+			{"key": "wind", "name": "風", "color": "69F0AE", "icon": "res://Texture/element/wind.png", "emoji": "🌪️"}
 		]
 	},
 	"force": {
-		"title": "🔥 選択属性：元素・破壊（火・雷・地）",
+		"title": "🔥 元素・破壊",
 		"color": "FF3D00",
 		"elements": [
-			{"key": "fire", "name": "火 (ファイア)", "color": "FF3D00", "icon": "res://Texture/element/fire.png", "emoji": "🔥"},
-			{"key": "thunder", "name": "雷 (サンダー)", "color": "FFD600", "icon": "res://Texture/element/thunder.png", "emoji": "⚡"},
-			{"key": "earth", "name": "地 (アース)", "color": "D7CCC8", "icon": "", "emoji": "🪨"}
+			{"key": "fire", "name": "火", "color": "FF3D00", "icon": "res://Texture/element/fire.png", "emoji": "🔥"},
+			{"key": "thunder", "name": "雷", "color": "FFD600", "icon": "res://Texture/element/thunder.png", "emoji": "⚡"},
+			{"key": "earth", "name": "地", "color": "D7CCC8", "icon": "", "emoji": "🪨"}
 		]
 	},
 	"mystic": {
-		"title": "🔮 選択属性：神秘・冥術（毒・光・闇）",
+		"title": "🔮 神秘・冥術",
 		"color": "E040FB",
 		"elements": [
-			{"key": "poison", "name": "毒 (ポイズン)", "color": "B388FF", "icon": "res://Texture/element/poison_tile_dry.png", "emoji": "🧪"},
-			{"key": "light", "name": "光 (ライト)", "color": "FFF59D", "icon": "res://Texture/element/light.png", "emoji": "✨"},
-			{"key": "dark", "name": "闇 (ダーク)", "color": "EA80FC", "icon": "res://Texture/element/dark.png", "emoji": "🌙"}
+			{"key": "poison", "name": "毒", "color": "B388FF", "icon": "res://Texture/element/poison_tile_dry.png", "emoji": "🧪"},
+			{"key": "light", "name": "光", "color": "FFF59D", "icon": "res://Texture/element/light.png", "emoji": "✨"},
+			{"key": "dark", "name": "闇", "color": "EA80FC", "icon": "res://Texture/element/dark.png", "emoji": "🌙"}
 		]
 	}
 }
@@ -1481,7 +1481,7 @@ func _ready() -> void:
 		if not rm.is_connected("element_category_chosen", Callable(self, "on_element_category_chosen")):
 			rm.connect("element_category_chosen", Callable(self, "on_element_category_chosen"))
 
-	# 1. 敵画面の真下: スコア欄の初期化 (x: 1190.0, y: 472.0, w: 725.0, h: 50.0)
+	# 1. 敵画面の真下: スコア欄の初期化 (x: 1190.0, y: 472.0, w: 725.0, h: 68.0)
 	var sc_rect = get_node_or_null("score_rect") as ColorRect
 	if sc_rect == null:
 		sc_rect = ColorRect.new()
@@ -1491,7 +1491,7 @@ func _ready() -> void:
 		sc_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
 		add_child(sc_rect)
 	sc_rect.position = Vector2(1190.0, 472.0)
-	sc_rect.size = Vector2(725.0, 50.0)
+	sc_rect.size = Vector2(725.0, 68.0)
 
 	var sc2_rect = get_node_or_null("score2_rect") as ColorRect
 	if sc2_rect == null:
@@ -1502,12 +1502,12 @@ func _ready() -> void:
 		sc2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
 		add_child(sc2_rect)
 	sc2_rect.position = Vector2(1192.0, 474.0)
-	sc2_rect.size = Vector2(721.0, 46.0)
+	sc2_rect.size = Vector2(721.0, 64.0)
 
 	if label != null:
 		label.visible = true
-		label.position = Vector2(1204.0, 477.0)
-		label.size = Vector2(700.0, 42.0)
+		label.position = Vector2(1204.0, 478.0)
+		label.size = Vector2(700.0, 56.0)
 		label.z_index = 2
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.add_theme_font_override("normal_font", CUSTOM_FONT)
@@ -1527,15 +1527,15 @@ func _ready() -> void:
 			score_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 			divscorelabel.append(score_lbl)
 
-	# 2. その下: アイテム値パネルの初期化 (x: 1190.0, y: 528.0, w: 725.0, h: 180.0)
+	# 2. その下・左側: アイテム値パネルの初期化 (x: 1190.0, y: 548.0, w: 425.0, h: 472.0)
 	if status_rect != null:
-		status_rect.position = Vector2(1190.0, 528.0)
-		status_rect.size = Vector2(725.0, 180.0)
+		status_rect.position = Vector2(1190.0, 548.0)
+		status_rect.size = Vector2(425.0, 472.0)
 	if status2_rect != null:
-		status2_rect.position = Vector2(1192.0, 530.0)
-		status2_rect.size = Vector2(721.0, 176.0)
+		status2_rect.position = Vector2(1192.0, 550.0)
+		status2_rect.size = Vector2(421.0, 468.0)
 
-	# 各値アイコン（行 y: 530.0 + 35.2 * i に独立配置）
+	# 各値アイコン（行 y: 550.0 + 93.6 * i に独立配置、特大52x52サイズ）
 	for i in range(5):
 		var icn_name = "score_icon" + str(i)
 		var icn = get_node_or_null(icn_name) as TextureRect
@@ -1549,18 +1549,18 @@ func _ready() -> void:
 		var tex_path = "res://Texture/%s/%s.png" % [TEXTURE_DIR[i], TEXTURE_FILE[i]]
 		if ResourceLoader.exists(tex_path):
 			icn.texture = load(tex_path)
-		var row_y = 530.0 + 35.2 * float(i)
-		icn.position = Vector2(1203.0, row_y + 4.0)
-		icn.size = Vector2(28.0, 28.0)
+		var row_y = 550.0 + 93.6 * float(i)
+		icn.position = Vector2(1204.0, row_y + 20.8)
+		icn.size = Vector2(52.0, 52.0)
 		icn.z_index = 2
 
 	for i in range(mini(5, divscorelabel.size())):
 		var sc_lbl = divscorelabel[i]
-		var row_y = 530.0 + 35.2 * float(i)
-		sc_lbl.position = Vector2(1250.0, row_y + 2.0)
-		sc_lbl.scale = Vector2(0.36, 0.36)
+		var row_y = 550.0 + 93.6 * float(i)
+		sc_lbl.position = Vector2(1276.0, row_y + 18.0)
+		sc_lbl.scale = Vector2(0.55, 0.55)
 
-	# 3. その下: 選択した属性値パネルの初期化 (x: 1190.0, y: 714.0, w: 725.0, h: 170.0)
+	# 3. その下・右側: 選択した属性値パネルの初期化 (x: 1625.0, y: 548.0, w: 290.0, h: 472.0)
 	_setup_elem_status_panel()
 
 	var pb = _get_puzzle_board()
@@ -1754,7 +1754,7 @@ func update_score_label() -> void:
 	if label != null:
 		label.visible = true
 		var combo_str = "  [color=#00E5FF](%d COMBO)[/color]" % combocount if combocount > 1 else ""
-		label.text = "[font_size=28][b][color=#FFD700]SCORE :[/color]  [color=#FFFFFF]%s[/color][/b]%s[/font_size]" % [_format_comma(totalScore), combo_str]
+		label.text = "[font_size=36][b][color=#FFD700]SCORE :[/color]  [color=#FFFFFF]%s[/color][/b]%s[/font_size]" % [_format_comma(totalScore), combo_str]
 	if label2 != null:
 		label2.text = ""
 		label2.visible = false
@@ -1770,15 +1770,15 @@ func update_score_label() -> void:
 				if el_score > 0 and el != 0:
 					var el_color = ElementData.ELEMENT_COLORS[el].to_html(false)
 					breakdown_text += " [color=#%s]%s[/color]" % [el_color, _format_comma(el_score)]
-		divscorelabel[i].text = "[b][color=%s]%s[/color][/b][font_size=20]%s[/font_size]" % [
+		divscorelabel[i].text = "[b][color=%s]%s[/color][/b][font_size=24]%s[/font_size]" % [
 			ATT_COLORS[i], formatted_val, breakdown_text
 		]
 
-	# アイテム値欄のサイズ維持 (横幅725.0px / 内枠721.0px)
+	# アイテム値欄のサイズ維持 (横幅425.0px / 内枠421.0px)
 	if status_rect != null:
-		status_rect.size = Vector2(725.0, 180.0)
+		status_rect.size = Vector2(425.0, 472.0)
 	if status2_rect != null:
-		status2_rect.size = Vector2(721.0, 176.0)
+		status2_rect.size = Vector2(421.0, 468.0)
 
 	if combocount_label != null:
 		combocount_label.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % combocount
@@ -3078,8 +3078,8 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(elem_status_rect)
 	elem_status_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
-	elem_status_rect.position = Vector2(1190.0, 714.0)
-	elem_status_rect.size = Vector2(725.0, 170.0)
+	elem_status_rect.position = Vector2(1625.0, 548.0)
+	elem_status_rect.size = Vector2(290.0, 472.0)
 
 	if elem_status2_rect == null:
 		elem_status2_rect = ColorRect.new()
@@ -3088,8 +3088,8 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(elem_status2_rect)
 	elem_status2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
-	elem_status2_rect.position = Vector2(1192.0, 716.0)
-	elem_status2_rect.size = Vector2(721.0, 166.0)
+	elem_status2_rect.position = Vector2(1627.0, 550.0)
+	elem_status2_rect.size = Vector2(286.0, 468.0)
 
 	# 属性カテゴリーヘッダーラベル
 	if elem_category_header_label == null:
@@ -3103,14 +3103,14 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		elem_category_header_label.add_theme_constant_override("outline_size", 6)
 		elem_category_header_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		add_child(elem_category_header_label)
-	elem_category_header_label.position = Vector2(1204.0, 718.0)
-	elem_category_header_label.size = Vector2(700.0, 26.0)
+	elem_category_header_label.position = Vector2(1632.0, 556.0)
+	elem_category_header_label.size = Vector2(276.0, 34.0)
 
 	var actual_cat = force_cat if not force_cat.is_empty() else _get_chosen_element_category()
 	if actual_cat.is_empty():
-		elem_category_header_label.text = "[font_size=18][b][color=#AAAAAA]属性値：【レリック選択で属性確定】[/color] [color=#666666](%s)[/color][/b][/font_size]" % cat_def["title"]
+		elem_category_header_label.text = "[center][font_size=16][b][color=#AAAAAA]属性値 (未確定)[/color][/b][/font_size][/center]"
 	else:
-		elem_category_header_label.text = "[font_size=18][b][color=#%s]%s[/color][/b][/font_size]" % [cat_def["color"], cat_def["title"]]
+		elem_category_header_label.text = "[center][font_size=18][b][color=#%s]%s[/color][/b][/font_size][/center]" % [cat_def["color"], cat_def["title"]]
 
 	# 既存のアイコン・ラベルのクリア
 	for lbl in elem_labels:
@@ -3122,10 +3122,10 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		var old_icn = get_node_or_null("elem_icon" + str(k + 1))
 		if old_icn: old_icn.queue_free()
 
-	# 属性アイコンとラベルの生成
+	# 属性アイコンとラベルの生成（右側カラム内に配置）
 	var num_elems = elem_category_elements.size()
-	var start_y = 744.0
-	var avail_h = 134.0
+	var start_y = 594.0
+	var avail_h = 424.0
 	var row_h = avail_h / float(maxi(1, num_elems))
 
 	for k in range(num_elems):
@@ -3143,8 +3143,8 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 			el_icn.texture = load(elem_info["icon"])
 			if elem_info["key"] == "ice":
 				el_icn.modulate = Color(0.5, 0.9, 1.0, 1.0)
-		el_icn.position = Vector2(1205.0, el_y + (row_h - 26.0) / 2.0)
-		el_icn.size = Vector2(26.0, 26.0)
+		el_icn.position = Vector2(1637.0, el_y + (row_h - 40.0) / 2.0)
+		el_icn.size = Vector2(40.0, 40.0)
 
 		var el_lbl = RichTextLabel.new()
 		el_lbl.name = "elem_score" + str(k + 1)
@@ -3155,9 +3155,9 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		el_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
 		el_lbl.add_theme_constant_override("outline_size", 8)
 		el_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		el_lbl.position = Vector2(1250.0, el_y + (row_h - 26.0) / 2.0)
-		el_lbl.size = Vector2(1500.0, 70.0)
-		el_lbl.scale = Vector2(0.38, 0.38)
+		el_lbl.position = Vector2(1692.0, el_y + (row_h - 38.0) / 2.0)
+		el_lbl.size = Vector2(450.0, 80.0)
+		el_lbl.scale = Vector2(0.48, 0.48)
 		add_child(el_lbl)
 		elem_labels.append(el_lbl)
 
@@ -3181,11 +3181,11 @@ func update_elem_labels() -> void:
 			elem_info["color"], elem_info["emoji"], elem_info["name"], val_str
 		]
 
-	# 選択した属性値欄のサイズ維持 (横幅725.0px / 内枠721.0px)
+	# 選択した属性値欄のサイズ維持 (横幅290.0px / 内枠286.0px)
 	if elem_status_rect != null:
-		elem_status_rect.size = Vector2(725.0, 170.0)
+		elem_status_rect.size = Vector2(290.0, 472.0)
 	if elem_status2_rect != null:
-		elem_status2_rect.size = Vector2(721.0, 166.0)
+		elem_status2_rect.size = Vector2(286.0, 468.0)
 
 func reset_turn_elements() -> void:
 	turn_element_counts.clear()
@@ -3204,8 +3204,8 @@ func add_turn_element(el: Variant, amount: int) -> void:
 func _setup_grid_lines() -> void:
 	var line_color = Color(0.960784, 1.0, 0.0901961, 0.75)
 	
-	# --- 1. アイテム値の欄 (敵画面下 x: 1192..1913, y: 530..706, 5行) ---
-	# 垂直区切り線（シンボルと値の境界: x = 1242.0）
+	# --- 1. アイテム値の欄 (左側 x: 1192..1613, y: 550..1018, 5行) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1266.0）
 	var st_vline = get_node_or_null("status_v_line") as ColorRect
 	if st_vline == null:
 		st_vline = ColorRect.new()
@@ -3213,8 +3213,8 @@ func _setup_grid_lines() -> void:
 		st_vline.z_index = -5
 		st_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(st_vline)
-	st_vline.position = Vector2(1242.0, 530.0)
-	st_vline.size = Vector2(2.0, 176.0)
+	st_vline.position = Vector2(1266.0, 550.0)
+	st_vline.size = Vector2(2.0, 468.0)
 	st_vline.color = line_color
 	
 	# 水平区切り線（アイテム行同士の境界: 4本）
@@ -3227,12 +3227,12 @@ func _setup_grid_lines() -> void:
 			st_hline.z_index = -5
 			st_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(st_hline)
-		st_hline.position = Vector2(1192.0, 530.0 + 35.2 * float(idx + 1))
-		st_hline.size = Vector2(721.0, 2.0)
+		st_hline.position = Vector2(1192.0, 550.0 + 93.6 * float(idx + 1))
+		st_hline.size = Vector2(421.0, 2.0)
 		st_hline.color = line_color
 
-	# --- 2. 選択属性値の欄 (敵画面下 x: 1192..1913, y: 716..882) ---
-	# 垂直区切り線（シンボルと値の境界: x = 1242.0）
+	# --- 2. 選択属性値の欄 (右側 x: 1627..1913, y: 550..1018) ---
+	# 垂直区切り線（シンボルと値の境界: x = 1687.0）
 	var el_vline = get_node_or_null("elem_v_line") as ColorRect
 	if el_vline == null:
 		el_vline = ColorRect.new()
@@ -3240,8 +3240,8 @@ func _setup_grid_lines() -> void:
 		el_vline.z_index = -5
 		el_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(el_vline)
-	el_vline.position = Vector2(1242.0, 744.0)
-	el_vline.size = Vector2(2.0, 134.0)
+	el_vline.position = Vector2(1687.0, 594.0)
+	el_vline.size = Vector2(2.0, 424.0)
 	el_vline.color = line_color
 	
 	# ヘッダー下部区切り線
@@ -3252,13 +3252,13 @@ func _setup_grid_lines() -> void:
 		el_hdr_line.z_index = -5
 		el_hdr_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(el_hdr_line)
-	el_hdr_line.position = Vector2(1192.0, 742.0)
-	el_hdr_line.size = Vector2(721.0, 2.0)
+	el_hdr_line.position = Vector2(1627.0, 594.0)
+	el_hdr_line.size = Vector2(286.0, 2.0)
 	el_hdr_line.color = line_color
 
 	# 水平区切り線（属性行同士の境界）
 	var num_elems = elem_category_elements.size()
-	var row_h = 134.0 / float(maxi(1, num_elems))
+	var row_h = 424.0 / float(maxi(1, num_elems))
 	for idx in range(num_elems - 1):
 		var line_name = "elem_h_line_" + str(idx)
 		var el_hline = get_node_or_null(line_name) as ColorRect
@@ -3268,8 +3268,8 @@ func _setup_grid_lines() -> void:
 			el_hline.z_index = -5
 			el_hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(el_hline)
-		el_hline.position = Vector2(1192.0, 744.0 + row_h * float(idx + 1))
-		el_hline.size = Vector2(721.0, 2.0)
+		el_hline.position = Vector2(1627.0, 594.0 + row_h * float(idx + 1))
+		el_hline.size = Vector2(286.0, 2.0)
 		el_hline.color = line_color
 	
 	# 余剰ラインがあれば非表示

@@ -1057,27 +1057,32 @@ func _init() -> void:
 
 	score_mgr_node._ready()
 
-	# 1. 敵画面の真下にスコア欄 (Directly below enemy screen: y = 472.0)
+	# 1. 敵画面の真下にスコア欄 (Directly below enemy screen: y = 472.0, h = 68.0, w = 725.0)
 	var sc_rect_node = score_mgr_node.get_node_or_null("score_rect") as ColorRect
 	assert(sc_rect_node != null, "score_rect node must exist")
 	assert(sc_rect_node.position.y == 472.0, "score_rect must be positioned directly below enemy screen at y=472.0")
 	assert(sc_rect_node.size.x == 725.0, "score_rect must span enemy screen width 725.0")
+	assert(sc_rect_node.size.y >= 60.0, "score_rect must have enlarged height >= 60.0")
 	assert(score_mgr_node.label.visible == true, "Score label must be visible")
 	score_mgr_node.totalScore = 12345
 	score_mgr_node.update_score_label()
 	assert(score_mgr_node.label.text.contains("12,345"), "Score label must display formatted totalScore")
 
-	# 2. その下にアイテム値 (Below score: y = 528.0)
-	assert(score_mgr_node.status_rect.position.y == 528.0, "status_rect (items) must be below score at y=528.0")
-	assert(score_mgr_node.status_rect.size.x == 725.0, "status_rect must span enemy screen width 725.0")
+	# 2. その下にアイテム値欄（左側・大幅拡大 y = 548.0, w = 425.0, h = 472.0）
+	assert(score_mgr_node.status_rect.position.y == 548.0, "status_rect (items) must be below score at y=548.0")
+	assert(score_mgr_node.status_rect.position.x == 1190.0, "status_rect must be on left side at x=1190.0")
+	assert(score_mgr_node.status_rect.size.x == 425.0, "status_rect width must be 425.0")
+	assert(score_mgr_node.status_rect.size.y >= 450.0, "status_rect height must be enlarged to >= 450.0 (got %f)" % score_mgr_node.status_rect.size.y)
 	assert(score_mgr_node.status_rect.position.y > sc_rect_node.position.y, "Item values must be below Score section")
 
-	# 3. その下に選択した属性値欄 (Below items: y = 714.0)
+	# 3. アイテム値の横に選択した属性値欄（右側・横並び配置 x = 1625.0, y = 548.0, w = 290.0, h = 472.0）
 	var el_rect_node = score_mgr_node.get_node_or_null("elem_status") as ColorRect
 	assert(el_rect_node != null, "elem_status node must exist")
-	assert(el_rect_node.position.y == 714.0, "elem_status must be positioned below items at y=714.0")
-	assert(el_rect_node.size.x == 725.0, "elem_status must span enemy screen width 725.0")
-	assert(el_rect_node.position.y > score_mgr_node.status_rect.position.y, "Selected attribute values must be below Item values")
+	assert(el_rect_node.position.x == 1625.0, "elem_status must be placed on the right side next to items at x=1625.0")
+	assert(is_equal_approx(el_rect_node.position.y, score_mgr_node.status_rect.position.y), "elem_status must be vertically aligned with status_rect (side-by-side)")
+	assert(el_rect_node.position.x > score_mgr_node.status_rect.position.x, "Selected attribute values must be next to (right of) item values")
+	assert(el_rect_node.size.x == 290.0, "elem_status width must be 290.0")
+	assert(el_rect_node.size.y >= 450.0, "elem_status height must match enlarged items panel >= 450.0")
 
 	# 4. 属性カテゴリー選択に応じた動的表示の検証
 	# Test nature category
@@ -1113,7 +1118,7 @@ func _init() -> void:
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 
-	print("✓ Vertical UI layout under enemy screen (Score -> Items -> Selected Attribute Values) verified!")
+	print("✓ UI layout under enemy screen (Score on top, enlarged Items & Attribute values side-by-side) verified!")
 
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")

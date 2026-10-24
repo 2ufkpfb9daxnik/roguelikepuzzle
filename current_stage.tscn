@@ -611,36 +611,36 @@ bbcode_enabled = true
 [node name="status" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1190.0
-offset_top = 528.0
-offset_right = 1915.0
-offset_bottom = 708.0
+offset_top = 548.0
+offset_right = 1615.0
+offset_bottom = 1020.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
 offset_left = 1192.0
-offset_top = 530.0
-offset_right = 1913.0
-offset_bottom = 706.0
+offset_top = 550.0
+offset_right = 1613.0
+offset_bottom = 1018.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="elem_status" type="ColorRect" parent="ScoreManager"]
 z_index = -10
-offset_left = 1190.0
-offset_top = 714.0
+offset_left = 1625.0
+offset_top = 548.0
 offset_right = 1915.0
-offset_bottom = 884.0
+offset_bottom = 1020.0
 mouse_filter = 2
 color = Color(0.960784, 1, 0.0901961, 1)
 
 [node name="elem_status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
-offset_left = 1192.0
-offset_top = 716.0
+offset_left = 1627.0
+offset_top = 550.0
 offset_right = 1913.0
-offset_bottom = 882.0
+offset_bottom = 1018.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
