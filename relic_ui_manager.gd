@@ -24,8 +24,8 @@ func _ready() -> void:
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 216..926, y: 952..1066), 右側 = 所持レリック欄 (x: 942..1904, y: 952..1066) ---
-	# 設定ボタン (x: 38..198, y: 980..1036) および盤面下端 (y=944) と美しく調和する金枠パネル
+	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 216..926, y: 952..1066), 右側 = 所持レリック欄 (x: 942..1726, y: 952..1066) ---
+	# 設定ボタン (x: 1746..1896, y: 985..1033) および盤面下端 (y=944) と被らず美しく調和する金枠パネル
 	var gold_border = Color(0.960784, 1.0, 0.0901961, 1.0)
 	var bg_dark = Color(0.04, 0.05, 0.08, 1.0)
 	var div_color = Color(0.960784, 1.0, 0.0901961, 0.75)
@@ -82,11 +82,11 @@ func _ready() -> void:
 	skill_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(skill_container)
 
-	# 2. レリック欄の外枠・内枠・区切り線
+	# 2. レリック欄の外枠・内枠・区切り線（設定ボタン x: 1746..1896 の手前 x: 1726 で終端）
 	var relic_rect = ColorRect.new()
 	relic_rect.name = "relic_rect"
 	relic_rect.position = Vector2(942.0, 952.0)
-	relic_rect.size = Vector2(962.0, 114.0)
+	relic_rect.size = Vector2(784.0, 114.0)
 	relic_rect.color = gold_border
 	relic_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	relic_rect.z_index = -10
@@ -95,7 +95,7 @@ func _ready() -> void:
 	var relic2_rect = ColorRect.new()
 	relic2_rect.name = "relic2_rect"
 	relic2_rect.position = Vector2(944.0, 954.0)
-	relic2_rect.size = Vector2(958.0, 110.0)
+	relic2_rect.size = Vector2(780.0, 110.0)
 	relic2_rect.color = bg_dark
 	relic2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	relic2_rect.z_index = -9
@@ -128,7 +128,7 @@ func _ready() -> void:
 	container = HFlowContainer.new()
 	container.name = "relic_container"
 	container.position = Vector2(1074.0, 960.0)
-	container.size = Vector2(824.0, 98.0)
+	container.size = Vector2(644.0, 98.0)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE

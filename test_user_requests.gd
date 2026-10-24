@@ -1140,11 +1140,16 @@ func _init() -> void:
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 
-	# 7. Test StageLabel higher position and current battle display in stage_manager
+	# 7. Test StageLabel higher position and current battle display directly below it
 	var stage_lbl = RichTextLabel.new()
 	stage_lbl.name = "StageLabel"
 	sm.add_child(stage_lbl)
 	sm.label = stage_lbl
+
+	var stage_lbl2 = RichTextLabel.new()
+	stage_lbl2.name = "StageLabel2"
+	sm.add_child(stage_lbl2)
+	sm.label2 = stage_lbl2
 
 	sm.stage = 1
 	sm.stage_enemy = 1
@@ -1153,13 +1158,15 @@ func _init() -> void:
 	assert(sm.label.position.y == 16.0, "StageLabel must be moved up to y=16.0 (got %f)" % sm.label.position.y)
 	assert(sm.label.scroll_active == false, "StageLabel must have scroll_active = false")
 	assert(sm.label.text.contains("STAGE"), "StageLabel must contain STAGE")
-	assert(sm.label.text.contains("(1/5)"), "StageLabel must display current match counter (1/5) (got %s)" % sm.label.text)
+	assert(sm.label2 != null, "sm.label2 must exist")
+	assert(sm.label2.position.y > sm.label.position.y, "StageLabel2 must be placed directly below StageLabel (got y=%f vs %f)" % [sm.label2.position.y, sm.label.position.y])
+	assert(sm.label2.text.contains("BATTLE") and sm.label2.text.contains("1/5"), "StageLabel2 directly below must display current match counter (got %s)" % sm.label2.text)
 
 	sm.stage_enemy = 5
 	sm.label_control()
-	assert(sm.label.text.contains("(BOSS)"), "StageLabel must display (BOSS) on 5th match (got %s)" % sm.label.text)
+	assert(sm.label2.text.contains("BOSS"), "StageLabel2 must display BOSS on 5th match (got %s)" % sm.label2.text)
 
-	# 8. Test Relic and Skill panel boxes
+	# 8. Test Relic and Skill panel boxes (must not overlap with Settings button at x >= 1746.0)
 	var relic_ui = load("res://relic_ui_manager.gd").new()
 	dummy_root.add_child(relic_ui)
 	relic_ui._ready()
@@ -1172,6 +1179,8 @@ func _init() -> void:
 	assert(relic_box != null, "relic_rect must exist in RelicUIManager")
 	assert(relic_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "relic_rect must have matching gold border")
 	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
+	var relic_right_edge = relic_box.position.x + relic_box.size.x
+	assert(relic_right_edge <= 1730.0, "relic_rect right edge (%f) must stop before Settings button (x=1746.0) without overlap" % relic_right_edge)
 	relic_ui.queue_free()
 
 	print("✓ UI layout (bottom alignment at 944, undetermined attribute box, battle counter, combo scrollbar fix, skill/relic panels) verified!")

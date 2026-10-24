@@ -578,7 +578,13 @@ func _ready() -> void:
 		label.add_theme_constant_override("outline_size", 6)
 		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	if label2 != null:
-		label2.text = ""
+		label2.add_theme_font_override("normal_font", CUSTOM_FONT)
+		label2.add_theme_font_override("bold_font", CUSTOM_FONT)
+		label2.add_theme_font_size_override("normal_font_size", 26)
+		label2.add_theme_font_size_override("bold_font_size", 26)
+		label2.add_theme_constant_override("outline_size", 5)
+		label2.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		label2.z_index = 2
 
 	if danger_label != null:
 		danger_label.add_theme_font_override("normal_font", CUSTOM_FONT)
@@ -640,8 +646,9 @@ func _ready() -> void:
 func label_control() -> void:
 	if label:
 		label.position = Vector2(20.0, 16.0)
-		label.size = Vector2(380.0, 60.0)
+		label.size = Vector2(380.0, 56.0)
 		label.scroll_active = false
+		label.z_index = 2
 		var sm = _get_settings_manager()
 		var diff_badge = ""
 		if sm and "difficulty" in sm:
@@ -649,17 +656,16 @@ func label_control() -> void:
 				diff_badge = " [color=#00E5FF][EASY][/color]"
 			elif sm.difficulty == 2:
 				diff_badge = " [color=#FF5252][HARD][/color]"
-		var battle_str = ""
-		if is_boss_battle() or stage_enemy >= 5:
-			battle_str = " [color=#FF5252](BOSS)[/color]"
-		else:
-			battle_str = " [color=#FFFFFF](%d/5)[/color]" % stage_enemy
-		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s%s[/b]" % [stage, battle_str, diff_badge]
+		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s[/b]" % [stage, diff_badge]
 	if label2:
-		label2.position = Vector2(20.0, 16.0)
-		label2.size = Vector2(380.0, 60.0)
+		label2.position = Vector2(22.0, 68.0)
+		label2.size = Vector2(380.0, 48.0)
 		label2.scroll_active = false
-		label2.text = ""
+		label2.z_index = 2
+		if is_boss_battle() or stage_enemy >= 5:
+			label2.text = "[b][font_size=26][color=#FF5252]⚔️ BOSS BATTLE[/color] [font_size=20][color=#FF8A80](BOSS 5/5)[/color][/font_size][/font_size][/b]"
+		else:
+			label2.text = "[b][font_size=26][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color] [font_size=20][color=#B0BEC5](%d/5 試合目)[/color][/font_size][/font_size][/b]" % [stage_enemy, stage_enemy]
 
 ## 敵の撃破または前進によるカウント加算
 func add_stage_label() -> void:

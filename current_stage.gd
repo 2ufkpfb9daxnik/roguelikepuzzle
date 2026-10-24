@@ -44,9 +44,9 @@ func _ready() -> void:
 				bg.scale = Vector2(scale_val, scale_val)
 				bg.position = Vector2(960, 540)
 
-	# ゲーム画面左下に「⚙ 設定」ボタンを配置（CanvasLayer で確実なヒットテストとスケーリングを保証）
+	# ゲーム画面右下に「⚙ 設定」ボタンを配置（CanvasLayer で確実なヒットテストとスケーリングを保証）
 	var ui_canvas = CanvasLayer.new()
-	ui_canvas.layer = 15
+	ui_canvas.layer = 100
 	add_child(ui_canvas)
 
 	var ui_root = Control.new()
@@ -63,8 +63,8 @@ func _ready() -> void:
 	settings_btn.add_theme_constant_override("outline_size", 5)
 	settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	settings_btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	settings_btn.size = Vector2(148, 44)
-	settings_btn.custom_minimum_size = Vector2(148, 44)
+	settings_btn.size = Vector2(150, 48)
+	settings_btn.custom_minimum_size = Vector2(150, 48)
 
 	var update_settings_btn_pos = func():
 		var vp_sz = ui_root.size
@@ -72,7 +72,7 @@ func _ready() -> void:
 			var vp = ui_root.get_viewport()
 			if vp: vp_sz = vp.get_visible_rect().size
 		if vp_sz.x <= 0: vp_sz = Vector2(1920, 1080)
-		settings_btn.position = Vector2(vp_sz.x - settings_btn.size.x - 22.0, 980.0)
+		settings_btn.position = Vector2(vp_sz.x - settings_btn.size.x - 24.0, 985.0)
 
 	update_settings_btn_pos.call()
 	ui_root.resized.connect(update_settings_btn_pos)
