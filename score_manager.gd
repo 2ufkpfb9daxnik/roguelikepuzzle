@@ -2989,7 +2989,7 @@ func _setup_shop_page_controls() -> void:
 
 		var buy_btn = Button.new()
 		buy_btn.position = Vector2(18, 274)
-		buy_btn.size = Vector2(494, 58)
+		buy_btn.size = Vector2(card_w - 36 - 96, 58)
 		buy_btn.add_theme_font_override("font", jp_font)
 		buy_btn.add_theme_font_size_override("font_size", 22)
 		buy_btn.add_theme_constant_override("outline_size", 5)
@@ -2997,6 +2997,27 @@ func _setup_shop_page_controls() -> void:
 		var slot_idx = i
 		buy_btn.pressed.connect(func(): _purchase_buff(slot_idx))
 		card.add_child(buy_btn)
+
+		# 🛠️ デバッグ即時レベルアップボタン（コイン不要）
+		var dbg_buff_btn = Button.new()
+		dbg_buff_btn.name = "DebugBuffLevelUpBtn_%d" % i
+		dbg_buff_btn.text = "🛠️+Lv"
+		dbg_buff_btn.position = Vector2(card_w - 18 - 88, 274)
+		dbg_buff_btn.size = Vector2(88, 58)
+		dbg_buff_btn.add_theme_font_override("font", jp_font)
+		dbg_buff_btn.add_theme_font_size_override("font_size", 18)
+		var dbg_b_st = StyleBoxFlat.new()
+		dbg_b_st.bg_color = Color(0.10, 0.26, 0.36, 0.95)
+		dbg_b_st.border_color = Color(0.25, 0.85, 1.0, 0.9)
+		dbg_b_st.set_border_width_all(2)
+		dbg_b_st.set_corner_radius_all(8)
+		dbg_buff_btn.add_theme_stylebox_override("normal", dbg_b_st)
+		var dbg_b_hov = dbg_b_st.duplicate()
+		dbg_b_hov.bg_color = Color(0.16, 0.38, 0.52, 1.0)
+		dbg_buff_btn.add_theme_stylebox_override("hover", dbg_b_hov)
+		dbg_buff_btn.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
+		dbg_buff_btn.pressed.connect(func(): debug_level_up_shop_buff(slot_idx))
+		card.add_child(dbg_buff_btn)
 
 		shop_card_refs.append({
 			"card": card,
@@ -3114,14 +3135,59 @@ func rebuild_skill_tree_ui() -> void:
 			c_desc.text = desc_text
 			c_desc.add_theme_font_override("normal_font", jp_font)
 			card.add_child(c_desc)
+
+			# 🛠️ デバッグ系統即時解放ボタン
+			var c_dbg_btn = Button.new()
+			c_dbg_btn.text = "🛠️ %s系統を選択 (デバッグ)" % c_info["title"]
+			c_dbg_btn.position = Vector2(24, 510)
+			c_dbg_btn.size = Vector2(c_w - 48, 48)
+			c_dbg_btn.add_theme_font_override("font", jp_font)
+			c_dbg_btn.add_theme_font_size_override("font_size", 17)
+			var c_dbg_st = StyleBoxFlat.new()
+			c_dbg_st.bg_color = Color(0.12, 0.28, 0.38, 0.95)
+			c_dbg_st.border_color = Color(0.3, 0.85, 1.0, 0.9)
+			c_dbg_st.set_border_width_all(2)
+			c_dbg_st.set_corner_radius_all(10)
+			c_dbg_btn.add_theme_stylebox_override("normal", c_dbg_st)
+			var chosen_k_cap = c_k
+			c_dbg_btn.pressed.connect(func(): on_element_category_chosen(chosen_k_cap))
+			card.add_child(c_dbg_btn)
 		return
 
 	# カテゴリー選択済みの場合：選択されたカテゴリーのツリーを表示！
 	var cat_data = CATEGORY_TREE_DEFS[cat_key]
 	var banner = Label.new()
 	banner.position = Vector2(8, 0)
-	banner.size = Vector2(1644, 32)
+	banner.size = Vector2(980, 32)
 	banner.text = cat_data["banner"]
+
+	# 🛠️ デバッグクイックバー
+	var dbg_bar = HBoxContainer.new()
+	dbg_bar.position = Vector2(1000, 0)
+	dbg_bar.size = Vector2(840, 32)
+	dbg_bar.add_theme_constant_override("separation", 10)
+	skill_tree_container.add_child(dbg_bar)
+
+	var btn_res = Button.new()
+	btn_res.text = "🛠️ 資源+10万 (F6)"
+	btn_res.add_theme_font_override("font", jp_font)
+	btn_res.add_theme_font_size_override("font_size", 14)
+	btn_res.pressed.connect(func(): debug_add_resources(100000))
+	dbg_bar.add_child(btn_res)
+
+	var btn_lv5 = Button.new()
+	btn_lv5.text = "⚡ 全スキルLv.5 (F7)"
+	btn_lv5.add_theme_font_override("font", jp_font)
+	btn_lv5.add_theme_font_size_override("font_size", 14)
+	btn_lv5.pressed.connect(func(): debug_set_all_skills_level(5))
+	dbg_bar.add_child(btn_lv5)
+
+	var btn_lv20 = Button.new()
+	btn_lv20.text = "👑 全スキルLv.20 (F8)"
+	btn_lv20.add_theme_font_override("font", jp_font)
+	btn_lv20.add_theme_font_size_override("font_size", 14)
+	btn_lv20.pressed.connect(func(): debug_set_all_skills_level(20))
+	dbg_bar.add_child(btn_lv20)
 	banner.add_theme_font_override("font", jp_font)
 	banner.add_theme_font_size_override("font_size", 21)
 	banner.add_theme_color_override("font_color", Color(0.95, 0.65, 1.0))
@@ -3247,14 +3313,35 @@ func rebuild_skill_tree_ui() -> void:
 
 		var s_btn = Button.new()
 		s_btn.position = Vector2(14, 146)
-		s_btn.size = Vector2(col_w - 28, 46)
+		s_btn.size = Vector2(col_w - 28 - 92, 46)
 		s_btn.add_theme_font_override("font", jp_font)
-		s_btn.add_theme_font_size_override("font_size", 19)
+		s_btn.add_theme_font_size_override("font_size", 18)
 		s_btn.add_theme_constant_override("outline_size", 4)
 		s_btn.add_theme_color_override("font_outline_color", Color.BLACK)
 		var bind_idx = s_idx
 		s_btn.pressed.connect(func(): _purchase_skill(bind_idx))
 		node_card.add_child(s_btn)
+
+		# 🛠️ デバッグ即時レベルアップボタン
+		var dbg_btn = Button.new()
+		dbg_btn.name = "DebugLevelUpBtn_%d" % s_idx
+		dbg_btn.text = "🛠️+Lv"
+		dbg_btn.position = Vector2(col_w - 28 - 92 + 20, 146)
+		dbg_btn.size = Vector2(86, 46)
+		dbg_btn.add_theme_font_override("font", jp_font)
+		dbg_btn.add_theme_font_size_override("font_size", 16)
+		var dbg_st = StyleBoxFlat.new()
+		dbg_st.bg_color = Color(0.10, 0.26, 0.36, 0.95)
+		dbg_st.border_color = Color(0.25, 0.85, 1.0, 0.9)
+		dbg_st.set_border_width_all(2)
+		dbg_st.set_corner_radius_all(8)
+		dbg_btn.add_theme_stylebox_override("normal", dbg_st)
+		var dbg_hov = dbg_st.duplicate()
+		dbg_hov.bg_color = Color(0.16, 0.38, 0.52, 1.0)
+		dbg_btn.add_theme_stylebox_override("hover", dbg_hov)
+		dbg_btn.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
+		dbg_btn.pressed.connect(func(): debug_level_up_skill(bind_idx))
+		node_card.add_child(dbg_btn)
 
 		var card_skill_id = s_item["id"]
 		node_card.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -3652,7 +3739,7 @@ func _complete_skill_upgrade(skill_idx: int, new_lvl: int, chosen_evo_id: String
 	var s_item = skill_tree_items[skill_idx]
 	var cost_ref: int = int(s_item["cost"])
 	var parent = get_parent()
-	divscore[PieceType.POTION] -= cost_ref
+	divscore[PieceType.POTION] = maxi(0, int(divscore[PieceType.POTION]) - cost_ref)
 	s_item["level"] = new_lvl
 	s_item["cost"] = int(cost_ref * 1.30)
 
@@ -3894,6 +3981,122 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 			_complete_skill_upgrade(skill_idx, milestone_lvl, evo_id_captured)
 		)
 		card.add_child(sel_btn)
+
+## =========================================================================
+## 🛠️ デバッグ用レベルアップ＆リソース操作スイート
+## =========================================================================
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_F6:
+				debug_add_resources(100000)
+			KEY_F7:
+				debug_set_all_skills_level(5)
+			KEY_F8:
+				debug_set_all_skills_level(20)
+			KEY_F9:
+				debug_toggle_shop()
+
+## デバッグ用：指定スキルの即時レベルアップ（コスト・前提条件完全無視）
+func debug_level_up_skill(skill_idx: int, target_level: int = -1) -> void:
+	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
+		return
+	var s_item = skill_tree_items[skill_idx]
+	var cur_lvl: int = int(s_item.get("level", 0))
+	var max_lvl: int = int(s_item.get("max_level", 20))
+
+	var next_lvl = cur_lvl + 1
+	if target_level > 0:
+		next_lvl = clampi(target_level, 1, max_lvl)
+	elif next_lvl > max_lvl:
+		# Lv20超過時はLv1へリセットし、進化をクリアして再テスト可能に
+		s_item["level"] = 1
+		if skill_evolutions.has(s_item["id"]):
+			skill_evolutions.erase(s_item["id"])
+		_complete_skill_upgrade(skill_idx, 1, "")
+		_update_buff_button_labels()
+		rebuild_skill_tree_ui()
+		return
+
+	# 進化マイルストーン（Lv.5またはLv.20）の判定：タロット選択モーダルを展開
+	if (next_lvl == 5 or next_lvl == 20) and not has_chosen_evolution(s_item["id"], next_lvl):
+		if not is_shop_open:
+			set_shop_ui_visible(true)
+		_open_tarot_evolution_modal(skill_idx, next_lvl)
+		return
+
+	# 無料レベルアップ
+	var orig_p = divscore[PieceType.POTION] if divscore.size() > PieceType.POTION else 0
+	_complete_skill_upgrade(skill_idx, next_lvl, "")
+	divscore[PieceType.POTION] = orig_p
+	_update_buff_button_labels()
+	rebuild_skill_tree_ui()
+
+## デバッグ用：ショップバフ（コイン強化）の即時レベルアップ
+func debug_level_up_shop_buff(slot_idx: int) -> void:
+	if slot_idx < 0 or slot_idx >= shop_items.size():
+		return
+	var item = shop_items[slot_idx]
+	var cost_ref = int(item.get("cost", 0))
+	var orig_c = divscore[PieceType.COIN] if divscore.size() > PieceType.COIN else 0
+	divscore[PieceType.COIN] = orig_c + cost_ref
+	_purchase_buff(slot_idx)
+	divscore[PieceType.COIN] = orig_c
+	_update_buff_button_labels()
+
+## デバッグ用：コイン＆ポーションの大量付与
+func debug_add_resources(amount: int = 100000) -> void:
+	divscore[PieceType.COIN] += amount
+	divscore[PieceType.POTION] += amount
+	_update_buff_button_labels()
+	var pb = _get_puzzle_board()
+	if pb and pb.has_method("_spawn_floating_text"):
+		pb._spawn_floating_text(Vector2(960, 420), "🛠️ デバッグ: コイン＆ポーション +%d！" % amount, Color(1.0, 0.85, 0.3))
+	print("[DEBUG] Added %d coins & potions. Coins=%d, Potions=%d" % [amount, divscore[PieceType.COIN], divscore[PieceType.POTION]])
+
+## デバッグ用：選択系統の全スキルを指定レベルに一括設定
+func debug_set_all_skills_level(target_lvl: int) -> void:
+	var cat_key = chosen_category
+	var rm = _get_relic_manager()
+	if rm and rm.has_method("get_chosen_element_category") and rm.get_chosen_element_category() != "":
+		cat_key = rm.get_chosen_element_category()
+	if cat_key == "":
+		cat_key = "nature"
+		on_element_category_chosen("nature")
+
+	for s_idx in range(skill_tree_items.size()):
+		var s_item = skill_tree_items[s_idx]
+		if s_item.get("category", "") == cat_key:
+			s_item["level"] = target_lvl
+			var sp_type = int(s_item["sp_type"])
+			var pb = _get_puzzle_board()
+			if pb and "special_levels" in pb:
+				pb.special_levels[sp_type] = target_lvl
+			if s_item["id"] == "bomb":
+				bomb_buff_level = target_lvl
+			emit_signal("skill_upgraded", s_item["id"], sp_type, target_lvl)
+
+			# Lv5およびLv20の進化特性が未選択なら、テスト用に第1候補を自動付与
+			if target_lvl >= 5 and not has_chosen_evolution(s_item["id"], 5):
+				var m_choices = get_evolution_choices(s_item["id"], 5)
+				if not m_choices.is_empty():
+					choose_skill_evolution(s_item["id"], 5, m_choices[0]["id"])
+			if target_lvl >= 20 and not has_chosen_evolution(s_item["id"], 20):
+				var f_choices = get_evolution_choices(s_item["id"], 20)
+				if not f_choices.is_empty():
+					choose_skill_evolution(s_item["id"], 20, f_choices[0]["id"])
+
+	_update_buff_button_labels()
+	rebuild_skill_tree_ui()
+	var pb = _get_puzzle_board()
+	if pb and pb.has_method("_spawn_floating_text"):
+		pb._spawn_floating_text(Vector2(960, 460), "⚡ デバッグ: 全スキルを Lv.%d に一括設定！" % target_lvl, Color(0.4, 0.9, 1.0))
+	print("[DEBUG] Set all skills in category %s to level %d" % [cat_key, target_lvl])
+
+## デバッグ用：ショップ＆スキルツリーのトグル表示（戦闘中いつでも開閉可能）
+func debug_toggle_shop() -> void:
+	set_shop_ui_visible(!is_shop_open)
 
 ## スキルツリーの解放・強化処理（余剰ポーション使用）
 func _purchase_skill(skill_idx: int) -> void:

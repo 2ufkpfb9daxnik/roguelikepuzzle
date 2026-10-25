@@ -1343,5 +1343,40 @@ func _init() -> void:
 
 	print("✓ Section 24 passed: Orthodox Evolution Tarot Modal, Combat Multipliers, & Ice Final Turn Skip fully verified!")
 
+	# --- Section 25: Debug Level-Up Suite Verification ---
+	print("\n--- Testing Section 25: Debug Level-Up Suite ---")
+	var p_before_dbg = sm_evo.divscore[sm_evo.PieceType.POTION]
+	var c_before_dbg = sm_evo.divscore[sm_evo.PieceType.COIN]
+	sm_evo.debug_add_resources(100000)
+	assert(sm_evo.divscore[sm_evo.PieceType.POTION] == p_before_dbg + 100000, "Potion +100000 via debug")
+	assert(sm_evo.divscore[sm_evo.PieceType.COIN] == c_before_dbg + 100000, "Coin +100000 via debug")
+
+	# Debug level up skill to level 1
+	sm_evo.debug_level_up_skill(t_ice_idx, 1)
+	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 1, "Skill level set to 1 via debug")
+
+	# Debug set all skills in active category to Lv.5 and Lv.20
+	sm_evo.debug_set_all_skills_level(5)
+	for sk in sm_evo.skill_tree_items:
+		if sk.get("category", "") == "nature":
+			assert(sk["level"] == 5, "Nature skill must be Lv.5 via batch debug")
+
+	sm_evo.debug_set_all_skills_level(20)
+	for sk in sm_evo.skill_tree_items:
+		if sk.get("category", "") == "nature":
+			assert(sk["level"] == 20, "Nature skill must be Lv.20 via batch debug")
+
+	# Debug shop buff level up
+	var buff_0_lvl = sm_evo.shop_items[0]["level"]
+	sm_evo.debug_level_up_shop_buff(0)
+	assert(sm_evo.shop_items[0]["level"] == buff_0_lvl + 1, "Shop buff leveled up via debug")
+
+	# Debug shop toggle
+	sm_evo.debug_toggle_shop()
+	assert(sm_evo.is_shop_open == false, "Shop toggled closed")
+	sm_evo.debug_toggle_shop()
+	assert(sm_evo.is_shop_open == true, "Shop toggled open")
+	print("✓ Section 25 passed: Debug Level-Up Suite fully verified!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
