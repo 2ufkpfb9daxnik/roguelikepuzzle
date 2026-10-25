@@ -162,6 +162,499 @@ const CATEGORY_TREE_DEFS: Dictionary = {
 	}
 }
 
+
+# ---------------------------------------------------------
+# 🌟 スキル正当進化レジストリ（タロットカード選択式）
+# 各属性ごとに中間進化（Lv.5 / 第1覚醒）と最終進化（Lv.20 / 極限神格化）の選択肢を定義
+# ※氷の行動スキップは強大スキルのため、必ず最終進化（Lv.20）にのみ配置
+# ---------------------------------------------------------
+const SKILL_EVOLUTION_REGISTRY: Dictionary = {
+	"ice": {
+		"mid": [
+			{
+				"id": "ice_mid_wall",
+				"numeral": "Ⅰ",
+				"name": "白銀の氷壁",
+				"role": "極厚氷盾 ＆ 冷気反撃",
+				"desc": "シールド展開量が+50%増加。さらにシールド被弾時に、砕けた氷が敵へ強力な冷気反撃ダメージを与える。"
+			},
+			{
+				"id": "ice_mid_permafrost",
+				"numeral": "Ⅱ",
+				"name": "永久凍土",
+				"role": "持続延長 ＆ 状態変換",
+				"desc": "氷マスの持続ターン+1。敵の炎・毒マスと氷マスが接触した時、無効化して即座に氷結させる。"
+			},
+			{
+				"id": "ice_mid_pierce",
+				"numeral": "Ⅲ",
+				"name": "氷槍穿孔",
+				"role": "防御無視冷気特攻",
+				"desc": "氷破壊時の冷気ダメージ+40%。凍結状態の敵へのダメージが防御力無視となる。"
+			}
+		],
+		"final": [
+			{
+				"id": "ice_final_skip",
+				"numeral": "Ⅰ",
+				"name": "絶対零度・完全凍結",
+				"role": "極限神格：時間停止",
+				"desc": "【敵の行動を1ターン完全スキップ！】極限の零度で敵の時を凍てつかせ、反撃の隙を一切与えない。（※氷の最終進化限定）"
+			},
+			{
+				"id": "ice_final_avalanche",
+				"numeral": "Ⅱ",
+				"name": "天氷大崩落",
+				"role": "盤面全凍結共鳴爆砕",
+				"desc": "盤面上の全氷マスが一斉共鳴連鎖爆砕し、敵全体に特大全体冷気ダメージを与える。"
+			},
+			{
+				"id": "ice_final_mirror",
+				"numeral": "Ⅲ",
+				"name": "氷華鏡面結界",
+				"role": "ダメージ吸収 ＆ 完全反射",
+				"desc": "氷盾展開中、受けるダメージの50%をHP回復に変換し、残り50%を冷気反射ダメージとして敵に跳ね返す。"
+			}
+		]
+	},
+	"fire": {
+		"mid": [
+			{
+				"id": "fire_mid_inferno",
+				"numeral": "Ⅰ",
+				"name": "業火の余燼",
+				"role": "残存マグマ ＆ 継続炎上",
+				"desc": "爆発したマスに高熱のマグマ炎が残り、毎ターン敵に追加継続炎ダメージを与える。"
+			},
+			{
+				"id": "fire_mid_chain",
+				"numeral": "Ⅱ",
+				"name": "連鎖誘爆",
+				"role": "爆風拡大 ＆ 障害物誘爆",
+				"desc": "爆風範囲が拡大し、周囲の障害物や敵の毒・氷を誘爆させて追加炎ダメージを与える。"
+			},
+			{
+				"id": "fire_mid_strike",
+				"numeral": "Ⅲ",
+				"name": "紅蓮の剛撃",
+				"role": "剣直撃ダメージ超強化",
+				"desc": "剣マッチによる基本火力が大幅上昇（直撃ダメージ+50%）。"
+			}
+		],
+		"final": [
+			{
+				"id": "fire_final_prominence",
+				"numeral": "Ⅰ",
+				"name": "プロミネンス・フレア",
+				"role": "極限神格：装甲融解蒸発",
+				"desc": "灼熱の太陽フレアを放ち、敵のシールドと防御バフを完全蒸発・粉砕する。"
+			},
+			{
+				"id": "fire_final_purgatory",
+				"numeral": "Ⅱ",
+				"name": "煉獄焦土",
+				"role": "永続猛火 ＆ 攻撃力減衰",
+				"desc": "敵に消えることのない猛火の烙印を刻み、敵の攻撃力を永続で30%ダウンさせる。"
+			},
+			{
+				"id": "fire_final_supernova",
+				"numeral": "Ⅲ",
+				"name": "超新星爆発",
+				"role": "全爆弾融合極限一撃",
+				"desc": "剣マッチ6個以上時、全爆弾が一斉に融合爆発して単体に究極の一撃を与える。"
+			}
+		]
+	},
+	"water": {
+		"mid": [
+			{
+				"id": "water_mid_spring",
+				"numeral": "Ⅰ",
+				"name": "聖水の癒し手",
+				"role": "HP回復強化 ＆ 浄化",
+				"desc": "ポーション消去時のHP回復量+40%。さらに盤面上の有害状態異常マスを浄化する。"
+			},
+			{
+				"id": "water_mid_pressure",
+				"numeral": "Ⅱ",
+				"name": "激流圧力",
+				"role": "敵行動減退 ＆ 威力削ぎ",
+				"desc": "水マス上のマッチで敵を押し戻し、敵の次攻撃の威力を25%削ぐ。"
+			},
+			{
+				"id": "water_mid_resonance",
+				"numeral": "Ⅲ",
+				"name": "水鏡共鳴",
+				"role": "連鎖誘発 ＆ コンボ加算",
+				"desc": "水マスが消えた時、追加で同属性ピースを巻き込んでコンボ数を+2加算する。"
+			}
+		],
+		"final": [
+			{
+				"id": "water_final_deluge",
+				"numeral": "Ⅰ",
+				"name": "大海嘯・万象呑流",
+				"role": "極限神格：行動リセット",
+				"desc": "巨大津波が盤面を一掃し、敵の溜め行動・詠唱を完全リセット＆大ダメージ。"
+			},
+			{
+				"id": "water_final_immortality",
+				"numeral": "Ⅱ",
+				"name": "生命の不滅泉",
+				"role": "致命傷回避 ＆ 完全復活",
+				"desc": "HPが0になる致命傷を受けた時、水マスを全消費して1度だけHP全快で復活する。"
+			},
+			{
+				"id": "water_final_maelstrom",
+				"numeral": "Ⅲ",
+				"name": "激動の渦潮",
+				"role": "最大HP割合継続ダメージ",
+				"desc": "水マス上の敵を渦潮に閉じ込め、毎ターン敵最大HPの5%の割合ダメージを与える。"
+			}
+		]
+	},
+	"thunder": {
+		"mid": [
+			{
+				"id": "thunder_mid_voltage",
+				"numeral": "Ⅰ",
+				"name": "高圧放電",
+				"role": "拡散連鎖電撃",
+				"desc": "電撃が隣接マスへ連鎖放電し、複数の敵・部位へ拡散電撃ダメージ。"
+			},
+			{
+				"id": "thunder_mid_magnetic",
+				"numeral": "Ⅱ",
+				"name": "磁場増幅",
+				"role": "過負荷攻撃力蓄積",
+				"desc": "コイン消去時に自身の攻撃力バフ（雷電過負荷）が蓄積する。"
+			},
+			{
+				"id": "thunder_mid_flash",
+				"numeral": "Ⅲ",
+				"name": "瞬雷の一閃",
+				"role": "会心撃 ＆ 電光石火",
+				"desc": "クリティカル発生率+25%、クリティカルダメージ+50%。"
+			}
+		],
+		"final": [
+			{
+				"id": "thunder_final_judgement",
+				"numeral": "Ⅰ",
+				"name": "天雷神罰・裁きの雷",
+				"role": "極限神格：防御無視落雷",
+				"desc": "敵の帯電状態を過負荷起爆し、防御無視の壊滅的落雷ダメージ。"
+			},
+			{
+				"id": "thunder_final_hyperdrive",
+				"numeral": "Ⅱ",
+				"name": "超電導加速",
+				"role": "ボーナスターン獲得",
+				"desc": "ターン終了時、50%の確率で即座にボーナスターン（追加操作）を獲得。"
+			},
+			{
+				"id": "thunder_final_catastrophe",
+				"numeral": "Ⅲ",
+				"name": "プラズマ・カタストロフ",
+				"role": "全コイン帯電起爆",
+				"desc": "盤面の全コインを一斉に帯電爆発させ、敵の攻撃ターンカウントを+2遅延させる。"
+			}
+		]
+	},
+	"wood": {
+		"mid": [
+			{
+				"id": "wood_mid_roots",
+				"numeral": "Ⅰ",
+				"name": "深緑の根張り",
+				"role": "急速成長 ＆ リジェネ倍増",
+				"desc": "苗木が大木へ素早く進化し、毎ターンの自動HPリジェネが倍増。"
+			},
+			{
+				"id": "wood_mid_thorns",
+				"numeral": "Ⅱ",
+				"name": "蔦の荊棘縛り",
+				"role": "敵捕縛 ＆ 被ダメージ減退",
+				"desc": "苗木の周囲の敵を棘で捕縛し、敵の与ダメージを20%減少させる。"
+			},
+			{
+				"id": "wood_mid_harvest",
+				"numeral": "Ⅲ",
+				"name": "豊穣の恵み",
+				"role": "食料共鳴資源獲得",
+				"desc": "食料マッチ時に追加でポーションとコインを同時獲得。"
+			}
+		],
+		"final": [
+			{
+				"id": "wood_final_yggdrasil",
+				"numeral": "Ⅰ",
+				"name": "世界樹ユグドラシル",
+				"role": "極限神格：継続大再生 ＆ 浄化",
+				"desc": "盤面に世界樹が顕現し、毎ターン全状態異常を解除＆最大HPの15%を継続回復。"
+			},
+			{
+				"id": "wood_final_sealing",
+				"numeral": "Ⅱ",
+				"name": "霊木の樹縛陣",
+				"role": "完全拘束 ＆ 追撃光線",
+				"desc": "敵を完全に根で拘束し、敵の防御力を0にしつつ毎ターン大木から追撃光線を放つ。"
+			},
+			{
+				"id": "wood_final_wrath",
+				"numeral": "Ⅲ",
+				"name": "大自然の怒り",
+				"role": "生命爆発大破滅",
+				"desc": "盤面の全木マスを一斉に生命爆発させ、累計回復量に応じた破滅的ダメージを与える。"
+			}
+		]
+	},
+	"wind": {
+		"mid": [
+			{
+				"id": "wind_mid_slicer",
+				"numeral": "Ⅰ",
+				"name": "烈風刃",
+				"role": "装甲切断 ＆ 防御力低下",
+				"desc": "風の刃が敵を切り裂き、防御力を永続15%低下させる。"
+			},
+			{
+				"id": "wind_mid_veil",
+				"numeral": "Ⅱ",
+				"name": "空蝉の風壁",
+				"role": "回避率上昇 ＆ 旋風反撃",
+				"desc": "敵の攻撃を回避する確率+20%。回避時に風の反撃刃を放つ。"
+			},
+			{
+				"id": "wind_mid_cyclone",
+				"numeral": "Ⅲ",
+				"name": "サイクロン循環",
+				"role": "連鎖率超向上",
+				"desc": "風スキル発動時、落ちてくるピースの連鎖率が大幅に向上する。"
+			}
+		],
+		"final": [
+			{
+				"id": "wind_final_tempest",
+				"numeral": "Ⅰ",
+				"name": "神嵐テンペスト",
+				"role": "極限神格：バフ全消去嵐",
+				"desc": "盤面全体を巨大竜巻が巻き込み、敵全体に多段猛嵐ダメージ＋敵の強化バフを全消去。"
+			},
+			{
+				"id": "wind_final_vacuum",
+				"numeral": "Ⅱ",
+				"name": "真空崩壊",
+				"role": "超圧縮吸引クリティカル",
+				"desc": "風の刃が連続命中した敵を中心へ引きずり込み、超圧縮された風圧で即死級クリティカル。"
+			},
+			{
+				"id": "wind_final_eternal",
+				"numeral": "Ⅲ",
+				"name": "常風の領域",
+				"role": "制限時間延長 ＆ コンボ加速",
+				"desc": "毎ターンの制限時間を+3秒延長し、コンボ倍率の上昇ペースを2倍にする。"
+			}
+		]
+	},
+	"earth": {
+		"mid": [
+			{
+				"id": "earth_mid_bulwark",
+				"numeral": "Ⅰ",
+				"name": "金剛岩壁",
+				"role": "シールド耐久上昇 ＆ 貫通無効",
+				"desc": "シールドの耐久値+40%。さらに敵の貫通攻撃を無効化する。"
+			},
+			{
+				"id": "earth_mid_tectonic",
+				"numeral": "Ⅱ",
+				"name": "地殻変動",
+				"role": "下層震動 ＆ 連鎖誘発",
+				"desc": "シールドマッチ時に下層ピースを激しく揺るがし、追加連鎖を誘発。"
+			},
+			{
+				"id": "earth_mid_crush",
+				"numeral": "Ⅲ",
+				"name": "重力圧殺",
+				"role": "盾耐久比例打撃",
+				"desc": "シールド耐久値に比例した打撃ダメージを敵に叩きつける。"
+			}
+		],
+		"final": [
+			{
+				"id": "earth_final_cataclysm",
+				"numeral": "Ⅰ",
+				"name": "ガイア・カタクリズム",
+				"role": "極限神格：耐性粉砕隕石",
+				"desc": "巨大な岩山が天より降り注ぎ、敵の全耐性を粉砕して壊滅的物理ダメージ。"
+			},
+			{
+				"id": "earth_final_fortress",
+				"numeral": "Ⅱ",
+				"name": "不落の城塞",
+				"role": "小ダメージ無効 ＆ デバフ遮絶",
+				"desc": "一定値以下のダメージを完全に0化し、受けるあらゆるデバフを遮絶する。"
+			},
+			{
+				"id": "earth_final_repulsion",
+				"numeral": "Ⅲ",
+				"name": "フォース・リパルジョン",
+				"role": "蓄積ダメージ全反射波",
+				"desc": "シールドが割れた瞬間、蓄積した全ダメージを2倍にして敵全体へ衝撃波として撃ち返す。"
+			}
+		]
+	},
+	"poison": {
+		"mid": [
+			{
+				"id": "poison_mid_corrosive",
+				"numeral": "Ⅰ",
+				"name": "腐蝕猛毒",
+				"role": "装甲直接融解 ＆ 毒強化",
+				"desc": "毒のダメージが敵のシールド・装甲を直接溶かし、毎ターンの毒ダメージ+50%。"
+			},
+			{
+				"id": "poison_mid_miasma",
+				"numeral": "Ⅱ",
+				"name": "冥瘴拡散",
+				"role": "自動侵食 ＆ 行動鈍化",
+				"desc": "毒マスが周囲のマスへ自動で侵食拡大し、敵の行動を鈍らせる。"
+			},
+			{
+				"id": "poison_mid_extraction",
+				"numeral": "Ⅲ",
+				"name": "死霊抽出",
+				"role": "毒吸血HP回復",
+				"desc": "毒状態の敵にダメージを与えた時、そのダメージの20%をHPとして吸収。"
+			}
+		],
+		"final": [
+			{
+				"id": "poison_final_lethal",
+				"numeral": "Ⅰ",
+				"name": "即死劇毒・致死臨界",
+				"role": "極限神格：毒精算即座起爆",
+				"desc": "敵の毒スタックが一定以上に達した時、残りの全毒ダメージを一瞬で即座に精算起爆する。"
+			},
+			{
+				"id": "poison_final_pandemic",
+				"numeral": "Ⅱ",
+				"name": "パンデミック・エンド",
+				"role": "全ステータス半減紫煙",
+				"desc": "盤面全体を致死の紫煙で覆い尽くし、敵の全ステータスを半減させる。"
+			},
+			{
+				"id": "poison_final_undying",
+				"numeral": "Ⅲ",
+				"name": "不死の瘴気肉体",
+				"role": "不死結界 ＆ 無限シールド",
+				"desc": "毒マスがある限りプレイヤーは死亡せず、毒ダメージ発生ごとにシールドが無限自動生成される。"
+			}
+		]
+	},
+	"light": {
+		"mid": [
+			{
+				"id": "light_mid_aurora",
+				"numeral": "Ⅰ",
+				"name": "聖光のオーラ",
+				"role": "被ダメージ軽減 ＆ 守護",
+				"desc": "光スキル発動時に聖なる輝きで味方を守護し、被ダメージを30%軽減。"
+			},
+			{
+				"id": "light_mid_purify",
+				"numeral": "Ⅱ",
+				"name": "浄化の閃光",
+				"role": "状態異常即時消滅",
+				"desc": "敵のデバフや盤面の有害マスを即座に光に変換して消滅させる。"
+			},
+			{
+				"id": "light_mid_splendor",
+				"numeral": "Ⅲ",
+				"name": "黄金の光彩",
+				"role": "獲得資金 ＆ スコア激増",
+				"desc": "光スキル発動時に獲得コインとスコアが+50%増加。"
+			}
+		],
+		"final": [
+			{
+				"id": "light_final_sanctuary",
+				"numeral": "Ⅰ",
+				"name": "エルドラド・サンクチュアリ",
+				"role": "極限神格：聖域HP全快 ＆ 攻撃2倍",
+				"desc": "聖域を展開し、毎ターンプレイヤーのHP全快＆攻撃力2倍の神聖オーラ付与。"
+			},
+			{
+				"id": "light_final_excalibur",
+				"numeral": "Ⅱ",
+				"name": "天翔ける神光剣",
+				"role": "破邪特効500%極大光線",
+				"desc": "闇・魔族系敵に特効500%の破邪の極大光線を放ち、敵のHPバーを消滅させる。"
+			},
+			{
+				"id": "light_final_radiance",
+				"numeral": "Ⅲ",
+				"name": "万物照覧",
+				"role": "全マッチ自動大昇格",
+				"desc": "盤面のあらゆるマッチが自動的に4マッチ以上の強力マッチに昇格する。"
+			}
+		]
+	},
+	"dark": {
+		"mid": [
+			{
+				"id": "dark_mid_bind",
+				"numeral": "Ⅰ",
+				"name": "影縫いの呪詛",
+				"role": "敵攻撃力強奪 ＆ 自強化",
+				"desc": "敵の攻撃力を25%奪い、自分の攻撃力に加算する。"
+			},
+			{
+				"id": "dark_mid_attraction",
+				"numeral": "Ⅱ",
+				"name": "虚無の引力",
+				"role": "ピース吸引 ＆ 大連鎖",
+				"desc": "闇の重力で周囲のピースを引き寄せ、大連鎖を発生させやすくする。"
+			},
+			{
+				"id": "dark_mid_drain",
+				"numeral": "Ⅲ",
+				"name": "暗黒吸魂",
+				"role": "剣闇ダメージHP吸収",
+				"desc": "剣マッチによる闇ダメージの30%をHPとして吸収する。"
+			}
+		],
+		"final": [
+			{
+				"id": "dark_final_blackhole",
+				"numeral": "Ⅰ",
+				"name": "アビス・ブラックホール",
+				"role": "極限神格：事象の地平線消滅",
+				"desc": "事象の地平線を開き、敵の攻撃・弾幕・デバフをすべて事象の彼方へ吸い込み消滅させる。"
+			},
+			{
+				"id": "dark_final_executioner",
+				"numeral": "Ⅱ",
+				"name": "冥界の執行者",
+				"role": "瀕死敵即座執行",
+				"desc": "敵のHPが25%以下になった時、即死させる（ボスにも有効）。"
+			},
+			{
+				"id": "dark_final_incarnate",
+				"numeral": "Ⅲ",
+				"name": "混沌の暗黒神",
+				"role": "全攻撃相性無視2.5倍",
+				"desc": "プレイヤーの与ダメージがすべて暗黒混沌ダメージとなり、属性相性を無視して2.5倍化する。"
+			}
+		]
+	}
+}
+
+# 選択済み進化の保存辞書: skill_id -> {"mid": "evo_id", "final": "evo_id"}
+var skill_evolutions: Dictionary = {}
+var tarot_modal_panel: Panel = null
+
 var skill_tree_items: Array[Dictionary] = [
 	{
 		"id": "water_1",
@@ -757,6 +1250,63 @@ func _get_puzzle_board() -> Node2D:
 func _get_stage_manager() -> Node2D:
 	var p = get_parent()
 	return p.get_node_or_null("StageManager") if p else null
+
+
+## 指定スキルの進化選択肢を取得
+func get_evolution_choices(skill_id: String, milestone_lvl: int) -> Array[Dictionary]:
+	var element = skill_id.split("_")[0]
+	if not SKILL_EVOLUTION_REGISTRY.has(element):
+		return []
+	var pool_key = "mid" if milestone_lvl == 5 else ("final" if milestone_lvl == 20 else "")
+	if pool_key == "":
+		return []
+	var res: Array[Dictionary] = []
+	for item in SKILL_EVOLUTION_REGISTRY[element].get(pool_key, []):
+		res.append(item)
+	return res
+
+## スキルの進化特性を選択・記録
+func choose_skill_evolution(skill_id: String, milestone_lvl: int, evo_id: String) -> void:
+	if not skill_evolutions.has(skill_id):
+		skill_evolutions[skill_id] = {}
+	var evo_slot = "mid" if milestone_lvl == 5 else "final"
+	skill_evolutions[skill_id][evo_slot] = evo_id
+	for s_item in skill_tree_items:
+		if s_item.get("id") == skill_id:
+			s_item["evolution_" + evo_slot] = evo_id
+			break
+
+## 選択された進化IDを取得
+func get_chosen_evolution(skill_id: String, milestone_lvl: int) -> String:
+	if not skill_evolutions.has(skill_id):
+		return ""
+	var evo_slot = "mid" if milestone_lvl == 5 else "final"
+	return skill_evolutions[skill_id].get(evo_slot, "")
+
+## 選択済みの進化を持っているか判定
+func has_chosen_evolution(skill_id: String, milestone_lvl: int) -> bool:
+	return get_chosen_evolution(skill_id, milestone_lvl) != ""
+
+## 進化名の取得
+func _get_evolution_name(skill_id: String, milestone_lvl: int, evo_id: String) -> String:
+	var choices = get_evolution_choices(skill_id, milestone_lvl)
+	for ch in choices:
+		if ch.get("id") == evo_id:
+			return ch.get("name", "")
+	return evo_id
+
+## 指定特性を習得しているか判定（skill_idまたは系統プレフィックス）
+func has_skill_trait(skill_id: String, evo_id: String) -> bool:
+	if skill_evolutions.has(skill_id):
+		if skill_evolutions[skill_id].get("mid", "") == evo_id or skill_evolutions[skill_id].get("final", "") == evo_id:
+			return true
+	var el_prefix = skill_id.split("_")[0]
+	for sk in skill_evolutions:
+		if sk.begins_with(el_prefix):
+			if skill_evolutions[sk].get("mid", "") == evo_id or skill_evolutions[sk].get("final", "") == evo_id:
+				return true
+	return false
+
 
 func _init() -> void:
 	for s_item in skill_tree_items:
@@ -2482,8 +3032,10 @@ func _get_relic_manager() -> Node:
 	return null
 
 var _rendered_skill_category: String = "__unset__"
+var chosen_category: String = ""
 
 func on_element_category_chosen(cat_key: String) -> void:
+	chosen_category = cat_key
 	rebuild_skill_tree_ui()
 	_setup_elem_status_panel(cat_key)
 	update_elem_labels()
@@ -2498,7 +3050,11 @@ func rebuild_skill_tree_ui() -> void:
 
 	var jp_font = _get_jp_font()
 	var rm = _get_relic_manager()
-	var cat_key: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+	var cat_key: String = ""
+	if rm and rm.has_method("get_chosen_element_category"):
+		cat_key = rm.get_chosen_element_category()
+	if cat_key == "":
+		cat_key = chosen_category
 
 	_rendered_skill_category = cat_key
 
@@ -2747,7 +3303,11 @@ func _switch_shop_view_mode(mode: int) -> void:
 		skill_tree_container.visible = (mode == 1)
 		if mode == 1:
 			var rm = _get_relic_manager()
-			var cur_cat: String = rm.get_chosen_element_category() if (rm and rm.has_method("get_chosen_element_category")) else ""
+			var cur_cat: String = ""
+			if rm and rm.has_method("get_chosen_element_category"):
+				cur_cat = rm.get_chosen_element_category()
+			if cur_cat == "":
+				cur_cat = chosen_category
 			if cur_cat != _rendered_skill_category:
 				rebuild_skill_tree_ui()
 
@@ -2940,6 +3500,18 @@ func _update_buff_button_labels() -> void:
 			s_ref["s_desc"].text = recipe_prefix + "[color=#B0BEC5]現在: %s[/color]\n[color=#FFD700]次(Lv.%d): %s[/color]" % [
 				cur_txt, cur_lvl + 1, next_txt
 			]
+		var evo_mid = get_chosen_evolution(s_item["id"], 5)
+		var evo_final = get_chosen_evolution(s_item["id"], 20)
+		if evo_mid != "" or evo_final != "":
+			var evo_info_str = "\n[color=#FFE082]"
+			if evo_mid != "":
+				var mid_name = _get_evolution_name(s_item["id"], 5, evo_mid)
+				evo_info_str += "【第1進化: %s】 " % mid_name
+			if evo_final != "":
+				var final_name = _get_evolution_name(s_item["id"], 20, evo_final)
+				evo_info_str += "【最終進化: %s】" % final_name
+			evo_info_str += "[/color]"
+			s_ref["s_desc"].text += evo_info_str
 
 		var s_btn: Button = s_ref["s_btn"]
 		var can_upgrade: bool = (not is_max) and req_met and (potions >= cost_val)
@@ -2961,6 +3533,10 @@ func _update_buff_button_labels() -> void:
 			s_btn.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58))
 		else:
 			var act_word = "スキル解放" if cur_lvl == 0 else ("Lv.%dへ強化" % (cur_lvl + 1))
+			if cur_lvl == 4:
+				act_word = "第1覚醒・中間進化 (Lv.5)"
+			elif cur_lvl == 19:
+				act_word = "極限神格化・最終進化 (Lv.20)"
 			s_btn.text = "🧪 %s で%s" % [_format_comma(cost_val), act_word]
 			if can_upgrade:
 				sb_style.bg_color = Color(0.32, 0.10, 0.28, 0.98)
@@ -3058,6 +3634,231 @@ func _purchase_buff(slot_idx: int) -> void:
 		if cancel_sound:
 			cancel_sound.play()
 
+## スキルツリーの解放・強化完了処理
+func _complete_skill_upgrade(skill_idx: int, new_lvl: int, chosen_evo_id: String = "") -> void:
+	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
+		return
+	var s_item = skill_tree_items[skill_idx]
+	var cost_ref: int = int(s_item["cost"])
+	var parent = get_parent()
+	divscore[PieceType.POTION] -= cost_ref
+	s_item["level"] = new_lvl
+	s_item["cost"] = int(cost_ref * 1.30)
+
+	if chosen_evo_id != "":
+		choose_skill_evolution(s_item["id"], new_lvl, chosen_evo_id)
+
+	var sp_type: int = int(s_item["sp_type"])
+	var pb = _get_puzzle_board()
+	if pb and "special_levels" in pb:
+		pb.special_levels[sp_type] = new_lvl
+		if sp_type == 9 and pb.has_method("_plant_sprout_on_board"):
+			pb._plant_sprout_on_board()
+
+	if s_item["id"] == "bomb":
+		bomb_buff_level = new_lvl
+
+	emit_signal("skill_upgraded", s_item["id"], sp_type, new_lvl)
+
+	var sound = parent.get_node_or_null("coinsound") if parent else null
+	if sound:
+		sound.play()
+	_update_buff_button_labels()
+
+## タロットカード風の正当進化モーダルUIの表示
+func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
+	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
+		return
+	var s_item = skill_tree_items[skill_idx]
+	var choices = get_evolution_choices(s_item["id"], milestone_lvl)
+	if choices.is_empty():
+		_complete_skill_upgrade(skill_idx, milestone_lvl, "")
+		return
+
+	if tarot_modal_panel and is_instance_valid(tarot_modal_panel):
+		tarot_modal_panel.queue_free()
+		tarot_modal_panel = null
+
+	var modal = Panel.new()
+	modal.name = "TarotEvolutionModal"
+	tarot_modal_panel = modal
+	modal.position = Vector2(0, 0)
+	modal.size = Vector2(1680, 874)
+	modal.z_index = 25
+
+	var bg_st = StyleBoxFlat.new()
+	bg_st.bg_color = Color(0.04, 0.05, 0.08, 0.95)
+	bg_st.border_color = Color(0.85, 0.72, 0.38, 0.9)
+	bg_st.set_border_width_all(2)
+	bg_st.set_corner_radius_all(14)
+	modal.add_theme_stylebox_override("panel", bg_st)
+
+	if shop_root_panel:
+		shop_root_panel.add_child(modal)
+	else:
+		add_child(modal)
+
+	# Close / Cancel button at top-right
+	var close_btn = Button.new()
+	close_btn.name = "ModalCloseBtn"
+	close_btn.text = "✕ キャンセル"
+	close_btn.position = Vector2(1520, 24)
+	close_btn.size = Vector2(130, 40)
+	var cl_st = StyleBoxFlat.new()
+	cl_st.bg_color = Color(0.18, 0.12, 0.14, 0.9)
+	cl_st.border_color = Color(0.85, 0.4, 0.4, 0.8)
+	cl_st.set_border_width_all(1)
+	cl_st.set_corner_radius_all(8)
+	close_btn.add_theme_stylebox_override("normal", cl_st)
+	close_btn.add_theme_color_override("font_color", Color(0.9, 0.8, 0.8))
+	close_btn.pressed.connect(func():
+		if is_instance_valid(modal):
+			modal.queue_free()
+		tarot_modal_panel = null
+	)
+	modal.add_child(close_btn)
+
+	# Header Title & Subtitle
+	var title_lbl = RichTextLabel.new()
+	title_lbl.name = "ModalTitle"
+	title_lbl.bbcode_enabled = true
+	title_lbl.position = Vector2(40, 30)
+	title_lbl.size = Vector2(1460, 90)
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var milestone_title = "【第1覚醒・中間進化】" if milestone_lvl == 5 else "【極限神格化・最終進化】"
+	title_lbl.text = "[center][b][color=#FFD54F][font_size=32]✦ 運命のアルカナ・スキルの正当進化 ✦[/font_size][/color][/b]\n"
+	title_lbl.text += "[color=#B0BEC5][font_size=18]スキル「[color=#FFE082]%s[/color]」が[color=#FFD700]%s[/color]に到達しました。歩むべき特性の進化を選択してください。[/font_size][/color][/center]" % [
+		s_item.get("name", ""), milestone_title
+	]
+	modal.add_child(title_lbl)
+
+	# Cards HBox Container
+	var card_count = choices.size()
+	var card_w: float = 380.0
+	var card_h: float = 640.0
+	var spacing: float = 40.0
+	var total_w = float(card_count) * card_w + float(card_count - 1) * spacing
+	var start_x = (1680.0 - total_w) / 2.0
+	var start_y = 150.0
+
+	var el_color = s_item.get("color", Color(0.85, 0.72, 0.38))
+
+	for i in range(card_count):
+		var choice = choices[i]
+		var c_x = start_x + float(i) * (card_w + spacing)
+		var c_y = start_y
+
+		var card = Panel.new()
+		card.name = "TarotCard_%d" % i
+		card.position = Vector2(c_x, c_y)
+		card.size = Vector2(card_w, card_h)
+
+		var card_st = StyleBoxFlat.new()
+		card_st.bg_color = Color(0.08, 0.10, 0.16, 0.98)
+		card_st.border_color = Color(0.85, 0.72, 0.38, 1.0)
+		card_st.set_border_width_all(2)
+		card_st.set_corner_radius_all(16)
+		card_st.shadow_color = Color(0.0, 0.0, 0.0, 0.6)
+		card_st.shadow_size = 8
+		card.add_theme_stylebox_override("panel", card_st)
+		modal.add_child(card)
+
+		# Top Numeral (Roman)
+		var num_lbl = RichTextLabel.new()
+		num_lbl.bbcode_enabled = true
+		num_lbl.position = Vector2(20, 24)
+		num_lbl.size = Vector2(card_w - 40, 40)
+		num_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		num_lbl.text = "[center][b][color=#D4AF37][font_size=28]── %s ──[/font_size][/color][/b][/center]" % str(choice.get("numeral", "Ⅰ"))
+		card.add_child(num_lbl)
+
+		# Card Title
+		var name_lbl = RichTextLabel.new()
+		name_lbl.bbcode_enabled = true
+		name_lbl.position = Vector2(16, 75)
+		name_lbl.size = Vector2(card_w - 32, 55)
+		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_lbl.text = "[center][b][color=%s][font_size=24]%s[/font_size][/color][/b][/center]" % [
+			el_color.to_html(), choice.get("name", "")
+		]
+		card.add_child(name_lbl)
+
+		# Role Subtitle
+		var role_lbl = RichTextLabel.new()
+		role_lbl.bbcode_enabled = true
+		role_lbl.position = Vector2(16, 135)
+		role_lbl.size = Vector2(card_w - 32, 35)
+		role_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		role_lbl.text = "[center][color=#FFE082][font_size=15]《 %s 》[/font_size][/color][/center]" % choice.get("role", "")
+		card.add_child(role_lbl)
+
+		# Gold Filigree Divider
+		var div = ColorRect.new()
+		div.position = Vector2(30, 180)
+		div.size = Vector2(card_w - 60, 2)
+		div.color = Color(0.85, 0.72, 0.38, 0.6)
+		card.add_child(div)
+
+		# Decorative Emblem Frame / Icon
+		var emblem_frame = Panel.new()
+		emblem_frame.position = Vector2((card_w - 90) / 2.0, 200)
+		emblem_frame.size = Vector2(90, 90)
+		var emb_st = StyleBoxFlat.new()
+		emb_st.bg_color = Color(el_color.r * 0.2, el_color.g * 0.2, el_color.b * 0.2, 0.8)
+		emb_st.border_color = el_color
+		emb_st.set_border_width_all(2)
+		emb_st.set_corner_radius_all(45)
+		emblem_frame.add_theme_stylebox_override("panel", emb_st)
+		card.add_child(emblem_frame)
+
+		var emblem_txt = RichTextLabel.new()
+		emblem_txt.bbcode_enabled = true
+		emblem_txt.position = Vector2(0, 20)
+		emblem_txt.size = Vector2(90, 50)
+		emblem_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		emblem_txt.text = "[center][font_size=32]%s[/font_size][/center]" % s_item.get("short_label", "✦")
+		emblem_frame.add_child(emblem_txt)
+
+		# Description
+		var desc_lbl = RichTextLabel.new()
+		desc_lbl.bbcode_enabled = true
+		desc_lbl.position = Vector2(24, 310)
+		desc_lbl.size = Vector2(card_w - 48, 220)
+		desc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var desc_text = str(choice.get("desc", ""))
+		desc_lbl.text = "[color=#ECEFF1][font_size=17]%s[/font_size][/color]" % desc_text
+		card.add_child(desc_lbl)
+
+		# "この運命を選択" Button
+		var sel_btn = Button.new()
+		sel_btn.name = "SelectBtn_%d" % i
+		sel_btn.text = "✦ この運命を選択 ✦"
+		sel_btn.position = Vector2(24, 550)
+		sel_btn.size = Vector2(card_w - 48, 54)
+
+		var btn_st = StyleBoxFlat.new()
+		btn_st.bg_color = Color(0.26, 0.20, 0.08, 1.0)
+		btn_st.border_color = Color(0.95, 0.82, 0.35, 1.0)
+		btn_st.set_border_width_all(2)
+		btn_st.set_corner_radius_all(10)
+		sel_btn.add_theme_stylebox_override("normal", btn_st)
+
+		var btn_st_hov = btn_st.duplicate()
+		btn_st_hov.bg_color = Color(0.38, 0.30, 0.12, 1.0)
+		btn_st_hov.border_color = Color(1.0, 0.9, 0.5, 1.0)
+		sel_btn.add_theme_stylebox_override("hover", btn_st_hov)
+		sel_btn.add_theme_color_override("font_color", Color("#FFF8E1"))
+		sel_btn.add_theme_font_size_override("font_size", 18)
+
+		var evo_id_captured = str(choice.get("id", ""))
+		sel_btn.pressed.connect(func():
+			if is_instance_valid(modal):
+				modal.queue_free()
+			tarot_modal_panel = null
+			_complete_skill_upgrade(skill_idx, milestone_lvl, evo_id_captured)
+		)
+		card.add_child(sel_btn)
+
 ## スキルツリーの解放・強化処理（余剰ポーション使用）
 func _purchase_skill(skill_idx: int) -> void:
 	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
@@ -3065,7 +3866,7 @@ func _purchase_skill(skill_idx: int) -> void:
 
 	var s_item = skill_tree_items[skill_idx]
 	var cur_lvl: int = int(s_item["level"])
-	var max_lvl: int = int(s_item.get("max_level", 3))
+	var max_lvl: int = int(s_item.get("max_level", 20))
 	var parent = get_parent()
 	if cur_lvl >= max_lvl:
 		var cancel_s = parent.get_node_or_null("cancel") if parent else null
@@ -3084,27 +3885,13 @@ func _purchase_skill(skill_idx: int) -> void:
 	var potion_amount: int = int(divscore[PieceType.POTION])
 
 	if potion_amount >= cost_ref:
-		divscore[PieceType.POTION] -= cost_ref
-		var new_lvl: int = cur_lvl + 1
-		s_item["level"] = new_lvl
-		s_item["cost"] = int(cost_ref * 1.30)
+		var target_lvl = cur_lvl + 1
+		# 進化マイルストーン（Lv.5またはLv.20）の判定
+		if (target_lvl == 5 or target_lvl == 20) and not has_chosen_evolution(s_item["id"], target_lvl):
+			_open_tarot_evolution_modal(skill_idx, target_lvl)
+			return
 
-		var sp_type: int = int(s_item["sp_type"])
-		var pb = _get_puzzle_board()
-		if pb and "special_levels" in pb:
-			pb.special_levels[sp_type] = new_lvl
-			if sp_type == 9 and pb.has_method("_plant_sprout_on_board"):
-				pb._plant_sprout_on_board()
-
-		if s_item["id"] == "bomb":
-			bomb_buff_level = new_lvl
-
-		emit_signal("skill_upgraded", s_item["id"], sp_type, new_lvl)
-
-		var sound = parent.get_node_or_null("coinsound") if parent else null
-		if sound:
-			sound.play()
-		_update_buff_button_labels()
+		_complete_skill_upgrade(skill_idx, target_lvl, "")
 	else:
 		var cancel_sound = parent.get_node_or_null("cancel") if parent else null
 		if cancel_sound:

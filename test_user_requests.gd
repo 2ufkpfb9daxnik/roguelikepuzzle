@@ -1205,5 +1205,112 @@ func _init() -> void:
 	print("✓ UI layout (bottom alignment at 944, undetermined attribute box, battle counter, combo scrollbar fix, skill/relic panels) verified!")
 
 
+
+	# -------------------------------------------------------------
+	# 24. Test Orthodox Skill Evolution & Tarot Card Selection & Ice Final Turn Skip
+	# -------------------------------------------------------------
+	print("\n--- Testing Section 24: Orthodox Skill Evolution & Tarot Card Selection ---")
+	var sm_evo = sc_script.new()
+	dummy_root.add_child(sm_evo)
+	sm_evo._init()
+	sm_evo.set_shop_ui_visible(true)
+	sm_evo.on_element_category_chosen("nature")
+	sm_evo._switch_shop_view_mode(1)
+
+	var t_ice_idx = -1
+	for i in range(sm_evo.skill_tree_items.size()):
+		if sm_evo.skill_tree_items[i]["id"] == "ice_1":
+			t_ice_idx = i
+			break
+	assert(t_ice_idx != -1, "ice_1 must exist")
+
+	sm_evo.divscore[sm_evo.PieceType.POTION] = 10000000
+
+	# 24.1 Level 1 to 4 upgrades do NOT open modal
+	for lvl in range(1, 5):
+		sm_evo._purchase_skill(t_ice_idx)
+		assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == lvl, "Level should be %d" % lvl)
+		assert(sm_evo.tarot_modal_panel == null or not is_instance_valid(sm_evo.tarot_modal_panel), "Modal should NOT be open for level %d" % lvl)
+
+	# 24.2 Level 5 triggers Mid Evolution Tarot Modal
+	sm_evo._purchase_skill(t_ice_idx)
+	assert(sm_evo.tarot_modal_panel != null and is_instance_valid(sm_evo.tarot_modal_panel), "Tarot modal MUST open when upgrading to Lv.5")
+	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 4, "Level stays 4 until evolution is selected")
+
+	# Check mid evolution cards (strictly NO turn skip)
+	var mid_cards = sm_evo.get_evolution_choices("ice_1", 5)
+	assert(mid_cards.size() == 3, "Ice mid evolution must have 3 cards")
+	for c in mid_cards:
+		assert(c["id"] != "ice_final_skip", "Ice mid evolution MUST NOT contain turn skip!")
+		assert("スキップ" not in c["desc"], "Ice mid evolution MUST NOT mention turn skip!")
+
+	# Choose mid card 0: 白銀の氷壁
+	var mid_btn = sm_evo.tarot_modal_panel.get_node("TarotCard_0/SelectBtn_0") as Button
+	assert(mid_btn != null, "Mid card 0 button must exist")
+	mid_btn.emit_signal("pressed")
+	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 5, "Level should now be 5")
+	assert(sm_evo.has_skill_trait("ice_1", "ice_mid_wall") == true, "Must have ice_mid_wall trait")
+
+	# 24.3 Level 5 to 19 upgrades do NOT open modal
+	for lvl in range(6, 20):
+		sm_evo._purchase_skill(t_ice_idx)
+		assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == lvl, "Level should be %d" % lvl)
+
+	# 24.4 Level 20 triggers Final Evolution Tarot Modal
+	sm_evo._purchase_skill(t_ice_idx)
+	assert(sm_evo.tarot_modal_panel != null and is_instance_valid(sm_evo.tarot_modal_panel), "Tarot modal MUST open when upgrading to Lv.20")
+	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 19, "Level stays 19 until evolution is selected")
+
+	# Check final evolution cards (Ice turn skip MUST be present here)
+	var final_cards = sm_evo.get_evolution_choices("ice_1", 20)
+	assert(final_cards.size() == 3, "Ice final evolution must have 3 cards")
+	var found_skip = false
+	for c in final_cards:
+		if c["id"] == "ice_final_skip":
+			found_skip = true
+	assert(found_skip == true, "Ice final evolution MUST contain absolute zero turn skip!")
+
+	# Choose final card 0: 絶対零度・完全凍結 (turn skip)
+	var final_btn = sm_evo.tarot_modal_panel.get_node("TarotCard_0/SelectBtn_0") as Button
+	assert(final_btn != null, "Final card 0 button must exist")
+	final_btn.emit_signal("pressed")
+	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 20, "Level should now be 20")
+	assert(sm_evo.has_skill_trait("ice_1", "ice_final_skip") == true, "Must have ice_final_skip trait")
+
+	# Check UI description displays both evolution badges
+	var ice_desc_text = ""
+	for s_ref in sm_evo.skill_node_refs:
+		if s_ref["s_idx"] == t_ice_idx:
+			ice_desc_text = s_ref["s_desc"].text
+			break
+	assert("【第1進化: 白銀の氷壁】" in ice_desc_text, "Desc text must display mid evolution badge")
+	assert("【最終進化: 絶対零度・完全凍結】" in ice_desc_text, "Desc text must display final evolution badge")
+
+	# 24.5 Test In-Combat Turn Skip Execution
+	var pb_evo = pb_script.new()
+	dummy_root.add_child(pb_evo)
+	pb_evo.score_manager = sm_evo
+	pb_evo._ready()
+	var stg_evo = sm_script.new()
+	dummy_root.add_child(stg_evo)
+	stg_evo.myhp = 1000.0
+	stg_evo.myhpmax = 1000.0
+	stg_evo.ehp = 500.0
+	stg_evo.active_enemies = [
+		{"sprite": Sprite2D.new(), "atk": 200.0, "ehp": 500.0, "max_ehp": 500.0}
+	]
+
+	# Cast ice skill with final evolution
+	assert(pb_evo.enemy_turn_skip_count == 0, "Initial skip count 0")
+	pb_evo.cast_player_skill("ice", true, 1)
+	assert(pb_evo.enemy_turn_skip_count == 1, "Enemy turn skip count must increment on casting Lv.20 ice")
+
+	# Execute enemy turn actions -> must skip enemy turn and deal 0 damage
+	var hp_before_enemy = stg_evo.myhp
+	pb_evo._execute_enemy_turn_actions(stg_evo)
+	assert(pb_evo.enemy_turn_skip_count == 0, "Skip count must be consumed")
+	assert(stg_evo.myhp == hp_before_enemy, "Player must take 0 damage when enemy turn is skipped")
+	print("✓ Section 24 passed: Orthodox Evolution Tarot Modal & Ice Final Turn Skip fully verified!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

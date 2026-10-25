@@ -204,6 +204,7 @@ var player_skill_title_label: Label = null
 var player_skill_energy_label: Label = null
 var player_skill_buttons: Dictionary = {}
 var enemy_skill_banner: RichTextLabel = null
+var enemy_turn_skip_count: int = 0
 var plant_entities: Array[Dictionary] = [] # [{"origin": Vector2i, "stage": int(0:苗,1:若木,2:大木3x3), "absorbed_water": int, "thunder_hp": int, "enemy_planted": bool, "drain_amount": int}]
 var special_levels: Dictionary = {
 	SpecialItemType.BOMB: 0,
@@ -6102,6 +6103,13 @@ func _spawn_slash_effect(pos: Vector2) -> void:
 	root_node.add_child(node)
 
 func _execute_enemy_turn_actions(sm: Node2D) -> void:
+	if enemy_turn_skip_count > 0:
+		enemy_turn_skip_count -= 1
+		has_enemy_attacked = true
+		is_enemy_turn_in_progress = false
+		_show_enemy_skill_banner("❄️ 絶対零度・時間停止", "#80D8FF", false, "【絶対零度】極限の冷気により敵の行動が完全スキップされた！")
+		_spawn_floating_text(Vector2(640, 360), "❄️ 敵は凍結して行動不能！", Color(0.4, 0.9, 1.0))
+		return
 	if has_enemy_attacked: return
 	has_enemy_attacked = true
 	if sm == null or sm.isdeadf or sm.ehp <= 0: return
@@ -9173,6 +9181,17 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				_spawn_floating_text(affected_positions[0], "🌊 大海嘯タイダル・フラッド！", Color(0.1, 0.8, 1.0))
 
 		"ice":
+			var has_ice_wall = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_mid_wall")
+			var has_ice_perma = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_mid_permafrost")
+			var has_ice_pierce = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_mid_pierce")
+			var has_ice_skip = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_final_skip")
+			var has_ice_avalanche = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_final_avalanche")
+
+			# 【氷の最終進化限定】：絶対零度による敵行動の完全スキップ
+			if has_ice_skip:
+				enemy_turn_skip_count += 1
+				_spawn_floating_text(Vector2(640, 360), "❄️【極限神格：絶対零度】敵のターンを完全スキップ！", Color(0.4, 0.9, 1.0))
+
 			if tier == 1:
 				# ❄️ 氷T1【氷盾付与】：氷マスを生成＆シールド獲得。隣接効果の進行を停止＆炎で融解
 				var candidates: Array[Vector2i] = []
@@ -9182,7 +9201,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 							candidates.append(Vector2i(r, c))
 				candidates.shuffle()
 				var count = mini(2 + sk_lvl / 2, candidates.size())
-				var dur = 1 + sk_lvl / 5
+				var dur = 1 + sk_lvl / 5 + (1 if has_ice_perma else 0)
 				for i in range(count):
 					var cell = candidates[i]
 					grid_ice[cell.x][cell.y] = dur
@@ -9190,9 +9209,11 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_ice_break_effect(pos)
-				var shield_gain = (150.0 + sk_lvl * 30.0) * stage_scale
+				var shield_gain = (150.0 + sk_lvl * 30.0) * stage_scale * (1.5 if has_ice_wall else 1.0)
 				_apply_skill_shield(shield_gain)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.4 if has_ice_pierce else 1.0)
+				if has_ice_wall:
+					_spawn_floating_text(get_cell_position(candidates[0].x, candidates[0].y) if not candidates.is_empty() else Vector2(640, 360), "🛡️【白銀の氷壁】氷盾大幅強化！", Color(0.85, 0.95, 1.0))
 				_check_and_trigger_ice_fire_melting()
 			elif tier == 2:
 				# ❄️ 氷T2【連鎖氷結フリージング・チェーン】：水マスや敵効果マスを凍結変換して完全封鎖
@@ -9213,13 +9234,14 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					grid_water[t_pos.x][t_pos.y] = false
 					grid_poison[t_pos.x][t_pos.y] = false
 					grid_fire[t_pos.x][t_pos.y] = 0
-					grid_ice[t_pos.x][t_pos.y] = 2
+					grid_ice[t_pos.x][t_pos.y] = 2 + (1 if has_ice_perma else 0)
 					_set_ally_flag(grid_ice_ally, t_pos.x, t_pos.y, true)
 					var pos = get_cell_position(t_pos.x, t_pos.y)
 					affected_positions.append(pos)
 					_spawn_ice_break_effect(pos)
-				direct_skill_dmg = (140.0 + sk_lvl * 25.0) * stage_scale
-				_spawn_floating_text(affected_positions[0], "❄️ 連鎖氷結フリージング・チェーン！", Color(0.4, 0.9, 1.0))
+				direct_skill_dmg = (140.0 + sk_lvl * 25.0) * stage_scale * (1.4 if has_ice_pierce else 1.0)
+				var fl_pos2 = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
+				_spawn_floating_text(fl_pos2, "❄️ 連鎖氷結フリージング・チェーン！", Color(0.4, 0.9, 1.0))
 			elif tier == 3:
 				# ❄️ 氷T3【絶対零度アブソリュート・ゼロ】：全氷マスを一斉共鳴爆砕(3x3破砕)＆封鎖した敵効果を粉砕
 				var ices: Array[Vector2i] = []
@@ -9236,8 +9258,12 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_trigger_thunder_shatter_synergy(ic.x, ic.y, is_in_match_phase)
 					var pos = get_cell_position(ic.x, ic.y)
 					affected_positions.append(pos)
-				direct_skill_dmg = float(ices.size()) * (240.0 + sk_lvl * 60.0) * stage_scale
-				_spawn_floating_text(affected_positions[0], "❄️ 絶対零度アブソリュート・ゼロ！", Color(0.3, 0.95, 1.0))
+				direct_skill_dmg = float(ices.size()) * (240.0 + sk_lvl * 60.0) * stage_scale * (2.5 if has_ice_avalanche else 1.0)
+				var fl_pos = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
+				if has_ice_avalanche:
+					_spawn_floating_text(fl_pos, "❄️【天氷大崩落】全氷マス共鳴大破砕！", Color(0.5, 0.95, 1.0))
+				else:
+					_spawn_floating_text(fl_pos, "❄️ 絶対零度アブソリュート・ゼロ！", Color(0.3, 0.95, 1.0))
 
 		"wood":
 			if tier == 1:
