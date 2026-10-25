@@ -1184,8 +1184,10 @@ func _init() -> void:
 	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
 	assert(is_equal_approx(skill_box.size.x, relic_box.size.x), "Skill and Relic panels must have exact same width (got %f vs %f)" % [skill_box.size.x, relic_box.size.x])
 	assert(is_equal_approx(skill_box.size.y, relic_box.size.y), "Skill and Relic panels must have exact same height (got %f vs %f)" % [skill_box.size.y, relic_box.size.y])
+	assert(skill_box.size.x >= 800.0, "Skill panel width must be extended (got %f)" % skill_box.size.x)
+	assert(skill_box.position.x >= 190.0, "skill_rect left edge (%f) must not overlap Settings button on bottom-left" % skill_box.position.x)
 	var relic_right_edge = relic_box.position.x + relic_box.size.x
-	assert(relic_right_edge <= 1730.0, "relic_rect right edge (%f) must stop before Settings button (x=1746.0) without overlap" % relic_right_edge)
+	assert(relic_right_edge <= 1920.0, "relic_rect right edge (%f) must fit inside viewport width 1920" % relic_right_edge)
 	relic_ui.queue_free()
 
 	# 9. Test Holy Light skill triggering (light element damage, replaces magnet)

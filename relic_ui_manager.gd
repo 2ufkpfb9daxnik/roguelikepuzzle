@@ -24,18 +24,18 @@ func _ready() -> void:
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 220..962, y: 952..1066), 右側 = 所持レリック欄 (x: 984..1726, y: 952..1066) ---
-	# スキル欄とレリック欄の大きさを完全同一（742 x 114）に統一し、設定ボタン (x: 1746..1896) とも美しく調和
+	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 190..1034, y: 952..1066), 右側 = 所持レリック欄 (x: 1056..1900, y: 952..1066) ---
+	# 左下の設定ボタン (x: 20..170) と調和させ、スキル欄とレリック欄の大きさを完全同一（844 x 114）へ左右均等に拡張
 	var gold_border = Color(0.960784, 1.0, 0.0901961, 1.0)
 	var bg_dark = Color(0.04, 0.05, 0.08, 1.0)
 	var div_color = Color(0.960784, 1.0, 0.0901961, 0.75)
-	var panel_size = Vector2(742.0, 114.0)
-	var panel_inner_size = Vector2(738.0, 110.0)
+	var panel_size = Vector2(844.0, 114.0)
+	var panel_inner_size = Vector2(840.0, 110.0)
 
 	# 1. スキル欄の外枠・内枠・区切り線
 	var skill_rect = ColorRect.new()
 	skill_rect.name = "skill_rect"
-	skill_rect.position = Vector2(220.0, 952.0)
+	skill_rect.position = Vector2(190.0, 952.0)
 	skill_rect.size = panel_size
 	skill_rect.color = gold_border
 	skill_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -44,7 +44,7 @@ func _ready() -> void:
 
 	var skill2_rect = ColorRect.new()
 	skill2_rect.name = "skill2_rect"
-	skill2_rect.position = Vector2(222.0, 954.0)
+	skill2_rect.position = Vector2(192.0, 954.0)
 	skill2_rect.size = panel_inner_size
 	skill2_rect.color = bg_dark
 	skill2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -53,7 +53,7 @@ func _ready() -> void:
 
 	var skill_vline = ColorRect.new()
 	skill_vline.name = "skill_vline"
-	skill_vline.position = Vector2(334.0, 954.0)
+	skill_vline.position = Vector2(304.0, 954.0)
 	skill_vline.size = Vector2(2.0, 110.0)
 	skill_vline.color = div_color
 	skill_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -64,7 +64,7 @@ func _ready() -> void:
 	var skill_tag = Label.new()
 	skill_tag.name = "skill_tag"
 	skill_tag.text = "【スキル】"
-	skill_tag.position = Vector2(224.0, 988.0)
+	skill_tag.position = Vector2(194.0, 988.0)
 	skill_tag.size = Vector2(106.0, 40.0)
 	skill_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	skill_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -77,17 +77,17 @@ func _ready() -> void:
 
 	skill_container = HFlowContainer.new()
 	skill_container.name = "skill_container"
-	skill_container.position = Vector2(342.0, 960.0)
-	skill_container.size = Vector2(612.0, 98.0)
+	skill_container.position = Vector2(312.0, 960.0)
+	skill_container.size = Vector2(714.0, 98.0)
 	skill_container.add_theme_constant_override("h_separation", 8)
 	skill_container.add_theme_constant_override("v_separation", 8)
 	skill_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(skill_container)
 
-	# 2. レリック欄の外枠・内枠・区切り線（スキル欄と完全同一サイズ 742 x 114、設定ボタンの手前で終端）
+	# 2. レリック欄の外枠・内枠・区切り線（スキル欄と完全同一サイズ 844 x 114、画面右端まで美しく伸長）
 	var relic_rect = ColorRect.new()
 	relic_rect.name = "relic_rect"
-	relic_rect.position = Vector2(984.0, 952.0)
+	relic_rect.position = Vector2(1056.0, 952.0)
 	relic_rect.size = panel_size
 	relic_rect.color = gold_border
 	relic_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -96,7 +96,7 @@ func _ready() -> void:
 
 	var relic2_rect = ColorRect.new()
 	relic2_rect.name = "relic2_rect"
-	relic2_rect.position = Vector2(986.0, 954.0)
+	relic2_rect.position = Vector2(1058.0, 954.0)
 	relic2_rect.size = panel_inner_size
 	relic2_rect.color = bg_dark
 	relic2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -105,7 +105,7 @@ func _ready() -> void:
 
 	var relic_vline = ColorRect.new()
 	relic_vline.name = "relic_vline"
-	relic_vline.position = Vector2(1102.0, 954.0)
+	relic_vline.position = Vector2(1174.0, 954.0)
 	relic_vline.size = Vector2(2.0, 110.0)
 	relic_vline.color = div_color
 	relic_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -116,7 +116,7 @@ func _ready() -> void:
 	var relic_tag = Label.new()
 	relic_tag.name = "relic_tag"
 	relic_tag.text = "【レリック】"
-	relic_tag.position = Vector2(988.0, 988.0)
+	relic_tag.position = Vector2(1060.0, 988.0)
 	relic_tag.size = Vector2(112.0, 40.0)
 	relic_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	relic_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -129,8 +129,8 @@ func _ready() -> void:
 
 	container = HFlowContainer.new()
 	container.name = "relic_container"
-	container.position = Vector2(1110.0, 960.0)
-	container.size = Vector2(608.0, 98.0)
+	container.position = Vector2(1182.0, 960.0)
+	container.size = Vector2(710.0, 98.0)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
