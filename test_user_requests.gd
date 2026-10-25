@@ -801,19 +801,19 @@ func _init() -> void:
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 	print("✓ Unlocked 4-Match POTION correctly generates POISON_MIST in mystic!")
-	# 4-Match COIN in mystic -> MAGNET
+	# 4-Match COIN in mystic -> HOLY_LIGHT (聖光星 / 旧MAGNET)
 	clean_board.call()
-	pb.special_levels[pb.SpecialItemType.MAGNET] = 1
+	pb.special_levels[pb.SpecialItemType.HOLY_LIGHT] = 1
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("mystic")
 	for c in range(2, 6):
 		pb.grid_n[5][c] = pb.PieceType.COIN
 	pb.last_swap_cells = [Vector2i(5, 3), Vector2i(6, 3)]
 	pb._detect_and_spawn_special_from_matches()
-	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.MAGNET, "4-Match COIN in mystic must generate MAGNET when unlocked")
+	assert(pb.pending_special_spawns.get(Vector2i(5, 3)) == pb.SpecialItemType.HOLY_LIGHT, "4-Match COIN in mystic must generate HOLY_LIGHT when unlocked")
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
-	print("✓ Unlocked 4-Match COIN correctly generates MAGNET in mystic (balanced, not DISCO_BALL)!")
+	print("✓ Unlocked 4-Match COIN correctly generates HOLY_LIGHT (聖光星) in mystic (replaces magnet)!")
 
 	# ==============================================================================
 	# 21. Test Poison Immunity Reduction
@@ -1140,7 +1140,7 @@ func _init() -> void:
 	if rm and rm.has_method("set_chosen_element_category"):
 		rm.set_chosen_element_category("")
 
-	# 7. Test StageLabel higher position and current battle display directly below it
+	# 7. Test StageLabel higher position and current battle display directly below it (without parentheses covering board)
 	var stage_lbl = RichTextLabel.new()
 	stage_lbl.name = "StageLabel"
 	sm.add_child(stage_lbl)
@@ -1158,15 +1158,18 @@ func _init() -> void:
 	assert(sm.label.position.y == 16.0, "StageLabel must be moved up to y=16.0 (got %f)" % sm.label.position.y)
 	assert(sm.label.scroll_active == false, "StageLabel must have scroll_active = false")
 	assert(sm.label.text.contains("STAGE"), "StageLabel must contain STAGE")
+	assert(sm.label.position.x + sm.label.size.x <= 240.0, "StageLabel right edge must not reach board (x >= 243.0)")
 	assert(sm.label2 != null, "sm.label2 must exist")
 	assert(sm.label2.position.y > sm.label.position.y, "StageLabel2 must be placed directly below StageLabel (got y=%f vs %f)" % [sm.label2.position.y, sm.label.position.y])
-	assert(sm.label2.text.contains("BATTLE") and sm.label2.text.contains("1/5"), "StageLabel2 directly below must display current match counter (got %s)" % sm.label2.text)
+	assert(sm.label2.position.x + sm.label2.size.x <= 240.0, "StageLabel2 right edge must not reach board (x >= 243.0)")
+	assert(not sm.label2.text.contains("("), "StageLabel2 must not contain parentheses to avoid covering board (got %s)" % sm.label2.text)
+	assert(sm.label2.text.contains("BATTLE") and sm.label2.text.contains("/5"), "StageLabel2 directly below must display current match counter (got %s)" % sm.label2.text)
 
 	sm.stage_enemy = 5
 	sm.label_control()
 	assert(sm.label2.text.contains("BOSS"), "StageLabel2 must display BOSS on 5th match (got %s)" % sm.label2.text)
 
-	# 8. Test Relic and Skill panel boxes (must not overlap with Settings button at x >= 1746.0)
+	# 8. Test Relic and Skill panel boxes (sizes must match each other and not overlap Settings button)
 	var relic_ui = load("res://relic_ui_manager.gd").new()
 	dummy_root.add_child(relic_ui)
 	relic_ui._ready()
@@ -1179,9 +1182,22 @@ func _init() -> void:
 	assert(relic_box != null, "relic_rect must exist in RelicUIManager")
 	assert(relic_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "relic_rect must have matching gold border")
 	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
+	assert(is_equal_approx(skill_box.size.x, relic_box.size.x), "Skill and Relic panels must have exact same width (got %f vs %f)" % [skill_box.size.x, relic_box.size.x])
+	assert(is_equal_approx(skill_box.size.y, relic_box.size.y), "Skill and Relic panels must have exact same height (got %f vs %f)" % [skill_box.size.y, relic_box.size.y])
 	var relic_right_edge = relic_box.position.x + relic_box.size.x
 	assert(relic_right_edge <= 1730.0, "relic_rect right edge (%f) must stop before Settings button (x=1746.0) without overlap" % relic_right_edge)
 	relic_ui.queue_free()
+
+	# 9. Test Holy Light skill triggering (light element damage, replaces magnet)
+	pb._initialize_board(null)
+	pb.special_levels[pb.SpecialItemType.HOLY_LIGHT] = 1
+	var holy_r = 4
+	var holy_c = 4
+	pb.special_item[holy_r][holy_c] = pb.SpecialItemType.HOLY_LIGHT
+	var queue_holy: Array = []
+	var exploded_holy: Dictionary = {Vector2i(holy_r, holy_c): true}
+	pb._trigger_holy_light(holy_r, holy_c, pb.get_cell_position(holy_r, holy_c), queue_holy, exploded_holy)
+	assert(pb.ismatched[holy_r][holy_c] == true, "Holy Light cell must be matched")
 
 	print("✓ UI layout (bottom alignment at 944, undetermined attribute box, battle counter, combo scrollbar fix, skill/relic panels) verified!")
 

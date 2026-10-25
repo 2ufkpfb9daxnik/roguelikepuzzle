@@ -646,7 +646,7 @@ func _ready() -> void:
 func label_control() -> void:
 	if label:
 		label.position = Vector2(20.0, 16.0)
-		label.size = Vector2(380.0, 56.0)
+		label.size = Vector2(215.0, 48.0)
 		label.scroll_active = false
 		label.z_index = 2
 		var sm = _get_settings_manager()
@@ -658,14 +658,14 @@ func label_control() -> void:
 				diff_badge = " [color=#FF5252][HARD][/color]"
 		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s[/b]" % [stage, diff_badge]
 	if label2:
-		label2.position = Vector2(22.0, 68.0)
-		label2.size = Vector2(380.0, 48.0)
+		label2.position = Vector2(20.0, 64.0)
+		label2.size = Vector2(215.0, 42.0)
 		label2.scroll_active = false
 		label2.z_index = 2
 		if is_boss_battle() or stage_enemy >= 5:
-			label2.text = "[b][font_size=26][color=#FF5252]⚔️ BOSS BATTLE[/color] [font_size=20][color=#FF8A80](BOSS 5/5)[/color][/font_size][/font_size][/b]"
+			label2.text = "[b][font_size=24][color=#FF5252]⚔️ BOSS BATTLE[/color][/font_size][/b]"
 		else:
-			label2.text = "[b][font_size=26][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color] [font_size=20][color=#B0BEC5](%d/5 試合目)[/color][/font_size][/font_size][/b]" % [stage_enemy, stage_enemy]
+			label2.text = "[b][font_size=24][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color][/font_size][/b]" % stage_enemy
 
 ## 敵の撃破または前進によるカウント加算
 func add_stage_label() -> void:

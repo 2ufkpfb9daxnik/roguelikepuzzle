@@ -131,7 +131,8 @@ enum SpecialItemType {
 	TORNADO = 7,           # つむじ風/竜巻 (風: 一方向直進巻き上げ, Lv1=幅1, Lv2=幅3, Lv3=幅5)
 	AQUA_SPLASH = 8,       # アクアスプラッシュ (水: 周囲水浸し展開, Lv1=3x3, Lv2=5x5, Lv3=広域)
 	TREE_SPROUT = 9,       # 生命の苗木 (地: 水を吸って3x3大木へ進化, 毎ターン回復, 雷耐久, 火延焼)
-	MAGNET = 10,           # マグネット (互換用)
+	HOLY_LIGHT = 10,       # 聖光星・ホーリースター (光: 聖なる光を全方位へ放ち敵に光属性ダメージ+浄化)
+	MAGNET = 10,           # 互換用エイリアス
 	CHARGE_BOMB = 11,      # チャージボム (互換用)
 	GEMINI_BOMB = 12,      # ジェミニボム (互換用)
 	ICE_SHIELD = 13,       # 氷盾・氷晶 (氷: 氷結マス展開・効果進行停止)
@@ -1244,8 +1245,8 @@ func _select_special_for_match(kind: int, total_count: int, max_line: int, has_c
 			PieceType.COIN: # 風
 				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.TORNADO, 0) > 0:
 					return SpecialItemType.TORNADO
-				if max_line >= 5 and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
-					return SpecialItemType.MAGNET
+				if max_line >= 5 and special_levels.get(SpecialItemType.TORNADO, 0) > 0:
+					return SpecialItemType.TORNADO
 				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.TORNADO, 0) > 0:
 					return SpecialItemType.TORNADO
 
@@ -1287,10 +1288,10 @@ func _select_special_for_match(kind: int, total_count: int, max_line: int, has_c
 			PieceType.COIN: # 光
 				if total_count >= 7 and special_levels.get(SpecialItemType.DISCO_BALL, 0) > 0:
 					return SpecialItemType.DISCO_BALL
-				if (has_cross or total_count >= 6 or max_line >= 5) and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
-					return SpecialItemType.MAGNET
-				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.MAGNET, 0) > 0:
-					return SpecialItemType.MAGNET
+				if (has_cross or total_count >= 6 or max_line >= 5) and special_levels.get(SpecialItemType.HOLY_LIGHT, 0) > 0:
+					return SpecialItemType.HOLY_LIGHT
+				if (total_count >= 4 or max_line >= 4) and special_levels.get(SpecialItemType.HOLY_LIGHT, 0) > 0:
+					return SpecialItemType.HOLY_LIGHT
 			PieceType.SWORD: # 闇
 				if (has_cross or total_count >= 6) and special_levels.get(SpecialItemType.BLACK_HOLE, 0) > 0:
 					return SpecialItemType.BLACK_HOLE
@@ -1318,7 +1319,7 @@ func _select_special_for_match(kind: int, total_count: int, max_line: int, has_c
 				if special_levels.get(SpecialItemType.COLOR_CONVERTER, 0) > 0: return SpecialItemType.COLOR_CONVERTER
 				if special_levels.get(SpecialItemType.CHARGE_BOMB, 0) > 0: return SpecialItemType.CHARGE_BOMB
 			PieceType.COIN:
-				if special_levels.get(SpecialItemType.MAGNET, 0) > 0: return SpecialItemType.MAGNET
+				if special_levels.get(SpecialItemType.HOLY_LIGHT, 0) > 0: return SpecialItemType.HOLY_LIGHT
 				if special_levels.get(SpecialItemType.LIGHTNING, 0) > 0: return SpecialItemType.LIGHTNING
 				if special_levels.get(SpecialItemType.TORNADO, 0) > 0: return SpecialItemType.TORNADO
 			PieceType.POTION:
@@ -1634,9 +1635,12 @@ func _detonate_specials(start_items: Array) -> void:
 			SpecialItemType.TREE_SPROUT:
 				s_name = "tree_sprout"
 				s_elem = "wind"
-			SpecialItemType.LIGHTNING, SpecialItemType.MAGNET:
+			SpecialItemType.LIGHTNING:
 				s_name = "lightning"
 				s_elem = "thunder"
+			SpecialItemType.HOLY_LIGHT:
+				s_name = "holy_star"
+				s_elem = "player_skill_light"
 			SpecialItemType.AQUA_SPLASH:
 				s_name = "aqua_splash"
 				s_elem = "water"
@@ -1684,8 +1688,8 @@ func _detonate_specials(start_items: Array) -> void:
 				_trigger_color_converter(b.x, b.y, pos, queue, exploded_items)
 			SpecialItemType.BLACK_HOLE:
 				_trigger_black_hole(b.x, b.y, pos, queue, exploded_items)
-			SpecialItemType.MAGNET:
-				_trigger_magnet(b.x, b.y, pos, queue, exploded_items)
+			SpecialItemType.HOLY_LIGHT:
+				_trigger_holy_light(b.x, b.y, pos, queue, exploded_items)
 			SpecialItemType.CHARGE_BOMB:
 				_trigger_charge_bomb(b.x, b.y, pos, queue, exploded_items)
 			SpecialItemType.GEMINI_BOMB:
@@ -2419,19 +2423,22 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 					if has_sp and not (Vector2i(nr, nc) in exploded_items):
 						queue.append(Vector2i(nr, nc))
 
-func _trigger_magnet(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var target_att: int = grid_att[r][c]
 	if target_att < 0: target_att = _get_dominant_attribute()
-	var lvl: int = max(1, special_levels.get(SpecialItemType.MAGNET, 1))
-	var max_pull: int = 4 if lvl == 1 else (8 if lvl == 2 else (14 + lvl * 2 if lvl < 10 else 999))
+	var lvl: int = max(1, special_levels.get(SpecialItemType.HOLY_LIGHT, 1))
 
 	var candidates: Array[Vector2i] = []
 	for nr in range(GRID_ROWS):
 		for nc in range(GRID_COLUMNS):
-			if grid_i[nr][nc] != -1 and grid_att[nr][nc] == target_att and not (nr == r and nc == c):
-				candidates.append(Vector2i(nr, nc))
+			if grid_i[nr][nc] != -1 and not (nr == r and nc == c):
+				var is_line = (nr == r or nc == c or abs(nr - r) == abs(nc - c))
+				var is_bad = (grid_poison.size() == GRID_ROWS and grid_poison[nr][nc]) or (grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0)
+				if is_bad or is_line or grid_att[nr][nc] == target_att:
+					candidates.append(Vector2i(nr, nc))
 	candidates.shuffle()
 
+	var max_pull: int = 4 if lvl == 1 else (6 if lvl == 2 else mini(16, 6 + lvl * 2))
 	var target_positions: Array[Vector2] = []
 	ismatched[r][c] = true
 	for k in range(mini(max_pull, candidates.size())):
@@ -2442,7 +2449,16 @@ func _trigger_magnet(r: int, c: int, pos: Vector2, queue: Array, exploded_items:
 		if has_sp and not (cp in exploded_items):
 			queue.append(cp)
 
-	_spawn_magnet_effect(pos, target_positions)
+	var sm = _get_stage_manager()
+	var base_dmg = 70.0 + lvl * 15.0
+	_emit_combat_event("damage", "ally", "enemy", base_dmg, "player_skill_light")
+	if sm and sm.has_method("calchp"):
+		sm.calchp(int(base_dmg), 0)
+
+	_spawn_holy_light_effect(pos, target_positions)
+
+func _trigger_magnet(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+	_trigger_holy_light(r, c, pos, queue, exploded_items)
 
 func _trigger_charge_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.CHARGE_BOMB, 1))
@@ -3556,24 +3572,29 @@ func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
 	tw.chain().tween_callback(disk.queue_free)
 	tw.parallel().tween_callback(void_core.queue_free)
 
-## マグネットエフェクト（対象から中心への磁力線）
-func _spawn_magnet_effect(center_pos: Vector2, targets: Array[Vector2]) -> void:
+## 聖光星エフェクト（眩い黄金・聖光線の全方位放射と衝撃波）
+func _spawn_holy_light_effect(center_pos: Vector2, targets: Array[Vector2]) -> void:
 	var effects_parent = get_node_or_null("Effects")
 	if effects_parent == null: effects_parent = self
-	_trigger_screen_shake(30.0)
+	_trigger_screen_shake(25.0)
+	_spawn_screen_flash(Color(1.0, 0.98, 0.7, 0.35), 0.15)
+	_spawn_shockwave_ring(center_pos, Color(1.0, 0.95, 0.4, 0.9), 350.0, 0.25)
 
 	for t_pos in targets:
 		var line = Line2D.new()
-		line.default_color = Color(1.0, 0.3, 0.1, 0.85)
-		line.width = 14.0
+		line.default_color = Color(1.0, 0.95, 0.45, 0.95)
+		line.width = 12.0
 		line.z_index = 28
-		line.add_point(t_pos)
 		line.add_point(center_pos)
+		line.add_point(t_pos)
 		Profiler.add_child_count += 1; effects_parent.add_child(line)
 
 		var tw = create_tween()
-		tw.tween_property(line, "modulate:a", 0.0, 0.25)
+		tw.tween_property(line, "modulate:a", 0.0, 0.22)
 		tw.tween_callback(line.queue_free)
+
+func _spawn_magnet_effect(center_pos: Vector2, targets: Array[Vector2]) -> void:
+	_spawn_holy_light_effect(center_pos, targets)
 
 ## 超巨大爆弾エフェクト（チャージ段階に応じた破格の大爆破）
 func _spawn_mega_explosion_effect(pos: Vector2, ch: int) -> void:
@@ -4970,7 +4991,7 @@ func _process(delta: float) -> void:
 								SpecialItemType.COLOR_CONVERTER: glow_color = Color(0.2, 1.8, 0.6, 1.0)
 								SpecialItemType.LIGHTNING: glow_color = Color(1.8, 1.8, 0.2, 1.0)
 								SpecialItemType.BLACK_HOLE: glow_color = Color(0.8, 0.2, 1.8, 1.0)
-								SpecialItemType.MAGNET: glow_color = Color(1.8, 0.6, 0.2, 1.0)
+								SpecialItemType.HOLY_LIGHT: glow_color = Color(2.0, 1.9, 0.8, 1.0)
 								SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
 								SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
 								SpecialItemType.ICE_SHIELD: glow_color = Color(0.2, 1.4, 2.0, 1.0)
@@ -5151,11 +5172,38 @@ func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s
 			overlay.draw_circle(center + Vector2(18, -14) * s, 16.0 * s, Color(0.2, 0.6, 1.0, alpha))
 			overlay.draw_circle(center + Vector2(0, 20) * s, 16.0 * s, Color(0.2, 0.95, 0.4, alpha))
 
-		SpecialItemType.MAGNET: # 10: マグネット（🧲赤青U字磁石）
-			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(1.0, 0.4, 0.1, alpha), 9.0 * s)
-			overlay.draw_arc(center + Vector2(0, 8) * s, 30.0 * s, 0, PI, 16, Color(0.65, 0.65, 0.7, alpha), 12.0 * s)
-			overlay.draw_line(center + Vector2(-30, 8) * s, center + Vector2(-30, -30) * s, Color(1.0, 0.2, 0.2, alpha), 12.0 * s)
-			overlay.draw_line(center + Vector2(30, 8) * s, center + Vector2(30, -30) * s, Color(0.2, 0.4, 1.0, alpha), 12.0 * s)
+		SpecialItemType.HOLY_LIGHT: # 10: 聖光星・ホーリースター（✨ 黄金・聖光8方位星）
+			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(1.0, 0.92, 0.35, alpha), 8.0 * s)
+			var star_pts_v = PackedVector2Array([
+				center + Vector2(0, -36) * s,
+				center + Vector2(10, 0) * s,
+				center + Vector2(0, 36) * s,
+				center + Vector2(-10, 0) * s
+			])
+			var star_pts_h = PackedVector2Array([
+				center + Vector2(-36, 0) * s,
+				center + Vector2(0, 10) * s,
+				center + Vector2(36, 0) * s,
+				center + Vector2(0, -10) * s
+			])
+			overlay.draw_colored_polygon(star_pts_v, Color(1.0, 1.0, 0.9, alpha))
+			overlay.draw_colored_polygon(star_pts_h, Color(1.0, 1.0, 0.9, alpha))
+			var star_pts_d1 = PackedVector2Array([
+				center + Vector2(-22, -22) * s,
+				center + Vector2(6, -6) * s,
+				center + Vector2(22, 22) * s,
+				center + Vector2(-6, 6) * s
+			])
+			var star_pts_d2 = PackedVector2Array([
+				center + Vector2(22, -22) * s,
+				center + Vector2(6, 6) * s,
+				center + Vector2(-22, 22) * s,
+				center + Vector2(-6, -6) * s
+			])
+			overlay.draw_colored_polygon(star_pts_d1, Color(1.0, 0.88, 0.35, alpha * 0.9))
+			overlay.draw_colored_polygon(star_pts_d2, Color(1.0, 0.88, 0.35, alpha * 0.9))
+			overlay.draw_circle(center, 10.0 * s, Color(1.0, 0.82, 0.1, alpha))
+			overlay.draw_circle(center, 5.0 * s, Color(1.0, 1.0, 1.0, alpha))
 
 		SpecialItemType.CHARGE_BOMB: # 11: チャージボム（ボム＋段階ピップ）
 			overlay.draw_arc(center, badge_r, 0, TAU, 32, Color(1.0, 0.2, 0.4, alpha), 9.0 * s)
@@ -8376,10 +8424,10 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 			title = "[b][color=#76FF03]🌱 生命の苗木 (Lv%d/20)[/color][/b]" % sp_lvl
 			var th_def = 1 + int((sp_lvl - 1) / 3)
 			desc = "[font_size=19]盤面に根を張り、水を吸うことで大木へ進化！（耐雷耐久 %d）\n毎ターンプレイヤーのHPを自動回復します。[/font_size]" % th_def
-		SpecialItemType.MAGNET:
-			title = "[b][color=#40C4FF]🧲 マグネットストーム (Lv%d/20)[/color][/b]" % sp_lvl
-			var pull_str = "%d個" % (4 if sp_lvl == 1 else (8 if sp_lvl == 2 else (14 + sp_lvl * 2 if sp_lvl < 10 else 999)))
-			desc = "[font_size=19]同種コマ（最大[color=#FFD700]%s[/color]）を中央へ引き寄せ大連結させます。[/font_size]" % ("全コマ" if sp_lvl >= 10 else pull_str)
+		SpecialItemType.HOLY_LIGHT:
+			title = "[b][color=#FFEE58]✨ 聖光星 (ホーリースター) (Lv%d/20)[/color][/b]" % sp_lvl
+			var target_cnt = 4 if sp_lvl == 1 else (6 if sp_lvl == 2 else mini(16, 6 + sp_lvl * 2))
+			desc = "[font_size=19]聖なる光を全方位へ放ち、敵へ光属性ダメージ（威力 %d）を与えて盤面を浄化します。[/font_size]" % (70 + sp_lvl * 15)
 		SpecialItemType.CHARGE_BOMB:
 			title = "[b][color=#FFAB00]🔋 チャージボム (Lv%d/20)[/color][/b]" % sp_lvl
 			var chg = special_charge[r][c] if special_charge.size() == GRID_ROWS else 0
