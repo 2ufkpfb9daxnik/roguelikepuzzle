@@ -3262,7 +3262,7 @@ func rebuild_skill_tree_ui() -> void:
 			var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
 			if r_ui and r_ui.has_method("show_custom_tooltip"):
 				var c_lvl = int(s_item.get("level", 0))
-				var m_lvl = int(s_item.get("max_level", 3))
+				var m_lvl = int(s_item.get("max_level", 20))
 				var col_hex = s_item.get("color", Color.WHITE).to_html(false)
 				var t_str = "[b][color=#%s]🌿 %s (Lv%d/%d)[/color][/b]" % [col_hex, s_item.get("name", "Skill"), c_lvl, m_lvl]
 				var d_arr: Array = s_item.get("desc_lv", [])
@@ -3277,6 +3277,17 @@ func rebuild_skill_tree_ui() -> void:
 					d_str = recipe_info + "[font_size=19][color=#AAAAAA]【未習得】[/color]\n習得効果 (Lv1): %s[/font_size]" % next_d
 				else:
 					d_str = recipe_info + "[font_size=19]現在 (Lv%d): %s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [c_lvl, cur_d, c_lvl + 1, next_d]
+				var evo_mid = get_chosen_evolution(card_skill_id, 5)
+				var evo_final = get_chosen_evolution(card_skill_id, 20)
+				if evo_mid != "" or evo_final != "":
+					d_str += "\n\n[color=#FFE082]"
+					if evo_mid != "":
+						var mid_name = _get_evolution_name(card_skill_id, 5, evo_mid)
+						d_str += "【第1進化: %s】\n" % mid_name
+					if evo_final != "":
+						var final_name = _get_evolution_name(card_skill_id, 20, evo_final)
+						d_str += "【最終進化: %s】\n" % final_name
+					d_str += "[/color]"
 				r_ui.show_custom_tooltip(t_str, d_str, node_card.get_global_mouse_position(), "shop_skill:" + card_skill_id)
 		)
 		node_card.mouse_exited.connect(func():
@@ -3660,7 +3671,11 @@ func _complete_skill_upgrade(skill_idx: int, new_lvl: int, chosen_evo_id: String
 
 	emit_signal("skill_upgraded", s_item["id"], sp_type, new_lvl)
 
-	var sound = parent.get_node_or_null("coinsound") if parent else null
+	var sound = null
+	if chosen_evo_id != "":
+		sound = parent.get_node_or_null("stagekirikae") if parent else null
+	if sound == null:
+		sound = parent.get_node_or_null("coinsound") if parent else null
 	if sound:
 		sound.play()
 	_update_buff_button_labels()
@@ -3762,6 +3777,27 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		card_st.shadow_size = 8
 		card.add_theme_stylebox_override("panel", card_st)
 		modal.add_child(card)
+
+		# タロットカードのホバー演出（浮遊リフト＆金枠グロー）
+		var card_captured = card
+		var normal_st = card_st
+		var hov_st = card_st.duplicate()
+		hov_st.border_color = Color(1.0, 0.88, 0.45, 1.0)
+		hov_st.shadow_size = 14
+		hov_st.bg_color = Color(0.10, 0.13, 0.20, 0.98)
+
+		card.mouse_entered.connect(func():
+			if is_instance_valid(card_captured):
+				card_captured.add_theme_stylebox_override("panel", hov_st)
+				var tw = card_captured.create_tween()
+				tw.tween_property(card_captured, "position:y", start_y - 10.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		)
+		card.mouse_exited.connect(func():
+			if is_instance_valid(card_captured):
+				card_captured.add_theme_stylebox_override("panel", normal_st)
+				var tw = card_captured.create_tween()
+				tw.tween_property(card_captured, "position:y", start_y, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		)
 
 		# Top Numeral (Roman)
 		var num_lbl = RichTextLabel.new()

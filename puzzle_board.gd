@@ -9094,6 +9094,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 	match skill_key:
 		"water":
+			var has_w_spring = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_mid_spring")
+			var has_w_pressure = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_mid_pressure")
+			var has_w_deluge = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_final_deluge")
 			if tier == 1:
 				# 💧 水T1【清流展開】：移動可能な自軍水マスを生成（火と隣接で水×火シナジー）
 				var candidates: Array[Vector2i] = []
@@ -9120,7 +9123,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_aqua_splash_effect(pos, 1)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.3 if has_w_pressure else 1.0)
 				_check_and_trigger_water_fire_synergy(is_in_match_phase)
 			elif tier == 2:
 				# 💧 水T2【命の湧水】：盤面の水マス数に応じたHP回復＆隣接セルへの浸水拡大
@@ -9134,7 +9137,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 						_apply_water_to_cell(rr, cc, true)
 						waters.append(Vector2i(rr, cc))
 				var w_cnt = waters.size()
-				var heal_val = (150.0 + sk_lvl * 30.0) * stage_scale * float(maxi(1, w_cnt))
+				var heal_val = (150.0 + sk_lvl * 30.0) * stage_scale * float(maxi(1, w_cnt)) * (1.4 if has_w_spring else 1.0)
 				if sm:
 					sm.calchp(0.0, -heal_val)
 					_emit_combat_event("heal", "ally", "ally", heal_val)
@@ -9176,9 +9179,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var w_pos = get_cell_position(w.x, w.y)
 					affected_positions.append(w_pos)
 					_spawn_aqua_splash_effect(w_pos, 1)
-				direct_skill_dmg = float(waters.size()) * (200.0 + sk_lvl * 50.0) * stage_scale
+				direct_skill_dmg = float(waters.size()) * (200.0 + sk_lvl * 50.0) * stage_scale * (2.0 if has_w_deluge else 1.0)
 				_check_and_trigger_water_fire_synergy(is_in_match_phase)
-				_spawn_floating_text(affected_positions[0], "🌊 大海嘯タイダル・フラッド！", Color(0.1, 0.8, 1.0))
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "🌊 大海嘯タイダル・フラッド！" if not has_w_deluge else "🌊 大海嘯・万象呑流 (極限神格化)！", Color(0.1, 0.8, 1.0))
 
 		"ice":
 			var has_ice_wall = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_mid_wall")
@@ -9266,6 +9269,10 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_spawn_floating_text(fl_pos, "❄️ 絶対零度アブソリュート・ゼロ！", Color(0.3, 0.95, 1.0))
 
 		"wood":
+			var has_wd_roots = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wood_mid_roots")
+			var has_wd_thorns = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wood_mid_thorns")
+			var has_wd_wrath = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wood_final_wrath")
+			var has_wd_yggdrasil = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wood_final_yggdrasil")
 			if tier == 1:
 				# 🌱 木T1【生命の苗木】：自軍苗木を植樹（水吸収で大木へ進化、毎ターンHP回復）
 				var cands: Array[Vector2i] = []
@@ -9288,11 +9295,11 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(p.x, p.y)
 					_spawn_growth_effect(pos, 0)
 					affected_positions.append(pos)
-				var heal_val = (150.0 + sk_lvl * 20.0) * stage_scale
+				var heal_val = (150.0 + sk_lvl * 20.0) * stage_scale * (1.5 if has_wd_roots else 1.0)
 				if sm:
 					sm.calchp(0.0, -heal_val)
 					_emit_combat_event("heal", "ally", "ally", heal_val)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.3 if has_wd_thorns else 1.0)
 			elif tier == 2:
 				# 🌱 木T2【大樹の根張りルート・ドレイン】：離れた水マスを吸い上げて即座に成長段階+1＆HP回復
 				var plant = null
@@ -9317,7 +9324,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var cur_st = int(plant.get("stage", 0))
 					if cur_st < 2:
 						_evolve_plant_stage(plant, cur_st + 1)
-				var heal_val = (300.0 + sk_lvl * 50.0) * stage_scale
+				var heal_val = (300.0 + sk_lvl * 50.0) * stage_scale * (1.5 if has_wd_roots else 1.0)
 				if sm:
 					sm.calchp(0.0, -heal_val)
 					_emit_combat_event("heal", "ally", "ally", heal_val)
@@ -9346,14 +9353,17 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 									if s_idx < piece.size() and piece[s_idx] != null:
 										piece[s_idx].texture = PIECE_TEXTURES[PieceType.FOOD]
 									affected_positions.append(get_cell_position(nr, nc))
-				var heal_val = (500.0 + sk_lvl * 80.0) * stage_scale
+				var heal_val = (500.0 + sk_lvl * 80.0) * stage_scale * (2.0 if has_wd_yggdrasil else 1.0)
 				if sm:
 					sm.calchp(0.0, -heal_val)
 					_emit_combat_event("heal", "ally", "ally", heal_val)
-				direct_skill_dmg = (250.0 + sk_lvl * 50.0) * stage_scale
+				direct_skill_dmg = (250.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_wd_wrath else 1.0)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(7, 7), "🍎 世界樹の結実ハーベスト！", Color(0.3, 1.0, 0.5))
 
 		"wind":
+			var has_wi_slicer = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wind_mid_slicer")
+			var has_wi_tempest = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wind_final_tempest")
+			var has_wi_vacuum = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wind_final_vacuum")
 			if tier == 1:
 				# 🌪️ 風T1【ダウンバースト（翠嵐の風）】：一直線上に竜巻を飛ばし、敵所有のマス・オブジェクトのみを一掃（駒は一切消さない）
 				var cleared_hazard_count: int = 0
@@ -9452,7 +9462,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				var rensa_se = get_node_or_null("1rensa")
 				if rensa_se: rensa_se.play()
 
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_wi_slicer else 1.0)
 				_spawn_floating_text(center_pos, "🌪️ 翠嵐の浄化！ (敵オブジェクト消去)" if cleared_hazard_count > 0 else "🌪️ 翠嵐の風！", Color(0.2, 1.0, 0.75))
 			elif tier == 2:
 				# 🌪️ 風T2【ゲイル・シフト】：自軍効果マスを風下へシフト移動させて属性シナジーを能動誘発
@@ -9466,7 +9476,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 							grid_water[r][c - 1] = false; _set_ally_flag(grid_water_ally, r, c - 1, false)
 				_check_and_trigger_ice_fire_melting()
 				_check_and_trigger_water_fire_synergy(false)
-				direct_skill_dmg = (140.0 + sk_lvl * 25.0) * stage_scale
+				direct_skill_dmg = (140.0 + sk_lvl * 25.0) * stage_scale * (1.5 if has_wi_slicer else 1.0)
 				affected_positions.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
 				_spawn_floating_text(affected_positions[0], "🌪️ ゲイル・シフト (風向き操作＆シナジー誘発)！", Color(0.2, 0.95, 0.7))
 			elif tier == 3:
@@ -9485,10 +9495,13 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 						elif grid_stones[r][c] > 0 and not is_ally_stone(r, c):
 							_set_ally_flag(grid_stones_ally, r, c, true); converted_cnt += 1
 							affected_positions.append(get_cell_position(r, c))
-				direct_skill_dmg = (240.0 + sk_lvl * 50.0) * stage_scale
-				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(GRID_ROWS/2, GRID_COLUMNS/2), "🌀 廻風の神気テンペスト・リバース (所有権反転)！", Color(0.1, 0.9, 0.8))
+				direct_skill_dmg = (240.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_wi_vacuum else (2.0 if has_wi_tempest else 1.0))
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(GRID_ROWS/2, GRID_COLUMNS/2), "🌀 神嵐テンペスト (極限神格化)！" if (has_wi_tempest or has_wi_vacuum) else "🌀 廻風の神気テンペスト・リバース (所有権反転)！", Color(0.1, 0.9, 0.8))
 
 		"fire":
+			var has_f_strike = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "fire_mid_strike")
+			var has_f_prominence = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "fire_final_prominence")
+			var has_f_supernova = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "fire_final_supernova")
 			if tier == 1:
 				# 🔥 火T1【蒼炎陣】：互いに離れたマスへ分散着火（延焼効率最大化）
 				var step_r = 3
@@ -9505,7 +9518,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 						affected_positions.append(pos)
 						_spawn_explosion_effect(pos)
 						placed += 1
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_f_strike else 1.0)
 				_check_and_trigger_ice_fire_melting()
 				_check_and_trigger_water_fire_synergy(is_in_match_phase)
 			elif tier == 2:
@@ -9517,7 +9530,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
 						if grid_fire[r][c] > 0: fire_cnt += 1
-				direct_skill_dmg = float(fire_cnt) * (60.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = float(fire_cnt) * (60.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_f_strike else 1.0)
 				affected_positions.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
 				_spawn_floating_text(affected_positions[0], "🔥 爆燃加速バックドラフト！", Color(1.0, 0.4, 0.1))
 			elif tier == 3:
@@ -9535,10 +9548,14 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					grid_fire[f.x][f.y] = 0
 					_set_ally_flag(grid_fire_ally, f.x, f.y, false)
 					affected_positions.append(get_cell_position(f.x, f.y))
-				direct_skill_dmg = float(fires.size()) * (240.0 + sk_lvl * 50.0) * stage_scale
-				_spawn_floating_text(affected_positions[0], "💥 劫火大爆破プロミネンス・ノヴァ！", Color(1.0, 0.2, 0.1))
+				direct_skill_dmg = float(fires.size()) * (240.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_f_supernova else (2.0 if has_f_prominence else 1.0))
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "💥 超新星爆発・プロミネンス (極限神格化)！" if (has_f_prominence or has_f_supernova) else "💥 劫火大爆破プロミネンス・ノヴァ！", Color(1.0, 0.2, 0.1))
 
 		"thunder":
+			var has_th_flash = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "thunder_mid_flash")
+			var has_th_voltage = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "thunder_mid_voltage")
+			var has_th_judge = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "thunder_final_judgement")
+			var has_th_catastrophe = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "thunder_final_catastrophe")
 			if tier == 1:
 				# ⚡ 雷T1【紫電共鳴】：落雷で帯電マス生成（氷/石直撃で3x3破砕シナジー）
 				var count = mini(2 + sk_lvl / 2, 5)
@@ -9551,7 +9568,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_spawn_shock_zap_effect(pos)
 					if (grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0) or (grid_stones.size() == GRID_ROWS and int(grid_stones[r][c]) > 0):
 						_trigger_thunder_shatter_synergy(r, c, is_in_match_phase)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_th_flash else 1.0)
 			elif tier == 2:
 				# ⚡ 雷T2【プラズマ・コンダクト】：帯電マスと水マスを雷ラインで結び一斉感電消去
 				var nodes: Array[Vector2i] = []
@@ -9563,7 +9580,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(n.x, n.y)
 					affected_positions.append(pos)
 					_spawn_shock_zap_effect(pos)
-				direct_skill_dmg = float(nodes.size()) * (120.0 + sk_lvl * 30.0) * stage_scale
+				direct_skill_dmg = float(nodes.size()) * (120.0 + sk_lvl * 30.0) * stage_scale * (1.4 if has_th_voltage else 1.0)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "⚡ 感電伝播プラズマ・コンダクト！", Color(1.0, 0.9, 0.2))
 			elif tier == 3:
 				# ⚡ 雷T3【レールガン・オーバーロード】：全帯電・石・氷を高圧電流で一斉3x3爆砕＋極太貫通雷撃
@@ -9575,10 +9592,13 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 							grid_electrified[r][c] = false
 							shat_cnt += 1
 							affected_positions.append(get_cell_position(r, c))
-				direct_skill_dmg = float(shat_cnt + 1) * (280.0 + sk_lvl * 60.0) * stage_scale
+				direct_skill_dmg = float(shat_cnt + 1) * (280.0 + sk_lvl * 60.0) * stage_scale * (2.5 if has_th_catastrophe else (2.2 if has_th_judge else 1.0))
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "⚡ 超電磁砲レールガン・オーバーロード！", Color(1.0, 0.95, 0.3))
 
 		"earth":
+			var has_ea_bulwark = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "earth_mid_bulwark")
+			var has_ea_crush = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "earth_mid_crush")
+			var has_ea_cataclysm = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "earth_final_cataclysm")
 			if tier == 1:
 				# 💎 地T1【輝石生成】：移動可能な自軍石（輝石）を生成＆シールド獲得
 				var candidates: Array[Vector2i] = []
@@ -9595,9 +9615,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_stone_break_effect(pos)
-				var shield_gain = (150.0 + sk_lvl * 30.0) * stage_scale
+				var shield_gain = (150.0 + sk_lvl * 30.0) * stage_scale * (1.5 if has_ea_bulwark else 1.0)
 				_apply_skill_shield(shield_gain)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.3 if has_ea_crush else 1.0)
 			elif tier == 2:
 				# 💎 地T2【グラビティ・フォルト】：輝石の磁力で同色駒を隣へ引き寄せ整列＋シールド獲得
 				var stones: Array[Vector2i] = []
@@ -9616,9 +9636,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 									if s_idx < piece.size() and piece[s_idx] != null:
 										piece[s_idx].texture = PIECE_TEXTURES[PieceType.SWORD]
 					affected_positions.append(get_cell_position(st_pos.x, st_pos.y))
-				var shield_gain = float(maxi(1, stones.size())) * (120.0 + sk_lvl * 25.0) * stage_scale
+				var shield_gain = float(maxi(1, stones.size())) * (120.0 + sk_lvl * 25.0) * stage_scale * (1.5 if has_ea_bulwark else 1.0)
 				_apply_skill_shield(shield_gain)
-				direct_skill_dmg = (120.0 + sk_lvl * 25.0) * stage_scale
+				direct_skill_dmg = (120.0 + sk_lvl * 25.0) * stage_scale * (1.4 if has_ea_crush else 1.0)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "💎 地脈引力グラビティ・フォルト！", Color(0.3, 1.0, 0.8))
 			elif tier == 3:
 				# 💎 地T3【ガイア・カタクリズム】：全石マス（敵の邪魔石含む）を一斉共振大爆発(周囲8マス消去)
@@ -9632,12 +9652,15 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(st_pos.x, st_pos.y)
 					_spawn_mega_explosion_effect(pos, 2)
 					affected_positions.append(pos)
-				direct_skill_dmg = float(maxi(1, stones.size())) * (240.0 + sk_lvl * 50.0) * stage_scale
-				var shield_gain = float(maxi(1, stones.size())) * (120.0 + sk_lvl * 30.0) * stage_scale
+				direct_skill_dmg = float(maxi(1, stones.size())) * (240.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_ea_cataclysm else 1.0)
+				var shield_gain = float(maxi(1, stones.size())) * (120.0 + sk_lvl * 30.0) * stage_scale * (1.5 if has_ea_bulwark else 1.0)
 				_apply_skill_shield(shield_gain)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "🌋 大陸破砕ガイア・カタクリズム！", Color(0.2, 0.9, 0.7))
 
 		"poison":
+			var has_po_corrosive = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "poison_mid_corrosive")
+			var has_po_extraction = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "poison_mid_extraction")
+			var has_po_lethal = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "poison_final_lethal")
 			if tier == 1:
 				# 🧪 毒T1【薬毒散布】：自軍毒マスを生成（水上で2倍速伝染・氷隣接で停止）
 				var candidates: Array[Vector2i] = []
@@ -9654,7 +9677,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_poison_bubble_burst_effect(pos)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_po_corrosive else 1.0)
 			elif tier == 2:
 				# 🧪 毒T2【ヴェノム・インキュベート】：全毒マスを即座に1歩伝染＋敵設置物を毒へ融解変換
 				_process_poison_spread()
@@ -9662,7 +9685,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
 						if grid_poison[r][c]: p_cnt += 1
-				direct_skill_dmg = float(p_cnt) * (60.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = float(p_cnt) * (60.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_po_corrosive else 1.0)
 				affected_positions.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
 				_spawn_floating_text(affected_positions[0], "🧪 腐食培養ヴェノム・インキュベート！", Color(0.1, 0.9, 1.0))
 			elif tier == 3:
@@ -9677,14 +9700,16 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(p.x, p.y)
 					_spawn_poison_bubble_burst_effect(pos)
 					affected_positions.append(pos)
-				direct_skill_dmg = float(maxi(1, poisons.size())) * (220.0 + sk_lvl * 50.0) * stage_scale
-				var drain_heal = direct_skill_dmg * 0.30
+				direct_skill_dmg = float(maxi(1, poisons.size())) * (220.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_po_lethal else 1.0)
+				var drain_heal = direct_skill_dmg * (0.45 if has_po_extraction else 0.30)
 				if sm:
 					sm.calchp(0.0, -drain_heal)
 					_emit_combat_event("heal", "ally", "ally", drain_heal)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "☠️ 劇毒大爆発パンデミック・ショック！", Color(0.2, 0.85, 1.0))
 
 		"light":
+			var has_li_aurora = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "light_mid_aurora")
+			var has_li_excalibur = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "light_final_excalibur")
 			if tier == 1:
 				# ✨ 光T1【聖像降臨】：移動可能聖像を生成＆シールド獲得（隣接消去で光追撃＆コイン）
 				var candidates: Array[Vector2i] = []
@@ -9701,9 +9726,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 					_spawn_gold_shatter_effect(pos)
-				var shield_gain = (80.0 + sk_lvl * 15.0) * stage_scale
+				var shield_gain = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_li_aurora else 1.0)
 				_apply_skill_shield(shield_gain)
-				direct_skill_dmg = (60.0 + sk_lvl * 10.0) * stage_scale
+				direct_skill_dmg = (60.0 + sk_lvl * 10.0) * stage_scale * (1.3 if has_li_aurora else 1.0)
 			elif tier == 2:
 				# ✨ 光T2【プリズム・レイ】：聖像間のライン上の妨害マス浄化＆同色変換確定マッチ
 				var statues: Array[Vector2i] = []
@@ -9723,7 +9748,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 								if s_idx < piece.size() and piece[s_idx] != null:
 									piece[s_idx].texture = PIECE_TEXTURES[PieceType.COIN]
 							affected_positions.append(get_cell_position(r, c))
-				direct_skill_dmg = (180.0 + sk_lvl * 35.0) * stage_scale
+				direct_skill_dmg = (180.0 + sk_lvl * 35.0) * stage_scale * (1.4 if has_li_aurora else 1.0)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "✨ 聖光レーザー プリズム・レイ！", Color(1.0, 0.9, 0.3))
 			elif tier == 3:
 				# ✨ 光T3【エルドラド・サンクチュアリ】：全敵妨害マスを聖像やコインへ黄金変換＋聖光メテオ
@@ -9735,10 +9760,13 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 							grid_gold_statue[r][c] = 2; _set_ally_flag(grid_gold_ally, r, c, true)
 							conv_cnt += 1
 							affected_positions.append(get_cell_position(r, c))
-				direct_skill_dmg = float(conv_cnt + 1) * (240.0 + sk_lvl * 50.0) * stage_scale
+				direct_skill_dmg = float(conv_cnt + 1) * (240.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_li_excalibur else 1.0)
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "✨ 黄金郷エルドラド・サンクチュアリ！", Color(1.0, 0.95, 0.4))
 
 		"dark":
+			var has_da_bind = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "dark_mid_bind")
+			var has_da_drain = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "dark_mid_drain")
+			var has_da_incarnate = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "dark_final_incarnate")
 			if tier == 1:
 				# 🌙 闇T1【星影の帳】：暗雲生成（毎ターン敵HP削り）＆影護マス生成（マッチでHP吸収）
 				var r0 = clampi(randi() % (GRID_ROWS - 1), 0, GRID_ROWS - 2)
@@ -9761,7 +9789,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					grid_cursed[cell.x][cell.y] = true
 					_set_ally_flag(grid_cursed_ally, cell.x, cell.y, true)
 					affected_positions.append(get_cell_position(cell.x, cell.y))
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_da_bind else 1.0)
 			elif tier == 2:
 				# 🌙 闇T2【シャドウ・イクリプス】：暗雲領域内マスを一気に影護マスへ侵食＋敵HP吸収
 				var fog_cnt = 0
@@ -9774,7 +9802,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 								_set_ally_flag(grid_cursed_ally, r, c, true)
 								fog_cnt += 1
 								affected_positions.append(get_cell_position(r, c))
-				direct_skill_dmg = float(maxi(1, fog_cnt)) * (50.0 + sk_lvl * 15.0) * stage_scale
+				direct_skill_dmg = float(maxi(1, fog_cnt)) * (50.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_da_bind else 1.0)
 				if sm:
 					sm.calchp(0.0, -direct_skill_dmg)
 					_emit_combat_event("heal", "ally", "ally", direct_skill_dmg)
@@ -9789,8 +9817,8 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					grid_cursed[cr.x][cr.y] = false
 					_set_ally_flag(grid_cursed_ally, cr.x, cr.y, false)
 					affected_positions.append(get_cell_position(cr.x, cr.y))
-				direct_skill_dmg = float(maxi(1, curses.size())) * (240.0 + sk_lvl * 50.0) * stage_scale
-				var drain_heal = direct_skill_dmg * 0.50
+				direct_skill_dmg = float(maxi(1, curses.size())) * (240.0 + sk_lvl * 50.0) * stage_scale * (2.5 if has_da_incarnate else 1.0)
+				var drain_heal = direct_skill_dmg * (0.65 if has_da_drain else 0.50)
 				if sm:
 					sm.calchp(0.0, -drain_heal)
 					_emit_combat_event("heal", "ally", "ally", drain_heal)

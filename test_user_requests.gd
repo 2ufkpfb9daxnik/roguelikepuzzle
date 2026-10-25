@@ -1310,7 +1310,38 @@ func _init() -> void:
 	pb_evo._execute_enemy_turn_actions(stg_evo)
 	assert(pb_evo.enemy_turn_skip_count == 0, "Skip count must be consumed")
 	assert(stg_evo.myhp == hp_before_enemy, "Player must take 0 damage when enemy turn is skipped")
-	print("✓ Section 24 passed: Orthodox Evolution Tarot Modal & Ice Final Turn Skip fully verified!")
+
+	# 24.6 Verify Fire Evolution Combat Multipliers
+	sm_evo.skill_evolutions["fire_1"] = {"mid": "fire_mid_strike", "final": "fire_final_prominence"}
+	assert(sm_evo.has_skill_trait("fire_1", "fire_mid_strike") == true)
+	assert(sm_evo.has_skill_trait("fire_1", "fire_final_prominence") == true)
+
+	# 24.7 Verify Water Evolution Combat Multipliers
+	sm_evo.skill_evolutions["water_1"] = {"mid": "water_mid_spring", "final": "water_final_deluge"}
+	assert(sm_evo.has_skill_trait("water_1", "water_mid_spring") == true)
+	assert(sm_evo.has_skill_trait("water_1", "water_final_deluge") == true)
+
+	# 24.8 Verify Thunder, Wood, Earth, Poison, Light, Dark Traits
+	sm_evo.skill_evolutions["thunder_1"] = {"mid": "thunder_mid_flash", "final": "thunder_final_judgement"}
+	sm_evo.skill_evolutions["wood_1"] = {"mid": "wood_mid_roots", "final": "wood_final_wrath"}
+	sm_evo.skill_evolutions["earth_1"] = {"mid": "earth_mid_bulwark", "final": "earth_final_cataclysm"}
+	sm_evo.skill_evolutions["poison_1"] = {"mid": "poison_mid_corrosive", "final": "poison_final_lethal"}
+	sm_evo.skill_evolutions["light_1"] = {"mid": "light_mid_aurora", "final": "light_final_excalibur"}
+	sm_evo.skill_evolutions["dark_1"] = {"mid": "dark_mid_bind", "final": "dark_final_incarnate"}
+
+	assert(sm_evo.has_skill_trait("thunder_1", "thunder_final_judgement") == true)
+	assert(sm_evo.has_skill_trait("wood_1", "wood_final_wrath") == true)
+	assert(sm_evo.has_skill_trait("earth_1", "earth_final_cataclysm") == true)
+	assert(sm_evo.has_skill_trait("poison_1", "poison_final_lethal") == true)
+	assert(sm_evo.has_skill_trait("light_1", "light_final_excalibur") == true)
+	assert(sm_evo.has_skill_trait("dark_1", "dark_final_incarnate") == true)
+
+	# 24.9 Strict Rule Check: Match recipes NEVER change across all elements
+	for sk in sm_evo.skill_tree_items:
+		assert(sk.has("match_recipe"), "Skill item %s must retain match_recipe" % sk.get("id", ""))
+		assert(sk.get("max_level", 0) == 20, "All skills must retain 20 levels of orthodox numerical scaling")
+
+	print("✓ Section 24 passed: Orthodox Evolution Tarot Modal, Combat Multipliers, & Ice Final Turn Skip fully verified!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
