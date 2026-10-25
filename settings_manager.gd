@@ -188,7 +188,8 @@ func _get_scene_root() -> Node:
 	return null
 
 func _process(_delta: float) -> void:
-	Engine.time_scale = game_speed
+	if Engine.time_scale != game_speed:
+		Engine.time_scale = game_speed
 
 ## ゲーム速度の変更と反映（全体速度＋BGM・効果音速度に完全連動）
 func set_game_speed(val: float) -> void:

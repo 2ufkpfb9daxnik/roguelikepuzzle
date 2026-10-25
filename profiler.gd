@@ -1,4 +1,4 @@
-﻿class_name Profiler
+class_name Profiler
 extends RefCounted
 
 const PROFILE := true
@@ -19,9 +19,7 @@ class Scope extends RefCounted:
 		start_time = Time.get_ticks_usec()
 	func _notification(what):
 		if what == NOTIFICATION_PREDELETE:
-			var script = load("res://profiler.gd")
-			if script:
-				script.end(func_name, start_time)
+			Profiler.end(func_name, start_time)
 
 static func begin(n: String) -> Scope:
 	if not PROFILE: return null

@@ -112,6 +112,11 @@ func _get_anim_texture(path: String) -> Texture2D:
 		return null
 	if _cached_anim_textures.has(path):
 		return _cached_anim_textures[path]
+	if ResourceLoader.has_cached(path):
+		var tex = ResourceLoader.load_threaded_get(path) as Texture2D
+		if tex:
+			_cached_anim_textures[path] = tex
+			return tex
 	if ResourceLoader.exists(path):
 		var tex = load(path) as Texture2D
 		_cached_anim_textures[path] = tex
@@ -555,11 +560,17 @@ func _ready() -> void:
 	_cached_score_manager = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
 	_cached_puzzle_board = get_parent().get_node_or_null("PuzzleBoard") if get_parent() else null
 
-	# タスク2-2: 敵テクスチャの事前非同期ロード
+	# タスク2-2: 敵テクスチャおよびアニメーションシートの事前非同期ロード
 	for ename in ENEMY_TEXTURES:
 		var path = ENEMY_TEXTURES[ename]
 		if not ResourceLoader.has_cached(path):
 			ResourceLoader.load_threaded_request(path)
+	for ename in ENEMY_ANIMATION_SHEETS:
+		var anims = ENEMY_ANIMATION_SHEETS[ename]
+		for a_key in anims:
+			var s_path = anims[a_key].get("path", "")
+			if not s_path.is_empty() and not ResourceLoader.has_cached(s_path):
+				ResourceLoader.load_threaded_request(s_path)
 
 	# フォントにシステム日本語フォールバックを設定（漢字の確実な描画を保証）
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
@@ -1167,7 +1178,10 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 				for a_key in anims:
 					var a_info = anims[a_key]
 					var s_path = a_info.get("path", "")
-					_get_anim_texture(s_path)
+					if not s_path.is_empty() and not _cached_anim_textures.has(s_path):
+						if ResourceLoader.has_cached(s_path):
+							var a_tex = ResourceLoader.load_threaded_get(s_path) as Texture2D
+							if a_tex: _cached_anim_textures[s_path] = a_tex
 			if not first_color_set and pb:
 				pb.set("encolor", en.modulate.r)
 				current_enemy_key = ename
@@ -1944,13 +1958,14 @@ func displayhp() -> void:
 		var target_w = p * 100.0
 		
 		if e.has("bar_green") and is_instance_valid(e.get("bar_green")):
-			e["bar_green"].size = Vector2(target_w, 10.0)
+			if e["bar_green"].size.x != target_w:
+				e["bar_green"].size = Vector2(target_w, 10.0)
 			
 		if e.has("bar_red") and is_instance_valid(e.get("bar_red")):
 			var cur_w = e["bar_red"].size.x
 			if cur_w > target_w:
 				e["bar_red"].size.x = max(target_w, cur_w - 0.75)
-			else:
+			elif cur_w < target_w:
 				e["bar_red"].size.x = target_w
 				
 		if e.has("hp_lbl") and is_instance_valid(e.get("hp_lbl")):
@@ -1960,13 +1975,13 @@ func displayhp() -> void:
 				e["last_hp_int"] = cur_hp_int
 				e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(max_hp)) + "[/color][/center]"
 				
-	if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl):
+	if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl) and enemy_race_lbl.visible:
 		enemy_race_lbl.visible = false
-	if enemy_hp_lbl != null and is_instance_valid(enemy_hp_lbl):
+	if enemy_hp_lbl != null and is_instance_valid(enemy_hp_lbl) and enemy_hp_lbl.visible:
 		enemy_hp_lbl.visible = false
-	if ehpbar != null and is_instance_valid(ehpbar):
+	if ehpbar != null and is_instance_valid(ehpbar) and ehpbar.visible:
 		ehpbar.visible = false
-	if ehpbar1 != null and is_instance_valid(ehpbar1):
+	if ehpbar1 != null and is_instance_valid(ehpbar1) and ehpbar1.visible:
 		ehpbar1.visible = false
 
 	# プレイヤーHPの更新処理（復元）
@@ -1974,7 +1989,8 @@ func displayhp() -> void:
 		_cached_hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1") as ColorRect if get_parent() else null
 	if _cached_hp_bar:
 		var target_w = min(int(myhppar * 725.0), 725)
-		_cached_hp_bar.size = Vector2(target_w, 26.0)
+		if _cached_hp_bar.size.x != target_w:
+			_cached_hp_bar.size = Vector2(target_w, 26.0)
 		
 		# 遅延黄色ゲージ（player_hp_delay_bar）の同期・アニメーション追従処理
 		if _cached_delay_bar == null or not is_instance_valid(_cached_delay_bar):
@@ -2052,7 +2068,9 @@ func displaygage() -> void:
 		_cached_fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2") as ColorRect if get_parent() else null
 	if _cached_fever_bar:
 		var cur_par: float = (float(fevercount) / 5.0) if isfevertime else feverpar
-		_cached_fever_bar.size = Vector2(int(cur_par * 725.0), 24.0)
+		var target_w = int(cur_par * 725.0)
+		if _cached_fever_bar.size.x != target_w:
+			_cached_fever_bar.size = Vector2(target_w, 24.0)
 		
 		# フィーバーゲージ%ラベル（フィーバーバー内部に中央配置）
 		if fever_bar_lbl == null or not is_instance_valid(fever_bar_lbl):

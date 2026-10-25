@@ -33,11 +33,12 @@ func set_chosen_element_category(cat_key: String) -> void:
 		if pb and pb.has_method("on_element_category_chosen"):
 			pb.on_element_category_chosen(cat_key)
 
-func _process(_delta: float) -> void:
-	if DEBUG_RELIC and Input.is_key_pressed(KEY_R) and Input.is_action_just_pressed("ui_accept"):
-		for id in RelicDatabase.RELICS.keys():
-			add_relic(id)
-		print("DEBUG: Leveled up all relics! Current state: ", owned_relics)
+func _unhandled_key_input(event: InputEvent) -> void:
+	if DEBUG_RELIC and event is InputEventKey and event.is_pressed() and not event.is_echo():
+		if Input.is_key_pressed(KEY_R) and Input.is_action_just_pressed("ui_accept"):
+			for id in RelicDatabase.RELICS.keys():
+				add_relic(id)
+			print("DEBUG: Leveled up all relics! Current state: ", owned_relics)
 
 func add_relic(id: String) -> void:
 	if not RelicDatabase.RELICS.has(id):

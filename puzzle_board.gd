@@ -299,48 +299,76 @@ var has_special_items: bool = false
 var has_board_hazards: bool = false
 # 脈動・揺らめき等の常時アニメーションを持つ障害物があるか（石のみの場合は false → 定期再描画不要）
 var has_animated_board_hazards: bool = false
+var has_ice: bool = false
+var has_stones: bool = false
+var has_gold_statue: bool = false
+var has_electrified: bool = false
+var has_cursed: bool = false
+var has_water: bool = false
+var has_poison: bool = false
+var has_fire: bool = false
+var special_item_coords: Array[Vector2i] = []
 
 func _update_board_element_flags() -> void:
 	var old_has_special = has_special_items
+	var old_coords = special_item_coords.duplicate()
+	special_item_coords.clear()
 	has_special_items = false
+
 	if is_bomb.size() == GRID_ROWS and special_item.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
 				if is_bomb[r][c] or special_item[r][c] != SpecialItemType.NONE:
+					special_item_coords.append(Vector2i(r, c))
 					has_special_items = true
-					break
-			if has_special_items:
-				break
 
-	if old_has_special and not has_special_items:
-		for p in piece:
-			if p != null and is_instance_valid(p) and p.modulate != Color.WHITE:
-				p.modulate = Color.WHITE
+	if old_has_special:
+		for coord in old_coords:
+			if not (coord in special_item_coords):
+				var p_idx = grid_i[coord.x][coord.y] if grid_i.size() == GRID_ROWS else -1
+				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null and is_instance_valid(piece[p_idx]):
+					piece[p_idx].modulate = Color.WHITE
 
 	has_board_hazards = false
 	has_animated_board_hazards = false
+	has_ice = false
+	has_stones = false
+	has_gold_statue = false
+	has_electrified = false
+	has_cursed = false
+	has_water = false
+	has_poison = false
+	has_fire = false
+
 	if not active_wind_tornadoes.is_empty() or not plant_entities.is_empty() or not grid_fog.is_empty():
 		has_board_hazards = true
 		has_animated_board_hazards = true
-	elif grid_ice.size() == GRID_ROWS:
+
+	if grid_ice.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
-				var is_water: bool = grid_water.size() == GRID_ROWS and grid_water[r][c]
-				var is_stone: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
-				var is_poison: bool = (grid_poison.size() == GRID_ROWS and grid_poison[r][c])
-				var is_animated: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c]) or \
-				   (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c]) or \
-				   (grid_ice[r][c] > 0) or \
-				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or \
-				   (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
-				if is_stone or is_animated or is_water or is_poison:
-					has_board_hazards = true
-				if is_animated or is_water:
-					has_animated_board_hazards = true
+				var is_w: bool = grid_water.size() == GRID_ROWS and grid_water[r][c]
+				var is_st: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
+				var is_ps: bool = (grid_poison.size() == GRID_ROWS and grid_poison[r][c])
+				var is_el: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c])
+				var is_cu: bool = (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c])
+				var is_ic: bool = (grid_ice[r][c] > 0)
+				var is_gd: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0)
+				var is_fr: bool = (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
 
-					break
-			if has_animated_board_hazards:
-				break
+				if is_w: has_water = true
+				if is_st: has_stones = true
+				if is_ps: has_poison = true
+				if is_el: has_electrified = true
+				if is_cu: has_cursed = true
+				if is_ic: has_ice = true
+				if is_gd: has_gold_statue = true
+				if is_fr: has_fire = true
+
+				if is_st or is_el or is_cu or is_ic or is_gd or is_fr or is_w or is_ps:
+					has_board_hazards = true
+				if is_el or is_cu or is_ic or is_gd or is_fr or is_w:
+					has_animated_board_hazards = true
 
 
 ## 盤面描画の一括更新（盤面状態の変化時に呼ばれる＝イベント駆動の即時再描画）
@@ -358,22 +386,20 @@ var _special_fx_elapsed: float = 0.0
 # 戦闘演出・発射物シミュレーションの速度累積変数
 var _turn_sim_accumulator: float = 0.0
 
+var _cached_stage_manager: Node2D = null
+
 ## 現在のゲーム設定速度を取得（SettingsManager優先、FallbackはEngine.time_scale）
 func _get_game_speed() -> float:
-	var root_node = null
-	if is_inside_tree() and get_tree():
-		root_node = get_tree().root
-	elif Engine.get_main_loop() is SceneTree:
-		root_node = (Engine.get_main_loop() as SceneTree).root
-	if root_node:
-		var sm_autoload = root_node.get_node_or_null("SettingsManager")
-		if sm_autoload and "game_speed" in sm_autoload:
-			return sm_autoload.game_speed
+	var sm = _get_settings_manager()
+	if sm and "game_speed" in sm:
+		return sm.game_speed
 	return Engine.time_scale
 
 func _get_stage_manager() -> Node2D:
-	var p = get_parent()
-	return p.get_node_or_null("StageManager") if p else null
+	if _cached_stage_manager == null or not is_instance_valid(_cached_stage_manager):
+		var p = get_parent()
+		_cached_stage_manager = p.get_node_or_null("StageManager") if p else null
+	return _cached_stage_manager
 
 func _get_score_manager() -> Node2D:
 	if score_manager == null:
@@ -3103,10 +3129,17 @@ func _spawn_enemy_heal_effect(sm: Node2D, heal_amount: int) -> void:
 		tw_s.parallel().tween_property(spark, "scale", Vector2.ZERO, 0.6)
 		tw_s.chain().tween_callback(spark.queue_free)
 
+var _cached_effects_node: Node = null
+func _get_effects_parent() -> Node:
+	if _cached_effects_node == null or not is_instance_valid(_cached_effects_node):
+		_cached_effects_node = get_node_or_null("Effects")
+		if _cached_effects_node == null:
+			_cached_effects_node = self
+	return _cached_effects_node
+
 ## 汎用ショックウェーブリング（衝撃波リング演出）
 func _spawn_shockwave_ring(pos: Vector2, color: Color, max_radius: float, duration: float = 0.3) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	var ring = Line2D.new()
 	ring.width = 16.0
 	ring.default_color = color
@@ -3128,8 +3161,7 @@ func _spawn_shockwave_ring(pos: Vector2, color: Color, max_radius: float, durati
 
 ## 汎用全画面フラッシュ
 func _spawn_screen_flash(color: Color, duration: float = 0.08) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	var flash = ColorRect.new()
 	flash.size = Vector2(40000.0, 40000.0)
 	flash.position = Vector2(-20000.0, -20000.0)
@@ -3195,8 +3227,7 @@ func _spawn_hit_spark(hit_pos: Vector2) -> void:
 		return
 	_last_spark_msec = now
 
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	for slash_dir in [-1.0, 1.0]:
 		var slash = Line2D.new()
@@ -3219,8 +3250,7 @@ func _spawn_hit_spark(hit_pos: Vector2) -> void:
 
 ## 爆発演出（白熱スターフラッシュ、二重火炎球、火炎衝撃波リング、飛散火の粉パーティクル）
 func _spawn_explosion_effect(pos: Vector2) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(45.0)
 
 	var boom_se = get_node_or_null("AudioStreamPlayer")
@@ -3299,8 +3329,7 @@ func _spawn_explosion_effect(pos: Vector2) -> void:
 
 ## 十字クロス爆砕エフェクト（高エネルギーレーザービーム ＆ スターフレア）
 func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(42.0)
 
 	var boom_se = get_node_or_null("AudioStreamPlayer")
@@ -3365,8 +3394,7 @@ func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
 
 ## ディスコボール全滅エフェクト（虹色の全画面フラッシュと回転プリズム光芒）
 func _spawn_disco_effect(pos: Vector2) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(50.0)
 
 	var boom_se = get_node_or_null("AudioStreamPlayer")
@@ -3399,8 +3427,7 @@ func _spawn_disco_effect(pos: Vector2) -> void:
 
 ## ペンキ同色染め上げエフェクト（広がるインクスプラッシュ波紋）
 func _spawn_paint_effect(pos: Vector2) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	_spawn_shockwave_ring(pos, Color(0.1, 1.0, 0.4, 0.9), 350.0, 0.35)
 
@@ -3432,8 +3459,7 @@ func _spawn_vertical_lightning_bolt(impact_pos: Vector2, delay_sec: float) -> vo
 		tw_delay.tween_callback(func(): _execute_vertical_lightning_bolt(impact_pos))
 
 func _execute_vertical_lightning_bolt(impact_pos: Vector2) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	_trigger_screen_shake(25.0)
 	var boom_se = get_node_or_null("AudioStreamPlayer")
@@ -3507,8 +3533,7 @@ func _spawn_lightning_effect(start_pos: Vector2, targets: Array[Vector2]) -> voi
 
 ## ブラックホールエフェクト（漆黒の特異点事象の地平線 ＆ 高速回転降着円盤 ＆ 対数螺旋粒子吸引）
 func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(50.0 + lvl * 10.0)
 
 	var boom_se = get_node_or_null("AudioStreamPlayer")
@@ -3574,8 +3599,7 @@ func _spawn_black_hole_effect(pos: Vector2, lvl: int) -> void:
 
 ## 聖光星エフェクト（眩い黄金・聖光線の全方位放射と衝撃波）
 func _spawn_holy_light_effect(center_pos: Vector2, targets: Array[Vector2]) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(25.0)
 	_spawn_screen_flash(Color(1.0, 0.98, 0.7, 0.35), 0.15)
 	_spawn_shockwave_ring(center_pos, Color(1.0, 0.95, 0.4, 0.9), 350.0, 0.25)
@@ -3613,8 +3637,7 @@ func _spawn_mega_explosion_effect(pos: Vector2, ch: int) -> void:
 
 ## ジェミニ分裂エフェクト（火炎迫撃弾の山なり放物線）
 func _spawn_gemini_effect(start_pos: Vector2, targets: Array[Vector2]) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	for t_pos in targets:
 		var spark = Polygon2D.new()
@@ -3758,8 +3781,7 @@ class TornadoVortexNode extends Node2D:
 
 ## 竜巻・つむじ風エフェクト（高速回転サイクロンファンネル ＆ 旋回風刃 ＆ 渦巻き木の葉）
 func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(35.0 + lvl * 10.0)
 
 	var sound = get_node_or_null("AudioStreamPlayer")
@@ -3775,8 +3797,7 @@ func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
 
 ## 敵キャラクター専用の竜巻エフェクト（敵画面枠 X:1190..1915, Y:10..410 を決して越えず内部に美しく収束）
 func _spawn_enemy_tornado_effect(pos: Vector2, size: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(8.0 + float(size) * 3.0)
 
 	var sound = get_node_or_null("AudioStreamPlayer")
@@ -3794,8 +3815,7 @@ func _spawn_enemy_tornado_effect(pos: Vector2, size: int) -> void:
 
 ## 水しぶき・アクアスプラッシュ演出（同心円波紋 ＆ 重力水滴放物線スプラッシュ ＆ ミスト）
 func _spawn_aqua_splash_effect(pos: Vector2, radius: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(22.0 + radius * 5.0)
 
 	var splash_radius = (radius + 0.5) * CELL_PITCH
@@ -3832,8 +3852,7 @@ func _spawn_aqua_splash_effect(pos: Vector2, radius: int) -> void:
 
 ## 苗木の芽吹き演出（神聖召喚サークル ＆ 翠緑の若葉オーラ）
 func _spawn_sprout_effect(pos: Vector2) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	_spawn_shockwave_ring(pos, Color(0.2, 1.0, 0.4, 0.9), 240.0, 0.36)
 
@@ -3859,8 +3878,7 @@ func _spawn_sprout_effect(pos: Vector2) -> void:
 ## 水たまり電撃伝導演出（感電水路ネットワーク）
 func _spawn_water_electric_effect(cells: Array[Vector2i]) -> void:
 	if cells.is_empty(): return
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(35.0)
 
 	# 1. 各水たまりセルの黄色いプラズマ発光と放電スパーク
@@ -3919,8 +3937,7 @@ func _spawn_water_electric_effect(cells: Array[Vector2i]) -> void:
 
 ## 植物の成長進化演出（天空を貫く神聖エメラルド光柱 ＆ 螺旋光粒子）
 func _spawn_growth_effect(pos: Vector2, _stage: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(32.0)
 
 	# 1. 天空光柱（純白コア ＋ エメラルドオーラ）
@@ -3975,8 +3992,7 @@ func _spawn_growth_effect(pos: Vector2, _stage: int) -> void:
 
 ## 植物ダメージ演出
 func _spawn_plant_damage_effect(pos: Vector2, _is_dead: bool) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	for i in range(12):
 		var leaf = Polygon2D.new()
@@ -4000,8 +4016,7 @@ func _spawn_plant_damage_effect(pos: Vector2, _is_dead: bool) -> void:
 ## 植物回復ポップアップ数値演出（緑の「+〇〇〇」）
 
 func _spawn_floating_text(pos: Vector2, text: String, color: Color) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	var lbl = Label.new()
 	lbl.text = text
@@ -4030,8 +4045,7 @@ func _spawn_floating_text(pos: Vector2, text: String, color: Color) -> void:
 	tw.chain().tween_callback(lbl.queue_free)
 
 func _spawn_heal_number_effect(pos: Vector2, amount: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	var lbl = Label.new()
 	lbl.text = "+%d" % amount
@@ -4049,8 +4063,7 @@ func _spawn_heal_number_effect(pos: Vector2, amount: int) -> void:
 
 ## マッチした駒の破砕クリスタルシャード演出（属性別宝石カット多角形 ＆ スパークル光芒）
 func _spawn_burst_particles(origin: Vector2, kind: int) -> void:
-	var effects_parent = get_node_or_null("Effects")
-	if effects_parent == null: effects_parent = self
+	var effects_parent = _get_effects_parent()
 
 	var colors = [
 		Color(0.2, 0.9, 1.0),   # SHIELD: サファイアクリスタルシアン
@@ -4153,10 +4166,9 @@ func _start_breaking_animation() -> void:
 	current_state = BoardState.BREAKING
 
 	# スコア計算
-	var copy_matched = ismatched.duplicate(true)
 	var sm = _get_score_manager()
 	if sm and sm.has_method("calcscore"):
-		sm.calcscore(copy_matched, grid_att, grid_element)
+		sm.calcscore(ismatched, grid_att, grid_element)
 
 	# 画面微細シェイクを発生（適度な振動に抑える）
 	if matched_cells_list.size() > 0:
@@ -4974,32 +4986,30 @@ func _process(delta: float) -> void:
 			mark_overlay.queue_redraw()
 
 		# 特殊アイテムマスの点滅・脈動演出（時間ベースなので間引いても点滅速度は不変）
-		if fx_tick and (is_bomb.size() == GRID_ROWS or special_item.size() == GRID_ROWS):
+		if fx_tick and not special_item_coords.is_empty():
 			var time_pulse = 0.80 + 0.30 * sin(Time.get_ticks_msec() * 0.008)
-			for r in range(GRID_ROWS):
-				for c in range(GRID_COLUMNS):
-					var p_idx = grid_i[r][c]
-					if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
-						var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
-						var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
+			for coord in special_item_coords:
+				var r = coord.x
+				var c = coord.y
+				var p_idx = grid_i[r][c]
+				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
+					var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
+					var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
 
-						if sp_type != SpecialItemType.NONE or is_b:
-							var glow_color = Color(1.8, 0.4, 0.2, 1.0) # デフォルト爆弾
-							match sp_type:
-								SpecialItemType.CROSS_BOMB: glow_color = Color(0.2, 1.4, 1.8, 1.0)
-								SpecialItemType.DISCO_BALL: glow_color = Color(1.8, 0.3, 1.8, 1.0)
-								SpecialItemType.COLOR_CONVERTER: glow_color = Color(0.2, 1.8, 0.6, 1.0)
-								SpecialItemType.LIGHTNING: glow_color = Color(1.8, 1.8, 0.2, 1.0)
-								SpecialItemType.BLACK_HOLE: glow_color = Color(0.8, 0.2, 1.8, 1.0)
-								SpecialItemType.HOLY_LIGHT: glow_color = Color(2.0, 1.9, 0.8, 1.0)
-								SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
-								SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
-								SpecialItemType.ICE_SHIELD: glow_color = Color(0.2, 1.4, 2.0, 1.0)
-								SpecialItemType.POISON_MIST: glow_color = Color(0.2, 1.8, 0.5, 1.0)
-							piece[p_idx].modulate = glow_color * time_pulse
-						elif not ismatched[r][c] and (selected_piece_idx != p_idx):
-							if piece[p_idx].modulate != Color.WHITE:
-								piece[p_idx].modulate = Color.WHITE
+					if sp_type != SpecialItemType.NONE or is_b:
+						var glow_color = Color(1.8, 0.4, 0.2, 1.0) # デフォルト爆弾
+						match sp_type:
+							SpecialItemType.CROSS_BOMB: glow_color = Color(0.2, 1.4, 1.8, 1.0)
+							SpecialItemType.DISCO_BALL: glow_color = Color(1.8, 0.3, 1.8, 1.0)
+							SpecialItemType.COLOR_CONVERTER: glow_color = Color(0.2, 1.8, 0.6, 1.0)
+							SpecialItemType.LIGHTNING: glow_color = Color(1.8, 1.8, 0.2, 1.0)
+							SpecialItemType.BLACK_HOLE: glow_color = Color(0.8, 0.2, 1.8, 1.0)
+							SpecialItemType.HOLY_LIGHT: glow_color = Color(2.0, 1.9, 0.8, 1.0)
+							SpecialItemType.CHARGE_BOMB: glow_color = Color(2.0, 0.3, 0.1, 1.0)
+							SpecialItemType.GEMINI_BOMB: glow_color = Color(1.8, 0.8, 0.2, 1.0)
+							SpecialItemType.ICE_SHIELD: glow_color = Color(0.2, 1.4, 2.0, 1.0)
+							SpecialItemType.POISON_MIST: glow_color = Color(0.2, 1.8, 0.5, 1.0)
+						piece[p_idx].modulate = glow_color * time_pulse
 
 class SpecialMarkOverlayNode extends Node2D:
 	var board: Node2D = null
@@ -5016,25 +5026,26 @@ func _draw_special_item_marks_on_overlay(overlay: Node2D) -> void:
 
 	var time_pulse = 0.95 + 0.05 * sin(Time.get_ticks_msec() * 0.007)
 
-	for r in range(GRID_ROWS):
-		for c in range(GRID_COLUMNS):
-			var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
-			var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
-			if sp_type == SpecialItemType.NONE and is_b:
-				sp_type = SpecialItemType.BOMB
+	for coord in special_item_coords:
+		var r = coord.x
+		var c = coord.y
+		var sp_type = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
+		var is_b = is_bomb[r][c] if is_bomb.size() == GRID_ROWS else false
+		if sp_type == SpecialItemType.NONE and is_b:
+			sp_type = SpecialItemType.BOMB
 
-			if sp_type == SpecialItemType.NONE:
+		if sp_type == SpecialItemType.NONE:
+			continue
+
+		var p_idx = grid_i[r][c]
+		if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
+			var p = piece[p_idx]
+			var center = p.position
+			var s_factor = (p.scale.x / cellsize.x) if cellsize.x > 0 else 1.0
+			if s_factor <= 0.05:
 				continue
-
-			var p_idx = grid_i[r][c]
-			if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
-				var p = piece[p_idx]
-				var center = p.position
-				var s_factor = (p.scale.x / cellsize.x) if cellsize.x > 0 else 1.0
-				if s_factor <= 0.05:
-					continue
-				var alpha = p.modulate.a
-				_draw_single_special_mark(overlay, center, sp_type, s_factor * time_pulse * 2.2, alpha, r, c)
+			var alpha = p.modulate.a
+			_draw_single_special_mark(overlay, center, sp_type, s_factor * time_pulse * 2.2, alpha, r, c)
 
 ## 個別のシンプルシンボルマーク描画（複雑にせず単純で直感的にわかりやすい幾何学マーク）
 func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s: float, alpha: float, r: int, c: int) -> void:
@@ -5256,6 +5267,8 @@ func _draw_single_special_mark(overlay: Node2D, center: Vector2, sp_type: int, s
 
 ## 剣の発射物アニメーション（着弾時即座に消去・敵撃破時は残存弾を速やかに全消去）
 func moveswords() -> void:
+	if flying_swords.is_empty():
+		return
 	var remaining: Array[Dictionary] = []
 	var sm = _get_stage_manager()
 	var is_enemy_dead = (sm == null or sm.isdeadf or (sm.enemy == null and sm.ehp <= 0))
@@ -5365,6 +5378,8 @@ func _play_sword_hit_sound() -> void:
 
 ## 展開シールドのアニメーション
 func moveshields() -> void:
+	if active_shields.is_empty():
+		return
 	var remaining: Array[Dictionary] = []
 	for item in active_shields:
 		if not is_instance_valid(item.get("node")):
@@ -5391,6 +5406,8 @@ func moveshields() -> void:
 
 ## 食料のアニメーション
 func movefoods() -> void:
+	if flying_foods.is_empty():
+		return
 	var remaining: Array[Dictionary] = []
 	var sm = _get_stage_manager()
 
@@ -5424,6 +5441,8 @@ func movefoods() -> void:
 
 ## ポーションのアニメーション
 func movepotions() -> void:
+	if flying_potions.is_empty():
+		return
 	var remaining: Array[Dictionary] = []
 	var sm = _get_stage_manager()
 
@@ -5454,6 +5473,8 @@ func movepotions() -> void:
 
 ## 消滅した駒が右側のステータス枠へ吸い込まれるアニメーション（高速・キビキビ吸入）
 func movecell() -> void:
+	if flying_cells.is_empty():
+		return
 	var remaining: Array[Dictionary] = []
 	var target_ys = [5856.0, 6648.0, 7440.0, 8232.0, 9024.0]
 
@@ -5478,11 +5499,11 @@ func movecell() -> void:
 	flying_cells = remaining
 
 func _update_all_projectiles() -> void:
-	movecell()
-	moveswords()
-	moveshields()
-	movefoods()
-	movepotions()
+	if not flying_cells.is_empty(): movecell()
+	if not flying_swords.is_empty(): moveswords()
+	if not active_shields.is_empty(): moveshields()
+	if not flying_foods.is_empty(): movefoods()
+	if not flying_potions.is_empty(): movepotions()
 
 ## ターン進行の演出シーケンス
 func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
@@ -6055,31 +6076,30 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 		sm.update_enemy_intents(_enemy_turn_actions)
 	return has_skill
 
+class SlashEffectNode extends Node2D:
+	var life_time: float = 0.0
+	func _process(delta: float) -> void:
+		var _prof = Profiler.begin("puzzle_board::_process")
+		life_time += delta
+		if life_time > 0.25:
+			set_process(false)
+			queue_free()
+			Profiler.queue_free_count += 1
+			return
+		queue_redraw()
+	func _draw() -> void:
+		var _prof = Profiler.begin("puzzle_board::_draw")
+		var p = clampf(1.0 - (life_time / 0.25), 0.0, 1.0)
+		var col = Color(1.0, 1.0, 1.0, p)
+		draw_line(Vector2(-60, -60), Vector2(60, 60), col, 12.0 * p)
+		draw_line(Vector2(-60, 60), Vector2(60, -60), col, 6.0 * p)
+
 func _spawn_slash_effect(pos: Vector2) -> void:
 	var root_node = get_parent() if get_parent() != null else self
-	var node = Node2D.new()
+	var node = SlashEffectNode.new()
 	node.position = pos
-	var script_src = """
-extends Node2D
-var life_time = 0.0
-func _process(delta: float):
-	var _prof = Profiler.begin("puzzle_board::_process")
-	life_time += delta
-	if life_time > 0.25:
-		queue_free(); Profiler.queue_free_count += 1
-	queue_redraw()
-func _draw():
-	var _prof = Profiler.begin("puzzle_board::_draw")
-	var p = clampf(1.0 - (life_time / 0.25), 0.0, 1.0)
-	var col = Color(1.0, 1.0, 1.0, p)
-	draw_line(Vector2(-60, -60), Vector2(60, 60), col, 12.0 * p)
-	draw_line(Vector2(-60, 60), Vector2(60, -60), col, 6.0 * p)
-"""
-	var script = GDScript.new()
-	script.source_code = script_src
-	script.reload()
-	node.set_script(script)
-	Profiler.add_child_count += 1; root_node.add_child(node)
+	Profiler.add_child_count += 1
+	root_node.add_child(node)
 
 func _execute_enemy_turn_actions(sm: Node2D) -> void:
 	if has_enemy_attacked: return
@@ -8325,24 +8345,36 @@ func _debug_apply_element_random(el: int) -> void:
 		applied_count += 1
 	print("[DEBUG] Applied element ", ElementDataScript.get_element_name(el), " to ", applied_count, " pieces.")
 
+var _cached_relic_manager: Node = null
 func _get_relic_manager() -> Node:
+	if _cached_relic_manager and is_instance_valid(_cached_relic_manager):
+		return _cached_relic_manager
 	var p = get_parent()
 	if p:
 		var rm = p.get_node_or_null("RelicManager")
-		if rm: return rm
+		if rm:
+			_cached_relic_manager = rm
+			return _cached_relic_manager
 	var tree = get_tree()
 	if tree and tree.get_root():
-		return tree.get_root().find_child("RelicManager", true, false)
+		_cached_relic_manager = tree.get_root().find_child("RelicManager", true, false)
+		return _cached_relic_manager
 	return null
 
+var _cached_relic_ui_manager: Node = null
 func _get_relic_ui_manager() -> Node:
+	if _cached_relic_ui_manager and is_instance_valid(_cached_relic_ui_manager):
+		return _cached_relic_ui_manager
 	var p = get_parent()
 	if p:
 		var r_ui = p.get_node_or_null("RelicUIManager")
-		if r_ui: return r_ui
+		if r_ui:
+			_cached_relic_ui_manager = r_ui
+			return _cached_relic_ui_manager
 	var tree = get_tree()
 	if tree and tree.get_root():
-		return tree.get_root().find_child("RelicUIManager", true, false)
+		_cached_relic_ui_manager = tree.get_root().find_child("RelicUIManager", true, false)
+		return _cached_relic_ui_manager
 	return null
 
 func _hide_cell_hover_tooltip() -> void:

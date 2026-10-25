@@ -98,12 +98,20 @@ func _draw() -> void:
 	if board == null:
 		return
 
+	var has_hazards: bool = board.has_board_hazards if "has_board_hazards" in board else true
+	var has_tornadoes: bool = ("active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty())
+	var has_fog: bool = ("grid_fog" in board and not board.grid_fog.is_empty())
+	var has_plants: bool = ("plant_entities" in board and not board.plant_entities.is_empty())
+
+	if not has_hazards and not has_tornadoes and not has_fog and not has_plants:
+		return
+
 	var now = Time.get_ticks_msec()
 	var pulse = 0.8 + 0.2 * sin(now * 0.008)
 	var rot_fast = now * 0.006
 
 	# 1. 氷漬けマス (grid_ice: 操作不可・落雷除去不可・耐久値対応)
-	if "grid_ice" in board and board.grid_ice.size() == GRID_ROWS:
+	if bool(board.get("has_ice")) and "grid_ice" in board and board.grid_ice.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				var hp = int(board.grid_ice[r][c])
@@ -111,7 +119,7 @@ func _draw() -> void:
 					_draw_ice_tile(r, c, hp, pulse)
 
 	# 2. 地属性の石 (grid_stones: 耐久1・落下遮蔽)
-	if "grid_stones" in board and board.grid_stones.size() == GRID_ROWS:
+	if bool(board.get("has_stones")) and "grid_stones" in board and board.grid_stones.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				var hp = board.grid_stones[r][c]
@@ -119,7 +127,7 @@ func _draw() -> void:
 					_draw_stone_tile(r, c, hp)
 
 	# 3. 光属性の黄金石像 (grid_gold_statue: 耐久3・スカコマ)
-	if "grid_gold_statue" in board and board.grid_gold_statue.size() == GRID_ROWS:
+	if bool(board.get("has_gold_statue")) and "grid_gold_statue" in board and board.grid_gold_statue.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				var hp = board.grid_gold_statue[r][c]
@@ -127,27 +135,27 @@ func _draw() -> void:
 					_draw_gold_statue_tile(r, c, hp, pulse)
 
 	# 4. 雷属性の純粋な雷オブジェクトコマ (grid_electrified: 触れる/動かす/マッチで反動)
-	if "grid_electrified" in board and board.grid_electrified.size() == GRID_ROWS:
+	if bool(board.get("has_electrified")) and "grid_electrified" in board and board.grid_electrified.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_electrified[r][c]:
 					_draw_electrified_tile(r, c, pulse, now)
 
 	# 5. 闇属性の呪いコマ (grid_cursed: 消すと反動ダメージ)
-	if "grid_cursed" in board and board.grid_cursed.size() == GRID_ROWS:
+	if bool(board.get("has_cursed")) and "grid_cursed" in board and board.grid_cursed.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_cursed[r][c]:
 					_draw_cursed_tile(r, c, pulse)
 
 	# 6. 植物エンティティ（苗木・若木・3x3大木: 盤面手前 z_index=8）
-	if "plant_entities" in board and not board.plant_entities.is_empty():
+	if has_plants:
 		for plant in board.plant_entities:
 			_draw_plant_entity(plant, pulse, now)
 
 	# 7. 闇属性の黒い霧 (grid_fog: 3x3または4x4を覆い隠す)
 	# [復元] 水マス (grid_water: 美麗水面・波紋)
-	if "grid_water" in board and board.grid_water.size() == GRID_ROWS:
+	if bool(board.get("has_water")) and "grid_water" in board and board.grid_water.size() == GRID_ROWS:
 		var water_pulse = 0.85 + 0.15 * sin(now * 0.005)
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
@@ -155,22 +163,22 @@ func _draw() -> void:
 					_draw_water_tile(r, c, water_pulse)
 
 	# 猛毒マス（水マスの手前に重ねて描画・GPU完全バッチ描画で負荷ゼロ）
-	if "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
+	if bool(board.get("has_poison")) and "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_poison[r][c]:
 					_draw_poison_tile(r, c)
-	if "grid_fog" in board and not board.grid_fog.is_empty():
+	if has_fog:
 		for fog in board.grid_fog:
 			_draw_black_fog(fog, pulse, now)
 
 	# 8. 風属性の竜巻 (active_wind_tornadoes: 列を縦断)
-	if "active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty():
+	if has_tornadoes:
 		for tor in board.active_wind_tornadoes:
 			_draw_wind_tornado(tor, rot_fast)
 
 	# 9. 炎マス (grid_fire: 毎ターン隣接延焼・木大延焼・水/氷で消火)
-	if "grid_fire" in board and board.grid_fire.size() == GRID_ROWS:
+	if bool(board.get("has_fire")) and "grid_fire" in board and board.grid_fire.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				var f_type = int(board.grid_fire[r][c])

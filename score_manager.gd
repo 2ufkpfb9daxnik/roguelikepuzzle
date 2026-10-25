@@ -2905,6 +2905,8 @@ func _update_buff_button_labels() -> void:
 
 ## スコアポップアップのアニメーションおよびフェード処理
 func _update_popup_labels() -> void:
+	if labelarr.is_empty():
+		return
 	var remaining_labels: Array[RichTextLabel] = []
 	for lbl in labelarr:
 		if lbl == null or not is_instance_valid(lbl):
