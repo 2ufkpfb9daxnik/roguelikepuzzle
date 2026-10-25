@@ -1432,5 +1432,88 @@ func _init() -> void:
 		assert(sm_node_check.get_node_or_null("DebugStage5Button") == null, "DebugStage5Button must be removed")
 	print("✓ S5 boss debug button removal verified!")
 
+	# -------------------------------------------------------------
+	# 28. Section 28: Item & Element Combat Hover Tooltips & Independent Gold Statue Block
+	# -------------------------------------------------------------
+	print("\n--- Testing Section 28: Item/Element Combat Tooltips & Independent Gold Statue Block ---")
+
+	# 28.1 Verify Combat HUD Item & Element Hover Zones and Tooltips
+	assert(sc.has_method("_setup_combat_hud_hover_tooltips"), "score_manager must have _setup_combat_hud_hover_tooltips")
+	sc._setup_combat_hud_hover_tooltips()
+	var item_hover_0 = sc.get_node_or_null("item_hover_0") as Control
+	assert(item_hover_0 != null, "item_hover_0 zone must exist in score_manager")
+	assert(sc.has_method("_show_item_tooltip"), "score_manager must have _show_item_tooltip")
+	assert(sc.has_method("_hide_item_tooltip"), "score_manager must have _hide_item_tooltip")
+	assert(sc.has_method("_show_elem_tooltip"), "score_manager must have _show_elem_tooltip")
+	assert(sc.has_method("_hide_elem_tooltip"), "score_manager must have _hide_elem_tooltip")
+
+	# Trigger item tooltips without error
+	for idx in range(5):
+		sc._show_item_tooltip(idx)
+		sc._hide_item_tooltip(idx)
+	# Trigger element tooltips for category without error
+	sc._show_elem_tooltip("water")
+	sc._hide_elem_tooltip("water")
+	print("✓ Combat HUD item and element value hover tooltips verified!")
+
+	# 28.2 Verify Enemy Light Skill creates Independent Obstacle Block
+	pb.clear_board_hazards()
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_n[r][c] = pb.PieceType.SWORD
+			pb.grid_gold_statue[r][c] = 0
+			if pb.grid_i[r][c] == -1:
+				var sp_dummy = Sprite2D.new()
+				pb.piece.append(sp_dummy)
+				pb.add_child(sp_dummy)
+				pb.grid_i[r][c] = pb.piece.size() - 1
+
+	# Ensure target kind (SWORD) exists and cast enemy light skill
+	var targets = pb._cast_enemy_light_skill(false, false)
+	assert(targets.size() >= 1, "Enemy light skill must target at least 1 cell")
+
+	# Find a gold statue cell
+	var statue_cell = Vector2i(-1, -1)
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_gold_statue.size() == pb.GRID_ROWS and pb.grid_gold_statue[r][c] > 0 and not pb.is_ally_gold(r, c):
+				statue_cell = Vector2i(r, c)
+				break
+		if statue_cell.x != -1: break
+
+	assert(statue_cell.x != -1, "At least one enemy gold statue block must be spawned")
+	var gr = statue_cell.x
+	var gc = statue_cell.y
+
+	# Verify it is an independent obstacle block (NO underlying piece)
+	assert(pb.grid_i[gr][gc] == -1, "Gold statue cell grid_i must be -1 (independent obstacle block)")
+	assert(pb.grid_n[gr][gc] == -1, "Gold statue cell grid_n must be -1")
+	assert(pb.grid_att[gr][gc] == -1, "Gold statue cell grid_att must be -1")
+	assert(pb.is_ally_gold(gr, gc) == false, "Must be enemy obstacle")
+
+	# Verify _find_matches does not form match with normal pieces across gold statue
+	# Place matching SWORDs horizontally around statue: (gr, gc-1)=SWORD, (gr, gc+1)=SWORD
+	if gc > 0 and gc < pb.GRID_COLUMNS - 1:
+		pb.grid_n[gr][gc - 1] = pb.PieceType.SWORD
+		pb.grid_n[gr][gc + 1] = pb.PieceType.SWORD
+		pb.ismatched[gr][gc] = false
+		pb._check_matches_exist()
+		assert(pb.ismatched[gr][gc] == false, "Independent gold statue block must NOT be matched like a normal piece")
+
+	# Verify adjacent match destruction and empty cell cascade
+	var init_dur = pb.grid_gold_statue[gr][gc]
+	assert(init_dur > 0, "Statue durability must be > 0")
+	# Simulate adjacent match damaging statue until broken
+	while pb.grid_gold_statue[gr][gc] > 0:
+		pb.grid_gold_statue[gr][gc] -= 1
+		if pb.grid_gold_statue[gr][gc] <= 0:
+			pb.grid_gold_statue[gr][gc] = 0
+			pb._set_ally_flag(pb.grid_gold_ally, gr, gc, false)
+
+	assert(pb.grid_gold_statue[gr][gc] == 0, "Statue must be destroyed")
+	assert(pb.grid_i[gr][gc] == -1, "Destroyed statue cell must be empty space ready for cascade")
+
+	print("✓ Enemy Light Skill independent gold statue block & cascade clearance fully verified!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

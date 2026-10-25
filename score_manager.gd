@@ -1807,6 +1807,9 @@ func _ready() -> void:
 		sc_lbl.position = Vector2(1276.0, row_y + 14.0)
 		sc_lbl.scale = Vector2(0.50, 0.50)
 
+		# アイテム値ホバーツールチップ領域（行全体）
+	_setup_combat_hud_hover_tooltips()
+
 	# 3. その下・右側: 選択した属性値パネルの初期化 (x: 1625.0, y: 544.0, w: 290.0, h: 400.0 -> 盤面下端 y=944 に完全一致)
 	_setup_elem_status_panel()
 
@@ -4013,6 +4016,8 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 	for k in range(12):
 		var old_icn = get_node_or_null("elem_icon" + str(k + 1))
 		if old_icn: old_icn.queue_free()
+		var old_h = get_node_or_null("elem_hover_" + str(k + 1))
+		if old_h: old_h.queue_free()
 
 	# 属性値が未定の場合、その欄には何も表示してはいけない。線（外枠・内枠）だけでよい。
 	if cat.is_empty() or not CATEGORY_ELEMENT_DEFS.has(cat):
@@ -4065,6 +4070,21 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		el_lbl.scale = Vector2(0.46, 0.46)
 		add_child(el_lbl)
 		elem_labels.append(el_lbl)
+
+		# 属性値ホバーツールチップ領域（行全体）
+		var el_h_name = "elem_hover_" + str(k + 1)
+		var el_h_ctrl = get_node_or_null(el_h_name) as Control
+		if el_h_ctrl == null:
+			el_h_ctrl = Control.new()
+			el_h_ctrl.name = el_h_name
+			el_h_ctrl.z_index = 5
+			el_h_ctrl.mouse_filter = Control.MOUSE_FILTER_PASS
+			add_child(el_h_ctrl)
+		el_h_ctrl.position = Vector2(1627.0, el_y)
+		el_h_ctrl.size = Vector2(286.0, row_h)
+		var bind_key = elem_info["key"]
+		el_h_ctrl.mouse_entered.connect(func(): _show_elem_tooltip(bind_key))
+		el_h_ctrl.mouse_exited.connect(func(): _hide_elem_tooltip(bind_key))
 
 	_setup_grid_lines()
 	update_elem_labels()
@@ -4186,3 +4206,110 @@ func _setup_grid_lines() -> void:
 	for idx in range(max(0, num_elems - 1), 8):
 		var extra_line = get_node_or_null("elem_h_line_" + str(idx))
 		if extra_line: extra_line.visible = false
+
+## アイテム値のマウスホバーツールチップ表示
+## 戦闘HUDアイテムホバー領域の初期化・セットアップ
+func _setup_combat_hud_hover_tooltips() -> void:
+	for i in range(5):
+		var row_y = 546.0 + 79.2 * float(i)
+		var h_name = "item_hover_" + str(i)
+		var h_ctrl = get_node_or_null(h_name) as Control
+		if h_ctrl == null:
+			h_ctrl = Control.new()
+			h_ctrl.name = h_name
+			h_ctrl.z_index = 5
+			h_ctrl.mouse_filter = Control.MOUSE_FILTER_PASS
+			add_child(h_ctrl)
+		h_ctrl.position = Vector2(1192.0, row_y)
+		h_ctrl.size = Vector2(421.0, 79.2)
+		var bind_i = i
+		if not h_ctrl.mouse_entered.is_connected(_on_item_hover_entered.bind(bind_i)):
+			h_ctrl.mouse_entered.connect(_on_item_hover_entered.bind(bind_i))
+			h_ctrl.mouse_exited.connect(_on_item_hover_exited.bind(bind_i))
+
+func _on_item_hover_entered(idx: int) -> void:
+	_show_item_tooltip(idx)
+
+func _on_item_hover_exited(idx: int) -> void:
+	_hide_item_tooltip(idx)
+
+func _show_item_tooltip(item_idx: int) -> void:
+	var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+	if r_ui == null or not r_ui.has_method("show_custom_tooltip"):
+		return
+	var title = ""
+	var desc = ""
+	var cur_val: int = divscore[item_idx] if item_idx < divscore.size() else 0
+	var val_str = _format_comma(cur_val)
+	match item_idx:
+		PieceType.SHIELD:
+			title = "[b][color=#00E5FF]🛡️ シールド (防御値: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]盤面でシールド駒をマッチさせると蓄積される防御力です。\n[color=#FFD54F]【ターン終了時の効果】[/color]\n蓄積されたシールド値がプレイヤー前面にアーマーとして展開され、敵の物理攻撃やスキルの直撃ダメージを身代わりとなって防ぎます。[/font_size]"
+		PieceType.SWORD:
+			title = "[b][color=#FF3D3D]⚔️ ソード (物理攻撃力: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]盤面でソード駒をマッチさせると蓄積される直接攻撃力です。\n[color=#FFD54F]【ターン終了時の効果】[/color]\n蓄積された攻撃力に応じた数の飛翔剣が一斉に敵へ射出され、物理ダメージを与えます。敵が複数いる場合はターゲットした敵へ集中攻撃します。[/font_size]"
+		PieceType.COIN:
+			title = "[b][color=#FFD700]🪙 コイン (所持資金: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]盤面でコイン駒をマッチさせると獲得できるショップ用資金です。\n[color=#FFD54F]【戦闘終了後の使途】[/color]\nショップ画面でフィーバー倍率強化、最大HP上限増加、各属性の基礎ステータス強化を購入するために消費します。[/font_size]"
+		PieceType.POTION:
+			title = "[b][color=#FF2E93]🧪 ポーション (魔力薬: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]盤面でポーション駒をマッチさせると蓄積される魔力資源です。\n[color=#FFD54F]【戦闘中の効果】[/color]\nフィーバーゲージをチャージし、満タンでフィーバータイム（全獲得量2倍以上）を発動。\n[color=#69F0AE]【戦闘後の使途】[/color]\n余剰分は持ち越され、スキルツリーで全属性のスキル（Lv1〜20）を解放・進化させる最重要資源となります。[/font_size]"
+		PieceType.FOOD:
+			title = "[b][color=#76FF03]🍞 フード (回復値: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]盤面でフード駒をマッチさせると蓄積される体力回復源です。\n[color=#FFD54F]【ターン終了時の効果】[/color]\nプレイヤーの減少したHPを即座に回復します（最大HPまで）。消耗戦やボス戦でゲームオーバーを防ぐ生命線となります。[/font_size]"
+	if title != "":
+		r_ui.show_custom_tooltip(title, desc, get_global_mouse_position(), "item_stat_" + str(item_idx))
+
+func _hide_item_tooltip(item_idx: int) -> void:
+	var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+	if r_ui and r_ui.has_method("hide_custom_tooltip"):
+		r_ui.hide_custom_tooltip("item_stat_" + str(item_idx))
+
+## 属性値のマウスホバーツールチップ表示
+func _show_elem_tooltip(elem_key: String) -> void:
+	var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+	if r_ui == null or not r_ui.has_method("show_custom_tooltip"):
+		return
+	var title = ""
+	var desc = ""
+	var count = get_element_count(elem_key)
+	var val_str = _format_comma(count)
+	match elem_key:
+		"water":
+			title = "[b][color=#00B0FF]💧 水属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した水属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n水マスを生成・伝播。炎マスと隣接すると【蒸気消滅シナジー】が発生し、共通隣接マスを一掃消去します。水上の駒消去でHP回復効果も発動。[/font_size]"
+		"ice":
+			title = "[b][color=#80D8FF]❄️ 氷属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した氷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n氷盾マスを展開し周囲の状態異常の侵攻を完全停止。雷属性が触れると【破砕シナジー】で周囲3×3を砕いて大ダメージを与えます。炎で融解。[/font_size]"
+		"wood":
+			title = "[b][color=#76FF03]🌱 木属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した木属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n盤面に生命の苗木を育成。水たまりを吸収して大木へと成長し、毎ターンプレイヤーのHPを自動回復します。炎接触で大炎上するため注意。[/font_size]"
+		"wind":
+			title = "[b][color=#69F0AE]🌪️ 風属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した風属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n竜巻を発生させて列全体を巻き上げ消去。敵の弾幕や障害物を押し流し、連鎖マッチを強制誘発します。[/font_size]"
+		"fire":
+			title = "[b][color=#FF3D00]🔥 火属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した火属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n紅蓮爆弾や炎上マスを生成。水マスと隣接で【蒸気消滅シナジー】、氷マスを融解して水に変換。敵へ継続炎上ダメージを与えます。[/font_size]"
+		"thunder":
+			title = "[b][color=#FFD600]⚡ 雷属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した雷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n直線貫通レーザーや過充電マスを生成。氷や岩石に雷が接触すると【破砕爆縮シナジー】が発生し、周囲3×3マスを一瞬で消し飛ばします。[/font_size]"
+		"earth":
+			title = "[b][color=#D7CCC8]🪨 地属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した地属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n強固な岩盤崩落を引き起こし敵の装甲を粉砕。味方の輝石マスは自由に移動でき、雷接触で広範囲の破片破砕を引き起こします。[/font_size]"
+		"poison":
+			title = "[b][color=#B388FF]🧪 毒属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した毒属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n味方薬毒マスを展開。味方毒1マスごとに敵からの毒ダメージを軽減（免疫バリア）し、2ターンに1度敵マスへ侵攻して持続毒ダメージを与えます。[/font_size]"
+		"light":
+			title = "[b][color=#FFF59D]✨ 光属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した光属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n神聖な聖光星や聖像を召喚。盤面の悪性呪いや暗雲を瞬時に浄化消滅させ、敵全体へ聖なる拡散貫通ダメージを与えます。[/font_size]"
+		"dark":
+			title = "[b][color=#EA80FC]🌙 闇属性 (当ターン蓄積: %s)[/color][/b]" % val_str
+			desc = "[font_size=17]当ターン中に獲得した闇属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n超重力ブラックホールを発生させ、周囲の全コマを強制吸引・消滅。味方の影護コマは反動を受けず敵のHPを吸収ドレインします。[/font_size]"
+	if title != "":
+		r_ui.show_custom_tooltip(title, desc, get_global_mouse_position(), "elem_stat_" + elem_key)
+
+func _hide_elem_tooltip(elem_key: String) -> void:
+	var r_ui = get_parent().get_node_or_null("RelicUIManager") if get_parent() else null
+	if r_ui and r_ui.has_method("hide_custom_tooltip"):
+		r_ui.hide_custom_tooltip("elem_stat_" + elem_key)
+

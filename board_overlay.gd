@@ -293,22 +293,24 @@ func _draw_gold_statue_tile(r: int, c: int, hp: int, pulse: float) -> void:
 		draw_circle(center + Vector2(0, -10), 65.0, Color(0.90, 1.0, 1.0))
 		draw_line(center + Vector2(0, 60), center + Vector2(0, 130), Color(0.45, 0.95, 0.88), 70.0)
 	else:
-		draw_rect(rect, Color(0.38, 0.22, 0.06, 0.90), true)
-		draw_rect(rect, Color(1.0, 0.65, 0.20, 0.98), false, 26.0)
-		draw_rect(rect.grow(-18.0), Color(1.0, 0.85, 0.5, 0.6 * pulse), false, 10.0)
-		draw_line(rect.position + Vector2(50, 20), rect.position + Vector2(50, CELL_PITCH - 40), Color(0.88, 0.62, 0.2), 16.0)
-		draw_line(rect.position + Vector2(CELL_PITCH - 50, 20), rect.position + Vector2(CELL_PITCH - 50, CELL_PITCH - 40), Color(0.88, 0.62, 0.2), 16.0)
-		draw_circle(center + Vector2(0, -10), 85.0, Color(0.98, 0.72, 0.22, 0.98))
-		draw_circle(center + Vector2(0, -10), 65.0, Color(1.0, 0.88, 0.45))
-		draw_line(center + Vector2(0, 60), center + Vector2(0, 130), Color(0.92, 0.66, 0.18), 70.0)
+		# 独立お邪魔ブロック：完全に不透明な黄金岩塊ベース
+		draw_rect(rect, Color(0.22, 0.14, 0.04, 1.0), true)
+		draw_rect(rect.grow(-8.0), Color(0.36, 0.22, 0.06, 1.0), true)
+		draw_rect(rect, Color(1.0, 0.70, 0.18, 1.0), false, 24.0)
+		draw_rect(rect.grow(-18.0), Color(1.0, 0.88, 0.45, 0.75 * pulse), false, 8.0)
+		draw_line(rect.position + Vector2(45, 20), rect.position + Vector2(45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
+		draw_line(rect.position + Vector2(CELL_PITCH - 45, 20), rect.position + Vector2(CELL_PITCH - 45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
+		draw_circle(center + Vector2(0, -10), 85.0, Color(0.98, 0.74, 0.22, 1.0))
+		draw_circle(center + Vector2(0, -10), 65.0, Color(1.0, 0.90, 0.48))
+		draw_line(center + Vector2(0, 50), center + Vector2(0, 125), Color(0.90, 0.66, 0.18), 70.0)
 
 	var badge_y = center.y - 120.0
 	var b_col = Color(0.4, 1.0, 0.9) if is_ally else Color(1.0, 0.75, 0.2)
-	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.92))
+	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
 	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
 	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
 
-	var gd_lbl = "✨ 聖像(自)" if is_ally else "👑 黄金像(敵)"
+	var gd_lbl = "✨ 聖像(自)" if is_ally else "🏆 黄金像ブロック"
 	draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, b_col)
 
 ## 雷属性の雷オブジェクト描画（自＝エメラルドシアンの過充電、敵＝赤黄の感電スパーク）

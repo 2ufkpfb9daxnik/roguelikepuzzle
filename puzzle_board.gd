@@ -1164,17 +1164,19 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 		var j: int = 0
 		while j < GRID_COLUMNS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0 and not is_ally_stone(i, j))
+			var is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[i][j] > 0 and not is_ally_gold(i, j))
 			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][j])
 			var kind: int = grid_n[i][j]
-			if kind < 0 or is_stone or is_sp or _is_plant_cell(i, j):
+			if kind < 0 or is_stone or is_gold or is_sp or _is_plant_cell(i, j):
 				j += 1
 				continue
 			var match_len: int = 1
 			while j + match_len < GRID_COLUMNS:
 				var next_c: int = j + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][next_c] > 0 and not is_ally_stone(i, next_c))
+				var next_is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[i][next_c] > 0 and not is_ally_gold(i, next_c))
 				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][next_c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][next_c])
-				if next_is_stone or next_is_sp or _is_plant_cell(i, next_c) or grid_n[i][next_c] != kind:
+				if next_is_stone or next_is_gold or next_is_sp or _is_plant_cell(i, next_c) or grid_n[i][next_c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1188,17 +1190,19 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 		var i: int = 0
 		while i < GRID_ROWS:
 			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[i][j] > 0 and not is_ally_stone(i, j))
+			var is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[i][j] > 0 and not is_ally_gold(i, j))
 			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[i][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[i][j])
 			var kind: int = grid_n[i][j]
-			if kind < 0 or is_stone or is_sp or _is_plant_cell(i, j):
+			if kind < 0 or is_stone or is_gold or is_sp or _is_plant_cell(i, j):
 				i += 1
 				continue
 			var match_len: int = 1
 			while i + match_len < GRID_ROWS:
 				var next_r: int = i + match_len
 				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][j] > 0 and not is_ally_stone(next_r, j))
+				var next_is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[next_r][j] > 0 and not is_ally_gold(next_r, j))
 				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[next_r][j] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[next_r][j])
-				if next_is_stone or next_is_sp or _is_plant_cell(next_r, j) or grid_n[next_r][j] != kind:
+				if next_is_stone or next_is_gold or next_is_sp or _is_plant_cell(next_r, j) or grid_n[next_r][j] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1388,18 +1392,20 @@ func _detect_and_spawn_special_from_matches() -> void:
 	for r in range(GRID_ROWS):
 		var c = 0
 		while c < GRID_COLUMNS:
-			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0 and not is_ally_stone(r, c))
+			var is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and not is_ally_gold(r, c))
 			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][c])
 			var kind = grid_n[r][c]
-			if kind < 0 or is_stone or is_sp or _is_plant_cell(r, c):
+			if kind < 0 or is_stone or is_gold or is_sp or _is_plant_cell(r, c):
 				c += 1
 				continue
 			var match_len = 1
 			while c + match_len < GRID_COLUMNS:
 				var next_c = c + match_len
-				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][next_c] > 0)
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][next_c] > 0 and not is_ally_stone(r, next_c))
+				var next_is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][next_c] > 0 and not is_ally_gold(r, next_c))
 				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][next_c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][next_c])
-				if next_is_stone or next_is_sp or _is_plant_cell(r, next_c) or grid_n[r][next_c] != kind:
+				if next_is_stone or next_is_gold or next_is_sp or _is_plant_cell(r, next_c) or grid_n[r][next_c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -1418,18 +1424,20 @@ func _detect_and_spawn_special_from_matches() -> void:
 	for c in range(GRID_COLUMNS):
 		var r = 0
 		while r < GRID_ROWS:
-			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0)
+			var is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0 and not is_ally_stone(r, c))
+			var is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and not is_ally_gold(r, c))
 			var is_sp: bool = (special_item.size() == GRID_ROWS and special_item[r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[r][c])
 			var kind = grid_n[r][c]
-			if kind < 0 or is_stone or is_sp or _is_plant_cell(r, c):
+			if kind < 0 or is_stone or is_gold or is_sp or _is_plant_cell(r, c):
 				r += 1
 				continue
 			var match_len = 1
 			while r + match_len < GRID_ROWS:
 				var next_r = r + match_len
-				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][c] > 0)
+				var next_is_stone: bool = (grid_stones.size() == GRID_ROWS and grid_stones[next_r][c] > 0 and not is_ally_stone(next_r, c))
+				var next_is_gold: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[next_r][c] > 0 and not is_ally_gold(next_r, c))
 				var next_is_sp: bool = (special_item.size() == GRID_ROWS and special_item[next_r][c] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[next_r][c])
-				if next_is_stone or next_is_sp or _is_plant_cell(next_r, c) or grid_n[next_r][c] != kind:
+				if next_is_stone or next_is_gold or next_is_sp or _is_plant_cell(next_r, c) or grid_n[next_r][c] != kind:
 					break
 				match_len += 1
 			if match_len >= 3:
@@ -4265,11 +4273,17 @@ func _start_breaking_animation() -> void:
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[ar][ac] > 0:
 					grid_gold_statue[ar][ac] -= 1
 					if grid_gold_statue[ar][ac] <= 0:
+						grid_gold_statue[ar][ac] = 0
+						_set_ally_flag(grid_gold_ally, ar, ac, false)
 						var rm_h = _get_relic_manager()
 						if rm_h: rm_h.on_hazard_destroyed("gold_statue", 1)
 						_spawn_gold_shatter_effect(get_cell_position(ar, ac))
+						_spawn_floating_text(get_cell_position(ar, ac), "黄金像粉砕！+500G", Color(1.0, 0.85, 0.2))
 						if sm and "totalScore" in sm:
 							sm.totalScore += 500
+					else:
+						_spawn_gold_shatter_effect(get_cell_position(ar, ac))
+						_spawn_floating_text(get_cell_position(ar, ac), "耐久-1", Color(1.0, 0.85, 0.2))
 				if grid_cursed.size() == GRID_ROWS and grid_cursed[ar][ac]:
 					grid_cursed[ar][ac] = false
 					_spawn_floating_text(get_cell_position(ar, ac), "✨ 呪い浄化！", Color(0.5, 1.0, 0.6))
@@ -7261,21 +7275,55 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		# 独立お邪魔ブロック化: 既存の通常駒を完全消去し、セルそのものを独立した黄金像ブロックに置き換え
+		var idx = grid_i[p.x][p.y]
+		if idx >= 0 and idx < piece.size() and piece[idx] != null:
+			piece[idx].queue_free()
+			Profiler.queue_free_count += 1
+			piece[idx] = null
+		grid_i[p.x][p.y] = -1
+		grid_n[p.x][p.y] = -1
+		grid_att[p.x][p.y] = -1
+		if special_item.size() == GRID_ROWS: special_item[p.x][p.y] = SpecialItemType.NONE
+		if is_bomb.size() == GRID_ROWS: is_bomb[p.x][p.y] = false
+		if special_charge.size() == GRID_ROWS: special_charge[p.x][p.y] = 0
 		grid_gold_statue[p.x][p.y] = statue_dur
 		_set_ally_flag(grid_gold_ally, p.x, p.y, false)
-		_spawn_floating_text(get_cell_position(p.x, p.y), "黄金化", Color(1.0, 0.9, 0.2))
+		_spawn_floating_text(get_cell_position(p.x, p.y), "黄金像ブロック", Color(1.0, 0.9, 0.2))
 		_spawn_gold_shatter_effect(get_cell_position(p.x, p.y))
 		_targets.append(get_cell_position(p.x, p.y))
 
-	# ボス時はさらにランダムな通常コマも追加で黄金石像化（Stage 2以上から）
+	# ボス時はさらにランダムな通常コマも追加で独立した黄金像ブロック化（Stage 2以上から）
 	if is_boss and st_idx >= 1:
-		var extra_num = mini(randi_range(1, 2) + int(st_idx * 0.5), backup_cands.size())
+		var extra_cands: Array[Vector2i] = []
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
+					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] == 0:
+						extra_cands.append(Vector2i(r, c))
+		extra_cands.shuffle()
+		var extra_num = mini(randi_range(1, 2) + int(st_idx * 0.5), extra_cands.size())
 		for j in range(extra_num):
-			var p2 = backup_cands[j]
+			var p2 = extra_cands[j]
+			var idx2 = grid_i[p2.x][p2.y]
+			if idx2 >= 0 and idx2 < piece.size() and piece[idx2] != null:
+				piece[idx2].queue_free()
+				Profiler.queue_free_count += 1
+				piece[idx2] = null
+			grid_i[p2.x][p2.y] = -1
+			grid_n[p2.x][p2.y] = -1
+			grid_att[p2.x][p2.y] = -1
+			if special_item.size() == GRID_ROWS: special_item[p2.x][p2.y] = SpecialItemType.NONE
+			if is_bomb.size() == GRID_ROWS: is_bomb[p2.x][p2.y] = false
+			if special_charge.size() == GRID_ROWS: special_charge[p2.x][p2.y] = 0
 			grid_gold_statue[p2.x][p2.y] = statue_dur
 			_set_ally_flag(grid_gold_ally, p2.x, p2.y, false)
-			_spawn_floating_text(get_cell_position(p2.x, p2.y), "黄金化", Color(1.0, 0.9, 0.2))
+			_spawn_floating_text(get_cell_position(p2.x, p2.y), "黄金像ブロック", Color(1.0, 0.9, 0.2))
 			_targets.append(get_cell_position(p2.x, p2.y))
+
+	_trigger_screen_shake(10.0)
+	var block_se = get_node_or_null("block")
+	if block_se: block_se.play()
 
 	_redraw_board_effects()
 	return _targets
@@ -8505,8 +8553,8 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 				title = "[b][color=#FFF59D]✨ 聖像 (自・残り耐久: %d)[/color][/b]" % g_hp
 				desc = "[font_size=19][color=#69F0AE]【自分による効果・移動可能】[/color]\n自由にスワップ移動でき、マッチすると大量のゴールドコインを獲得します！[/font_size]"
 			else:
-				title = "[b][color=#FFD700]🏆 黄金像 (敵・残り耐久: %d)[/color][/b]" % g_hp
-				desc = "[font_size=19]隣接マスでマッチを重ねて破壊すると、大量のゴールドコインを獲得できます！[/font_size]"
+				title = "[b][color=#FFD700]🏆 黄金像ブロック (敵・残り耐久: %d)[/color][/b]" % g_hp
+				desc = "[font_size=19][color=#FF5252]【独立お邪魔ブロック】[/color]\n動かせない強固な障害物ブロック。隣接マスでマッチさせて粉砕すると+500G獲得！破壊後は空マスとなり上から新たな駒が落下します。[/font_size]"
 		elif grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0:
 			var i_hp = int(grid_ice[r][c])
 			if is_ally_ice(r, c):
