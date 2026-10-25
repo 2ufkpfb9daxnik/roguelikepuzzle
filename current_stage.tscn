@@ -742,7 +742,7 @@ offset_top = 13.0
 offset_right = 1911.0
 offset_bottom = 407.0
 mouse_filter = 2
-color = Color(0.000715994, 0.000784107, 4.70027e-11, 1)
+color = Color(0.070588, 0.090196, 0.129412, 0.96)
 
 [node name="screen2" type="ColorRect" parent="ScoreManager"]
 z_index = -14
@@ -751,7 +751,7 @@ offset_top = 10.0
 offset_right = 1915.0
 offset_bottom = 410.0
 mouse_filter = 2
-color = Color(0.881133, 0.917258, 2.31028e-06, 1)
+color = Color(0.85098, 0.721569, 0.380392, 1)
 
 [node name="hpbar" type="ColorRect" parent="ScoreManager"]
 z_index = -11
@@ -871,7 +871,7 @@ offset_top = 166.0
 offset_right = 216.0
 offset_bottom = 346.0
 mouse_filter = 2
-color = Color(0.960784, 1, 0.0901961, 1)
+color = Color(0.85098, 0.721569, 0.380392, 1)
 
 [node name="comborect2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
@@ -880,7 +880,7 @@ offset_top = 170.0
 offset_right = 212.0
 offset_bottom = 342.0
 mouse_filter = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.070588, 0.090196, 0.129412, 0.96)
 
 [node name="GameClear" type="RichTextLabel" parent="ScoreManager"]
 visible = false
@@ -922,7 +922,7 @@ offset_top = 358.0
 offset_right = 216.0
 offset_bottom = 590.0
 mouse_filter = 2
-color = Color(0.960784, 1, 0.0901961, 1)
+color = Color(0.85098, 0.721569, 0.380392, 1)
 
 [node name="feverrect2" type="ColorRect" parent="ScoreManager"]
 visible = false
@@ -932,7 +932,7 @@ offset_top = 362.0
 offset_right = 212.0
 offset_bottom = 586.0
 mouse_filter = 2
-color = Color(0, 0, 0, 0.85)
+color = Color(0.070588, 0.090196, 0.129412, 0.96)
 
 [node name="feverlabel2" type="RichTextLabel" parent="ScoreManager"]
 visible = false
@@ -1021,10 +1021,10 @@ text = "[color=FFD700]ステージクリアー!![/color]"
 [node name="stagechangeb" type="Button" parent="ScoreManager"]
 visible = false
 z_index = 20
-offset_left = 1730.0
+offset_left = 1710.0
 offset_top = 770.0
-offset_right = 1914.0
-offset_bottom = 847.0
+offset_right = 1906.0
+offset_bottom = 846.0
 theme_override_font_sizes/font_size = 30
 text = "次へ進む"
 

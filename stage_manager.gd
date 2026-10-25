@@ -655,9 +655,43 @@ func _ready() -> void:
 
 ## ステージラベル・表示の更新
 func label_control() -> void:
+	# ステージ＆バトル数パネルの外枠・内枠（コンボ欄と完全同一の幅190px、アンティークゴールド＆オブシディアンガラス調）
+	var stg_rect = get_node_or_null("stage_rect") as ColorRect
+	if stg_rect == null:
+		stg_rect = ColorRect.new()
+		stg_rect.name = "stage_rect"
+		stg_rect.z_index = -10
+		stg_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(stg_rect)
+	stg_rect.position = Vector2(26.0, 10.0)
+	stg_rect.size = Vector2(190.0, 144.0)
+	stg_rect.color = Color(0.85, 0.72, 0.38, 1.0)
+
+	var stg_rect2 = get_node_or_null("stage_rect2") as ColorRect
+	if stg_rect2 == null:
+		stg_rect2 = ColorRect.new()
+		stg_rect2.name = "stage_rect2"
+		stg_rect2.z_index = -9
+		stg_rect2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(stg_rect2)
+	stg_rect2.position = Vector2(30.0, 14.0)
+	stg_rect2.size = Vector2(182.0, 136.0)
+	stg_rect2.color = Color(0.07, 0.09, 0.13, 0.96)
+
+	var stg_div = get_node_or_null("stage_div") as ColorRect
+	if stg_div == null:
+		stg_div = ColorRect.new()
+		stg_div.name = "stage_div"
+		stg_div.z_index = -8
+		stg_div.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(stg_div)
+	stg_div.position = Vector2(30.0, 78.0)
+	stg_div.size = Vector2(182.0, 2.0)
+	stg_div.color = Color(0.72, 0.60, 0.34, 0.5)
+
 	if label:
-		label.position = Vector2(20.0, 16.0)
-		label.size = Vector2(215.0, 48.0)
+		label.position = Vector2(30.0, 16.0)
+		label.size = Vector2(182.0, 56.0)
 		label.scroll_active = false
 		label.z_index = 2
 		var sm = _get_settings_manager()
@@ -667,16 +701,16 @@ func label_control() -> void:
 				diff_badge = " [color=#00E5FF][EASY][/color]"
 			elif sm.difficulty == 2:
 				diff_badge = " [color=#FF5252][HARD][/color]"
-		label.text = "[b][color=#00E5FF]STAGE[/color] [color=#FFD700]%d[/color]%s[/b]" % [stage, diff_badge]
+		label.text = "[center][b][color=#FFD54F]STAGE[/color] [color=#FFFFFF]%d[/color]%s[/b][/center]" % [stage, diff_badge]
 	if label2:
-		label2.position = Vector2(20.0, 64.0)
-		label2.size = Vector2(215.0, 42.0)
+		label2.position = Vector2(30.0, 84.0)
+		label2.size = Vector2(182.0, 56.0)
 		label2.scroll_active = false
 		label2.z_index = 2
 		if is_boss_battle() or stage_enemy >= 5:
-			label2.text = "[b][font_size=24][color=#FF5252]⚔️ BOSS BATTLE[/color][/font_size][/b]"
+			label2.text = "[center][b][font_size=20][color=#FF5252]⚔️ BOSS BATTLE[/color][/font_size][/b][/center]"
 		else:
-			label2.text = "[b][font_size=24][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color][/font_size][/b]" % stage_enemy
+			label2.text = "[center][b][font_size=20][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color][/font_size][/b][/center]" % stage_enemy
 
 ## 敵の撃破または前進によるカウント加算
 func add_stage_label() -> void:
