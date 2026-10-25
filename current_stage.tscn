@@ -615,7 +615,7 @@ offset_top = 544.0
 offset_right = 1615.0
 offset_bottom = 944.0
 mouse_filter = 2
-color = Color(0.960784, 1, 0.0901961, 1)
+color = Color(0.85098, 0.721569, 0.380392, 1)
 
 [node name="status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
@@ -624,7 +624,7 @@ offset_top = 546.0
 offset_right = 1613.0
 offset_bottom = 942.0
 mouse_filter = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.070588, 0.090196, 0.129412, 0.96)
 
 [node name="elem_status" type="ColorRect" parent="ScoreManager"]
 z_index = -10
@@ -633,7 +633,7 @@ offset_top = 544.0
 offset_right = 1915.0
 offset_bottom = 944.0
 mouse_filter = 2
-color = Color(0.960784, 1, 0.0901961, 1)
+color = Color(0.85098, 0.721569, 0.380392, 1)
 
 [node name="elem_status2" type="ColorRect" parent="ScoreManager"]
 z_index = -10
@@ -642,7 +642,7 @@ offset_top = 546.0
 offset_right = 1913.0
 offset_bottom = 942.0
 mouse_filter = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.070588, 0.090196, 0.129412, 0.96)
 
 [node name="score0" type="RichTextLabel" parent="ScoreManager"]
 offset_left = 1256.0

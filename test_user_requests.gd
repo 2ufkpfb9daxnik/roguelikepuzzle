@@ -1175,12 +1175,13 @@ func _init() -> void:
 	relic_ui._ready()
 	var skill_box = relic_ui.get_node_or_null("skill_rect") as ColorRect
 	assert(skill_box != null, "skill_rect must exist in RelicUIManager")
-	assert(skill_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "skill_rect must have matching gold border")
+	assert(skill_box.color == Color(0.85, 0.72, 0.38, 1.0), "skill_rect must have antique gold border")
 	assert(skill_box.position.y >= 950.0, "skill_rect must be positioned below board (y >= 950.0)")
+	assert(is_equal_approx(skill_box.position.x, 244.0), "skill_rect left edge must align with board left edge (got %f)" % skill_box.position.x)
 
 	var relic_box = relic_ui.get_node_or_null("relic_rect") as ColorRect
 	assert(relic_box != null, "relic_rect must exist in RelicUIManager")
-	assert(relic_box.color == Color(0.960784, 1.0, 0.0901961, 1.0), "relic_rect must have matching gold border")
+	assert(relic_box.color == Color(0.85, 0.72, 0.38, 1.0), "relic_rect must have antique gold border")
 	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
 	assert(is_equal_approx(skill_box.size.x, relic_box.size.x), "Skill and Relic panels must have exact same width (got %f vs %f)" % [skill_box.size.x, relic_box.size.x])
 	assert(is_equal_approx(skill_box.size.y, relic_box.size.y), "Skill and Relic panels must have exact same height (got %f vs %f)" % [skill_box.size.y, relic_box.size.y])

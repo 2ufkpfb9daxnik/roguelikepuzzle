@@ -1488,7 +1488,7 @@ func _ready() -> void:
 		sc_rect.name = "score_rect"
 		sc_rect.z_index = -10
 		sc_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sc_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
+		sc_rect.color = Color(0.85, 0.72, 0.38, 1.0)
 		add_child(sc_rect)
 	sc_rect.position = Vector2(1190.0, 472.0)
 	sc_rect.size = Vector2(725.0, 66.0)
@@ -1499,7 +1499,7 @@ func _ready() -> void:
 		sc2_rect.name = "score2_rect"
 		sc2_rect.z_index = -10
 		sc2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sc2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
+		sc2_rect.color = Color(0.07, 0.09, 0.13, 0.96)
 		add_child(sc2_rect)
 	sc2_rect.position = Vector2(1192.0, 474.0)
 	sc2_rect.size = Vector2(721.0, 62.0)
@@ -1531,9 +1531,13 @@ func _ready() -> void:
 	if status_rect != null:
 		status_rect.position = Vector2(1190.0, 544.0)
 		status_rect.size = Vector2(425.0, 400.0)
+		if status_rect is ColorRect:
+			status_rect.color = Color(0.85, 0.72, 0.38, 1.0)
 	if status2_rect != null:
 		status2_rect.position = Vector2(1192.0, 546.0)
 		status2_rect.size = Vector2(421.0, 396.0)
+		if status2_rect is ColorRect:
+			status2_rect.color = Color(0.07, 0.09, 0.13, 0.96)
 
 	# 各値アイコン（行 y: 546.0 + 79.2 * i に独立配置、特大46x46サイズ）
 	for i in range(5):
@@ -2122,7 +2126,7 @@ func get_skill_level(skill_id: String) -> int:
 	var s = get_skill_by_id(skill_id)
 	return int(s.get("level", 0))
 
-## リッチな大型ショップ＆スキルツリーUIの生成 (1696 x 874)
+## リッチな大型ショップ＆スキルツリーUIの生成 (1840 x 876) - 職人仕上げの本格RPGデザイン
 func _setup_shop_page_controls() -> void:
 	var parent = get_parent()
 	if parent == null:
@@ -2136,9 +2140,27 @@ func _setup_shop_page_controls() -> void:
 
 	var sc_btn = get_node_or_null("stagechangeb") as Button
 	if sc_btn:
-		sc_btn.position = Vector2(1724, 770)
-		sc_btn.size = Vector2(188, 77)
+		sc_btn.position = Vector2(1580, 26)
+		sc_btn.size = Vector2(250, 56)
 		sc_btn.z_index = 35
+		sc_btn.text = "⚔️ 次の戦闘へ"
+		sc_btn.add_theme_font_size_override("font_size", 22)
+		sc_btn.custom_minimum_size = Vector2(250, 56)
+		var sc_style = StyleBoxFlat.new()
+		sc_style.bg_color = Color(0.18, 0.44, 0.24, 1.0)
+		sc_style.border_color = Color(0.95, 0.82, 0.35, 1.0)
+		sc_style.set_border_width_all(2)
+		sc_style.set_corner_radius_all(10)
+		sc_style.shadow_color = Color(0, 0, 0, 0.6)
+		sc_style.shadow_size = 6
+		sc_btn.add_theme_stylebox_override("normal", sc_style)
+		var sc_hov = sc_style.duplicate()
+		sc_hov.bg_color = Color(0.24, 0.56, 0.30, 1.0)
+		sc_btn.add_theme_stylebox_override("hover", sc_hov)
+		var sc_press = sc_style.duplicate()
+		sc_press.bg_color = Color(0.12, 0.32, 0.16, 1.0)
+		sc_btn.add_theme_stylebox_override("pressed", sc_press)
+		sc_btn.add_theme_color_override("font_color", Color(1.0, 0.98, 0.85))
 
 	if shop_root_panel != null:
 		return
@@ -2147,120 +2169,133 @@ func _setup_shop_page_controls() -> void:
 
 	shop_root_panel = Panel.new()
 	shop_root_panel.name = "ShopAndSkillTreePanel"
-	shop_root_panel.position = Vector2(16, 10)
-	shop_root_panel.size = Vector2(1696, 874)
+	shop_root_panel.position = Vector2(40, 16)
+	shop_root_panel.size = Vector2(1840, 876)
 	shop_root_panel.z_index = 30
 	shop_root_panel.visible = false
 
+	# 重厚なアンティークゴールド外枠 ＆ オブシディアンベルベット調ベース
 	var root_style = StyleBoxFlat.new()
-	root_style.bg_color = Color(0.06, 0.08, 0.14, 0.98)
-	root_style.border_color = Color(0.88, 0.72, 0.28, 0.98)
+	root_style.bg_color = Color(0.08, 0.10, 0.15, 0.98)
+	root_style.border_color = Color(0.85, 0.72, 0.38, 1.0)
 	root_style.set_border_width_all(3)
-	root_style.set_corner_radius_all(18)
-	root_style.shadow_color = Color(0, 0, 0, 0.72)
-	root_style.shadow_size = 18
+	root_style.set_corner_radius_all(16)
+	root_style.shadow_color = Color(0, 0, 0, 0.8)
+	root_style.shadow_size = 24
 	shop_root_panel.add_theme_stylebox_override("panel", root_style)
 	parent.add_child.call_deferred(shop_root_panel)
 
-	# --- 上部ヘッダーバー ---
+	# --- 上部ヘッダーバー（ダークブロンズ調） ---
 	var header_bg = Panel.new()
-	header_bg.position = Vector2(18, 12)
-	header_bg.size = Vector2(1660, 80)
+	header_bg.position = Vector2(16, 12)
+	header_bg.size = Vector2(1808, 76)
 	var hdr_style = StyleBoxFlat.new()
-	hdr_style.bg_color = Color(0.10, 0.13, 0.22, 0.96)
-	hdr_style.border_color = Color(0.35, 0.42, 0.62, 0.75)
+	hdr_style.bg_color = Color(0.12, 0.15, 0.22, 0.98)
+	hdr_style.border_color = Color(0.72, 0.60, 0.34, 0.6)
 	hdr_style.set_border_width_all(2)
-	hdr_style.set_corner_radius_all(14)
+	hdr_style.set_corner_radius_all(12)
 	header_bg.add_theme_stylebox_override("panel", hdr_style)
 	shop_root_panel.add_child(header_bg)
 
+	# 左端: 露店タイトルエンブレム
+	var shop_emblem = RichTextLabel.new()
+	shop_emblem.bbcode_enabled = true
+	shop_emblem.scroll_active = false
+	shop_emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_emblem.position = Vector2(16, 10)
+	shop_emblem.size = Vector2(250, 56)
+	shop_emblem.add_theme_font_override("normal_font", jp_font)
+	shop_emblem.add_theme_font_override("bold_font", jp_font)
+	shop_emblem.text = "[center][font_size=20][b][color=#FFD54F]❖ 神秘の露店 ❖[/color][/b][/font_size]\n[font_size=12][color=#B0BEC5]MYSTIC BAZAAR[/color][/font_size][/center]"
+	header_bg.add_child(shop_emblem)
+
 	shop_tab_btn = Button.new()
-	shop_tab_btn.position = Vector2(32, 20)
-	shop_tab_btn.size = Vector2(450, 64)
-	shop_tab_btn.text = "🪙 ショップ (コイン購入)"
+	shop_tab_btn.position = Vector2(280, 10)
+	shop_tab_btn.size = Vector2(360, 56)
+	shop_tab_btn.text = "🪙 ショップ (コイン強化)"
 	shop_tab_btn.add_theme_font_override("font", jp_font)
-	shop_tab_btn.add_theme_font_size_override("font_size", 26)
+	shop_tab_btn.add_theme_font_size_override("font_size", 22)
 	shop_tab_btn.pressed.connect(func(): _switch_shop_view_mode(0))
-	shop_root_panel.add_child(shop_tab_btn)
+	header_bg.add_child(shop_tab_btn)
 
 	skill_tab_btn = Button.new()
-	skill_tab_btn.position = Vector2(498, 20)
-	skill_tab_btn.size = Vector2(470, 64)
-	skill_tab_btn.text = "🌿 スキルツリー (余剰ポーション)"
+	skill_tab_btn.position = Vector2(656, 10)
+	skill_tab_btn.size = Vector2(370, 56)
+	skill_tab_btn.text = "🌿 スキルツリー (秘薬強化)"
 	skill_tab_btn.add_theme_font_override("font", jp_font)
-	skill_tab_btn.add_theme_font_size_override("font_size", 26)
+	skill_tab_btn.add_theme_font_size_override("font_size", 22)
 	skill_tab_btn.pressed.connect(func(): _switch_shop_view_mode(1))
-	shop_root_panel.add_child(skill_tab_btn)
+	header_bg.add_child(skill_tab_btn)
 
 	# 所持コイン＆余剰ポーション表示ボックス
 	var coin_box = Panel.new()
-	coin_box.position = Vector2(990, 20)
-	coin_box.size = Vector2(332, 64)
+	coin_box.position = Vector2(1042, 10)
+	coin_box.size = Vector2(250, 56)
 	var cbox_style = StyleBoxFlat.new()
-	cbox_style.bg_color = Color(0.14, 0.12, 0.05, 0.96)
-	cbox_style.border_color = Color(1.0, 0.84, 0.0, 0.9)
+	cbox_style.bg_color = Color(0.14, 0.11, 0.04, 0.96)
+	cbox_style.border_color = Color(0.90, 0.75, 0.20, 0.8)
 	cbox_style.set_border_width_all(2)
-	cbox_style.set_corner_radius_all(12)
+	cbox_style.set_corner_radius_all(10)
 	coin_box.add_theme_stylebox_override("panel", cbox_style)
-	shop_root_panel.add_child(coin_box)
+	header_bg.add_child(coin_box)
 
 	coin_currency_lbl = RichTextLabel.new()
 	coin_currency_lbl.bbcode_enabled = true
 	coin_currency_lbl.scroll_active = false
 	coin_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	coin_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_currency_lbl.position = Vector2(8, 12)
-	coin_currency_lbl.size = Vector2(316, 40)
+	coin_currency_lbl.position = Vector2(8, 10)
+	coin_currency_lbl.size = Vector2(234, 38)
 	coin_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	coin_currency_lbl.add_theme_font_override("bold_font", jp_font)
-	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
-	coin_currency_lbl.add_theme_font_size_override("bold_font_size", 24)
+	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
+	coin_currency_lbl.add_theme_font_size_override("bold_font_size", 21)
 	coin_box.add_child(coin_currency_lbl)
 
 	var potion_box = Panel.new()
-	potion_box.position = Vector2(1334, 20)
-	potion_box.size = Vector2(332, 64)
+	potion_box.position = Vector2(1308, 10)
+	potion_box.size = Vector2(250, 56)
 	var pbox_style = StyleBoxFlat.new()
-	pbox_style.bg_color = Color(0.16, 0.06, 0.14, 0.96)
-	pbox_style.border_color = Color(1.0, 0.25, 0.65, 0.9)
+	pbox_style.bg_color = Color(0.14, 0.05, 0.13, 0.96)
+	pbox_style.border_color = Color(0.90, 0.30, 0.70, 0.8)
 	pbox_style.set_border_width_all(2)
-	pbox_style.set_corner_radius_all(12)
+	pbox_style.set_corner_radius_all(10)
 	potion_box.add_theme_stylebox_override("panel", pbox_style)
-	shop_root_panel.add_child(potion_box)
+	header_bg.add_child(potion_box)
 
 	potion_currency_lbl = RichTextLabel.new()
 	potion_currency_lbl.bbcode_enabled = true
 	potion_currency_lbl.scroll_active = false
 	potion_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	potion_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	potion_currency_lbl.position = Vector2(8, 12)
-	potion_currency_lbl.size = Vector2(316, 40)
+	potion_currency_lbl.position = Vector2(8, 10)
+	potion_currency_lbl.size = Vector2(234, 38)
 	potion_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	potion_currency_lbl.add_theme_font_override("bold_font", jp_font)
-	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 20)
-	potion_currency_lbl.add_theme_font_size_override("bold_font_size", 24)
+	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
+	potion_currency_lbl.add_theme_font_size_override("bold_font_size", 21)
 	potion_box.add_child(potion_currency_lbl)
 
 	# --- 1. ショップビュー（コイン購入：獲得スコア・体力強化） ---
 	shop_view_container = Control.new()
-	shop_view_container.position = Vector2(18, 98)
-	shop_view_container.size = Vector2(1660, 764)
+	shop_view_container.position = Vector2(16, 96)
+	shop_view_container.size = Vector2(1808, 766)
 	shop_root_panel.add_child(shop_view_container)
 
 	var shop_banner = Label.new()
 	shop_banner.position = Vector2(8, 0)
-	shop_banner.size = Vector2(1644, 32)
-	shop_banner.text = "✨ コインを消費して、各属性の獲得スコアや最大HP（体力上限）を永続強化します"
+	shop_banner.size = Vector2(1792, 30)
+	shop_banner.text = "✨ コインを消費して、各アイテムの獲得スコアや最大HP（体力上限）を永続強化します"
 	shop_banner.add_theme_font_override("font", jp_font)
-	shop_banner.add_theme_font_size_override("font_size", 21)
-	shop_banner.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
+	shop_banner.add_theme_font_size_override("font_size", 20)
+	shop_banner.add_theme_color_override("font_color", Color(1.0, 0.90, 0.55))
 	shop_view_container.add_child(shop_banner)
 
 	shop_card_refs.clear()
-	var card_w: float = 538.0
-	var card_h: float = 350.0
-	var gap_x: float = 23.0
-	var gap_y: float = 20.0
+	var card_w: float = 584.0
+	var card_h: float = 348.0
+	var gap_x: float = 24.0
+	var gap_y: float = 18.0
 
 	for i in range(shop_items.size()):
 		var item = shop_items[i]
@@ -2271,84 +2306,96 @@ func _setup_shop_page_controls() -> void:
 		card.size = Vector2(card_w, card_h)
 
 		var c_style = StyleBoxFlat.new()
-		c_style.bg_color = Color(0.11, 0.14, 0.22, 0.98)
-		c_style.border_color = item["color"].darkened(0.12)
+		c_style.bg_color = Color(0.10, 0.12, 0.18, 0.98)
+		c_style.border_color = Color(0.75, 0.64, 0.38, 0.90)
 		c_style.set_border_width_all(2)
-		c_style.border_width_top = 7
-		c_style.set_corner_radius_all(16)
-		c_style.shadow_color = Color(0, 0, 0, 0.45)
-		c_style.shadow_size = 8
+		c_style.set_corner_radius_all(14)
+		c_style.shadow_color = Color(0, 0, 0, 0.5)
+		c_style.shadow_size = 10
 		card.add_theme_stylebox_override("panel", c_style)
 		shop_view_container.add_child(card)
 
-		# アイコン背景枠
+		# カード上部ヘッダーリボン（種別＆レベルバッジ）
+		var header_ribbon = Panel.new()
+		header_ribbon.position = Vector2(0, 0)
+		header_ribbon.size = Vector2(card_w, 40)
+		var hr_style = StyleBoxFlat.new()
+		hr_style.bg_color = Color(0.14, 0.17, 0.25, 0.98)
+		hr_style.border_color = item["color"].darkened(0.4)
+		hr_style.set_border_width_all(1)
+		hr_style.corner_radius_top_left = 14
+		hr_style.corner_radius_top_right = 14
+		header_ribbon.add_theme_stylebox_override("panel", hr_style)
+		card.add_child(header_ribbon)
+
+		var sub_lbl = Label.new()
+		sub_lbl.position = Vector2(20, 8)
+		sub_lbl.size = Vector2(320, 26)
+		sub_lbl.text = "◆ %s ◆" % item.get("subtitle", "ステータス強化")
+		sub_lbl.add_theme_font_override("font", jp_font)
+		sub_lbl.add_theme_font_size_override("font_size", 16)
+		sub_lbl.add_theme_color_override("font_color", Color(0.85, 0.88, 0.95))
+		header_ribbon.add_child(sub_lbl)
+
+		var lvl_badge = Label.new()
+		lvl_badge.position = Vector2(card_w - 146, 6)
+		lvl_badge.size = Vector2(130, 28)
+		lvl_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lvl_badge.add_theme_font_override("font", jp_font)
+		lvl_badge.add_theme_font_size_override("font_size", 22)
+		lvl_badge.add_theme_color_override("font_color", Color("#FFD700"))
+		lvl_badge.add_theme_constant_override("outline_size", 4)
+		lvl_badge.add_theme_color_override("font_outline_color", Color.BLACK)
+		header_ribbon.add_child(lvl_badge)
+
+		# アイコンメダリオン枠
 		var icon_frame = Panel.new()
-		icon_frame.position = Vector2(22, 20)
-		icon_frame.size = Vector2(86, 86)
+		icon_frame.position = Vector2(22, 54)
+		icon_frame.size = Vector2(76, 76)
 		var if_style = StyleBoxFlat.new()
-		if_style.bg_color = item["color"].darkened(0.72)
+		if_style.bg_color = item["color"].darkened(0.75)
 		if_style.border_color = item["color"]
 		if_style.set_border_width_all(2)
-		if_style.set_corner_radius_all(14)
+		if_style.set_corner_radius_all(12)
 		icon_frame.add_theme_stylebox_override("panel", if_style)
 		card.add_child(icon_frame)
 
 		var tex_rect = TextureRect.new()
-		tex_rect.position = Vector2(9, 9)
-		tex_rect.size = Vector2(68, 68)
+		tex_rect.position = Vector2(8, 8)
+		tex_rect.size = Vector2(60, 60)
 		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		if ResourceLoader.exists(item.get("icon_path", "")):
 			tex_rect.texture = load(item["icon_path"])
 		icon_frame.add_child(tex_rect)
 
-		var sub_lbl = Label.new()
-		sub_lbl.position = Vector2(124, 20)
-		sub_lbl.size = Vector2(240, 26)
-		sub_lbl.text = item.get("subtitle", "ステータス強化")
-		sub_lbl.add_theme_font_override("font", jp_font)
-		sub_lbl.add_theme_font_size_override("font_size", 17)
-		sub_lbl.add_theme_color_override("font_color", Color(0.74, 0.80, 0.92))
-		card.add_child(sub_lbl)
-
-		var lvl_badge = Label.new()
-		lvl_badge.position = Vector2(390, 18)
-		lvl_badge.size = Vector2(126, 32)
-		lvl_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		lvl_badge.add_theme_font_override("font", jp_font)
-		lvl_badge.add_theme_font_size_override("font_size", 24)
-		lvl_badge.add_theme_color_override("font_color", Color("#FFD700"))
-		lvl_badge.add_theme_constant_override("outline_size", 5)
-		lvl_badge.add_theme_color_override("font_outline_color", Color.BLACK)
-		card.add_child(lvl_badge)
-
 		var title_lbl = Label.new()
-		title_lbl.position = Vector2(124, 48)
-		title_lbl.size = Vector2(392, 48)
+		title_lbl.position = Vector2(112, 52)
+		title_lbl.size = Vector2(450, 40)
 		title_lbl.text = item["name"]
 		title_lbl.add_theme_font_override("font", jp_font)
-		title_lbl.add_theme_font_size_override("font_size", 30)
+		title_lbl.add_theme_font_size_override("font_size", 28)
 		title_lbl.add_theme_color_override("font_color", item["color"].lightened(0.25))
-		title_lbl.add_theme_constant_override("outline_size", 6)
+		title_lbl.add_theme_constant_override("outline_size", 5)
 		title_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 		card.add_child(title_lbl)
 
 		var desc_lbl = Label.new()
-		desc_lbl.position = Vector2(22, 114)
-		desc_lbl.size = Vector2(494, 52)
+		desc_lbl.position = Vector2(112, 94)
+		desc_lbl.size = Vector2(450, 44)
 		desc_lbl.text = item["desc"]
 		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc_lbl.add_theme_font_override("font", jp_font)
-		desc_lbl.add_theme_font_size_override("font_size", 18)
-		desc_lbl.add_theme_color_override("font_color", Color(0.90, 0.92, 0.96))
+		desc_lbl.add_theme_font_size_override("font_size", 16)
+		desc_lbl.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
 		card.add_child(desc_lbl)
 
 		var stat_box = Panel.new()
-		stat_box.position = Vector2(22, 170)
-		stat_box.size = Vector2(494, 88)
+		stat_box.position = Vector2(22, 146)
+		stat_box.size = Vector2(540, 114)
 		var sb_style = StyleBoxFlat.new()
-		sb_style.bg_color = Color(0.06, 0.08, 0.13, 0.94)
-		sb_style.border_color = Color(0.28, 0.36, 0.52, 0.85)
+		sb_style.bg_color = Color(0.06, 0.08, 0.12, 0.96)
+		sb_style.border_color = Color(0.24, 0.30, 0.42, 0.70)
 		sb_style.set_border_width_all(1)
 		sb_style.set_corner_radius_all(10)
 		stat_box.add_theme_stylebox_override("panel", sb_style)
@@ -2358,19 +2405,19 @@ func _setup_shop_page_controls() -> void:
 		stat_lbl.bbcode_enabled = true
 		stat_lbl.scroll_active = false
 		stat_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stat_lbl.position = Vector2(14, 10)
-		stat_lbl.size = Vector2(466, 70)
+		stat_lbl.position = Vector2(16, 12)
+		stat_lbl.size = Vector2(508, 90)
 		stat_lbl.add_theme_font_override("normal_font", jp_font)
 		stat_lbl.add_theme_font_override("bold_font", jp_font)
-		stat_lbl.add_theme_font_size_override("normal_font_size", 20)
-		stat_lbl.add_theme_font_size_override("bold_font_size", 21)
+		stat_lbl.add_theme_font_size_override("normal_font_size", 19)
+		stat_lbl.add_theme_font_size_override("bold_font_size", 20)
 		stat_box.add_child(stat_lbl)
 
 		var buy_btn = Button.new()
-		buy_btn.position = Vector2(22, 268)
-		buy_btn.size = Vector2(494, 66)
+		buy_btn.position = Vector2(22, 274)
+		buy_btn.size = Vector2(540, 58)
 		buy_btn.add_theme_font_override("font", jp_font)
-		buy_btn.add_theme_font_size_override("font_size", 24)
+		buy_btn.add_theme_font_size_override("font_size", 22)
 		buy_btn.add_theme_constant_override("outline_size", 5)
 		buy_btn.add_theme_color_override("font_outline_color", Color.BLACK)
 		var slot_idx = i
@@ -2386,8 +2433,8 @@ func _setup_shop_page_controls() -> void:
 
 	# --- 2. スキルツリービュー（余剰ポーション使用：スキル獲得・強化） ---
 	skill_tree_container = Control.new()
-	skill_tree_container.position = Vector2(18, 98)
-	skill_tree_container.size = Vector2(1660, 764)
+	skill_tree_container.position = Vector2(16, 96)
+	skill_tree_container.size = Vector2(1808, 766)
 	skill_tree_container.visible = false
 	shop_root_panel.add_child(skill_tree_container)
 
@@ -2449,9 +2496,9 @@ func rebuild_skill_tree_ui() -> void:
 
 		# 3つのカテゴリーの概要カードを表示
 		var preview_cats = ["nature", "force", "mystic"]
-		var c_w = 480.0
+		var c_w = 520.0
 		var c_gap = 40.0
-		var start_x = (1660.0 - (3.0 * c_w + 2.0 * c_gap)) / 2.0
+		var start_x = (1808.0 - (3.0 * c_w + 2.0 * c_gap)) / 2.0
 		for i in range(3):
 			var c_k = preview_cats[i]
 			var c_info = CATEGORY_TREE_DEFS[c_k]
@@ -2505,9 +2552,9 @@ func rebuild_skill_tree_ui() -> void:
 	var num_branches: int = branch_titles.size()
 
 	var col_gap: float = 20.0 if num_branches > 3 else 36.0
-	var total_w: float = 1630.0
+	var total_w: float = 1760.0
 	var col_w: float = (total_w - float(num_branches - 1) * col_gap) / float(num_branches)
-	var offset_x: float = (1660.0 - (float(num_branches) * col_w + float(num_branches - 1) * col_gap)) / 2.0
+	var offset_x = (1808.0 - (float(num_branches) * col_w + float(num_branches - 1) * col_gap)) / 2.0
 
 	for b in range(num_branches):
 		var bx: float = offset_x + b * (col_w + col_gap)
@@ -2725,26 +2772,30 @@ func _update_buff_button_labels() -> void:
 	if potion_currency_lbl:
 		potion_currency_lbl.text = "[center][img=30]res://Texture/potion/potion_cut.png[/img] [color=#CCCCCC][font_size=18]余剰ポーション:[/font_size][/color] [b][color=#FF66B3][font_size=24]%s[/font_size][/color][/b][/center]" % _format_comma(potions)
 
-	# タブボタンのスタイル更新
+	# タブボタンのスタイル更新（アンティークゴールドとアメジストの職人仕上げ）
 	if shop_tab_btn and skill_tab_btn:
 		var active_shop = (current_view_mode == 0)
 		var st_shop = StyleBoxFlat.new()
-		st_shop.bg_color = Color(0.24, 0.20, 0.06, 1.0) if active_shop else Color(0.10, 0.12, 0.18, 0.85)
-		st_shop.border_color = Color(1.0, 0.84, 0.0, 1.0) if active_shop else Color(0.3, 0.35, 0.45, 0.6)
-		st_shop.set_border_width_all(3 if active_shop else 1)
+		st_shop.bg_color = Color(0.26, 0.20, 0.08, 1.0) if active_shop else Color(0.09, 0.11, 0.16, 0.85)
+		st_shop.border_color = Color(0.95, 0.82, 0.35, 1.0) if active_shop else Color(0.35, 0.38, 0.48, 0.6)
+		st_shop.set_border_width_all(2 if active_shop else 1)
 		st_shop.set_corner_radius_all(10)
 		shop_tab_btn.add_theme_stylebox_override("normal", st_shop)
-		shop_tab_btn.add_theme_stylebox_override("hover", st_shop)
-		shop_tab_btn.add_theme_color_override("font_color", Color("#FFD700") if active_shop else Color(0.7, 0.75, 0.85))
+		var st_shop_hov = st_shop.duplicate()
+		st_shop_hov.bg_color = Color(0.32, 0.25, 0.10, 1.0)
+		shop_tab_btn.add_theme_stylebox_override("hover", st_shop_hov)
+		shop_tab_btn.add_theme_color_override("font_color", Color("#FFE082") if active_shop else Color(0.70, 0.75, 0.85))
 
 		var st_skill = StyleBoxFlat.new()
-		st_skill.bg_color = Color(0.24, 0.08, 0.22, 1.0) if not active_shop else Color(0.10, 0.12, 0.18, 0.85)
-		st_skill.border_color = Color(1.0, 0.35, 0.75, 1.0) if not active_shop else Color(0.3, 0.35, 0.45, 0.6)
-		st_skill.set_border_width_all(3 if not active_shop else 1)
+		st_skill.bg_color = Color(0.24, 0.08, 0.22, 1.0) if not active_shop else Color(0.09, 0.11, 0.16, 0.85)
+		st_skill.border_color = Color(0.95, 0.45, 0.80, 1.0) if not active_shop else Color(0.35, 0.38, 0.48, 0.6)
+		st_skill.set_border_width_all(2 if not active_shop else 1)
 		st_skill.set_corner_radius_all(10)
 		skill_tab_btn.add_theme_stylebox_override("normal", st_skill)
-		skill_tab_btn.add_theme_stylebox_override("hover", st_skill)
-		skill_tab_btn.add_theme_color_override("font_color", Color("#FF80CC") if not active_shop else Color(0.7, 0.75, 0.85))
+		var st_skill_hov = st_skill.duplicate()
+		st_skill_hov.bg_color = Color(0.30, 0.12, 0.28, 1.0)
+		skill_tab_btn.add_theme_stylebox_override("hover", st_skill_hov)
+		skill_tab_btn.add_theme_color_override("font_color", Color("#FF99DD") if not active_shop else Color(0.70, 0.75, 0.85))
 
 	# 1. ショップカードの更新
 	var sm = _get_stage_manager()
@@ -3074,7 +3125,7 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		elem_status_rect.z_index = -10
 		elem_status_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(elem_status_rect)
-	elem_status_rect.color = Color(0.960784, 1.0, 0.0901961, 1.0)
+	elem_status_rect.color = Color(0.85, 0.72, 0.38, 1.0)
 	elem_status_rect.position = Vector2(1625.0, 544.0)
 	elem_status_rect.size = Vector2(290.0, 400.0)
 
@@ -3084,7 +3135,7 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		elem_status2_rect.z_index = -10
 		elem_status2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(elem_status2_rect)
-	elem_status2_rect.color = Color(0.04, 0.05, 0.08, 1.0)
+	elem_status2_rect.color = Color(0.07, 0.09, 0.13, 0.96)
 	elem_status2_rect.position = Vector2(1627.0, 546.0)
 	elem_status2_rect.size = Vector2(286.0, 396.0)
 
@@ -3124,7 +3175,7 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 	var cat_def = CATEGORY_ELEMENT_DEFS[cat]
 	elem_category_elements = cat_def["elements"]
 	elem_category_header_label.visible = true
-	elem_category_header_label.text = "[center][font_size=18][b][color=#%s]%s[/color][/b][/font_size][/center]" % [cat_def["color"], cat_def["title"]]
+	elem_category_header_label.text = "[center][font_size=18][b][color=#%s]◆ %s ◆[/color][/b][/font_size][/center]" % [cat_def["color"], cat_def["title"]]
 
 	# 属性アイコンとラベルの生成（右側カラム内に配置）
 	var num_elems = elem_category_elements.size()
@@ -3206,7 +3257,7 @@ func add_turn_element(el: Variant, amount: int) -> void:
 
 ## シンボル同士・シンボルと値を区切るグリッド線のセットアップ
 func _setup_grid_lines() -> void:
-	var line_color = Color(0.960784, 1.0, 0.0901961, 0.75)
+	var line_color = Color(0.72, 0.60, 0.34, 0.5)
 	
 	# --- 1. アイテム値の欄 (左側 x: 1192..1613, y: 546..942, 5行) ---
 	# 垂直区切り線（シンボルと値の境界: x = 1266.0）
