@@ -625,24 +625,6 @@ func _ready() -> void:
 		choose_buff_rect.color = Color(0, 0, 0, 0)
 		choose_buff_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# デバッグ用ステージ5ボス戦突入ボタン
-	var debug_s5_btn = Button.new()
-	debug_s5_btn.name = "DebugStage5Button"
-	debug_s5_btn.text = "☠ S5ボス戦 (F5)"
-	debug_s5_btn.size = Vector2(170, 32)
-	debug_s5_btn.position = Vector2(1730, 370)
-	debug_s5_btn.z_index = 40
-	debug_s5_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	debug_s5_btn.add_theme_font_override("font", CUSTOM_FONT)
-	debug_s5_btn.add_theme_font_size_override("font_size", 14)
-	var btn_style = StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.3, 0.05, 0.1, 0.85)
-	btn_style.border_color = Color(0.9, 0.2, 0.2, 0.9)
-	btn_style.set_border_width_all(2)
-	btn_style.set_corner_radius_all(6)
-	debug_s5_btn.add_theme_stylebox_override("normal", btn_style)
-	debug_s5_btn.pressed.connect(debug_start_stage5_boss)
-	add_child(debug_s5_btn)
 
 	if label != null and label2 != null:
 		stage_enemy = 1

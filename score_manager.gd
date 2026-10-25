@@ -656,6 +656,7 @@ var skill_evolutions: Dictionary = {}
 var tarot_modal_panel: Panel = null
 
 var skill_tree_items: Array[Dictionary] = [
+	# --- Nature (自然・生命系: 水・氷・木・風) ---
 	{
 		"id": "water_1",
 		"sp_type": 8,
@@ -669,38 +670,6 @@ var skill_tree_items: Array[Dictionary] = [
 		"desc_lv": [],
 		"color": Color("#00B0FF"),
 		"cost": 1000,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "water_2",
-		"sp_type": 8,
-		"match_recipe": "ポーション 5個直線消し",
-		"category": "nature",
-		"branch": 0,
-		"tier": 1,
-		"req_id": "water_1",
-		"name": "命の湧水",
-		"short_label": "湧",
-		"desc_lv": [],
-		"color": Color("#40C4FF"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "water_3",
-		"sp_type": 8,
-		"match_recipe": "ポーション T/L交差 または 6個以上消し",
-		"category": "nature",
-		"branch": 0,
-		"tier": 2,
-		"req_id": "water_2",
-		"name": "タイダル・フラッド",
-		"short_label": "嘯",
-		"desc_lv": [],
-		"color": Color("#0091EA"),
-		"cost": 5000,
 		"level": 0,
 		"max_level": 20
 	},
@@ -721,82 +690,18 @@ var skill_tree_items: Array[Dictionary] = [
 		"max_level": 20
 	},
 	{
-		"id": "ice_2",
-		"sp_type": 13,
-		"match_recipe": "シールド 5個直線消し",
-		"category": "nature",
-		"branch": 1,
-		"tier": 1,
-		"req_id": "ice_1",
-		"name": "フリージング・チェーン",
-		"short_label": "凍",
-		"desc_lv": [],
-		"color": Color("#00E5FF"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "ice_3",
-		"sp_type": 13,
-		"match_recipe": "シールド T/L交差 または 6個以上消し",
-		"category": "nature",
-		"branch": 1,
-		"tier": 2,
-		"req_id": "ice_2",
-		"name": "アブソリュート・ゼロ",
-		"short_label": "零",
-		"desc_lv": [],
-		"color": Color("#00B8D4"),
-		"cost": 5000,
-		"level": 0,
-		"max_level": 20
-	},
-	{
 		"id": "wood_1",
 		"sp_type": 9,
-		"match_recipe": "食料 4個消し",
+		"match_recipe": "パン 4個消し",
 		"category": "nature",
 		"branch": 2,
 		"tier": 0,
 		"req_id": "",
-		"name": "生命の苗木",
-		"short_label": "樹",
+		"name": "命の萌芽",
+		"short_label": "木",
 		"desc_lv": [],
 		"color": Color("#76FF03"),
-		"cost": 1200,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "wood_2",
-		"sp_type": 4,
-		"match_recipe": "食料 5個直線消し",
-		"category": "nature",
-		"branch": 2,
-		"tier": 1,
-		"req_id": "wood_1",
-		"name": "大樹の根張り",
-		"short_label": "根",
-		"desc_lv": [],
-		"color": Color("#64DD17"),
-		"cost": 2800,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "wood_3",
-		"sp_type": 9,
-		"match_recipe": "食料 T/L交差 または 6個以上消し",
-		"category": "nature",
-		"branch": 2,
-		"tier": 2,
-		"req_id": "wood_2",
-		"name": "世界樹の結実",
-		"short_label": "実",
-		"desc_lv": [],
-		"color": Color("#1B5E20"),
-		"cost": 5500,
+		"cost": 1000,
 		"level": 0,
 		"max_level": 20
 	},
@@ -808,7 +713,7 @@ var skill_tree_items: Array[Dictionary] = [
 		"branch": 3,
 		"tier": 0,
 		"req_id": "",
-		"name": "ダウンバースト",
+		"name": "疾風突風",
 		"short_label": "風",
 		"desc_lv": [],
 		"color": Color("#00E676"),
@@ -816,83 +721,21 @@ var skill_tree_items: Array[Dictionary] = [
 		"level": 0,
 		"max_level": 20
 	},
-	{
-		"id": "wind_2",
-		"sp_type": 10,
-		"match_recipe": "コイン 5個直線消し",
-		"category": "nature",
-		"branch": 3,
-		"tier": 1,
-		"req_id": "wind_1",
-		"name": "ゲイル・シフト",
-		"short_label": "嵐",
-		"desc_lv": [],
-		"color": Color("#00C853"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "wind_3",
-		"sp_type": 7,
-		"match_recipe": "コイン T/L交差 または 6個以上消し",
-		"category": "nature",
-		"branch": 3,
-		"tier": 2,
-		"req_id": "wind_2",
-		"name": "テンペスト・リバース",
-		"short_label": "廻",
-		"desc_lv": [],
-		"color": Color("#1DE9B6"),
-		"cost": 5000,
-		"level": 0,
-		"max_level": 20
-	},
+
+	# --- Force (元素・破壊系: 火・雷・地) ---
 	{
 		"id": "fire_1",
 		"sp_type": 1,
-		"match_recipe": "剣 4個消し",
+		"match_recipe": "ソード 4個消し",
 		"category": "force",
 		"branch": 0,
 		"tier": 0,
 		"req_id": "",
-		"name": "蒼炎陣",
-		"short_label": "炎",
+		"name": "紅蓮爆破",
+		"short_label": "火",
 		"desc_lv": [],
 		"color": Color("#FF6D00"),
 		"cost": 1000,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "fire_2",
-		"sp_type": 2,
-		"match_recipe": "剣 T/L字交差消し",
-		"category": "force",
-		"branch": 0,
-		"tier": 1,
-		"req_id": "fire_1",
-		"name": "バックドラフト",
-		"short_label": "煽",
-		"desc_lv": [],
-		"color": Color("#FF3D00"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "fire_3",
-		"sp_type": 12,
-		"match_recipe": "剣 6個以上 / 7個以上消し",
-		"category": "force",
-		"branch": 0,
-		"tier": 2,
-		"req_id": "fire_2",
-		"name": "プロミネンス・ノヴァ",
-		"short_label": "劫",
-		"desc_lv": [],
-		"color": Color("#DD2C00"),
-		"cost": 5000,
 		"level": 0,
 		"max_level": 20
 	},
@@ -904,43 +747,11 @@ var skill_tree_items: Array[Dictionary] = [
 		"branch": 1,
 		"tier": 0,
 		"req_id": "",
-		"name": "紫電共鳴",
+		"name": "雷電連鎖",
 		"short_label": "雷",
 		"desc_lv": [],
 		"color": Color("#FFD600"),
-		"cost": 1200,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "thunder_2",
-		"sp_type": 12,
-		"match_recipe": "コイン 5個直線消し",
-		"category": "force",
-		"branch": 1,
-		"tier": 1,
-		"req_id": "thunder_1",
-		"name": "プラズマ・コンダクト",
-		"short_label": "電",
-		"desc_lv": [],
-		"color": Color("#FFAB00"),
-		"cost": 2800,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "thunder_3",
-		"sp_type": 5,
-		"match_recipe": "コイン T/L交差 または 6個以上消し",
-		"category": "force",
-		"branch": 1,
-		"tier": 2,
-		"req_id": "thunder_2",
-		"name": "レールガン・オーバーロード",
-		"short_label": "砲",
-		"desc_lv": [],
-		"color": Color("#FF9100"),
-		"cost": 5500,
+		"cost": 1000,
 		"level": 0,
 		"max_level": 20
 	},
@@ -952,46 +763,16 @@ var skill_tree_items: Array[Dictionary] = [
 		"branch": 2,
 		"tier": 0,
 		"req_id": "",
-		"name": "輝石生成",
-		"short_label": "石",
+		"name": "岩盤崩落",
+		"short_label": "地",
 		"desc_lv": [],
-		"color": Color("#A7FFEB"),
+		"color": Color("#FFAB00"),
 		"cost": 1000,
 		"level": 0,
 		"max_level": 20
 	},
-	{
-		"id": "earth_2",
-		"sp_type": 4,
-		"match_recipe": "シールド 5個直線消し",
-		"category": "force",
-		"branch": 2,
-		"tier": 1,
-		"req_id": "earth_1",
-		"name": "グラビティ・フォルト",
-		"short_label": "引",
-		"desc_lv": [],
-		"color": Color("#64FFDA"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "earth_3",
-		"sp_type": 11,
-		"match_recipe": "シールド T/L交差 または 6個以上消し",
-		"category": "force",
-		"branch": 2,
-		"tier": 2,
-		"req_id": "earth_2",
-		"name": "ガイア・カタクリズム",
-		"short_label": "崩",
-		"desc_lv": [],
-		"color": Color("#1DE9B6"),
-		"cost": 5000,
-		"level": 0,
-		"max_level": 20
-	},
+
+	# --- Mystic (神秘・冥術系: 毒・光・闇) ---
 	{
 		"id": "poison_1",
 		"sp_type": 14,
@@ -1000,43 +781,11 @@ var skill_tree_items: Array[Dictionary] = [
 		"branch": 0,
 		"tier": 0,
 		"req_id": "",
-		"name": "薬毒散布",
+		"name": "瘴気毒霧",
 		"short_label": "毒",
 		"desc_lv": [],
 		"color": Color("#00E5FF"),
 		"cost": 1000,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "poison_2",
-		"sp_type": 14,
-		"match_recipe": "ポーション 5個直線消し",
-		"category": "mystic",
-		"branch": 0,
-		"tier": 1,
-		"req_id": "poison_1",
-		"name": "ヴェノム・インキュベート",
-		"short_label": "培",
-		"desc_lv": [],
-		"color": Color("#00B0FF"),
-		"cost": 2500,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "poison_3",
-		"sp_type": 14,
-		"match_recipe": "ポーション T/L交差 または 6個以上消し",
-		"category": "mystic",
-		"branch": 0,
-		"tier": 2,
-		"req_id": "poison_2",
-		"name": "パンデミック・ショック",
-		"short_label": "疫",
-		"desc_lv": [],
-		"color": Color("#0091EA"),
-		"cost": 5000,
 		"level": 0,
 		"max_level": 20
 	},
@@ -1048,91 +797,27 @@ var skill_tree_items: Array[Dictionary] = [
 		"branch": 1,
 		"tier": 0,
 		"req_id": "",
-		"name": "ホーリースター",
+		"name": "聖光浄化",
 		"short_label": "光",
 		"desc_lv": [],
 		"color": Color("#FFF176"),
-		"cost": 1200,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "light_2",
-		"sp_type": 3,
-		"match_recipe": "コイン 5個直線消し",
-		"category": "mystic",
-		"branch": 1,
-		"tier": 1,
-		"req_id": "light_1",
-		"name": "プリズム・レイ",
-		"short_label": "線",
-		"desc_lv": [],
-		"color": Color("#FFEE58"),
-		"cost": 2800,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "light_3",
-		"sp_type": 3,
-		"match_recipe": "コイン T/L交差 または 7個以上消し",
-		"category": "mystic",
-		"branch": 1,
-		"tier": 2,
-		"req_id": "light_2",
-		"name": "エルドラド・サンクチュアリ",
-		"short_label": "郷",
-		"desc_lv": [],
-		"color": Color("#FFD54F"),
-		"cost": 5500,
+		"cost": 1000,
 		"level": 0,
 		"max_level": 20
 	},
 	{
 		"id": "dark_1",
 		"sp_type": 6,
-		"match_recipe": "剣 4個消し",
+		"match_recipe": "ソード 4個消し",
 		"category": "mystic",
 		"branch": 2,
 		"tier": 0,
 		"req_id": "",
-		"name": "星影の帳",
+		"name": "虚無の特異点",
 		"short_label": "闇",
 		"desc_lv": [],
 		"color": Color("#BA68C8"),
-		"cost": 1200,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "dark_2",
-		"sp_type": 6,
-		"match_recipe": "剣 5個直線消し",
-		"category": "mystic",
-		"branch": 2,
-		"tier": 1,
-		"req_id": "dark_1",
-		"name": "シャドウ・イクリプス",
-		"short_label": "蝕",
-		"desc_lv": [],
-		"color": Color("#AB47BC"),
-		"cost": 2800,
-		"level": 0,
-		"max_level": 20
-	},
-	{
-		"id": "dark_3",
-		"sp_type": 6,
-		"match_recipe": "剣 T/L交差 または 6個以上消し",
-		"category": "mystic",
-		"branch": 2,
-		"tier": 2,
-		"req_id": "dark_2",
-		"name": "アビス・ブラックホール",
-		"short_label": "淵",
-		"desc_lv": [],
-		"color": Color("#7B1FA2"),
-		"cost": 5500,
+		"cost": 1000,
 		"level": 0,
 		"max_level": 20
 	}
@@ -1294,6 +979,14 @@ func _get_evolution_name(skill_id: String, milestone_lvl: int, evo_id: String) -
 		if ch.get("id") == evo_id:
 			return ch.get("name", "")
 	return evo_id
+
+## 進化データ辞書の取得（numeral, name, role, desc）
+func get_evolution_data(skill_id: String, milestone_lvl: int, evo_id: String) -> Dictionary:
+	var choices = get_evolution_choices(skill_id, milestone_lvl)
+	for ch in choices:
+		if ch.get("id") == evo_id:
+			return ch
+	return {}
 
 ## 指定特性を習得しているか判定（skill_idまたは系統プレフィックス）
 func has_skill_trait(skill_id: String, evo_id: String) -> bool:
@@ -2691,6 +2384,10 @@ func get_skill_by_id(skill_id: String) -> Dictionary:
 	for s in skill_tree_items:
 		if s.get("id", "") == real_id:
 			return s
+	var el_prefix = real_id.split("_")[0]
+	for s in skill_tree_items:
+		if s.get("id", "").begins_with(el_prefix + "_"):
+			return s
 	return {}
 
 func get_skill_level(skill_id: String) -> int:
@@ -2709,12 +2406,12 @@ func _setup_shop_page_controls() -> void:
 		if old_btn:
 			old_btn.visible = false
 
-	# 前に進むボタン（ショップ画面の下部 x: 710..1210, y: 924..1008 に配置し、ショップ画面との被りを完全解消）
+	# 前に進むボタン（ショップ枠 y=896 よりさらに下、空いている下部余白 x: 710..1210, y: 974..1050 に配置）
 	var sc_btn = get_node_or_null("stagechangeb") as Button
 	if sc_btn:
-		sc_btn.position = Vector2(710, 924)
-		sc_btn.size = Vector2(500, 84)
-		sc_btn.custom_minimum_size = Vector2(500, 84)
+		sc_btn.position = Vector2(710, 974)
+		sc_btn.size = Vector2(500, 76)
+		sc_btn.custom_minimum_size = Vector2(500, 76)
 		sc_btn.z_index = 35
 		sc_btn.text = "⚔️ 次の戦いへ進む"
 		sc_btn.add_theme_font_size_override("font_size", 26)
@@ -3227,93 +2924,165 @@ func rebuild_skill_tree_ui() -> void:
 		b_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 		bhdr.add_child(b_lbl)
 
-		# ツリー接続矢印 (Tier 0->1, Tier 1->2)
-		for t in range(2):
-			var arrow_lbl = Label.new()
-			arrow_lbl.position = Vector2(bx, 286 + t * 232)
-			arrow_lbl.size = Vector2(col_w, 24)
-			arrow_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			arrow_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			arrow_lbl.text = "▼"
-			arrow_lbl.add_theme_font_override("font", jp_font)
-			arrow_lbl.add_theme_font_size_override("font_size", 20)
-			arrow_lbl.add_theme_color_override("font_color", branch_colors[b].lightened(0.25))
-			skill_tree_container.add_child(arrow_lbl)
-
+	# 1属性につき1つの大型マスタースキルカード（全10スキル・重厚RPGレイアウト）
 	for s_idx in range(skill_tree_items.size()):
 		var s_item = skill_tree_items[s_idx]
 		if s_item.get("category", "") != cat_key:
 			continue
 
 		var branch: int = int(s_item["branch"])
-		var tier: int = int(s_item["tier"])
 		var nx: float = offset_x + branch * (col_w + col_gap)
-		var ny: float = 82.0 + tier * 232.0
+		var ny: float = 84.0
 
 		var node_card = Panel.new()
 		node_card.position = Vector2(nx, ny)
-		node_card.size = Vector2(col_w, 204)
+		node_card.size = Vector2(col_w, 670.0)
+		node_card.name = "MasterSkillCard_%s" % s_item["id"]
 		skill_tree_container.add_child(node_card)
 
-		# スキル象徴アイコン枠
+		# 1. ヘッダーアイコン枠
 		var badge = Panel.new()
 		badge.position = Vector2(14, 14)
-		badge.size = Vector2(54, 54)
+		badge.size = Vector2(56, 56)
 		var b_style = StyleBoxFlat.new()
 		b_style.bg_color = s_item["color"].darkened(0.55)
 		b_style.border_color = s_item["color"]
 		b_style.set_border_width_all(2)
-		b_style.set_corner_radius_all(12)
+		b_style.set_corner_radius_all(14)
 		badge.add_theme_stylebox_override("panel", b_style)
 		node_card.add_child(badge)
 
 		var badge_lbl = Label.new()
-		badge_lbl.size = Vector2(54, 54)
+		badge_lbl.size = Vector2(56, 56)
 		badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		badge_lbl.text = s_item.get("short_label", "技")
 		badge_lbl.add_theme_font_override("font", jp_font)
-		badge_lbl.add_theme_font_size_override("font_size", 28)
+		badge_lbl.add_theme_font_size_override("font_size", 30)
 		badge_lbl.add_theme_color_override("font_color", Color.WHITE)
 		badge_lbl.add_theme_constant_override("outline_size", 5)
 		badge_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 		badge.add_child(badge_lbl)
 
+		# スキル名
 		var s_title = Label.new()
 		s_title.position = Vector2(78, 12)
-		s_title.size = Vector2(col_w - 90, 30)
+		s_title.size = Vector2(col_w - 92, 30)
 		s_title.text = s_item["name"]
 		s_title.add_theme_font_override("font", jp_font)
-		s_title.add_theme_font_size_override("font_size", 22)
-		s_title.add_theme_color_override("font_color", s_item["color"].lightened(0.25))
+		s_title.add_theme_font_size_override("font_size", 23)
+		s_title.add_theme_color_override("font_color", s_item["color"].lightened(0.28))
 		s_title.add_theme_constant_override("outline_size", 5)
 		s_title.add_theme_color_override("font_outline_color", Color.BLACK)
 		node_card.add_child(s_title)
 
+		# 盤面マッチ条件ピル
+		var recipe_pill = Panel.new()
+		recipe_pill.position = Vector2(78, 44)
+		recipe_pill.size = Vector2(col_w - 92, 26)
+		var rp_style = StyleBoxFlat.new()
+		rp_style.bg_color = Color(0.06, 0.08, 0.12, 0.85)
+		rp_style.border_color = Color(0.85, 0.75, 0.35, 0.7)
+		rp_style.set_border_width_all(1)
+		rp_style.set_corner_radius_all(6)
+		recipe_pill.add_theme_stylebox_override("panel", rp_style)
+		node_card.add_child(recipe_pill)
+
+		var recipe_lbl = Label.new()
+		recipe_lbl.position = Vector2(6, 1)
+		recipe_lbl.size = Vector2(col_w - 104, 24)
+		recipe_lbl.text = "⚡ 盤面生成: %s" % str(s_item.get("match_recipe", ""))
+		recipe_lbl.add_theme_font_override("font", jp_font)
+		recipe_lbl.add_theme_font_size_override("font_size", 14)
+		recipe_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+		recipe_pill.add_child(recipe_lbl)
+
+		# 2. レベル状態表示 & レベルプログレスバー
 		var s_lvl = Label.new()
-		s_lvl.position = Vector2(78, 42)
-		s_lvl.size = Vector2(col_w - 90, 26)
+		s_lvl.position = Vector2(14, 76)
+		s_lvl.size = Vector2(col_w - 28, 22)
 		s_lvl.add_theme_font_override("font", jp_font)
-		s_lvl.add_theme_font_size_override("font_size", 17)
+		s_lvl.add_theme_font_size_override("font_size", 16)
 		s_lvl.add_theme_constant_override("outline_size", 4)
 		s_lvl.add_theme_color_override("font_outline_color", Color.BLACK)
 		node_card.add_child(s_lvl)
+
+		var progress_bar = ProgressBar.new()
+		progress_bar.position = Vector2(14, 100)
+		progress_bar.size = Vector2(col_w - 28, 12)
+		progress_bar.min_value = 0.0
+		progress_bar.max_value = 20.0
+		progress_bar.show_percentage = false
+		var pb_bg = StyleBoxFlat.new()
+		pb_bg.bg_color = Color(0.05, 0.06, 0.09, 0.9)
+		pb_bg.set_corner_radius_all(6)
+		progress_bar.add_theme_stylebox_override("background", pb_bg)
+		var pb_fill = StyleBoxFlat.new()
+		pb_fill.bg_color = s_item["color"]
+		pb_fill.set_corner_radius_all(6)
+		progress_bar.add_theme_stylebox_override("fill", pb_fill)
+		node_card.add_child(progress_bar)
+
+		# 3. 基礎効果 & 成長プレビュー枠
+		var desc_panel = Panel.new()
+		desc_panel.position = Vector2(14, 118)
+		desc_panel.size = Vector2(col_w - 28, 120)
+		var dp_style = StyleBoxFlat.new()
+		dp_style.bg_color = Color(0.06, 0.08, 0.12, 0.75)
+		dp_style.border_color = Color(0.25, 0.30, 0.40, 0.5)
+		dp_style.set_border_width_all(1)
+		dp_style.set_corner_radius_all(8)
+		desc_panel.add_theme_stylebox_override("panel", dp_style)
+		node_card.add_child(desc_panel)
 
 		var s_desc = RichTextLabel.new()
 		s_desc.bbcode_enabled = true
 		s_desc.scroll_active = false
 		s_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		s_desc.position = Vector2(14, 72)
-		s_desc.size = Vector2(col_w - 28, 72)
+		s_desc.position = Vector2(8, 6)
+		s_desc.size = Vector2(col_w - 44, 108)
 		s_desc.add_theme_font_override("normal_font", jp_font)
 		s_desc.add_theme_font_override("bold_font", jp_font)
-		s_desc.add_theme_font_size_override("normal_font_size", 16)
-		s_desc.add_theme_font_size_override("bold_font_size", 16)
-		node_card.add_child(s_desc)
+		s_desc.add_theme_font_size_override("normal_font_size", 14)
+		s_desc.add_theme_font_size_override("bold_font_size", 14)
+		desc_panel.add_child(s_desc)
 
+		# 4. 【第1覚醒 (Lv.5)】タロット進化スロット
+		var mid_evo_panel = Panel.new()
+		mid_evo_panel.position = Vector2(14, 246)
+		mid_evo_panel.size = Vector2(col_w - 28, 156)
+		node_card.add_child(mid_evo_panel)
+
+		var mid_evo_lbl = RichTextLabel.new()
+		mid_evo_lbl.bbcode_enabled = true
+		mid_evo_lbl.scroll_active = false
+		mid_evo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mid_evo_lbl.position = Vector2(10, 8)
+		mid_evo_lbl.size = Vector2(col_w - 48, 140)
+		mid_evo_lbl.add_theme_font_override("normal_font", jp_font)
+		mid_evo_lbl.add_theme_font_override("bold_font", jp_font)
+		mid_evo_panel.add_child(mid_evo_lbl)
+
+		# 5. 【最終神格化 (Lv.20)】タロット極限覚醒スロット
+		var final_evo_panel = Panel.new()
+		final_evo_panel.position = Vector2(14, 410)
+		final_evo_panel.size = Vector2(col_w - 28, 170)
+		node_card.add_child(final_evo_panel)
+
+		var final_evo_lbl = RichTextLabel.new()
+		final_evo_lbl.bbcode_enabled = true
+		final_evo_lbl.scroll_active = false
+		final_evo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		final_evo_lbl.position = Vector2(10, 8)
+		final_evo_lbl.size = Vector2(col_w - 48, 154)
+		final_evo_lbl.add_theme_font_override("normal_font", jp_font)
+		final_evo_lbl.add_theme_font_override("bold_font", jp_font)
+		final_evo_panel.add_child(final_evo_lbl)
+
+		# 6. 下部アクション操作部（強化ボタン & デバッグレベルアップ）
 		var s_btn = Button.new()
-		s_btn.position = Vector2(14, 146)
-		s_btn.size = Vector2(col_w - 28 - 92, 46)
+		s_btn.position = Vector2(14, 592)
+		s_btn.size = Vector2(col_w - 28 - 96, 62)
 		s_btn.add_theme_font_override("font", jp_font)
 		s_btn.add_theme_font_size_override("font_size", 18)
 		s_btn.add_theme_constant_override("outline_size", 4)
@@ -3322,12 +3091,11 @@ func rebuild_skill_tree_ui() -> void:
 		s_btn.pressed.connect(func(): _purchase_skill(bind_idx))
 		node_card.add_child(s_btn)
 
-		# 🛠️ デバッグ即時レベルアップボタン
 		var dbg_btn = Button.new()
 		dbg_btn.name = "DebugLevelUpBtn_%d" % s_idx
 		dbg_btn.text = "🛠️+Lv"
-		dbg_btn.position = Vector2(col_w - 28 - 92 + 20, 146)
-		dbg_btn.size = Vector2(86, 46)
+		dbg_btn.position = Vector2(col_w - 14 - 86, 592)
+		dbg_btn.size = Vector2(86, 62)
 		dbg_btn.add_theme_font_override("font", jp_font)
 		dbg_btn.add_theme_font_size_override("font_size", 16)
 		var dbg_st = StyleBoxFlat.new()
@@ -3387,7 +3155,12 @@ func rebuild_skill_tree_ui() -> void:
 			"s_idx": s_idx,
 			"card": node_card,
 			"s_lvl": s_lvl,
+			"progress_bar": progress_bar,
 			"s_desc": s_desc,
+			"mid_evo_panel": mid_evo_panel,
+			"mid_evo_lbl": mid_evo_lbl,
+			"final_evo_panel": final_evo_panel,
+			"final_evo_lbl": final_evo_lbl,
 			"s_btn": s_btn
 		})
 
@@ -3543,60 +3316,50 @@ func _update_buff_button_labels() -> void:
 			continue
 		var s_item = skill_tree_items[s_idx]
 		var cur_lvl: int = int(s_item["level"])
-		var max_lvl: int = int(s_item.get("max_level", 3))
+		var max_lvl: int = int(s_item.get("max_level", 20))
 		var is_max: bool = (cur_lvl >= max_lvl)
 		var cost_val: int = int(s_item["cost"])
 
-		var req_id: String = s_item.get("req_id", "")
-		var req_met: bool = true
-		var req_name: String = ""
-		if req_id != "":
-			var req_skill = get_skill_by_id(req_id)
-			req_met = (int(req_skill.get("level", 0)) > 0)
-			req_name = req_skill.get("name", "")
-
 		var card_style = StyleBoxFlat.new()
 		if cur_lvl > 0:
-			card_style.bg_color = Color(0.13, 0.16, 0.26, 0.98)
+			card_style.bg_color = Color(0.11, 0.14, 0.22, 0.98)
 			card_style.border_color = s_item["color"] if not is_max else Color("#FFD700")
 			card_style.set_border_width_all(2)
 			card_style.border_width_left = 6
-		elif req_met:
-			card_style.bg_color = Color(0.10, 0.12, 0.19, 0.95)
+		else:
+			card_style.bg_color = Color(0.08, 0.09, 0.14, 0.95)
 			card_style.border_color = s_item["color"].darkened(0.35)
 			card_style.set_border_width_all(2)
-		else:
-			card_style.bg_color = Color(0.07, 0.08, 0.12, 0.88)
-			card_style.border_color = Color(0.28, 0.30, 0.38, 0.6)
-			card_style.set_border_width_all(1)
-		card_style.set_corner_radius_all(12)
+		card_style.set_corner_radius_all(14)
 		s_ref["card"].add_theme_stylebox_override("panel", card_style)
 
+		# レベル表示
 		if is_max:
-			s_ref["s_lvl"].text = "★ Lv.%d / %d (MAX)" % [cur_lvl, max_lvl]
+			s_ref["s_lvl"].text = "★ Lv.%d / %d (MAX 神格到達)" % [cur_lvl, max_lvl]
 			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#FFD700"))
 		elif cur_lvl > 0:
 			s_ref["s_lvl"].text = "習得済: Lv.%d / %d" % [cur_lvl, max_lvl]
 			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#00E676"))
-		elif req_met:
-			s_ref["s_lvl"].text = "未習得 (解放可能)"
+		else:
+			s_ref["s_lvl"].text = "未習得 (ポーションで解放可能)"
 			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#80D8FF"))
-		else:
-			s_ref["s_lvl"].text = "🔒 未解禁 (要:%s)" % req_name
-			s_ref["s_lvl"].add_theme_color_override("font_color", Color("#9E9E9E"))
 
-		var desc_arr: Array = s_item["desc_lv"]
-		var recipe_str: String = str(s_item.get("match_recipe", ""))
-		var recipe_prefix: String = "[b][color=#FFD54F]【生成: %s】[/color][/b]\n" % recipe_str if recipe_str != "" else ""
+		# プログレスバー
+		var pbar: ProgressBar = s_ref.get("progress_bar")
+		if pbar:
+			pbar.value = cur_lvl
+
+		# 基礎効果説明
+		var desc_arr: Array = s_item.get("desc_lv", [])
 		if is_max:
-			s_ref["s_desc"].text = recipe_prefix + "[color=#FFD700][b]【最大強化】[/b][/color] %s" % desc_arr[clampi(max_lvl - 1, 0, desc_arr.size() - 1)]
+			s_ref["s_desc"].text = "[color=#FFD700][b]【最大神格強化】[/b][/color]\n%s" % (desc_arr[clampi(max_lvl - 1, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else "")
 		elif cur_lvl == 0:
-			s_ref["s_desc"].text = recipe_prefix + "[color=#B0BEC5]解放効果 (Lv.1):[/color] %s" % desc_arr[0]
+			s_ref["s_desc"].text = "[color=#B0BEC5]解放効果 (Lv.1):[/color]\n%s" % (desc_arr[0] if not desc_arr.is_empty() else "")
 		else:
-			var cur_txt = desc_arr[clampi(cur_lvl - 1, 0, desc_arr.size() - 1)]
-			var next_txt = desc_arr[clampi(cur_lvl, 0, desc_arr.size() - 1)]
-			s_ref["s_desc"].text = recipe_prefix + "[color=#B0BEC5]現在: %s[/color]\n[color=#FFD700]次(Lv.%d): %s[/color]" % [
-				cur_txt, cur_lvl + 1, next_txt
+			var cur_txt = desc_arr[clampi(cur_lvl - 1, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else ""
+			var next_txt = desc_arr[clampi(cur_lvl, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else ""
+			s_ref["s_desc"].text = "[color=#B0BEC5]現在 (Lv.%d):[/color] %s\n[color=#FFD700]次 (Lv.%d):[/color] %s" % [
+				cur_lvl, cur_txt, cur_lvl + 1, next_txt
 			]
 		var evo_mid = get_chosen_evolution(s_item["id"], 5)
 		var evo_final = get_chosen_evolution(s_item["id"], 20)
@@ -3611,8 +3374,50 @@ func _update_buff_button_labels() -> void:
 			evo_info_str += "[/color]"
 			s_ref["s_desc"].text += evo_info_str
 
+		# 第1覚醒 (Lv.5) スロット更新
+		var mid_panel: Panel = s_ref.get("mid_evo_panel")
+		var mid_lbl: RichTextLabel = s_ref.get("mid_evo_lbl")
+		if mid_panel and mid_lbl:
+			var mp_st = StyleBoxFlat.new()
+			mp_st.set_corner_radius_all(10)
+			mp_st.set_border_width_all(2)
+			if evo_mid != "":
+				var mid_data = get_evolution_data(s_item["id"], 5, evo_mid)
+				mp_st.bg_color = Color(0.08, 0.16, 0.25, 0.92)
+				mp_st.border_color = Color(0.3, 0.85, 1.0, 0.95)
+				mid_lbl.text = "[b][color=#80D8FF]✨【第1覚醒・アルカナ %s: %s】[/color][/b] [color=#B0BEC5](%s)[/color]\n[font_size=13][color=#E0F7FA]%s[/color][/font_size]" % [
+					mid_data.get("numeral", "Ⅰ"), mid_data.get("name", evo_mid), mid_data.get("role", "特性"), mid_data.get("desc", "")
+				]
+			else:
+				mp_st.bg_color = Color(0.06, 0.07, 0.10, 0.65)
+				mp_st.border_color = Color(0.25, 0.28, 0.35, 0.45)
+				mid_lbl.text = "[b][color=#78909C]🔒 【第1覚醒】スキルLv.5 到達で解放[/color][/b]\n[font_size=13][color=#546E7A]Lv.5到達時にタロット大アルカナ（3択）が出現し、戦術の方向性を決定づける特性を選びます。[/color][/font_size]"
+			mid_panel.add_theme_stylebox_override("panel", mp_st)
+
+		# 最終神格化 (Lv.20) スロット更新
+		var final_panel: Panel = s_ref.get("final_evo_panel")
+		var final_lbl: RichTextLabel = s_ref.get("final_evo_lbl")
+		if final_panel and final_lbl:
+			var fp_st = StyleBoxFlat.new()
+			fp_st.set_corner_radius_all(10)
+			fp_st.set_border_width_all(2)
+			if evo_final != "":
+				var final_data = get_evolution_data(s_item["id"], 20, evo_final)
+				fp_st.bg_color = Color(0.20, 0.16, 0.05, 0.95)
+				fp_st.border_color = Color(1.0, 0.85, 0.2, 1.0)
+				final_lbl.text = "[b][color=#FFD700]👑【最終神格・極限アルカナ %s: %s】[/color][/b] [color=#FFE082](%s)[/color]\n[font_size=13][color=#FFF8E1]%s[/color][/font_size]" % [
+					final_data.get("numeral", "Ⅰ"), final_data.get("name", evo_final), final_data.get("role", "究極神格"), final_data.get("desc", "")
+				]
+			else:
+				fp_st.bg_color = Color(0.06, 0.07, 0.10, 0.65)
+				fp_st.border_color = Color(0.25, 0.28, 0.35, 0.45)
+				var hint_text = "※氷属性：絶対零度による敵行動の完全スキップ等、究極神格特性が解禁されます。" if s_item["id"].begins_with("ice") else "スキルLv.20到達時に極限神格アルカナ（3択）が解放されます。"
+				final_lbl.text = "[b][color=#78909C]🔒 【極限神格化】スキルLv.20 到達で解放[/color][/b]\n[font_size=13][color=#546E7A]%s[/color][/font_size]" % hint_text
+			final_panel.add_theme_stylebox_override("panel", fp_st)
+
+		# 強化ボタン更新
 		var s_btn: Button = s_ref["s_btn"]
-		var can_upgrade: bool = (not is_max) and req_met and (potions >= cost_val)
+		var can_upgrade: bool = (not is_max) and (potions >= cost_val)
 		s_btn.disabled = not can_upgrade
 
 		var sb_style = StyleBoxFlat.new()
@@ -3620,15 +3425,10 @@ func _update_buff_button_labels() -> void:
 		sb_style.set_border_width_all(2)
 
 		if is_max:
-			s_btn.text = "★ MAX (Lv.%d) ★" % max_lvl
+			s_btn.text = "★ MAX (Lv.%d) 神格達成 ★" % max_lvl
 			sb_style.bg_color = Color(0.28, 0.22, 0.06, 0.95)
 			sb_style.border_color = Color("#FFD700")
 			s_btn.add_theme_color_override("font_color", Color("#FFD700"))
-		elif not req_met:
-			s_btn.text = "🔒 前提スキル未習得"
-			sb_style.bg_color = Color(0.12, 0.12, 0.16, 0.85)
-			sb_style.border_color = Color(0.3, 0.3, 0.38, 0.6)
-			s_btn.add_theme_color_override("font_color", Color(0.5, 0.52, 0.58))
 		else:
 			var act_word = "スキル解放" if cur_lvl == 0 else ("Lv.%dへ強化" % (cur_lvl + 1))
 			if cur_lvl == 4:
@@ -3648,7 +3448,7 @@ func _update_buff_button_labels() -> void:
 		s_btn.add_theme_stylebox_override("normal", sb_style)
 		var sb_hover = sb_style.duplicate()
 		if can_upgrade:
-			sb_hover.bg_color = Color(0.45, 0.14, 0.38, 1.0)
+			sb_hover.bg_color = Color(0.42, 0.14, 0.36, 1.0)
 		s_btn.add_theme_stylebox_override("hover", sb_hover)
 		s_btn.add_theme_stylebox_override("disabled", sb_style)
 

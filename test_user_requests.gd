@@ -607,14 +607,14 @@ func _init() -> void:
 	print("✓ Thunder, Earth, Poison, Light, Dark T1-T3 executed successfully!")
 
 	# ==============================================================================
-	# 19. Test All 30 Skills Registered in ScoreManager with 20 Levels
+	# 19. Test All 10 Skills Registered in ScoreManager (1 per Element, 20 Levels)
 	# ==============================================================================
-	assert(sc.skill_tree_items.size() == 30, "Exactly 30 skills must be registered in ScoreManager (got: %d)" % sc.skill_tree_items.size())
+	assert(sc.skill_tree_items.size() == 10, "Exactly 10 canonical skills (1 per element) must be registered in ScoreManager (got: %d)" % sc.skill_tree_items.size())
 	for s_item in sc.skill_tree_items:
 		assert(s_item["max_level"] == 20, "Skill %s must have max_level 20" % s_item["id"])
 		assert(s_item["desc_lv"].size() == 20, "Skill %s must have 20 description levels (got: %d)" % [s_item["id"], s_item["desc_lv"].size()])
 		assert(s_item.get("match_recipe", "") != "", "Skill %s must explicitly specify match_recipe" % s_item["id"])
-	print("✓ All 30 skills registered with 20 levels and explicit match_recipes verified!")
+	print("✓ All 10 canonical skills (1 per element) registered with 20 levels and explicit match_recipes verified!")
 
 	# ==============================================================================
 	# 20. Test Match-Generated Skill Creation: Locked vs Unlocked
@@ -1377,6 +1377,60 @@ func _init() -> void:
 	sm_evo.debug_toggle_shop()
 	assert(sm_evo.is_shop_open == true, "Shop toggled open")
 	print("✓ Section 25 passed: Debug Level-Up Suite fully verified!")
+
+
+	# ==============================================================================
+	# 27. Test User Requests: 2-Turn Hazard Spread, Lower Proceed Button, Removed S5 Button
+	# ==============================================================================
+	print("\n--- Testing Section 27: 2-Turn Hazard Spread & Bottom Proceed Button ---")
+	
+	# 27.1 Fire & Poison Spread Cadence: Strictly once every 2 turns
+	pb.clear_board_hazards()
+	assert(pb.hazard_spread_turn_counter == 0, "Counter must reset on hazard clear")
+	pb.grid_fire[2][2] = 1 # Fire at (2,2)
+	pb.grid_poison[4][4] = true # Poison at (4,4)
+	
+	# Turn 1: Player moves & turn resets -> Counter becomes 1 (odd) -> NO SPREAD
+	pb._reset_turn(sm, sc)
+	assert(pb.hazard_spread_turn_counter == 1, "Hazard spread counter should be 1 after Turn 1")
+	assert(pb.grid_fire[2][3] == 0, "Fire must NOT spread on turn 1 (once every 2 turns)")
+	assert(pb.grid_poison[4][5] == false, "Poison must NOT spread on turn 1 (once every 2 turns)")
+	
+	# Turn 2: Player moves & turn resets -> Counter becomes 2 (even) -> SPREAD OCCURS!
+	pb._reset_turn(sm, sc)
+	assert(pb.hazard_spread_turn_counter == 2, "Hazard spread counter should be 2 after Turn 2")
+	# At least one adjacent cell should have caught fire or poison
+	var fire_spread_count = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_fire[2 + dr][2 + dc] > 0:
+				fire_spread_count += 1
+	var poison_spread_count = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_poison[4 + dr][4 + dc]:
+				poison_spread_count += 1
+	assert(fire_spread_count >= 1, "Fire MUST spread on turn 2 (even turn)")
+	assert(poison_spread_count >= 1, "Poison MUST spread on turn 2 (even turn)")
+	print("✓ Fire & poison 2-turn spread cadence verified!")
+
+	# 27.2 Proceed button (stagechangeb) placed in empty bottom margin below shop
+	var sc_btn_node = sc.get_node_or_null("stagechangeb") as Button
+	if sc_btn_node == null:
+		sc_btn_node = Button.new()
+		sc_btn_node.name = "stagechangeb"
+		sc.add_child(sc_btn_node)
+		sc._setup_shop_page_controls()
+	assert(sc_btn_node != null, "stagechangeb button must exist")
+	assert(sc_btn_node.position.y >= 970.0, "Proceed button (y=%.1f) must be placed in bottom margin (>= 970)" % sc_btn_node.position.y)
+	assert(sc_btn_node.position.y + sc_btn_node.size.y <= 1080.0, "Proceed button must fit within screen height")
+	print("✓ Proceed button lower margin placement (y=%.1f, h=%.1f) verified!" % [sc_btn_node.position.y, sc_btn_node.size.y])
+
+	# 27.3 S5 Boss Jump Button removed from StageManager
+	var sm_node_check = root.get_node_or_null("StageManager")
+	if sm_node_check:
+		assert(sm_node_check.get_node_or_null("DebugStage5Button") == null, "DebugStage5Button must be removed")
+	print("✓ S5 boss debug button removal verified!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

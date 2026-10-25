@@ -180,6 +180,7 @@ var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int, "enemy_ow
 var grid_cursed: Array = []    # [row][col] -> bool (呪いコマ・消すと反動ダメージ)
 var grid_poison: Array = []    # [row][col] -> bool (猛毒沼マス・毎ターン毒ダメージ・マッチで解毒)
 var poison_spread_done_this_turn: bool = false # 毒の侵攻（伝染）が当ターンで反映済みかフラグ
+var hazard_spread_turn_counter: int = 0 # 火と毒の侵攻（伝染）ターンカウンター（2ターンに1度侵攻）
 var grid_gold_statue: Array = [] # [row][col] -> int (黄金像スカコマ・耐久値 3)
 var active_wind_tornadoes: Array[Dictionary] = [] # [{"col": int, "y": float, "speed": float, "active": bool, "ally": bool}]
 
@@ -4765,10 +4766,8 @@ func _check_cascade() -> void:
 			var rm = _get_relic_manager()
 			if rm and rm.trigger_steady_state_relics(self):
 				return
-		# 盤面が安定したら直ちに毒の侵攻・伝染を盤面に反映（待機時間ゼロ化）
-		if not poison_spread_done_this_turn:
-			poison_spread_done_this_turn = true
-			_process_poison_spread()
+		# 盤面が安定した際の毒侵攻フラグ管理（火・毒の侵攻は2ターンに1度、ターンリセット時に実行）
+		poison_spread_done_this_turn = true
 
 		# 盤面が安定したらターン演出へ
 		current_state = BoardState.TURN_SEQUENCE
@@ -7211,6 +7210,7 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 
 ## 盤面の状態異常ハザード（暗雲・呪い・炎上・帯電・石・凍結・水たまり等）を一括消去
 func clear_board_hazards() -> void:
+	hazard_spread_turn_counter = 0
 	grid_fog.clear()
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
@@ -8013,8 +8013,10 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 				_trigger_gameover(sm)
 
 	_spawn_turn_bombs()
-	_process_fire_spread()
-	if not poison_spread_done_this_turn:
+	# 火と毒の侵攻速度：2ターンに1度侵攻
+	hazard_spread_turn_counter += 1
+	if hazard_spread_turn_counter % 2 == 0:
+		_process_fire_spread()
 		_process_poison_spread()
 	poison_spread_done_this_turn = false
 	player_skill_energy = minf(player_skill_max_energy, player_skill_energy + 25.0)
@@ -9085,7 +9087,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 	var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
 
 	var is_in_match_phase: bool = (current_state == BoardState.MATCH_HIGHLIGHT or current_state == BoardState.BREAKING)
-	var skill_id = "%s_%d" % [skill_key, tier]
+	var skill_id = "%s_1" % skill_key
 	var sk_lvl: int = 1
 	if score_mgr and score_mgr.has_method("get_skill_level"):
 		sk_lvl = maxi(1, score_mgr.get_skill_level(skill_id))
