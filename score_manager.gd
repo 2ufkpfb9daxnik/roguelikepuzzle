@@ -2709,15 +2709,15 @@ func _setup_shop_page_controls() -> void:
 		if old_btn:
 			old_btn.visible = false
 
-	# 次へ進むボタン（ショップ画面の右外側 x: 1710..1906, y: 770..846 に配置し、ショップ画面との被りを完全解消）
+	# 前に進むボタン（ショップ画面の下部 x: 710..1210, y: 924..1008 に配置し、ショップ画面との被りを完全解消）
 	var sc_btn = get_node_or_null("stagechangeb") as Button
 	if sc_btn:
-		sc_btn.position = Vector2(1710, 770)
-		sc_btn.size = Vector2(196, 76)
-		sc_btn.custom_minimum_size = Vector2(196, 76)
+		sc_btn.position = Vector2(710, 924)
+		sc_btn.size = Vector2(500, 84)
+		sc_btn.custom_minimum_size = Vector2(500, 84)
 		sc_btn.z_index = 35
-		sc_btn.text = "⚔️ 次へ進む"
-		sc_btn.add_theme_font_size_override("font_size", 22)
+		sc_btn.text = "⚔️ 次の戦いへ進む"
+		sc_btn.add_theme_font_size_override("font_size", 26)
 		var sc_style = StyleBoxFlat.new()
 		sc_style.bg_color = Color(0.18, 0.44, 0.24, 1.0)
 		sc_style.border_color = Color(0.95, 0.82, 0.35, 1.0)
@@ -2739,11 +2739,11 @@ func _setup_shop_page_controls() -> void:
 
 	var jp_font = _get_jp_font()
 
-	# ショップウィンドウ本体 (x: 16..1696, y: 12..886) -> 右側の進むボタン(x=1710)と被らない独立配置
+	# ショップウィンドウ本体 (x: 20..1900, y: 16..896) -> 右端を1880pxまで大幅拡張し、下部の進むボタン(y=924)と被らない独立配置
 	shop_root_panel = Panel.new()
 	shop_root_panel.name = "ShopAndSkillTreePanel"
-	shop_root_panel.position = Vector2(16, 12)
-	shop_root_panel.size = Vector2(1680, 874)
+	shop_root_panel.position = Vector2(20, 16)
+	shop_root_panel.size = Vector2(1880, 880)
 	shop_root_panel.z_index = 30
 	shop_root_panel.visible = false
 
@@ -2761,7 +2761,7 @@ func _setup_shop_page_controls() -> void:
 	# --- 上部ヘッダーバー（ダークブロンズ調） ---
 	var header_bg = Panel.new()
 	header_bg.position = Vector2(16, 12)
-	header_bg.size = Vector2(1648, 76)
+	header_bg.size = Vector2(1848, 76)
 	var hdr_style = StyleBoxFlat.new()
 	hdr_style.bg_color = Color(0.12, 0.15, 0.22, 0.98)
 	hdr_style.border_color = Color(0.72, 0.60, 0.34, 0.6)
@@ -2800,10 +2800,10 @@ func _setup_shop_page_controls() -> void:
 	skill_tab_btn.pressed.connect(func(): _switch_shop_view_mode(1))
 	header_bg.add_child(skill_tab_btn)
 
-	# 所持コイン＆余剰ポーション表示ボックス
+	# 所持コイン＆余剰ポーション表示ボックス（幅拡張に合わせてゆったり配置）
 	var coin_box = Panel.new()
-	coin_box.position = Vector2(964, 10)
-	coin_box.size = Vector2(326, 56)
+	coin_box.position = Vector2(1010, 10)
+	coin_box.size = Vector2(400, 56)
 	var cbox_style = StyleBoxFlat.new()
 	cbox_style.bg_color = Color(0.14, 0.11, 0.04, 0.96)
 	cbox_style.border_color = Color(0.90, 0.75, 0.20, 0.8)
@@ -2817,8 +2817,8 @@ func _setup_shop_page_controls() -> void:
 	coin_currency_lbl.scroll_active = false
 	coin_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	coin_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_currency_lbl.position = Vector2(8, 10)
-	coin_currency_lbl.size = Vector2(310, 38)
+	coin_currency_lbl.position = Vector2(10, 10)
+	coin_currency_lbl.size = Vector2(380, 38)
 	coin_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	coin_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
@@ -2826,8 +2826,8 @@ func _setup_shop_page_controls() -> void:
 	coin_box.add_child(coin_currency_lbl)
 
 	var potion_box = Panel.new()
-	potion_box.position = Vector2(1304, 10)
-	potion_box.size = Vector2(326, 56)
+	potion_box.position = Vector2(1430, 10)
+	potion_box.size = Vector2(400, 56)
 	var pbox_style = StyleBoxFlat.new()
 	pbox_style.bg_color = Color(0.14, 0.05, 0.13, 0.96)
 	pbox_style.border_color = Color(0.90, 0.30, 0.70, 0.8)
@@ -2841,8 +2841,8 @@ func _setup_shop_page_controls() -> void:
 	potion_currency_lbl.scroll_active = false
 	potion_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	potion_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	potion_currency_lbl.position = Vector2(8, 10)
-	potion_currency_lbl.size = Vector2(310, 38)
+	potion_currency_lbl.position = Vector2(10, 10)
+	potion_currency_lbl.size = Vector2(380, 38)
 	potion_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	potion_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
@@ -2852,12 +2852,12 @@ func _setup_shop_page_controls() -> void:
 	# --- 1. ショップビュー（コイン購入：獲得スコア・体力強化） ---
 	shop_view_container = Control.new()
 	shop_view_container.position = Vector2(16, 96)
-	shop_view_container.size = Vector2(1648, 766)
+	shop_view_container.size = Vector2(1848, 770)
 	shop_root_panel.add_child(shop_view_container)
 
 	var shop_banner = Label.new()
 	shop_banner.position = Vector2(8, 0)
-	shop_banner.size = Vector2(1632, 30)
+	shop_banner.size = Vector2(1832, 30)
 	shop_banner.text = "✨ コインを消費して、各アイテムの獲得スコアや最大HP（体力上限）を永続強化します"
 	shop_banner.add_theme_font_override("font", jp_font)
 	shop_banner.add_theme_font_size_override("font_size", 20)
@@ -2865,11 +2865,11 @@ func _setup_shop_page_controls() -> void:
 	shop_view_container.add_child(shop_banner)
 
 	shop_card_refs.clear()
-	var card_w: float = 530.0
-	var card_h: float = 348.0
-	var gap_x: float = 22.0
+	var card_w: float = 590.0
+	var card_h: float = 350.0
+	var gap_x: float = 24.0
 	var gap_y: float = 18.0
-	var start_x: float = (1648.0 - (3.0 * card_w + 2.0 * gap_x)) / 2.0
+	var start_x: float = (1848.0 - (3.0 * card_w + 2.0 * gap_x)) / 2.0
 
 	for i in range(shop_items.size()):
 		var item = shop_items[i]
@@ -3008,7 +3008,7 @@ func _setup_shop_page_controls() -> void:
 	# --- 2. スキルツリービュー（余剰ポーション使用：スキル獲得・強化） ---
 	skill_tree_container = Control.new()
 	skill_tree_container.position = Vector2(16, 96)
-	skill_tree_container.size = Vector2(1648, 766)
+	skill_tree_container.size = Vector2(1848, 770)
 	skill_tree_container.visible = false
 	shop_root_panel.add_child(skill_tree_container)
 
@@ -3076,9 +3076,9 @@ func rebuild_skill_tree_ui() -> void:
 
 		# 3つのカテゴリーの概要カードを表示
 		var preview_cats = ["nature", "force", "mystic"]
-		var c_w = 480.0
+		var c_w = 580.0
 		var c_gap = 36.0
-		var start_x = (1648.0 - (3.0 * c_w + 2.0 * c_gap)) / 2.0
+		var start_x = (1848.0 - (3.0 * c_w + 2.0 * c_gap)) / 2.0
 		for i in range(3):
 			var c_k = preview_cats[i]
 			var c_info = CATEGORY_TREE_DEFS[c_k]
@@ -3131,10 +3131,10 @@ func rebuild_skill_tree_ui() -> void:
 	var branch_colors: Array = cat_data["branch_colors"]
 	var num_branches: int = branch_titles.size()
 
-	var col_gap: float = 20.0 if num_branches > 3 else 36.0
-	var total_w: float = 1760.0
+	var col_gap: float = 24.0 if num_branches > 3 else 36.0
+	var total_w: float = 1800.0
 	var col_w: float = (total_w - float(num_branches - 1) * col_gap) / float(num_branches)
-	var offset_x = (1808.0 - (float(num_branches) * col_w + float(num_branches - 1) * col_gap)) / 2.0
+	var offset_x = (1848.0 - (float(num_branches) * col_w + float(num_branches - 1) * col_gap)) / 2.0
 
 	for b in range(num_branches):
 		var bx: float = offset_x + b * (col_w + col_gap)
@@ -3698,7 +3698,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	modal.name = "TarotEvolutionModal"
 	tarot_modal_panel = modal
 	modal.position = Vector2(0, 0)
-	modal.size = Vector2(1680, 874)
+	modal.size = Vector2(1880, 880)
 	modal.z_index = 25
 
 	var bg_st = StyleBoxFlat.new()
@@ -3717,7 +3717,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	var close_btn = Button.new()
 	close_btn.name = "ModalCloseBtn"
 	close_btn.text = "✕ キャンセル"
-	close_btn.position = Vector2(1520, 24)
+	close_btn.position = Vector2(1720, 24)
 	close_btn.size = Vector2(130, 40)
 	var cl_st = StyleBoxFlat.new()
 	cl_st.bg_color = Color(0.18, 0.12, 0.14, 0.9)
@@ -3749,11 +3749,11 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 
 	# Cards HBox Container
 	var card_count = choices.size()
-	var card_w: float = 380.0
+	var card_w: float = 440.0
 	var card_h: float = 640.0
-	var spacing: float = 40.0
+	var spacing: float = 44.0
 	var total_w = float(card_count) * card_w + float(card_count - 1) * spacing
-	var start_x = (1680.0 - total_w) / 2.0
+	var start_x = (1880.0 - total_w) / 2.0
 	var start_y = 150.0
 
 	var el_color = s_item.get("color", Color(0.85, 0.72, 0.38))
