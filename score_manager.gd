@@ -195,25 +195,25 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 		],
 		"final": [
 			{
-				"id": "water_final_deluge",
+				"id": "water_final_spring_expand",
 				"numeral": "Ⅰ",
-				"name": "大海嘯・万象呑流",
-				"role": "極限神格：行動リセット",
-				"desc": "巨大津波が盤面を一掃し、敵の溜め行動・詠唱を完全リセット＆大ダメージ。"
+				"name": "湧水の浸透",
+				"role": "毎ターン水マス自然拡大",
+				"desc": "ターン終了時、味方水マスから水が染み出し、隣接するマスへ毎ターン自動で1マス拡大していく。"
 			},
 			{
-				"id": "water_final_immortality",
+				"id": "water_final_cleansing_torrent",
 				"numeral": "Ⅱ",
-				"name": "潮汐の不死結界",
-				"role": "致死回避 ＆ 全開蘇生",
-				"desc": "HPが0になる致命打を受けた時、水マスを全消費して1度だけHP全開で蘇生する。"
+				"name": "浄化の濁流",
+				"role": "敵妨害ハザード洗い流し",
+				"desc": "水スキル発動時、激しい水流が盤面を洗い流し、水マス上の駒消去に加えて隣接する敵妨害マス（敵炎・敵毒・敵暗雲）を最大2マス消滅浄化する。"
 			},
 			{
-				"id": "water_final_maelstrom",
+				"id": "water_final_vortex_cascade",
 				"numeral": "Ⅲ",
-				"name": "深淵の渦潮",
-				"role": "最大HP割合ダメージ",
-				"desc": "水マスの敵を渦潮に閉じ込め、ターン毎に敵最大HPの5%の割合ダメージを与える。"
+				"name": "奔流カスケード",
+				"role": "水上マッチ時上下巻き込み消去",
+				"desc": "水マス上で駒をマッチさせた時、水流が渦を巻いてその上下マスを巻き込んで追加消去し、上からの落下連鎖を誘発する。"
 			}
 		]
 	},
@@ -223,15 +223,15 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "wood_mid_roots",
 				"numeral": "Ⅰ",
 				"name": "深緑の根張り",
-				"role": "急速成長 ＆ リジェネ倍増",
-				"desc": "苗木が大木へ素早く進化し、毎ターンの自動HPリジェネが倍増。"
+				"role": "急速成長 ＆ 根張り強化",
+				"desc": "盤面に水マスが存在する時、苗木が水分を吸収して素早く大木へと成長する。"
 			},
 			{
 				"id": "wood_mid_thorns",
 				"numeral": "Ⅱ",
-				"name": "蔦の荊棘縛り",
-				"role": "敵捕縛 ＆ 被ダメージ減退",
-				"desc": "苗木の周囲の敵を棘で捕縛し、敵の与ダメージを20%減少させる。"
+				"name": "茨のトゲ反撃",
+				"role": "被弾時木属性カウンター",
+				"desc": "敵から攻撃を受けた時、鋭い茨のトゲで敵へ木属性のカウンターダメージを与える。"
 			},
 			{
 				"id": "wood_mid_harvest",
@@ -253,15 +253,15 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "wood_final_sealing",
 				"numeral": "Ⅱ",
 				"name": "霊木の樹縛陣",
-				"role": "完全拘束 ＆ 追撃光線",
-				"desc": "敵を完全に根で拘束し、敵の防御力を0にしつつ毎ターン大木から追撃光線を放つ。"
+				"role": "敵行動遅延 ＆ 追撃光線",
+				"desc": "敵の足元に根を張り巡らせて次行動カウントを+1遅延させつつ、毎ターン大木から追撃光線を放つ。"
 			},
 			{
 				"id": "wood_final_wrath",
 				"numeral": "Ⅲ",
 				"name": "大自然の怒り",
-				"role": "生命爆発大破滅",
-				"desc": "盤面の全木マスを一斉に生命爆発させ、累計回復量に応じた破滅的ダメージを与える。"
+				"role": "大木ターン終了時追撃",
+				"desc": "ターン終了時、盤面の大木から敵へ木属性の強烈な追撃ダメージを与える。"
 			}
 		]
 	},
@@ -294,22 +294,22 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "wind_final_tempest",
 				"numeral": "Ⅰ",
 				"name": "神嵐テンペスト",
-				"role": "極限神格：バフ全消去嵐",
-				"desc": "盤面全体を巨大竜巻が巻き込み、敵全体に多段猛嵐ダメージ＋敵の強化バフを全消去。"
+				"role": "極限神格：多段猛嵐",
+				"desc": "盤面全体を巨大竜巻が巻き込み、敵全体に多段猛嵐ダメージを与える。"
 			},
 			{
 				"id": "wind_final_vacuum",
 				"numeral": "Ⅱ",
 				"name": "真空崩壊",
 				"role": "超圧縮吸引クリティカル",
-				"desc": "風の刃が連続命中した敵を中心へ引きずり込み、超圧縮された風圧で即死級クリティカル。"
+				"desc": "風の刃が連続命中した敵を中心へ引きずり込み、超圧縮された風圧で強烈なクリティカルダメージ。"
 			},
 			{
 				"id": "wind_final_eternal",
 				"numeral": "Ⅲ",
 				"name": "常風の領域",
 				"role": "追い風循環 ＆ コンボ加速",
-				"desc": "コンボ倍率の上昇ペースが2倍になり、ターン終了時に追加の疾風刃が敵全体へ連鎖追撃。"
+				"desc": "コンボ倍率の上昇ペースが加速し、ターン終了時に追加の疾風刃が敵全体へ連鎖追撃。"
 			}
 		]
 	},
@@ -342,15 +342,15 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "thunder_final_judgement",
 				"numeral": "Ⅰ",
 				"name": "天雷神罰・裁きの雷",
-				"role": "極限神格：防御無視落雷",
-				"desc": "敵の帯電状態を過負荷起爆し、防御無視の壊滅的落雷ダメージ。"
+				"role": "過負荷帯電落雷",
+				"desc": "敵の帯電状態を過負荷起爆し、強力な落雷ダメージを与える。"
 			},
 			{
 				"id": "thunder_final_hyperdrive",
 				"numeral": "Ⅱ",
 				"name": "超電導加速",
 				"role": "ボーナスターン獲得",
-				"desc": "ターン終了時、50%の確率で即座にボーナスターン（追加操作）を獲得。"
+				"desc": "ターン終了時、一定確率で即座にボーナスターン（追加操作）を獲得。"
 			},
 			{
 				"id": "thunder_final_catastrophe",
@@ -990,13 +990,21 @@ func get_evolution_data(skill_id: String, milestone_lvl: int, evo_id: String) ->
 
 ## 指定特性を習得しているか判定（skill_idまたは系統プレフィックス）
 func has_skill_trait(skill_id: String, evo_id: String) -> bool:
+	var alias_map = {
+		"water_final_deluge": "water_final_spring_expand"
+	}
+	var mapped_id = alias_map.get(evo_id, evo_id)
 	if skill_evolutions.has(skill_id):
-		if skill_evolutions[skill_id].get("mid", "") == evo_id or skill_evolutions[skill_id].get("final", "") == evo_id:
+		var mid_evo = skill_evolutions[skill_id].get("mid", "")
+		var fin_evo = skill_evolutions[skill_id].get("final", "")
+		if mid_evo == evo_id or fin_evo == evo_id or mid_evo == mapped_id or fin_evo == mapped_id:
 			return true
 	var el_prefix = skill_id.split("_")[0]
 	for sk in skill_evolutions:
 		if sk.begins_with(el_prefix):
-			if skill_evolutions[sk].get("mid", "") == evo_id or skill_evolutions[sk].get("final", "") == evo_id:
+			var mid_evo = skill_evolutions[sk].get("mid", "")
+			var fin_evo = skill_evolutions[sk].get("final", "")
+			if mid_evo == evo_id or fin_evo == evo_id or mid_evo == mapped_id or fin_evo == mapped_id:
 				return true
 	return false
 

@@ -4628,6 +4628,17 @@ func _start_breaking_animation() -> void:
 			var p = piece[idx]
 			var kind = grid_n[cell.x][cell.y]
 
+			# 💧 水最終進化: 奔流カスケード (水マス上マッチ時、上下マスを追加巻き込み消去)
+			if grid_water.size() == GRID_ROWS and grid_water[cell.x][cell.y] and is_ally_water(cell.x, cell.y):
+				var score_mgr_w = _get_score_manager()
+				if score_mgr_w and score_mgr_w.has_method("has_skill_trait") and score_mgr_w.has_skill_trait("water_1", "water_final_vortex_cascade"):
+					for dr in [-1, 1]:
+						var v_r = cell.x + dr; var v_c = cell.y
+						if v_r >= 0 and v_r < GRID_ROWS and v_c >= 0 and v_c < GRID_COLUMNS:
+							if grid_i[v_r][v_c] != -1 and not ismatched[v_r][v_c]:
+								ismatched[v_r][v_c] = true
+								_spawn_floating_text(get_cell_position(v_r, v_c), "💧 奔流巻き込み！", Color(0.2, 0.85, 1.0))
+
 			# 氷最終進化: 破砕起爆 (氷マス上マッチ時3x3破壊)
 			if grid_ice.size() == GRID_ROWS and int(grid_ice[cell.x][cell.y]) > 0:
 				var score_mgr_ice = _get_score_manager()
@@ -8537,6 +8548,23 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 				sm.interval = maxi(0, sm.interval - 1)
 				_spawn_floating_text(sm.enemy.position if sm.enemy else Vector2(1550, 250), "❄️ 冷気遅延！敵カウント+1", Color(0.4, 0.9, 1.0))
 
+		# 💧 水最終進化: 湧水の浸透（味方水マスが隣接マス1個へ自動拡大）
+		if score_mgr.has_skill_trait("water_1", "water_final_spring_expand"):
+			var w_expanded = false
+			if grid_water.size() == GRID_ROWS:
+				for wr in range(GRID_ROWS):
+					if w_expanded: break
+					for wc in range(GRID_COLUMNS):
+						if grid_water[wr][wc] and is_ally_water(wr, wc):
+							for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+								var nwr = wr + offset.x; var nwc = wc + offset.y
+								if nwr >= 0 and nwr < GRID_ROWS and nwc >= 0 and nwc < GRID_COLUMNS:
+									if not grid_water[nwr][nwc] and not _is_plant_cell(nwr, nwc):
+										_apply_water_to_cell(nwr, nwc, true)
+										_spawn_floating_text(get_cell_position(nwr, nwc), "💧 湧水浸透！", Color(0.2, 0.8, 1.0))
+										w_expanded = true; break
+							if w_expanded: break
+
 		# 氷最終進化: 永久凍土（味方氷マスが隣接マス1個へ自動拡大）
 		if score_mgr.has_skill_trait("ice_1", "ice_final_permafrost"):
 			var expanded = false
@@ -9770,7 +9798,32 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				_clear_pieces_in_cells(cleared_cells)
 				_start_continuous_falling()
 
-			direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_w_deluge else 1.0)
+			# 💧 水最終進化: 浄化の濁流（隣接する敵妨害ハザードを最大2マス洗い流して消滅浄化）
+			if score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_final_cleansing_torrent"):
+				var cleansed_count = 0
+				for cell in cleared_cells:
+					if cleansed_count >= 2: break
+					for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+						if cleansed_count >= 2: break
+						var nr = cell.x + offset.x; var nc = cell.y + offset.y
+						if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+							var did_cleanse = false
+							if grid_poison.size() == GRID_ROWS and grid_poison[nr][nc] and not is_ally_poison(nr, nc):
+								grid_poison[nr][nc] = false
+								did_cleanse = true
+							if grid_fire.size() == GRID_ROWS and grid_fire[nr][nc] > 0 and not is_ally_fire(nr, nc):
+								grid_fire[nr][nc] = 0
+								did_cleanse = true
+							if grid_cursed.size() == GRID_ROWS and grid_cursed[nr][nc] and not is_ally_cursed(nr, nc):
+								grid_cursed[nr][nc] = false
+								_set_ally_flag(grid_cursed_ally, nr, nc, false)
+								did_cleanse = true
+							if did_cleanse:
+								cleansed_count += 1
+								_spawn_floating_text(get_cell_position(nr, nc), "💧 濁流浄化！", Color(0.3, 0.9, 1.0))
+								_spawn_aqua_splash_effect(get_cell_position(nr, nc), 1)
+
+			direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
 			_check_and_trigger_water_fire_synergy(is_in_match_phase)
 			if not affected_positions.is_empty():
 				_spawn_floating_text(affected_positions[0], "💧 清流展開 (水%dマス生成＆駒消去)！" % count, Color(0.2, 0.8, 1.0))

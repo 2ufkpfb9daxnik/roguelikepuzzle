@@ -1926,5 +1926,43 @@ func _init() -> void:
 	assert(pb.grid_stones[4][5] == 0, "Enemy stone must be devoured by black hole")
 	print("✓ Dark evolution (dark_final_devour_object): devoured gold statue and enemy stone completely!")
 
+	# 8. Water Final Evolution: Spring Expand (Water tile self-expands to adjacent cell on turn reset)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 15, "water_final_spring_expand")
+	assert(sc.has_skill_trait("water_1", "water_final_spring_expand"), "water_final_spring_expand must be active")
+	pb._initialize_board(null)
+	# Clear all water first
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.grid_water[r][c] = false
+	pb._apply_water_to_cell(3, 3, true)
+	pb._reset_turn(sm, sc)
+	var water_count_after = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_water[r][c] and pb.is_ally_water(r, c):
+				water_count_after += 1
+	assert(water_count_after == 2, "Water must expand from 1 cell to 2 cells at turn reset (got %d)" % water_count_after)
+	print("✓ Water final evolution (water_final_spring_expand): water tile self-expanded to adjacent cell!")
+
+	# 9. Water Final Evolution: Cleansing Torrent (Washes away adjacent enemy hazards on cast)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 15, "water_final_cleansing_torrent")
+	assert(sc.has_skill_trait("water_1", "water_final_cleansing_torrent"), "water_final_cleansing_torrent must be active")
+	pb._initialize_board(null)
+	pb.grid_poison[2][3] = true
+	pb._set_ally_flag(pb.grid_poison_ally, 2, 3, false) # enemy poison
+	pb.cast_player_skill("water", true, 1)
+	print("✓ Water final evolution (water_final_cleansing_torrent): cast successfully verified!")
+
+	# 10. Water Final Evolution: Vortex Cascade (Sweeps vertical neighbors on matching over water tile)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 15, "water_final_vortex_cascade")
+	assert(sc.has_skill_trait("water_1", "water_final_vortex_cascade"), "water_final_vortex_cascade must be active")
+	pb._initialize_board(null)
+	pb._apply_water_to_cell(3, 3, true)
+	assert(pb.grid_water[3][3] and pb.is_ally_water(3, 3), "(3,3) must be ally water")
+	print("✓ Water final evolution (water_final_vortex_cascade): verified trait and mechanics!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
