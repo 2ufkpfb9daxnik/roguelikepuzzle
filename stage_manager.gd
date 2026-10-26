@@ -1035,11 +1035,40 @@ func debug_start_stage5_boss() -> void:
 		pb._spawn_floating_text(Vector2(pb.BOARD_LEFT + pb.BOARD_WIDTH * 0.5, pb.BOARD_TOP + 120), "⚔️ STAGE 5 BOSS BATTLE! ⚔️", Color(1.0, 0.2, 0.2))
 	print("DEBUG: Successfully jumped to Stage 5 Boss (冥王デモニアス)!")
 
+## デバッグ用：現在出現中の敵を即座に撃破
+func debug_kill_enemy() -> void:
+	if active_enemies.is_empty():
+		print("[DEBUG] No active enemies to defeat.")
+		return
+
+	print("[DEBUG] Defeating all active enemies via debug command...")
+	var pb = _get_puzzle_board()
+	if pb:
+		pb._spawn_floating_text(Vector2(pb.BOARD_LEFT + pb.BOARD_WIDTH * 0.5, pb.BOARD_TOP + 120), "☠️ 即死コマンド発動 (DEBUG KILL)!", Color(1.0, 0.3, 0.3))
+		pb._trigger_screen_shake(12.0)
+
+	var max_iterations = active_enemies.size() + 5
+	var count = 0
+	while active_enemies.size() > 0 and count < max_iterations:
+		count += 1
+		var e = active_enemies[0]
+		var spr = e.get("sprite")
+		calchp(999999999.0, 0.0, spr)
+
+	if not isdeadf:
+		isdead()
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F5:
 			debug_start_stage5_boss()
-			get_viewport().set_input_as_handled()
+			var vp = get_viewport()
+			if vp: vp.set_input_as_handled()
+			return
+		elif event.keycode == KEY_F10 or event.keycode == KEY_K:
+			debug_kill_enemy()
+			var vp = get_viewport()
+			if vp: vp.set_input_as_handled()
 			return
 
 	if event is InputEventMouseMotion:

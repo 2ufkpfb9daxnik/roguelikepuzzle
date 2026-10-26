@@ -8370,6 +8370,14 @@ func _update_piece_element_mark(p_idx: int, el: int) -> void:
 const DEBUG_ELEMENT = true
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F10 or event.keycode == KEY_K:
+			var sm = _get_stage_manager()
+			if sm and sm.has_method("debug_kill_enemy"):
+				sm.debug_kill_enemy()
+				var vp = get_viewport()
+				if vp: vp.set_input_as_handled()
+				return
 	if not DEBUG_ELEMENT: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var el = ElementDataScript.Element.NONE

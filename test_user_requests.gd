@@ -1515,5 +1515,49 @@ func _init() -> void:
 
 	print("✓ Enemy Light Skill independent gold statue block & cascade clearance fully verified!")
 
+	# -------------------------------------------------------------
+	# 29. Section 29: Debug Kill Enemy Command
+	# -------------------------------------------------------------
+	print("\n--- Testing Section 29: Debug Kill Enemy Command ---")
+	assert(sm.has_method("debug_kill_enemy"), "stage_manager must have debug_kill_enemy method")
+
+	# Spawn enemy
+	sm.stage = 1
+	sm.stage_enemy = 1
+	sm.isdeadf = false
+	sm.make_enemy(false)
+	assert(sm.active_enemies.size() > 0, "Enemy must be active")
+	assert(sm.ehp > 0, "Enemy HP must be > 0")
+
+	# Trigger debug kill enemy command
+	sm.debug_kill_enemy()
+	assert(sm.active_enemies.size() == 0, "All active enemies must be defeated by debug_kill_enemy")
+	assert(sm.ehp == 0, "Enemy HP must be 0")
+	assert(sm.isdeadf == true, "isdeadf must be set to true")
+	print("✓ Direct debug_kill_enemy() call successfully defeated active enemy!")
+
+	# Test keyboard shortcut trigger (KEY_K and KEY_F10)
+	sm.isdeadf = false
+	sm.make_enemy(false)
+	assert(sm.active_enemies.size() > 0, "Enemy must be active for key event test")
+	var ev_k = InputEventKey.new()
+	ev_k.pressed = true
+	ev_k.keycode = KEY_K
+	sm._input(ev_k)
+	assert(sm.active_enemies.size() == 0, "KEY_K must trigger debug_kill_enemy")
+	assert(sm.isdeadf == true, "isdeadf must be set to true after KEY_K")
+	print("✓ KEY_K shortcut successfully defeated active enemy!")
+
+	sm.isdeadf = false
+	sm.make_enemy(false)
+	assert(sm.active_enemies.size() > 0, "Enemy must be active for F10 test")
+	var ev_f10 = InputEventKey.new()
+	ev_f10.pressed = true
+	ev_f10.keycode = KEY_F10
+	sm._input(ev_f10)
+	assert(sm.active_enemies.size() == 0, "KEY_F10 must trigger debug_kill_enemy")
+	assert(sm.isdeadf == true, "isdeadf must be set to true after KEY_F10")
+	print("✓ KEY_F10 shortcut successfully defeated active enemy!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

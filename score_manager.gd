@@ -3800,6 +3800,13 @@ func _input(event: InputEvent) -> void:
 				debug_set_all_skills_level(20)
 			KEY_F9:
 				debug_toggle_shop()
+			KEY_F10, KEY_K:
+				var sm = get_parent().get_node_or_null("StageManager") if get_parent() else null
+				if sm and sm.has_method("debug_kill_enemy"):
+					sm.debug_kill_enemy()
+					var vp = get_viewport()
+					if vp: vp.set_input_as_handled()
+					return
 
 ## デバッグ用：指定スキルの即時レベルアップ（コスト・前提条件完全無視）
 func debug_level_up_skill(skill_idx: int, target_level: int = -1) -> void:
