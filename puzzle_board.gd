@@ -186,6 +186,10 @@ var active_wind_tornadoes: Array[Dictionary] = [] # [{"col": int, "y": float, "s
 
 # 自分(true) vs 他人/敵(false) のエフェクト所有者管理グリッド
 var grid_water_ally: Array = []
+var grid_afterburn: Array = [] # [r][c] -> bool (火種残り火トラップ)
+var has_light_dazzle_this_turn: bool = false
+var turn_damage_taken: float = 0.0
+var has_dark_teleport_swap: bool = false
 var grid_ice_ally: Array = []
 var grid_fire_ally: Array = []
 var grid_electrified_ally: Array = []
@@ -694,6 +698,9 @@ func _init_ally_grids() -> void:
 	grid_cursed_ally.clear()
 	grid_poison_ally.clear()
 	grid_gold_ally.clear()
+	grid_afterburn.clear()
+	for _r in range(GRID_ROWS):
+		var ab_row: Array[bool] = []; ab_row.resize(GRID_COLUMNS); ab_row.fill(false); grid_afterburn.append(ab_row)
 	for _r in range(GRID_ROWS):
 		var rw: Array[bool] = []; rw.resize(GRID_COLUMNS); rw.fill(false); grid_water_ally.append(rw)
 		var ri: Array[bool] = []; ri.resize(GRID_COLUMNS); ri.fill(false); grid_ice_ally.append(ri)
@@ -1064,6 +1071,29 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 					sm.notfevertime()
 			_detonate_specials(detonates)
 
+		# 地中間進化: 磁力牽引 (輝石スワップ時、周囲2マスの駒を隣接色と同色化)
+		var score_mgr_e = _get_score_manager()
+		if score_mgr_e and score_mgr_e.has_method("has_skill_trait") and score_mgr_e.has_skill_trait("earth_1", "earth_mid_magnet"):
+			var st_cell = Vector2i(-1, -1)
+			if grid_stones.size() == GRID_ROWS:
+				if grid_stones[r1][c1] > 0 and is_ally_stone(r1, c1): st_cell = Vector2i(r1, c1)
+				elif grid_stones[r2][c2] > 0 and is_ally_stone(r2, c2): st_cell = Vector2i(r2, c2)
+			if st_cell.x != -1:
+				var target_color = randi() % 5
+				var m_cnt = 0
+				for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+					var mr = st_cell.x + offset.x; var mc = st_cell.y + offset.y
+					if mr >= 0 and mr < GRID_ROWS and mc >= 0 and mc < GRID_COLUMNS:
+						if grid_i.size() == GRID_ROWS and grid_i[mr][mc] != -1:
+							grid_att[mr][mc] = target_color
+							grid_n[mr][mc] = target_color
+							var s_idx = grid_i[mr][mc]
+							if s_idx < piece.size() and piece[s_idx] != null:
+								piece[s_idx].texture = PIECE_TEXTURES[target_color]
+							_spawn_floating_text(get_cell_position(mr, mc), "🧲 磁力整列！", Color(0.9, 0.8, 0.3))
+							m_cnt += 1
+							if m_cnt >= 2: break
+
 		if has_match:
 			_detect_and_spawn_special_from_matches()
 			_check_and_trigger_bomb_reactions()
@@ -1141,6 +1171,15 @@ func _swap_grid_data(r1: int, c1: int, r2: int, c2: int) -> void:
 			var tmp_poa = grid_poison_ally[r1][c1]
 			grid_poison_ally[r1][c1] = grid_poison_ally[r2][c2]
 			grid_poison_ally[r2][c2] = tmp_poa
+
+	if grid_stones.size() == GRID_ROWS:
+		var tmp_st = grid_stones[r1][c1]
+		grid_stones[r1][c1] = grid_stones[r2][c2]
+		grid_stones[r2][c2] = tmp_st
+		if grid_stones_ally.size() == GRID_ROWS:
+			var tmp_sta = grid_stones_ally[r1][c1]
+			grid_stones_ally[r1][c1] = grid_stones_ally[r2][c2]
+			grid_stones_ally[r2][c2] = tmp_sta
 
 	if tmp_i >= 0 and tmp_i < piececollid.size() and piececollid[tmp_i]:
 		piececollid[tmp_i].position = get_cell_position(r2, c2)
@@ -1791,6 +1830,14 @@ func _apply_water_to_cell(r: int, c: int, is_ally: bool = false) -> void:
 		grid_water[r][c] = true
 		_set_ally_flag(grid_water_ally, r, c, is_ally)
 
+## 毒マス設置処理
+func _apply_poison_to_cell(r: int, c: int, is_ally: bool = false) -> void:
+	if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+		return
+	if grid_poison.size() == GRID_ROWS:
+		grid_poison[r][c] = true
+		_set_ally_flag(grid_poison_ally, r, c, is_ally)
+
 ## 水×火の隣接シナジー：水マスと火マスの両方に共通して隣接しているマスのみを消去し、水と火自体は消火（消滅）する
 func _check_and_trigger_water_fire_synergy(in_match_phase: bool = false, queue: Array = [], exploded_items: Dictionary = {}) -> int:
 	if grid_water.size() != GRID_ROWS or grid_fire.size() != GRID_ROWS:
@@ -2034,6 +2081,18 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 			rm_h.on_hazard_destroyed("stone", 1)
 		_spawn_stone_break_effect(pos)
 		_spawn_floating_text(pos, "石粉砕", Color(0.8, 0.8, 0.7))
+
+		# 地中間進化: 破砕飛沫 (石破壊時敵全体へ追加ダメージ)
+		var score_mgr_st = _get_score_manager()
+		if score_mgr_st and score_mgr_st.has_method("has_skill_trait") and score_mgr_st.has_skill_trait("earth_1", "earth_mid_shatter_blast"):
+			var sm_st = _get_stage_manager()
+			var sk_lvl = maxi(1, score_mgr_st.get_skill_level("earth_1"))
+			var st_scale = pow(10, max(0, (sm_st.stage - 1) if sm_st else 0))
+			var shatter_dmg = (40.0 + sk_lvl * 10.0) * st_scale
+			if sm_st and sm_st.ehp > 0 and not sm_st.isdeadf:
+				sm_st.calchp(shatter_dmg, 0.0)
+				_emit_combat_event("damage", "ally", "enemy", shatter_dmg, "stone_shatter")
+				_spawn_floating_text(pos, "💎 破砕飛沫 -%d!" % int(shatter_dmg), Color(0.9, 0.8, 0.3))
 	else:
 		_spawn_stone_break_effect(pos)
 		_spawn_floating_text(pos, "耐久-%d" % dmg, Color(0.7, 0.7, 0.6))
@@ -2086,6 +2145,22 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 		_emit_combat_event("damage", "ally", "enemy", poison_dmg, "player_skill_poison")
 
 	_ensure_ally_grids()
+	var score_mgr_bh = _get_score_manager()
+	if score_mgr_bh and score_mgr_bh.has_method("has_skill_trait"):
+		# 闇中間: 星影の暗雲生成
+		if score_mgr_bh.has_skill_trait("dark_1", "dark_mid_shadow_fog"):
+			grid_fog.append({
+				"rect": Rect2i(clampi(r - 1, 0, GRID_ROWS - 3), clampi(c - 1, 0, GRID_COLUMNS - 3), 3, 3),
+				"turns": 3,
+				"enemy_owned": false
+			})
+			_spawn_floating_text(pos, "🌑 星影の暗雲生成！", Color(0.7, 0.4, 0.9))
+
+		# 闇中間: 遠隔スワップ
+		if score_mgr_bh.has_skill_trait("dark_1", "dark_mid_teleport_swap"):
+			has_dark_teleport_swap = true
+			_spawn_floating_text(pos + Vector2(0, -35), "🌌 遠隔スワップ可能！", Color(0.8, 0.5, 1.0))
+
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
 			var nr = r + dr
@@ -2116,9 +2191,31 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 	elif lvl >= 2:
 		radius = 2 # 5x5
 
+	var score_mgr = _get_score_manager()
+	var has_f_chain = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_mid_chain")
+	var has_f_afterburn = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_mid_afterburn")
+	var has_f_knockback = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_mid_knockback")
+	var has_f_cross = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_cross")
+	var has_f_smelt = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_smelt")
+	var has_f_steam_burst = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_steam_burst")
+
 	var stone_dmg: int = 1 + int((lvl - 1) / 4)
 
 	_spawn_explosion_effect(pos)
+
+	# 火中間進化: 残り火トラップ
+	if has_f_afterburn:
+		if grid_afterburn.size() == GRID_ROWS:
+			grid_afterburn[r][c] = true
+			_spawn_floating_text(pos, "🔥 残り火設置！", Color(1.0, 0.5, 0.2))
+
+	# 火中間進化: 爆風衝撃（敵行動カウント遅延）
+	if has_f_knockback:
+		var sm = _get_stage_manager()
+		if sm and "interval" in sm:
+			sm.interval = maxi(0, sm.interval - 2)
+			_spawn_floating_text(pos + Vector2(0, -35), "💥 爆風衝撃！敵行動遅延", Color(1.0, 0.8, 0.2))
+
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
 			var nr = r + dr
@@ -2127,7 +2224,15 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 				# 石マスへのスキルダメージ
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
 					_damage_stone_at(nr, nc, stone_dmg)
-					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+					# 火最終進化: 鉱石精錬（石をコイン駒に変換）
+					if has_f_smelt and grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+						grid_n[nr][nc] = PieceType.COIN
+						grid_att[nr][nc] = PieceType.COIN % 5
+						var s_idx = grid_i[nr][nc]
+						if s_idx < piece.size() and piece[s_idx] != null:
+							piece[s_idx].texture = PIECE_TEXTURES[PieceType.COIN]
+						_spawn_floating_text(get_cell_position(nr, nc), "🪙 鉱石精錬！", Color(1.0, 0.85, 0.2))
+					elif grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
 
@@ -2135,12 +2240,27 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 				if is_water:
 					grid_water[nr][nc] = false
 					_spawn_steam_effect(get_cell_position(nr, nc))
+					if has_f_steam_burst:
+						if grid_i[nr][nc] != -1: ismatched[nr][nc] = true
 				else:
 					if grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 						var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
 						if has_sp and not (Vector2i(nr, nc) in exploded_items):
 							queue.append(Vector2i(nr, nc))
+							if has_f_chain:
+								_spawn_floating_text(get_cell_position(nr, nc), "💣 連鎖誘爆！", Color(1.0, 0.4, 0.1))
+
+	# 火最終進化: 十字火炎伝播
+	if has_f_cross:
+		for cr in range(GRID_ROWS):
+			if grid_i.size() == GRID_ROWS and grid_i[cr][c] != -1:
+				ismatched[cr][c] = true
+				_spawn_shock_zap_effect(get_cell_position(cr, c))
+		for cc in range(GRID_COLUMNS):
+			if grid_i.size() == GRID_ROWS and grid_i[r][cc] != -1:
+				ismatched[r][cc] = true
+				_spawn_shock_zap_effect(get_cell_position(r, cc))
 
 	_check_burn_plants_in_rect(r - radius, r + radius, c - radius, c + radius, queue, exploded_items)
 
@@ -2478,6 +2598,49 @@ func _trigger_disco_ball(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 				if has_sp and not (Vector2i(nr, nc) in exploded_items):
 					queue.append(Vector2i(nr, nc))
 
+	var score_mgr_l = _get_score_manager()
+	if score_mgr_l and score_mgr_l.has_method("has_skill_trait"):
+		# 光中間: 目くらまし閃光
+		if score_mgr_l.has_skill_trait("light_1", "light_mid_dazzle"):
+			has_light_dazzle_this_turn = true
+
+		# 光中間: エナジーチャージ (5個以上消去時)
+		if score_mgr_l.has_skill_trait("light_1", "light_mid_recharge") and cleared_count >= 5:
+			player_skill_energy = minf(player_skill_max_energy, player_skill_energy + 20.0)
+			_spawn_floating_text(pos, "⚡ エナジー充填 +20！", Color(1.0, 0.9, 0.2))
+
+		# 光中間: プリズム分光 (消去後最多色駒を2マス補充)
+		if score_mgr_l.has_skill_trait("light_1", "light_mid_prism"):
+			var dom_att = _get_dominant_attribute()
+			var p_count = 0
+			for pr in range(GRID_ROWS):
+				if p_count >= 2: break
+				for pc in range(GRID_COLUMNS):
+					if ismatched.size() == GRID_ROWS and ismatched[pr][pc] and grid_i[pr][pc] != -1:
+						grid_att[pr][pc] = dom_att
+						grid_n[pr][pc] = dom_att
+						var p_s = grid_i[pr][pc]
+						if p_s < piece.size() and piece[p_s] != null:
+							piece[p_s].texture = PIECE_TEXTURES[dom_att]
+						p_count += 1
+						if p_count >= 2: break
+
+		# 光最終: 聖域浄化 (敵ハザード最大2個浄化)
+		if score_mgr_l.has_skill_trait("light_1", "light_final_purify"):
+			var purified_cnt = 0
+			for pr in range(GRID_ROWS):
+				if purified_cnt >= 2: break
+				for pc in range(GRID_COLUMNS):
+					var is_bad = (grid_poison.size() == GRID_ROWS and grid_poison[pr][pc] and not is_ally_poison(pr, pc)) or \
+								 (grid_fire.size() == GRID_ROWS and grid_fire[pr][pc] > 0 and not is_ally_fire(pr, pc)) or \
+								 (grid_ice.size() == GRID_ROWS and int(grid_ice[pr][pc]) > 0 and not is_ally_ice(pr, pc))
+					if is_bad:
+						if grid_poison.size() == GRID_ROWS: grid_poison[pr][pc] = false
+						if grid_fire.size() == GRID_ROWS: grid_fire[pr][pc] = 0
+						if grid_ice.size() == GRID_ROWS: grid_ice[pr][pc] = 0
+						_spawn_floating_text(get_cell_position(pr, pc), "✨ 聖域浄化！", Color(1.0, 0.95, 0.5))
+						purified_cnt += 1
+
 func _trigger_color_converter(r: int, c: int, pos: Vector2, _queue: Array, _exploded_items: Dictionary) -> void:
 	var dom_att: int = _get_dominant_attribute()
 	var lvl: int = max(1, special_levels.get(SpecialItemType.COLOR_CONVERTER, 1))
@@ -2521,11 +2684,26 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	_spawn_black_hole_effect(pos, radius)
 	var stone_dmg: int = 1 + int((lvl - 1) / 3)
 
+	var score_mgr_d = _get_score_manager()
+	var has_d_devour = score_mgr_d and score_mgr_d.has_method("has_skill_trait") and score_mgr_d.has_skill_trait("dark_1", "dark_final_devour_object")
+
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				# 闇最終: 妨害オブジェクト吸引 (敵石・黄金像・敵植物を完全消滅)
+				if has_d_devour:
+					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[nr][nc] > 0:
+						grid_gold_statue[nr][nc] = 0
+						_spawn_floating_text(get_cell_position(nr, nc), "🌑 黄金像吸引消滅！", Color(0.7, 0.3, 0.9))
+					if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0 and not is_ally_stone(nr, nc):
+						grid_stones[nr][nc] = 0
+						_spawn_floating_text(get_cell_position(nr, nc), "🌑 敵石吸引消滅！", Color(0.7, 0.3, 0.9))
+					var p_ent = _get_plant_at(nr, nc)
+					if not p_ent.is_empty() and p_ent.get("enemy_planted", false):
+						_damage_plant(p_ent, 999, "dark_devour")
+
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
 					_damage_stone_at(nr, nc, stone_dmg)
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
@@ -4449,6 +4627,44 @@ func _start_breaking_animation() -> void:
 			has_breaking = true
 			var p = piece[idx]
 			var kind = grid_n[cell.x][cell.y]
+
+			# 氷最終進化: 破砕起爆 (氷マス上マッチ時3x3破壊)
+			if grid_ice.size() == GRID_ROWS and int(grid_ice[cell.x][cell.y]) > 0:
+				var score_mgr_ice = _get_score_manager()
+				if score_mgr_ice and score_mgr_ice.has_method("has_skill_trait") and score_mgr_ice.has_skill_trait("ice_1", "ice_final_shatter"):
+					grid_ice[cell.x][cell.y] = 0
+					_set_ally_flag(grid_ice_ally, cell.x, cell.y, false)
+					for dr in [-1, 0, 1]:
+						for dc in [-1, 0, 1]:
+							var nir = cell.x + dr; var nic = cell.y + dc
+							if nir >= 0 and nir < GRID_ROWS and nic >= 0 and nic < GRID_COLUMNS:
+								if grid_i[nir][nic] != -1: ismatched[nir][nic] = true
+								if grid_stones.size() == GRID_ROWS and grid_stones[nir][nic] > 0:
+									_damage_stone_at(nir, nic, 2)
+					_spawn_floating_text(p.position, "❄️ 破砕起爆！", Color(0.4, 0.9, 1.0))
+
+			# 毒中間進化: 毒素起爆 (毒マス上マッチ時追加毒ダメージ)
+			if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y] and is_ally_poison(cell.x, cell.y):
+				var score_mgr_poi = _get_score_manager()
+				if score_mgr_poi and score_mgr_poi.has_method("has_skill_trait") and score_mgr_poi.has_skill_trait("poison_1", "poison_mid_detonation"):
+					var sm_poi = _get_stage_manager()
+					var sk_lvl = maxi(1, score_mgr_poi.get_skill_level("poison_1"))
+					var st_scale = pow(10, max(0, (sm_poi.stage - 1) if sm_poi else 0))
+					var det_dmg = (35.0 + sk_lvl * 8.0) * st_scale
+					if sm_poi and sm_poi.ehp > 0 and not sm_poi.isdeadf:
+						sm_poi.calchp(det_dmg, 0.0)
+						_emit_combat_event("damage", "ally", "enemy", det_dmg, "poison_detonation")
+						_spawn_floating_text(p.position, "🧪 毒素起爆 -%d!" % int(det_dmg), Color(0.4, 1.0, 0.6))
+
+			# 毒最終進化: 薬毒同源 (毒マス上マッチ時ポーション駒生成)
+			if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y] and is_ally_poison(cell.x, cell.y):
+				var score_mgr_poi2 = _get_score_manager()
+				if score_mgr_poi2 and score_mgr_poi2.has_method("has_skill_trait") and score_mgr_poi2.has_skill_trait("poison_1", "poison_final_antidote"):
+					grid_n[cell.x][cell.y] = PieceType.POTION
+					grid_att[cell.x][cell.y] = PieceType.POTION % 5
+					if p != null:
+						p.texture = PIECE_TEXTURES[PieceType.POTION]
+						_spawn_floating_text(p.position, "🧪 薬効転化！", Color(0.2, 1.0, 0.8))
 
 			if pending_special_spawns.has(cell):
 				# ピボットセル: 破壊消滅させず、特殊アイテムへの変身・残留アニメーション
@@ -6400,6 +6616,46 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if rm:
 					incoming_damage = rm.modify_damage_taken(incoming_damage, {"element": atk_el})
 					if sm: incoming_damage = rm.check_fatal_damage(sm.myhp, incoming_damage)
+
+				var score_mgr_def = _get_score_manager()
+				# 毒中間進化: 神経毒（味方毒マス数に応じて敵攻撃力軽減）
+				if score_mgr_def and score_mgr_def.has_method("has_skill_trait") and score_mgr_def.has_skill_trait("poison_1", "poison_mid_neurotoxin"):
+					var ally_poi_cnt = 0
+					if grid_poison.size() == GRID_ROWS:
+						for pr in range(GRID_ROWS):
+							for pc in range(GRID_COLUMNS):
+								if grid_poison[pr][pc] and is_ally_poison(pr, pc): ally_poi_cnt += 1
+					if ally_poi_cnt > 0:
+						var red_rate = clampf(float(ally_poi_cnt) * 0.03, 0.0, 0.20)
+						incoming_damage *= (1.0 - red_rate)
+
+				# 毒最終進化: 猛毒煙幕（味方毒4個以上で20%確率ミス）
+				if score_mgr_def and score_mgr_def.has_method("has_skill_trait") and score_mgr_def.has_skill_trait("poison_1", "poison_final_smokescreen"):
+					var ally_poi_cnt = 0
+					if grid_poison.size() == GRID_ROWS:
+						for pr in range(GRID_ROWS):
+							for pc in range(GRID_COLUMNS):
+								if grid_poison[pr][pc] and is_ally_poison(pr, pc): ally_poi_cnt += 1
+					if ally_poi_cnt >= 4 and randf() < 0.20:
+						incoming_damage = 0.0
+						_spawn_floating_text(Vector2(640, 360), "💨 猛毒煙幕！敵攻撃ミス！", Color(0.6, 0.95, 0.4))
+
+				# 光中間進化: 目くらまし閃光（光スキル使用ターン被ダメージ25%減）
+				if has_light_dazzle_this_turn:
+					incoming_damage *= 0.75
+					_spawn_floating_text(Vector2(640, 360), "✨ 聖光目くらまし！被ダメージ-25%", Color(1.0, 0.95, 0.5))
+
+				# 氷中間進化: 氷柱カウンター（シールドで攻撃を防いだ時反撃）
+				if total_blocked > 0.0 and score_mgr_def and score_mgr_def.has_method("has_skill_trait") and score_mgr_def.has_skill_trait("ice_1", "ice_mid_counter"):
+					var sk_lvl = maxi(1, score_mgr_def.get_skill_level("ice_1"))
+					var stage_scale = pow(10, max(0, (sm.stage - 1) if sm else 0))
+					var counter_dmg = (50.0 + sk_lvl * 12.0) * stage_scale
+					if sm and sm.ehp > 0 and not sm.isdeadf:
+						sm.calchp(counter_dmg, 0.0)
+						_emit_combat_event("damage", "ally", "enemy", counter_dmg, "ice_counter")
+						_spawn_floating_text(sm.enemy.position if sm.enemy else Vector2(1550, 250), "❄️ 氷柱カウンター -%d!" % int(counter_dmg), Color(0.3, 0.9, 1.0))
+
+				turn_damage_taken += incoming_damage
 				var event_payload = {"blocked_amount": total_blocked}
 				
 				if incoming_damage > 0.0:
@@ -7964,17 +8220,19 @@ func _spawn_poison_bubble_burst_effect(pos: Vector2) -> void:
 		tw.chain().tween_callback(orb.queue_free)
 
 ## 戦闘発射物・シールド・攻撃エフェクトの全消去（蓄積・メモリリーク・重さの完全根絶）
-func _clear_all_combat_projectiles() -> void:
+func _clear_all_combat_projectiles(preserve_shields: bool = false) -> void:
 	for item in flying_swords:
 		if is_instance_valid(item.get("node")):
 			_return_sprite_to_pool(item["node"])
 	flying_swords.clear()
 
-	for item in active_shields:
-		if is_instance_valid(item.get("node")):
-			_return_sprite_to_pool(item["node"])
-	active_shields.clear()
-	current_total_shields = 0
+	if not preserve_shields:
+		for item in active_shields:
+			if is_instance_valid(item.get("node")):
+				_return_sprite_to_pool(item["node"])
+		active_shields.clear()
+		current_total_shields = 0
+		current_shield_pools.clear()
 
 	for item in flying_foods:
 		if is_instance_valid(item.get("node")):
@@ -8017,8 +8275,11 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 				for child in vc.get_children():
 					child.queue_free(); Profiler.queue_free_count += 1
 
+	if score_mgr:
+		self.score_manager = score_mgr
+	var has_ice_preservation = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("ice_1", "ice_mid_preservation")
 	# 残存発射物・シールド・エフェクトを確実に全消去してメモリと処理負荷をリセット
-	_clear_all_combat_projectiles()
+	_clear_all_combat_projectiles(has_ice_preservation)
 
 	isattack = 0
 	isblock = 0
@@ -8029,7 +8290,12 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	endbreak = false
 	isbreak = false
 	interval = 0
-	current_total_shields = 0
+
+	# 氷中間進化: 氷甲の残留（シールド持ち越し）
+	if not has_ice_preservation:
+		current_total_shields = 0
+		if sm and "guard" in sm:
+			sm.guard = 0.0
 	_restore_score_label_positions()
 	if sm and "active_enemies" in sm and not sm.active_enemies.is_empty() and not sm.isdeadf and sm.ehp > 0:
 		_decide_enemy_actions(sm)
@@ -8254,6 +8520,125 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 					if found_water:
 						_spawn_floating_text(sample_water_pos, "🌊 激流水撃 %d! (水%dマス)" % [int(total_surge_dmg), ally_water_cnt], Color(0.2, 0.7, 1.0))
 
+	# --- 各属性・ターン終了時進化パッシブ処理 ---
+	if score_mgr and score_mgr.has_method("has_skill_trait"):
+		var stage_scale_evo = pow(10, max(0, (sm.stage - 1) if sm else 0))
+
+		# 氷中間進化: 冷気遅延（味方氷マス存在時、敵の行動カウントを+1遅延）
+		if score_mgr.has_skill_trait("ice_1", "ice_mid_chill_delay"):
+			var has_ally_ice = false
+			if grid_ice.size() == GRID_ROWS:
+				for ir in range(GRID_ROWS):
+					for ic in range(GRID_COLUMNS):
+						if int(grid_ice[ir][ic]) > 0 and is_ally_ice(ir, ic):
+							has_ally_ice = true; break
+					if has_ally_ice: break
+			if has_ally_ice and sm and "interval" in sm:
+				sm.interval = maxi(0, sm.interval - 1)
+				_spawn_floating_text(sm.enemy.position if sm.enemy else Vector2(1550, 250), "❄️ 冷気遅延！敵カウント+1", Color(0.4, 0.9, 1.0))
+
+		# 氷最終進化: 永久凍土（味方氷マスが隣接マス1個へ自動拡大）
+		if score_mgr.has_skill_trait("ice_1", "ice_final_permafrost"):
+			var expanded = false
+			if grid_ice.size() == GRID_ROWS:
+				for ir in range(GRID_ROWS):
+					if expanded: break
+					for ic in range(GRID_COLUMNS):
+						if int(grid_ice[ir][ic]) > 0 and is_ally_ice(ir, ic):
+							for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+								var nir = ir + offset.x; var nic = ic + offset.y
+								if nir >= 0 and nir < GRID_ROWS and nic >= 0 and nic < GRID_COLUMNS:
+									if int(grid_ice[nir][nic]) == 0 and not _is_plant_cell(nir, nic):
+										grid_ice[nir][nic] = 1
+										_set_ally_flag(grid_ice_ally, nir, nic, true)
+										_spawn_floating_text(get_cell_position(nir, nic), "❄️ 永久凍土拡大！", Color(0.4, 0.9, 1.0))
+										expanded = true; break
+							if expanded: break
+
+		# 毒中間進化: 胞子侵食（敵妨害マスを味方毒マスに浄化反転）
+		if score_mgr.has_skill_trait("poison_1", "poison_mid_contagion"):
+			var converted = false
+			if grid_poison.size() == GRID_ROWS:
+				for pr in range(GRID_ROWS):
+					if converted: break
+					for pc in range(GRID_COLUMNS):
+						if grid_poison[pr][pc] and is_ally_poison(pr, pc):
+							for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+								var npr = pr + offset.x; var npc = pc + offset.y
+								if npr >= 0 and npr < GRID_ROWS and npc >= 0 and npc < GRID_COLUMNS:
+									var is_bad = (grid_fire.size() == GRID_ROWS and grid_fire[npr][npc] > 0 and not is_ally_fire(npr, npc)) or 												 (grid_poison.size() == GRID_ROWS and grid_poison[npr][npc] and not is_ally_poison(npr, npc))
+									if is_bad:
+										grid_poison[npr][npc] = true
+										_set_ally_flag(grid_poison_ally, npr, npc, true)
+										if grid_fire.size() == GRID_ROWS:
+											grid_fire[npr][npc] = 0
+											_set_ally_flag(grid_fire_ally, npr, npc, false)
+										_spawn_floating_text(get_cell_position(npr, npc), "🧪 胞子侵食浄化！", Color(0.3, 1.0, 0.6))
+										converted = true; break
+							if converted: break
+
+		# 毒最終進化: 腐食溶解（毒マス上の石・黄金像の耐久値自動-1）
+		if score_mgr.has_skill_trait("poison_1", "poison_final_acid_melt"):
+			if grid_poison.size() == GRID_ROWS:
+				for pr in range(GRID_ROWS):
+					for pc in range(GRID_COLUMNS):
+						if grid_poison[pr][pc] and is_ally_poison(pr, pc):
+							if grid_stones.size() == GRID_ROWS and grid_stones[pr][pc] > 0:
+								_damage_stone_at(pr, pc, 1)
+								_spawn_floating_text(get_cell_position(pr, pc), "🧪 腐食溶解！", Color(0.4, 1.0, 0.5))
+							if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[pr][pc] > 0:
+								grid_gold_statue[pr][pc] = maxi(0, grid_gold_statue[pr][pc] - 1)
+								_spawn_floating_text(get_cell_position(pr, pc), "🧪 像溶解！", Color(0.4, 1.0, 0.5))
+
+		# 地最終進化: 鉱脈の恵み（味方輝石の隣接通常駒1個をコイン化）
+		if score_mgr.has_skill_trait("earth_1", "earth_final_vein"):
+			var converted_coin = false
+			if grid_stones.size() == GRID_ROWS:
+				for er in range(GRID_ROWS):
+					if converted_coin: break
+					for ec in range(GRID_COLUMNS):
+						if grid_stones[er][ec] > 0 and is_ally_stone(er, ec):
+							for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
+								var ner = er + offset.x; var nec = ec + offset.y
+								if ner >= 0 and ner < GRID_ROWS and nec >= 0 and nec < GRID_COLUMNS:
+									if grid_i.size() == GRID_ROWS and grid_i[ner][nec] != -1:
+										var has_sp = (special_item.size() == GRID_ROWS and special_item[ner][nec] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[ner][nec])
+										if not has_sp and grid_n[ner][nec] != PieceType.COIN:
+											grid_n[ner][nec] = PieceType.COIN
+											grid_att[ner][nec] = PieceType.COIN % 5
+											var s_idx = grid_i[ner][nec]
+											if s_idx < piece.size() and piece[s_idx] != null:
+												piece[s_idx].texture = PIECE_TEXTURES[PieceType.COIN]
+											_spawn_floating_text(get_cell_position(ner, nec), "🪙 鉱脈金貨！", Color(1.0, 0.85, 0.2))
+											converted_coin = true; break
+							if converted_coin: break
+
+		# 火中間進化: 残り火トラップ（残り火マスの駒を自動消去）
+		if score_mgr.has_skill_trait("fire_1", "fire_mid_afterburn"):
+			if grid_afterburn.size() == GRID_ROWS:
+				var burned_cells: Array[Vector2i] = []
+				for abr in range(GRID_ROWS):
+					for abc in range(GRID_COLUMNS):
+						if grid_afterburn[abr][abc]:
+							grid_afterburn[abr][abc] = false
+							if grid_i.size() == GRID_ROWS and grid_i[abr][abc] != -1:
+								burned_cells.append(Vector2i(abr, abc))
+								_spawn_explosion_effect(get_cell_position(abr, abc))
+								_spawn_floating_text(get_cell_position(abr, abc), "🔥 残り火起爆！", Color(1.0, 0.4, 0.1))
+				if not burned_cells.is_empty():
+					_clear_pieces_in_cells(burned_cells)
+					_start_continuous_falling()
+
+		# 闇最終進化: 暗黒の反動（このターン受けたダメージの20%を敵へ反射）
+		if score_mgr.has_skill_trait("dark_1", "dark_final_retribution") and turn_damage_taken > 0.0:
+			var reflect_dmg = turn_damage_taken * 0.20
+			if sm and sm.ehp > 0 and not sm.isdeadf:
+				sm.calchp(reflect_dmg, 0.0)
+				_emit_combat_event("damage", "ally", "enemy", reflect_dmg, "dark_retribution")
+				_spawn_floating_text(sm.enemy.position if sm.enemy else Vector2(1550, 250), "🌑 暗黒の反動 -%d!" % int(reflect_dmg), Color(0.6, 0.2, 0.8))
+
+	turn_damage_taken = 0.0
+	has_light_dazzle_this_turn = false
 	_spawn_turn_bombs()
 	# 火と毒の侵攻速度：2ターンに1度侵攻
 	hazard_spread_turn_counter += 1

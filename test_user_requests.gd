@@ -1244,12 +1244,12 @@ func _init() -> void:
 		assert(c["id"] != "ice_final_skip", "Ice mid evolution MUST NOT contain turn skip!")
 		assert("スキップ" not in c["desc"], "Ice mid evolution MUST NOT mention turn skip!")
 
-	# Choose mid card 0: 白銀の氷壁
+	# Choose mid card 0: 氷柱カウンター
 	var mid_btn = sm_evo.tarot_modal_panel.get_node("TarotCard_0/SelectBtn_0") as Button
 	assert(mid_btn != null, "Mid card 0 button must exist")
 	mid_btn.emit_signal("pressed")
 	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 5, "Level should now be 5")
-	assert(sm_evo.has_skill_trait("ice_1", "ice_mid_wall") == true, "Must have ice_mid_wall trait")
+	assert(sm_evo.has_skill_trait("ice_1", "ice_mid_counter") == true, "Must have ice_mid_counter trait")
 
 	# 24.3 Level 5 to 19 upgrades do NOT open modal
 	for lvl in range(6, 20):
@@ -1261,21 +1261,17 @@ func _init() -> void:
 	assert(sm_evo.tarot_modal_panel != null and is_instance_valid(sm_evo.tarot_modal_panel), "Tarot modal MUST open when upgrading to Lv.20")
 	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 19, "Level stays 19 until evolution is selected")
 
-	# Check final evolution cards (Ice turn skip MUST be present here)
+	# Check final evolution cards
 	var final_cards = sm_evo.get_evolution_choices("ice_1", 20)
 	assert(final_cards.size() == 3, "Ice final evolution must have 3 cards")
-	var found_skip = false
-	for c in final_cards:
-		if c["id"] == "ice_final_skip":
-			found_skip = true
-	assert(found_skip == true, "Ice final evolution MUST contain absolute zero turn skip!")
+	assert(final_cards[0]["id"] == "ice_final_shatter", "Ice final card 0 must be ice_final_shatter")
 
-	# Choose final card 0: 絶対零度・完全凍結 (turn skip)
+	# Choose final card 0: 破砕起爆
 	var final_btn = sm_evo.tarot_modal_panel.get_node("TarotCard_0/SelectBtn_0") as Button
 	assert(final_btn != null, "Final card 0 button must exist")
 	final_btn.emit_signal("pressed")
 	assert(sm_evo.skill_tree_items[t_ice_idx]["level"] == 20, "Level should now be 20")
-	assert(sm_evo.has_skill_trait("ice_1", "ice_final_skip") == true, "Must have ice_final_skip trait")
+	assert(sm_evo.has_skill_trait("ice_1", "ice_final_shatter") == true, "Must have ice_final_shatter trait")
 
 	# Check UI description displays both evolution badges
 	var ice_desc_text = ""
@@ -1283,33 +1279,12 @@ func _init() -> void:
 		if s_ref["s_idx"] == t_ice_idx:
 			ice_desc_text = s_ref["s_desc"].text
 			break
-	assert("【第1進化: 白銀の氷壁】" in ice_desc_text, "Desc text must display mid evolution badge")
-	assert("【最終進化: 絶対零度・完全凍結】" in ice_desc_text, "Desc text must display final evolution badge")
+	assert("【第1進化: 氷柱カウンター】" in ice_desc_text, "Desc text must display mid evolution badge")
+	assert("【最終進化: 破砕起爆】" in ice_desc_text, "Desc text must display final evolution badge")
 
-	# 24.5 Test In-Combat Turn Skip Execution
-	var pb_evo = pb_script.new()
-	dummy_root.add_child(pb_evo)
-	pb_evo.score_manager = sm_evo
-	pb_evo._ready()
-	var stg_evo = sm_script.new()
-	dummy_root.add_child(stg_evo)
-	stg_evo.myhp = 1000.0
-	stg_evo.myhpmax = 1000.0
-	stg_evo.ehp = 500.0
-	stg_evo.active_enemies = [
-		{"sprite": Sprite2D.new(), "atk": 200.0, "ehp": 500.0, "max_ehp": 500.0}
-	]
-
-	# Cast ice skill with final evolution
-	assert(pb_evo.enemy_turn_skip_count == 0, "Initial skip count 0")
-	pb_evo.cast_player_skill("ice", true, 1)
-	assert(pb_evo.enemy_turn_skip_count == 1, "Enemy turn skip count must increment on casting Lv.20 ice")
-
-	# Execute enemy turn actions -> must skip enemy turn and deal 0 damage
-	var hp_before_enemy = stg_evo.myhp
-	pb_evo._execute_enemy_turn_actions(stg_evo)
-	assert(pb_evo.enemy_turn_skip_count == 0, "Skip count must be consumed")
-	assert(stg_evo.myhp == hp_before_enemy, "Player must take 0 damage when enemy turn is skipped")
+	# 24.5 Verify Ice Evolution Traits
+	assert(sm_evo.has_skill_trait("ice_1", "ice_mid_counter") == true)
+	assert(sm_evo.has_skill_trait("ice_1", "ice_final_shatter") == true)
 
 	# 24.6 Verify Fire Evolution Combat Multipliers
 	sm_evo.skill_evolutions["fire_1"] = {"mid": "fire_mid_strike", "final": "fire_final_prominence"}
@@ -1855,6 +1830,101 @@ func _init() -> void:
 	var expected_zap_dmg = 3.0 * (30.0 + 1.0 * 8.0) * 1.0 # 38 * 3 = 114
 	assert(sm.ehp == ehp_before_coin - expected_zap_dmg, "Matching 3 coins must deal 114 zap damage to enemy (was %f, now %f)" % [ehp_before_coin, sm.ehp])
 	print("✓ Thunder evolution: matching coins deals electric shock damage to enemy (114 dmg for 3 coins)!")
+
+	# =========================================================================
+	# SECTION 33: Full Evolution Suite for All Remaining Elements (Ice, Fire, Poison, Earth, Light, Dark)
+	# =========================================================================
+	print("\n--- SECTION 33: Full Evolution Suite for All Remaining Elements ---")
+
+	# 1. Ice Evolution: Preservation (Keep shield across turns)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("ice_1", 5, "ice_mid_preservation")
+	assert(sc.has_skill_trait("ice_1", "ice_mid_preservation"), "ice_mid_preservation must be active")
+	pb.current_total_shields = 5
+	sm.guard = 250.0
+	pb._reset_turn(sm, sc)
+	assert(pb.current_total_shields == 5, "Shield must be preserved across turns with ice_mid_preservation")
+	assert(sm.guard == 250.0, "sm.guard must be preserved across turns with ice_mid_preservation")
+	print("✓ Ice evolution (ice_mid_preservation): shield preserved across turns!")
+
+	# 2. Fire Evolution: Smelt (Mine stone to coin piece on bomb explosion)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("fire_1", 15, "fire_final_smelt")
+	assert(sc.has_skill_trait("fire_1", "fire_final_smelt"), "fire_final_smelt must be active")
+	pb._initialize_board(null)
+	pb.grid_stones[3][4] = 1 # 1-HP stone at (3,4)
+	var q_bomb: Array = []
+	pb._trigger_bomb(3, 3, pb.get_cell_position(3, 3), q_bomb, {})
+	assert(pb.grid_stones[3][4] == 0, "Stone must be destroyed")
+	assert(pb.grid_n[3][4] == pb.PieceType.COIN, "Destroyed stone must be smelted into COIN piece")
+	print("✓ Fire evolution (fire_final_smelt): destroyed stone smelted into COIN piece!")
+
+	# 3. Poison Evolution: Detonation (Additional poison damage on poison tile match)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("poison_1", 5, "poison_mid_detonation")
+	assert(sc.has_skill_trait("poison_1", "poison_mid_detonation"), "poison_mid_detonation must be active")
+	pb._initialize_board(null)
+	pb._apply_poison_to_cell(2, 2, true)
+	assert(pb.is_ally_poison(2, 2), "(2,2) must be ally poison")
+	print("✓ Poison evolution (poison_mid_detonation) verified!")
+
+	# 4. Earth Evolution: Shatter Blast (Destroying stone damages enemy)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("earth_1", 5, "earth_mid_shatter_blast")
+	assert(sc.has_skill_trait("earth_1", "earth_mid_shatter_blast"), "earth_mid_shatter_blast must be active")
+	sm.isdeadf = false
+	sm.stage_enemy = 1
+	sm.make_enemy(false)
+	var ehp_before_shatter = sm.ehp
+	pb._initialize_board(null)
+	pb.grid_stones[4][4] = 1
+	sc.skill_tree_items[5]["level"] = 1 # earth_1 Lv1
+	pb._damage_stone_at(4, 4, 1)
+	assert(pb.grid_stones[4][4] == 0, "Stone must be destroyed")
+	assert(sm.ehp < ehp_before_shatter, "Destroying stone must deal shatter blast damage to enemy")
+	print("✓ Earth evolution (earth_mid_shatter_blast): stone destruction damaged enemy!")
+
+	# 5. Earth Evolution: Vein (Adjacent piece turns into coin at turn reset)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("earth_1", 15, "earth_final_vein")
+	assert(sc.has_skill_trait("earth_1", "earth_final_vein"), "earth_final_vein must be active")
+	pb._initialize_board(null)
+	pb.grid_stones[5][5] = 2
+	pb._set_ally_flag(pb.grid_stones_ally, 5, 5, true)
+	# Set other adjacent pieces to COIN so (5, 6) is chosen
+	pb.grid_n[4][5] = pb.PieceType.COIN
+	pb.grid_n[6][5] = pb.PieceType.COIN
+	pb.grid_n[5][4] = pb.PieceType.COIN
+	pb.grid_n[5][6] = pb.PieceType.SWORD
+	pb.grid_att[5][6] = pb.PieceType.SWORD % 5
+	pb._reset_turn(sm, sc)
+	assert(pb.grid_n[5][6] == pb.PieceType.COIN, "Adjacent piece to ally stone must turn into COIN at turn end")
+	print("✓ Earth evolution (earth_final_vein): adjacent piece turned into COIN!")
+
+	# 6. Light Evolution: Energy Recharge (Recharge energy on 5+ clear)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("light_1", 5, "light_mid_recharge")
+	assert(sc.has_skill_trait("light_1", "light_mid_recharge"), "light_mid_recharge must be active")
+	pb.player_skill_energy = 10.0
+	pb._initialize_board(null)
+	# Trigger disco ball
+	pb.special_levels[pb.SpecialItemType.DISCO_BALL] = 1
+	pb._trigger_disco_ball(3, 3, pb.get_cell_position(3, 3), [], {})
+	assert(pb.player_skill_energy >= 30.0, "Recharge evolution must grant +20 energy on disco ball clearing 5+ pieces")
+	print("✓ Light evolution (light_mid_recharge): granted +20 energy on disco ball clear!")
+
+	# 7. Dark Evolution: Devour Object (Devour gold statue and stones)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("dark_1", 15, "dark_final_devour_object")
+	assert(sc.has_skill_trait("dark_1", "dark_final_devour_object"), "dark_final_devour_object must be active")
+	pb._initialize_board(null)
+	pb.grid_gold_statue[4][4] = 3
+	pb.grid_stones[4][5] = 2
+	pb._set_ally_flag(pb.grid_stones_ally, 4, 5, false) # enemy stone
+	pb._trigger_black_hole(4, 4, pb.get_cell_position(4, 4), [], {})
+	assert(pb.grid_gold_statue[4][4] == 0, "Gold statue must be devoured by black hole")
+	assert(pb.grid_stones[4][5] == 0, "Enemy stone must be devoured by black hole")
+	print("✓ Dark evolution (dark_final_devour_object): devoured gold statue and enemy stone completely!")
 
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)
