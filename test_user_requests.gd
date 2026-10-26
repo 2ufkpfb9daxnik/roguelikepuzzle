@@ -1817,5 +1817,44 @@ func _init() -> void:
 	assert(matched_adjacent > 0, "Lightning must reflect to adjacent cells upon hitting an object (found %d)" % matched_adjacent)
 	print("✓ Thunder evolution: lightning reflects to adjacent cells when hitting an object!")
 
+	# =========================================================================
+	# SECTION 32: Thunder Evolution - Coin Match Deals Electric Shock Damage
+	# =========================================================================
+	print("\n--- SECTION 32: Thunder Coin Electric Shock Evolution Test ---")
+
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("thunder_1", 5, "thunder_mid_conduct") # 帯電金貨スパーク
+	assert(sc.has_skill_trait("thunder_1", "thunder_mid_conduct"), "thunder_mid_conduct must be active")
+
+	sm.stage = 1
+	sm.isdeadf = false
+	sm.stage_enemy = 1
+	sm.make_enemy(false)
+	var ehp_before_coin = sm.ehp
+	assert(ehp_before_coin > 0, "Enemy must have HP")
+
+	# Set up 3 coin matches
+	var match_idx: Array = []
+	var test_att: Array = []
+	for r in range(pb.GRID_ROWS):
+		var r_m: Array[bool] = []
+		var r_a: Array[int] = []
+		r_m.resize(pb.GRID_COLUMNS); r_m.fill(false)
+		r_a.resize(pb.GRID_COLUMNS); r_a.fill(0)
+		match_idx.append(r_m)
+		test_att.append(r_a)
+
+	# 3 coins in a line at (3, 2), (3, 3), (3, 4)
+	match_idx[3][2] = true; test_att[3][2] = pb.PieceType.COIN
+	match_idx[3][3] = true; test_att[3][3] = pb.PieceType.COIN
+	match_idx[3][4] = true; test_att[3][4] = pb.PieceType.COIN
+
+	sc.skill_tree_items[3]["level"] = 1 # thunder_1 Lv1
+	sc.calcscore(match_idx, test_att, [])
+
+	var expected_zap_dmg = 3.0 * (30.0 + 1.0 * 8.0) * 1.0 # 38 * 3 = 114
+	assert(sm.ehp == ehp_before_coin - expected_zap_dmg, "Matching 3 coins must deal 114 zap damage to enemy (was %f, now %f)" % [ehp_before_coin, sm.ehp])
+	print("✓ Thunder evolution: matching coins deals electric shock damage to enemy (114 dmg for 3 coins)!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

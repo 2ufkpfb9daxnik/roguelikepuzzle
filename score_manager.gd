@@ -323,11 +323,11 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"desc": "雷が盤面のオブジェクト（石・氷・木・像・特殊駒）に衝突した時、角度を変えて反射し追加のマスを感電破壊する。"
 			},
 			{
-				"id": "thunder_mid_magnetic",
+				"id": "thunder_mid_conduct",
 				"numeral": "Ⅱ",
-				"name": "磁場増幅",
-				"role": "過負荷攻撃力蓄積",
-				"desc": "コイン消去時に自身の攻撃力バフ（雷電過負荷）が蓄積する。"
+				"name": "帯電金貨スパーク",
+				"role": "コイン消去時感電ダメージ",
+				"desc": "コインを消去するたび、帯電した電流が敵へ直接スパークし感電ダメージを与える。"
 			},
 			{
 				"id": "thunder_mid_flash",
@@ -2230,6 +2230,21 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = []) ->
 					gain = int(rm.modify_coin_gain(float(gain)))
 				if att_type < divscore.size():
 					divscore[att_type] += gain
+
+				# 雷進化特性：コインを消去するたび敵に感電ダメージ
+				if att_type == PieceType.COIN:
+					if has_skill_trait("thunder_1", "thunder_mid_conduct") or has_skill_trait("thunder_1", "thunder_mid_magnetic"):
+						var sk_lvl: int = maxi(1, get_skill_level("thunder_1"))
+						var st_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
+						var zap_dmg: float = float(count) * (30.0 + sk_lvl * 8.0) * st_scale
+						if sm and sm.ehp > 0 and not sm.isdeadf:
+							sm.calchp(zap_dmg, 0.0)
+							if pb and pb.has_method("_emit_combat_event"):
+								pb._emit_combat_event("damage", "ally", "enemy", zap_dmg, "thunder_coin")
+							if pb and not component_cells.is_empty():
+								var coin_p = pb.get_cell_position(component_cells[0].x, component_cells[0].y)
+								pb._spawn_shock_zap_effect(coin_p)
+								pb._spawn_floating_text(coin_p, "⚡ 金貨感電 -%d!" % int(zap_dmg), Color(1.0, 0.95, 0.2))
 		
 				if not turn_element_gain.has(att_type):
 					turn_element_gain[att_type] = {}
