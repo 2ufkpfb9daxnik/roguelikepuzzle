@@ -1681,5 +1681,141 @@ func _init() -> void:
 	assert(sm.ehp == initial_ehp - expected_surge_lv3, "Turn reset must deal damage based on water cell count (Lv3: 236 dmg)")
 	print("✓ water_mid_surge deals attack damage each turn based on water cell count!")
 
+	# =========================================================================
+	# SECTION 31: Wood HP Drain & Yggdrasil Skill Spawns,
+	# Wind Mid-Evo (Normal Piece Clearance + Damage, Bi-directional Movement),
+	# Thunder Reflection on Object Collision
+	# =========================================================================
+	print("\n--- SECTION 31: Wood, Wind & Thunder Evolution Enhancements ---")
+
+	# 1. Wood Basic Spec: Enemy HP Drain (Damage enemy & heal player, weaker than pure heal)
+	pb.plant_entities.clear()
+	pb._initialize_board(null)
+	var sprout_plant = {
+		"origin": Vector2i(7, 7),
+		"stage": 0, # 若木
+		"absorbed_water": 0,
+		"thunder_hp": 2,
+		"enemy_planted": false,
+		"drain_amount": 0
+	}
+	pb.plant_entities.append(sprout_plant)
+
+	sm.stage = 1
+	sm.isdeadf = false
+	sm.stage_enemy = 1
+	sm.make_enemy(false)
+	var ehp_before = sm.ehp
+	sm.myhpmax = 1000.0
+	sm.myhp = 500.0
+	pb._process_turn_plants()
+
+	# Stage 0: dmg 80, heal 30
+	assert(sm.ehp == ehp_before - 80.0, "Wood plant must drain enemy HP by 80 (ehp was %f, now %f)" % [ehp_before, sm.ehp])
+	assert(sm.myhp == 530.0, "Wood plant must heal player HP by 30 (drain heal is weaker than water)")
+	print("✓ Wood basic spec drains enemy HP and heals player (dmg 80 / heal 30)!")
+
+	# 2. Wood Final Evolution: Big Tree (stage 2) spawns random skill items on adjacent cells each turn
+	pb.plant_entities.clear()
+	pb._initialize_board(null)
+	var big_tree = {
+		"origin": Vector2i(5, 5),
+		"stage": 2, # 大木 (3x3 世界樹)
+		"absorbed_water": 0,
+		"thunder_hp": 4,
+		"enemy_planted": false,
+		"drain_amount": 0
+	}
+	pb.plant_entities.append(big_tree)
+
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("wood_1", 15, "wood_final_yggdrasil")
+	assert(sc.has_skill_trait("wood_1", "wood_final_yggdrasil"), "wood_final_yggdrasil must be active")
+
+	# Clear existing special items around big tree
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.special_item[r][c] = pb.SpecialItemType.NONE
+			pb.is_bomb[r][c] = false
+
+	pb._process_turn_plants()
+
+	# Count skill items spawned adjacent to big tree
+	var big_tree_occ = pb._get_plant_occupied_cells(big_tree)
+	var adjacent_skills_count = 0
+	for occ in big_tree_occ:
+		for dr in [-1, 0, 1]:
+			for dc in [-1, 0, 1]:
+				var nr = occ.x + dr; var nc = occ.y + dc
+				if nr >= 0 and nr < pb.GRID_ROWS and nc >= 0 and nc < pb.GRID_COLUMNS:
+					if not (Vector2i(nr, nc) in big_tree_occ):
+						if pb.special_item[nr][nc] != pb.SpecialItemType.NONE or pb.is_bomb[nr][nc]:
+							adjacent_skills_count += 1
+	assert(adjacent_skills_count > 0, "Big tree must spawn random skill items on adjacent cells (found %d)" % adjacent_skills_count)
+	print("✓ Wood final evolution (Big Tree) successfully spawned %d skill item(s) on adjacent cells!" % adjacent_skills_count)
+
+	# 3. Wind Mid-Evolution 1: Bi-directional movement (Moves both Up and Down instead of just upward)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("wind_1", 5, "wind_mid_slicer") # 上下双突風
+	assert(sc.has_skill_trait("wind_1", "wind_mid_slicer"), "wind_mid_slicer must be active")
+
+	pb._initialize_board(null)
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.ismatched[r][c] = false
+
+	# Trigger tornado at center (4, 4)
+	pb._trigger_tornado(4, 4, pb.get_cell_position(4, 4), [], {})
+	# With bi-directional movement, cells above (r < 4) AND below (r > 4) in col 4 must be matched
+	assert(pb.ismatched[0][4] == true, "Cell at (0, 4) above must be matched by tornado")
+	assert(pb.ismatched[7][4] == true, "Cell at (7, 4) below must be matched by bi-directional tornado")
+	print("✓ Wind mid-evolution: tornado moves bi-directionally (up & down across the entire column)!")
+
+	# 4. Wind Mid-Evolution 2: Delete normal pieces on ally board and deal extra damage to enemy
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("wind_1", 5, "wind_mid_sweep") # 暴風一掃
+	assert(sc.has_skill_trait("wind_1", "wind_mid_sweep"), "wind_mid_sweep must be active")
+
+	sm.isdeadf = false
+	sm.stage_enemy = 1
+	sm.make_enemy(false)
+	var ehp_before_wind = sm.ehp
+	pb._initialize_board(null)
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.ismatched[r][c] = false
+
+	pb.special_levels[pb.SpecialItemType.TORNADO] = 1
+	pb._trigger_tornado(4, 4, pb.get_cell_position(4, 4), [], {})
+	# Tornado deletes normal pieces along its path and damages enemy
+	assert(sm.ehp < ehp_before_wind, "Tornado with wind_mid_sweep must deal extra damage to enemy based on deleted normal pieces")
+	print("✓ Wind mid-evolution: tornado deletes normal pieces and deals extra damage to enemy!")
+
+	# 5. Thunder Evolution: Reflection when lightning hits an object
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("thunder_1", 5, "thunder_mid_reflection") # 避雷針反射
+	assert(sc.has_skill_trait("thunder_1", "thunder_mid_reflection"), "thunder_mid_reflection must be active")
+
+	pb._initialize_board(null)
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.ismatched[r][c] = false
+			pb.grid_stones[r][c] = 0
+
+	# Place stone object at (4, 4)
+	pb.grid_stones[4][4] = 2
+	pb.special_levels[pb.SpecialItemType.LIGHTNING] = 1
+	pb._trigger_lightning(4, 4, pb.get_cell_position(4, 4), [], {})
+	# When lightning hits object at (4, 4), it reflects to adjacent cells
+	var matched_adjacent = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if dr == 0 and dc == 0: continue
+			var ar = 4 + dr; var ac = 4 + dc
+			if ar >= 0 and ar < pb.GRID_ROWS and ac >= 0 and ac < pb.GRID_COLUMNS:
+				if pb.ismatched[ar][ac]: matched_adjacent += 1
+	assert(matched_adjacent > 0, "Lightning must reflect to adjacent cells upon hitting an object (found %d)" % matched_adjacent)
+	print("✓ Thunder evolution: lightning reflects to adjacent cells when hitting an object!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

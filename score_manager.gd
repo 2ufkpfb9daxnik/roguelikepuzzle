@@ -316,11 +316,11 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 	"thunder": {
 		"mid": [
 			{
-				"id": "thunder_mid_voltage",
+				"id": "thunder_mid_reflection",
 				"numeral": "Ⅰ",
-				"name": "高圧放電",
-				"role": "拡散連鎖電撃",
-				"desc": "電撃が隣接マスへ連鎖放電し、複数の敵・部位へ拡散電撃ダメージ。"
+				"name": "避雷針反射",
+				"role": "オブジェクト衝突時反射",
+				"desc": "雷が盤面のオブジェクト（石・氷・木・像・特殊駒）に衝突した時、角度を変えて反射し追加のマスを感電破壊する。"
 			},
 			{
 				"id": "thunder_mid_magnetic",
@@ -390,8 +390,8 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "wood_final_yggdrasil",
 				"numeral": "Ⅰ",
 				"name": "世界樹ユグドラシル",
-				"role": "極限神格：継続大再生 ＆ 浄化",
-				"desc": "盤面に世界樹が顕現し、毎ターン全状態異常を解除＆最大HPの15%を継続回復。"
+				"role": "大木隣接スキル結実",
+				"desc": "大木が存在する時、毎ターン隣接したマスをランダムなスキルアイテムへと結実・変化させる。"
 			},
 			{
 				"id": "wood_final_sealing",
@@ -414,23 +414,23 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 			{
 				"id": "wind_mid_slicer",
 				"numeral": "Ⅰ",
-				"name": "烈風刃",
-				"role": "装甲切断 ＆ 防御力低下",
-				"desc": "風の刃が敵を切り裂き、防御力を永続15%低下させる。"
+				"name": "双方向暴風",
+				"role": "竜巻上下双方向移動",
+				"desc": "竜巻が頭上へ上昇するだけでなく上下双方向に吹き抜け、縦列全体のマスを一掃・巻き込む。"
+			},
+			{
+				"id": "wind_mid_sweep",
+				"numeral": "Ⅱ",
+				"name": "暴風一掃",
+				"role": "自陣駒削除 ＆ 敵追撃",
+				"desc": "竜巻が自陣の通常駒も巻き込んで削除し、削除した駒数に応じた暴風ダメージを敵に叩き込む。"
 			},
 			{
 				"id": "wind_mid_veil",
-				"numeral": "Ⅱ",
+				"numeral": "Ⅲ",
 				"name": "空蝉の風壁",
 				"role": "回避率上昇 ＆ 旋風反撃",
 				"desc": "敵の攻撃を回避する確率+20%。回避時に風の反撃刃を放つ。"
-			},
-			{
-				"id": "wind_mid_cyclone",
-				"numeral": "Ⅲ",
-				"name": "サイクロン循環",
-				"role": "連鎖率超向上",
-				"desc": "風スキル発動時、落ちてくるピースの連鎖率が大幅に向上する。"
 			}
 		],
 		"final": [
@@ -1158,7 +1158,7 @@ static func get_skill_descriptions(skill_id: String) -> Array[String]:
 			]
 		"wood_1":
 			return [
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+100回復＋自然追撃",
+				"【苗木植樹・敵体力吸収】敵から体力吸収(回復控えめ)・大木進化で隣接スキル創生",
 				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+120回復＋自然追撃",
 				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+140回復＋自然追撃",
 				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+160回復＋自然追撃",

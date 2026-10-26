@@ -2218,12 +2218,26 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 	elif lvl >= 2:
 		half_w = 1 # Lv2: 幅3マス (疾風竜巻)
 
+	var score_mgr = _get_score_manager()
+	var has_wi_bidirectional = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("wind_1", "wind_mid_slicer")
+	var has_wi_sweep = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("wind_1", "wind_mid_sweep")
+
 	_spawn_tornado_effect(pos, lvl, half_w)
 
 	var hit_plants: Array = []
 	var tornado_dmg: int = 1 + int((lvl - 1) / 4)
+	var swept_normal_pieces: int = 0
 
-	for nr in range(r, -1, -1):
+	# 範囲決定: 上下双方向移動なら 0 〜 GRID_ROWS-1 全域、通常なら r から頭上(0)へ上昇
+	var row_range: Array[int] = []
+	if has_wi_bidirectional:
+		for nr in range(GRID_ROWS):
+			row_range.append(nr)
+	else:
+		for nr in range(r, -1, -1):
+			row_range.append(nr)
+
+	for nr in row_range:
 		for dc in range(-half_w, half_w + 1):
 			var nc = c + dc
 			if nc >= 0 and nc < GRID_COLUMNS:
@@ -2236,8 +2250,10 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 				if grid_water.size() == GRID_ROWS:
 					grid_water[nr][nc] = false
 				if grid_i[nr][nc] != -1:
-					ismatched[nr][nc] = true
 					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
+					if not has_sp:
+						swept_normal_pieces += 1
+					ismatched[nr][nc] = true
 					if has_sp and not (Vector2i(nr, nc) in exploded_items):
 						queue.append(Vector2i(nr, nc))
 
@@ -2247,6 +2263,16 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 
 	for p in hit_plants:
 		_damage_plant(p, tornado_dmg, "tornado")
+
+	# 自陣の通常駒削除追撃ダメージ
+	if has_wi_sweep and swept_normal_pieces > 0:
+		var sm = _get_stage_manager()
+		var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
+		var sweep_extra_dmg: float = float(swept_normal_pieces) * (25.0 + lvl * 6.0) * stage_scale
+		if sm and sm.ehp > 0 and not sm.isdeadf:
+			sm.calchp(sweep_extra_dmg, 0.0)
+			_emit_combat_event("damage", "ally", "enemy", sweep_extra_dmg, "wind_sweep")
+			_spawn_floating_text(pos, "🌪️ 暴風一掃 (駒%d個削除追撃 -%d)！" % [swept_normal_pieces, int(sweep_extra_dmg)], Color(0.2, 1.0, 0.7))
 
 func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.LIGHTNING, 1))
@@ -2273,9 +2299,60 @@ func _trigger_lightning(r: int, c: int, pos: Vector2, queue: Array, exploded_ite
 	if not center_plant.is_empty() and not (center_plant in hit_plants):
 		hit_plants.append(center_plant)
 
+	var score_mgr_th = _get_score_manager()
+	var has_th_reflection = score_mgr_th and score_mgr_th.has_method("has_skill_trait") and (score_mgr_th.has_skill_trait("thunder_1", "thunder_mid_reflection") or score_mgr_th.has_skill_trait("thunder_1", "thunder_mid_voltage"))
+
+	# 発動位置 (r, c) 自体にオブジェクトが存在する場合の即時反射
+	var origin_is_object = (grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0) or 						   (grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0) or 						   (not _get_plant_at(r, c).is_empty()) or 						   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0) or 						   (special_item.size() == GRID_ROWS and special_item[r][c] != SpecialItemType.NONE) or 						   (is_bomb.size() == GRID_ROWS and is_bomb[r][c])
+	if has_th_reflection and origin_is_object:
+		var origin_bounces = [
+			Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1),
+			Vector2i(-1, -1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(1, 1)
+		]
+		origin_bounces.shuffle()
+		var o_bounced = 0
+		for bo in origin_bounces:
+			var obr = r + bo.x; var obc = c + bo.y
+			if obr >= 0 and obr < GRID_ROWS and obc >= 0 and obc < GRID_COLUMNS:
+				var ob_pos = get_cell_position(obr, obc)
+				targets.append(ob_pos)
+				_spawn_shock_zap_effect(ob_pos)
+				if (grid_stones.size() == GRID_ROWS and grid_stones[obr][obc] > 0) or (grid_ice.size() == GRID_ROWS and int(grid_ice[obr][obc]) > 0):
+					_trigger_thunder_shatter_synergy(obr, obc, true, queue, exploded_items)
+				elif grid_i.size() == GRID_ROWS and grid_i[obr][obc] != -1:
+					ismatched[obr][obc] = true
+				o_bounced += 1
+				if o_bounced >= 2: break
+		_spawn_floating_text(pos, "⚡ 雷光反射！", Color(1.0, 1.0, 0.3))
+
 	for k in range(mini(target_count, candidates.size())):
 		var cp = candidates[k]
 		targets.append(get_cell_position(cp.x, cp.y))
+
+		var is_object = (grid_stones.size() == GRID_ROWS and grid_stones[cp.x][cp.y] > 0) or 						(grid_ice.size() == GRID_ROWS and int(grid_ice[cp.x][cp.y]) > 0) or 						(not _get_plant_at(cp.x, cp.y).is_empty()) or 						(grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[cp.x][cp.y] > 0) or 						(special_item.size() == GRID_ROWS and special_item[cp.x][cp.y] != SpecialItemType.NONE) or 						(is_bomb.size() == GRID_ROWS and is_bomb[cp.x][cp.y])
+
+		# 雷の進化：オブジェクトに当たったときに反射する
+		if has_th_reflection and is_object:
+			var bounce_offsets = [
+				Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1),
+				Vector2i(-1, -1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(1, 1)
+			]
+			bounce_offsets.shuffle()
+			var bounced_cnt = 0
+			for bo in bounce_offsets:
+				var br = cp.x + bo.x; var bc = cp.y + bo.y
+				if br >= 0 and br < GRID_ROWS and bc >= 0 and bc < GRID_COLUMNS:
+					var b_pos = get_cell_position(br, bc)
+					targets.append(b_pos)
+					_spawn_shock_zap_effect(b_pos)
+					if (grid_stones.size() == GRID_ROWS and grid_stones[br][bc] > 0) or (grid_ice.size() == GRID_ROWS and int(grid_ice[br][bc]) > 0):
+						_trigger_thunder_shatter_synergy(br, bc, true, queue, exploded_items)
+					elif grid_i.size() == GRID_ROWS and grid_i[br][bc] != -1:
+						ismatched[br][bc] = true
+					bounced_cnt += 1
+					if bounced_cnt >= 2:
+						break
+			_spawn_floating_text(get_cell_position(cp.x, cp.y), "⚡ 雷光反射！", Color(1.0, 1.0, 0.3))
 
 		if (grid_stones.size() == GRID_ROWS and grid_stones[cp.x][cp.y] > 0) or (grid_ice.size() == GRID_ROWS and int(grid_ice[cp.x][cp.y]) > 0):
 			_trigger_thunder_shatter_synergy(cp.x, cp.y, true, queue, exploded_items)
@@ -2837,6 +2914,45 @@ func _process_plant_water_absorption(plant: Dictionary) -> bool:
 	return absorbed_any
 
 ## 毎ターンの植物処理（吸水 ＆ マイルド自動回復）
+## ユグドラシル最終進化：大木隣接マスをランダムなスキルアイテムに変化
+func _spawn_yggdrasil_skills(plant: Dictionary) -> void:
+	var occ_cells = _get_plant_occupied_cells(plant)
+	var adjacent_cands: Array[Vector2i] = []
+	for occ in occ_cells:
+		for dr in [-1, 0, 1]:
+			for dc in [-1, 0, 1]:
+				if dr == 0 and dc == 0: continue
+				var nr = occ.x + dr; var nc = occ.y + dc
+				if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+					if Vector2i(nr, nc) in occ_cells: continue
+					if grid_i.size() == GRID_ROWS and grid_i[nr][nc] != -1:
+						if special_item.size() == GRID_ROWS and special_item[nr][nc] == SpecialItemType.NONE:
+							if is_bomb.size() == GRID_ROWS and not is_bomb[nr][nc]:
+								if not Vector2i(nr, nc) in adjacent_cands:
+									adjacent_cands.append(Vector2i(nr, nc))
+	if adjacent_cands.is_empty():
+		return
+	adjacent_cands.shuffle()
+	var spawn_cnt = mini(adjacent_cands.size(), 2)
+	var skill_pool = [
+		SpecialItemType.BOMB,
+		SpecialItemType.TORNADO,
+		SpecialItemType.AQUA_SPLASH,
+		SpecialItemType.LIGHTNING,
+		SpecialItemType.ICE_SHIELD
+	]
+	for i in range(spawn_cnt):
+		var c_pos = adjacent_cands[i]
+		var sp_type = skill_pool[randi() % skill_pool.size()]
+		special_item[c_pos.x][c_pos.y] = sp_type
+		if is_bomb.size() == GRID_ROWS:
+			is_bomb[c_pos.x][c_pos.y] = true
+		var idx = grid_i[c_pos.x][c_pos.y]
+		if idx >= 0 and idx < piece.size() and piece[idx] != null:
+			piece[idx].texture = null
+			_spawn_special_sparkle_effect(piece[idx].position)
+			_spawn_floating_text(piece[idx].position, "🍎 大木結実！", Color(0.3, 1.0, 0.5))
+
 func _process_turn_plants() -> void:
 	if plant_entities.is_empty():
 		return
@@ -2855,9 +2971,13 @@ func _process_turn_plants() -> void:
 		if not plant_frozen:
 			_process_plant_water_absorption(plant)
 
-	# 2. 自動回復（プレイヤー植物）または体力ドレイン（敵の植えた苗木・大木）
+	# 2. 木属性：相手からの体力吸収（ドレイン回復：他回復より控えめ）＆ 最終進化大木隣接スキル生成
 	var total_heal: float = 0.0
+	var ally_drain_dmg: float = 0.0
 	var enemy_drain_plants: Array[Dictionary] = []
+
+	var score_mgr = _get_score_manager()
+	var has_wd_yggdrasil = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("wood_1", "wood_final_yggdrasil")
 
 	for plant in plant_entities:
 		var st: int = plant.get("stage", 0)
@@ -2875,13 +2995,31 @@ func _process_turn_plants() -> void:
 		if plant.get("enemy_planted", false):
 			enemy_drain_plants.append(plant)
 		else:
-			var heal_val: float = 150.0
-			if st == 1: heal_val = 350.0
-			elif st == 2: heal_val = 800.0
-			total_heal += heal_val * stage_scale
-			_spawn_heal_number_effect(get_cell_position(org.x, org.y), int(heal_val * stage_scale))
+			# 木属性の基本仕様: 相手からの体力吸収。他の回復スキル(水等)よりは弱く設定
+			var base_dmg: float = 80.0
+			var base_heal: float = 30.0
+			if st == 1:
+				base_dmg = 160.0
+				base_heal = 60.0
+			elif st >= 2:
+				base_dmg = 280.0
+				base_heal = 100.0
+
+			var cur_dmg = base_dmg * stage_scale
+			var cur_heal = base_heal * stage_scale
+			ally_drain_dmg += cur_dmg
+			total_heal += cur_heal
+			_spawn_heal_number_effect(get_cell_position(org.x, org.y), int(cur_heal))
+			_spawn_floating_text(get_cell_position(org.x, org.y) + Vector2(0, -30), "🌿 吸収 -%d / +%d" % [int(cur_dmg), int(cur_heal)], Color(0.3, 0.95, 0.4))
+
+			# 最終進化で大木なら、毎ターン隣接したマスをランダムなスキルにする
+			if has_wd_yggdrasil and st >= 2:
+				_spawn_yggdrasil_skills(plant)
 
 	if sm:
+		if ally_drain_dmg > 0.0 and sm.ehp > 0 and not sm.isdeadf:
+			sm.calchp(ally_drain_dmg, 0.0)
+			_emit_combat_event("damage", "ally", "enemy", ally_drain_dmg, "wood_drain")
 		if total_heal > 0.0:
 			sm.calchp(0.0, -total_heal)
 			_emit_combat_event("heal", "ally", "ally", total_heal)
@@ -4869,7 +5007,10 @@ func _spawn_special_sparkle_effect(pos: Vector2) -> void:
 	p.scale_amount_max = 14.0
 	p.color = Color(1.2, 1.1, 0.4, 1.0)
 	effects_parent.add_child(p)
-	get_tree().create_timer(0.45).timeout.connect(p.queue_free)
+	if get_tree():
+		get_tree().create_timer(0.45).timeout.connect(p.queue_free)
+	else:
+		p.queue_free()
 	var se2 = get_node_or_null("AudioStreamPlayer2")
 	if se2:
 		se2.pitch_scale = 1.4
@@ -9361,11 +9502,13 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(p.x, p.y)
 					_spawn_growth_effect(pos, 0)
 					affected_positions.append(pos)
-				var heal_val = (150.0 + sk_lvl * 20.0) * stage_scale * (1.5 if has_wd_roots else 1.0)
+				# 木属性の基本仕様: 敵からの体力吸収(他回復よりマイルド)
+				var drain_heal = (40.0 + sk_lvl * 8.0) * stage_scale * (1.5 if has_wd_roots else 1.0)
+				direct_skill_dmg = (100.0 + sk_lvl * 20.0) * stage_scale * (1.3 if has_wd_thorns else 1.0)
 				if sm:
-					sm.calchp(0.0, -heal_val)
-					_emit_combat_event("heal", "ally", "ally", heal_val)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.3 if has_wd_thorns else 1.0)
+					sm.calchp(0.0, -drain_heal)
+					_emit_combat_event("heal", "ally", "ally", drain_heal)
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(7, 7), "🌿 体力吸収 +%d" % int(drain_heal), Color(0.3, 0.95, 0.4))
 			elif tier == 2:
 				# 🌱 木T2【大樹の根張りルート・ドレイン】：離れた水マスを吸い上げて即座に成長段階+1＆HP回復
 				var plant = null
@@ -9528,8 +9671,26 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				var rensa_se = get_node_or_null("1rensa")
 				if rensa_se: rensa_se.play()
 
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_wi_slicer else 1.0)
-				_spawn_floating_text(center_pos, "🌪️ 翠嵐の浄化！ (敵オブジェクト消去)" if cleared_hazard_count > 0 else "🌪️ 翠嵐の風！", Color(0.2, 1.0, 0.75))
+				var has_wi_sweep = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "wind_mid_sweep")
+				var extra_sweep_dmg = 0.0
+				if has_wi_sweep:
+					var swept_cnt = 0
+					var sweep_cols = [3, 6, 9] if not has_wi_slicer else [2, 3, 5, 6, 8, 9]
+					var cleared_cells: Array[Vector2i] = []
+					for sc_col in sweep_cols:
+						var r_range = range(GRID_ROWS) if has_wi_slicer else range(GRID_ROWS / 2, -1, -1)
+						for sr in r_range:
+							if grid_i.size() == GRID_ROWS and grid_i[sr][sc_col] != -1:
+								var has_sp = (special_item.size() == GRID_ROWS and special_item[sr][sc_col] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[sr][sc_col])
+								if not has_sp:
+									cleared_cells.append(Vector2i(sr, sc_col))
+									swept_cnt += 1
+					if not is_in_match_phase and cleared_cells.size() > 0:
+						_clear_pieces_in_cells(cleared_cells)
+						_start_continuous_falling()
+					extra_sweep_dmg = float(swept_cnt) * (25.0 + sk_lvl * 6.0) * stage_scale
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_wi_slicer else 1.0) + extra_sweep_dmg
+				_spawn_floating_text(center_pos, "🌪️ 暴風一掃 (自陣駒消去＆追撃 -%d)！" % int(direct_skill_dmg) if extra_sweep_dmg > 0 else ("🌪️ 翠嵐の浄化！ (敵オブジェクト消去)" if cleared_hazard_count > 0 else "🌪️ 翠嵐の風！"), Color(0.2, 1.0, 0.75))
 			elif tier == 2:
 				# 🌪️ 風T2【ゲイル・シフト】：自軍効果マスを風下へシフト移動させて属性シナジーを能動誘発
 				for r in range(GRID_ROWS):
