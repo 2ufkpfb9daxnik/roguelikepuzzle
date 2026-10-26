@@ -160,6 +160,7 @@ var enemyat: float = 0.0
 var myhp: float = 5000.0
 var myhpmax: float = 5000.0
 var myhppar: float = 1.0
+var guard: float = 0.0
 
 var fevergage: float = 0.0
 var feverpar: float = 0.0

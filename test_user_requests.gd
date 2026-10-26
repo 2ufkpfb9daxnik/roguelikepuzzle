@@ -1575,5 +1575,111 @@ func _init() -> void:
 	assert(sm.isdeadf == true, "isdeadf must be set to true after KEY_F10")
 	print("✓ KEY_F10 shortcut successfully defeated active enemy!")
 
+	# =========================================================================
+	# SECTION 30: Water Skill Initial Spec (Create water cells & delete pieces)
+	# and Mid-Evolution (Turn-based water cell count scaling: HP heal, shield, atk)
+	# =========================================================================
+	print("\n--- SECTION 30: Water Skill Initial Spec & Mid-Evolution Tests ---")
+
+	# 1. Verify Water Initial Spec: Spawns water cells and clears pieces on those cells
+	pb._initialize_board(null)
+	var prev_water_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_water[r][c]: prev_water_count += 1
+	assert(prev_water_count == 0, "Board should have 0 water cells initially")
+
+	# Cast water skill (Tier 1) outside match phase
+	var water_positions = pb.cast_player_skill("water", true, 1)
+	assert(water_positions.size() >= 2, "Water skill must create at least 2 water cells")
+	var new_water_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_water[r][c] and pb.is_ally_water(r, c):
+				new_water_count += 1
+	assert(new_water_count == water_positions.size(), "All spawned water cells must be registered and ally-owned")
+	print("✓ Water skill successfully created ally water cells!")
+
+	# Verify _trigger_aqua_splash marks pieces on all water cells as matched
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			pb.ismatched[r][c] = false
+	pb._trigger_aqua_splash(3, 3, pb.get_cell_position(3, 3), [], {})
+	# (3,3) and adjacent cells in radius 1 must be marked matched
+	assert(pb.ismatched[3][3] == true, "Center cell (3,3) must be marked matched")
+	assert(pb.ismatched[2][3] == true, "Adjacent water cell (2,3) must be marked matched")
+	assert(pb.ismatched[4][3] == true, "Adjacent water cell (4,3) must be marked matched")
+	assert(pb.ismatched[3][2] == true, "Adjacent water cell (3,2) must be marked matched")
+	assert(pb.ismatched[3][4] == true, "Adjacent water cell (3,4) must be marked matched")
+	print("✓ _trigger_aqua_splash marks all generated water cells as matched to delete pieces!")
+
+	# 2. Verify Mid-Evolution Registry definitions
+	assert(sc.SKILL_EVOLUTION_REGISTRY.has("water"), "Registry must have water evolutions")
+	var w_mids = sc.SKILL_EVOLUTION_REGISTRY["water"]["mid"]
+	assert(w_mids.size() == 3, "Water mid-evolution must offer 3 choices")
+	assert(w_mids[0]["id"] == "water_mid_spring", "Water mid-evolution 1 must be water_mid_spring")
+	assert(w_mids[1]["id"] == "water_mid_barrier", "Water mid-evolution 2 must be water_mid_barrier")
+	assert(w_mids[2]["id"] == "water_mid_surge", "Water mid-evolution 3 must be water_mid_surge")
+
+	# Verify evolution does NOT directly manipulate recovery percentage (handled by enhancement levels)
+	assert(not ("+40%" in w_mids[0]["desc"]), "Evolution must not hardcode +40% recovery; enhancement handles values")
+	print("✓ Water mid-evolution choices strictly match [HP回復 / 防御力増加 / 攻撃力上昇] without arbitrary % buffs!")
+
+	# 3. Test Mid-Evolution 1: water_mid_spring (Heal HP based on ally water cells each turn)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 5, "water_mid_spring")
+	assert(sc.has_skill_trait("water_1", "water_mid_spring"), "water_mid_spring must be active")
+
+	# Set up board with 4 ally water cells
+	pb._initialize_board(null)
+	pb._apply_water_to_cell(1, 1, true)
+	pb._apply_water_to_cell(1, 2, true)
+	pb._apply_water_to_cell(2, 1, true)
+	pb._apply_water_to_cell(2, 2, true)
+
+	sm.stage = 1
+	sm.myhpmax = 1000.0
+	sm.myhp = 500.0
+	sc.skill_tree_items[0]["level"] = 1 # water_1 Lv1
+	pb._reset_turn(sm, sc)
+	var expected_heal_lv1 = (25.0 + 1.0 * 6.0) * 4.0 # 31 * 4 = 124
+	assert(sm.myhp == 500.0 + expected_heal_lv1, "Turn reset must heal HP based on water cell count (Lv1: 124 HP)")
+	print("✓ water_mid_spring heals HP each turn based on water cell count and skill level!")
+
+	# Test scaling with skill level (Lv10)
+	sc.skill_tree_items[0]["level"] = 10 # water_1 Lv10
+	sm.myhp = 500.0
+	pb._reset_turn(sm, sc)
+	var expected_heal_lv10 = (25.0 + 10.0 * 6.0) * 4.0 # 85 * 4 = 340
+	assert(sm.myhp == 500.0 + expected_heal_lv10, "Turn reset must heal HP scaled by enhancement level (Lv10: 340 HP)")
+	print("✓ water_mid_spring recovery scales via enhancement levels (Lv1: 124 vs Lv10: 340)!")
+
+	# 4. Test Mid-Evolution 2: water_mid_barrier (Increase shield based on ally water cells each turn)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 5, "water_mid_barrier")
+	assert(sc.has_skill_trait("water_1", "water_mid_barrier"), "water_mid_barrier must be active")
+
+	sm.guard = 0.0
+	sc.skill_tree_items[0]["level"] = 2
+	pb._reset_turn(sm, sc)
+	var expected_shield_lv2 = (20.0 + 2.0 * 5.0) * 4.0 # 30 * 4 = 120
+	assert(sm.guard == expected_shield_lv2, "Turn reset must grant shield based on water cell count (Lv2: 120 shield)")
+	print("✓ water_mid_barrier increases shield each turn based on water cell count!")
+
+	# 5. Test Mid-Evolution 3: water_mid_surge (Deal attack damage based on ally water cells each turn)
+	sc.skill_evolutions.clear()
+	sc.choose_skill_evolution("water_1", 5, "water_mid_surge")
+	assert(sc.has_skill_trait("water_1", "water_mid_surge"), "water_mid_surge must be active")
+
+	sm.isdeadf = false
+	sm.stage_enemy = 1
+	sm.make_enemy(false)
+	var initial_ehp = sm.ehp
+	sc.skill_tree_items[0]["level"] = 3
+	pb._reset_turn(sm, sc)
+	var expected_surge_lv3 = (35.0 + 3.0 * 8.0) * 4.0 # 59 * 4 = 236
+	assert(sm.ehp == initial_ehp - expected_surge_lv3, "Turn reset must deal damage based on water cell count (Lv3: 236 dmg)")
+	print("✓ water_mid_surge deals attack damage each turn based on water cell count!")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

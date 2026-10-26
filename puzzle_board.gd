@@ -2322,6 +2322,8 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				_apply_water_to_cell(nr, nc, true)
+				if ismatched.size() == GRID_ROWS:
+					ismatched[nr][nc] = true
 
 	_check_and_trigger_water_fire_synergy(true, _queue, _exploded_items)
 
@@ -8060,6 +8062,57 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			if sm.myhp <= 0:
 				_trigger_gameover(sm)
 
+	# 💧 水属性・中間進化：毎ターン盤面に存在する味方水マス数に応じたパッシブ発動（進化で回復量は操作せず強化Lvで操作）
+	if score_mgr and score_mgr.has_method("has_skill_trait"):
+		var has_w_spring = score_mgr.has_skill_trait("water_1", "water_mid_spring")
+		var has_w_barrier = score_mgr.has_skill_trait("water_1", "water_mid_barrier") or score_mgr.has_skill_trait("water_1", "water_mid_pressure")
+		var has_w_surge = score_mgr.has_skill_trait("water_1", "water_mid_surge") or score_mgr.has_skill_trait("water_1", "water_mid_resonance")
+
+		if has_w_spring or has_w_barrier or has_w_surge:
+			var ally_water_cnt: int = 0
+			var sample_water_pos: Vector2 = Vector2.ZERO
+			var found_water: bool = false
+			if grid_water.size() == GRID_ROWS:
+				for r in range(GRID_ROWS):
+					for c in range(GRID_COLUMNS):
+						if grid_water[r][c] and is_ally_water(r, c):
+							ally_water_cnt += 1
+							if not found_water:
+								sample_water_pos = get_cell_position(r, c)
+								found_water = true
+
+			if ally_water_cnt > 0:
+				var sk_lvl: int = 1
+				if score_mgr.has_method("get_skill_level"):
+					sk_lvl = maxi(1, score_mgr.get_skill_level("water_1"))
+				var stage_scale: float = pow(10, max(0, (sm.stage - 1) if sm else 0))
+
+				if has_w_spring:
+					# ① 生命の清流：味方水マス数に応じてHP回復（回復量は強化Lvによって操作）
+					var base_heal: float = (25.0 + sk_lvl * 6.0) * stage_scale
+					var total_heal: float = base_heal * float(ally_water_cnt)
+					if sm:
+						sm.calchp(0.0, -total_heal)
+						_emit_combat_event("heal", "ally", "ally", total_heal)
+					if found_water:
+						_spawn_floating_text(sample_water_pos, "💧 清流治癒 +%d (水%dマス)" % [int(total_heal), ally_water_cnt], Color(0.2, 0.9, 0.4))
+				elif has_w_barrier:
+					# ② 水華の防壁：味方水マス数に応じて防御力（シールド）増加（シールド量は強化Lvによって操作）
+					var base_shield: float = (20.0 + sk_lvl * 5.0) * stage_scale
+					var total_shield: float = base_shield * float(ally_water_cnt)
+					_apply_skill_shield(total_shield)
+					if found_water:
+						_spawn_floating_text(sample_water_pos, "🛡️ 水華防壁 +%d (水%dマス)" % [int(total_shield), ally_water_cnt], Color(0.3, 0.8, 1.0))
+				elif has_w_surge:
+					# ③ 激流の怒涛：味方水マス数に応じて攻撃力上昇（水流圧撃）（ダメージ量は強化Lvによって操作）
+					var base_surge: float = (35.0 + sk_lvl * 8.0) * stage_scale
+					var total_surge_dmg: float = base_surge * float(ally_water_cnt)
+					if sm:
+						sm.calchp(total_surge_dmg, 0.0)
+						_emit_combat_event("damage", "ally", "enemy", total_surge_dmg, "water_surge")
+					if found_water:
+						_spawn_floating_text(sample_water_pos, "🌊 激流水撃 %d! (水%dマス)" % [int(total_surge_dmg), ally_water_cnt], Color(0.2, 0.7, 1.0))
+
 	_spawn_turn_bombs()
 	# 火と毒の侵攻速度：2ターンに1度侵攻
 	hazard_spread_turn_counter += 1
@@ -9107,7 +9160,10 @@ func _apply_skill_shield(amount: float) -> void:
 	var sm = _get_stage_manager()
 	if sm and "guard" in sm:
 		sm.guard += amount
-	_spawn_shield_projectiles(_get_score_manager())
+	var score_mgr = _get_score_manager()
+	if score_mgr and "divscore" in score_mgr and score_mgr.divscore.has(PieceType.SHIELD):
+		score_mgr.divscore[PieceType.SHIELD] += int(amount)
+	_spawn_shield_projectiles(score_mgr)
 
 func _evolve_plant_stage(plant: Dictionary, target_stage: int) -> void:
 	if not (plant in plant_entities):
@@ -9152,94 +9208,46 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 	match skill_key:
 		"water":
-			var has_w_spring = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_mid_spring")
-			var has_w_pressure = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_mid_pressure")
 			var has_w_deluge = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "water_final_deluge")
-			if tier == 1:
-				# 💧 水T1【清流展開】：移動可能な自軍水マスを生成（火と隣接で水×火シナジー）
-				var candidates: Array[Vector2i] = []
-				for r in range(GRID_ROWS):
-					for c in range(GRID_COLUMNS):
-						if not _is_plant_cell(r, c) and not grid_water[r][c]:
-							candidates.append(Vector2i(r, c))
-				candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-					var a_adj_fire = false
-					var b_adj_fire = false
-					for dr in [-1, 0, 1]:
-						for dc in [-1, 0, 1]:
-							if dr == 0 and dc == 0: continue
-							var ar = a.x + dr; var ac = a.y + dc
-							if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_fire[ar][ac] > 0: a_adj_fire = true
-							var br = b.x + dr; var bc = b.y + dc
-							if br >= 0 and br < GRID_ROWS and bc >= 0 and bc < GRID_COLUMNS and grid_fire[br][bc] > 0: b_adj_fire = true
-					return a_adj_fire if a_adj_fire != b_adj_fire else false
-				)
-				var count = mini(2 + sk_lvl / 2, candidates.size())
-				for i in range(count):
-					var cell = candidates[i]
-					_apply_water_to_cell(cell.x, cell.y, true)
-					var pos = get_cell_position(cell.x, cell.y)
-					affected_positions.append(pos)
-					_spawn_aqua_splash_effect(pos, 1)
-				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.3 if has_w_pressure else 1.0)
-				_check_and_trigger_water_fire_synergy(is_in_match_phase)
-			elif tier == 2:
-				# 💧 水T2【命の湧水】：盤面の水マス数に応じたHP回復＆隣接セルへの浸水拡大
-				var waters: Array[Vector2i] = []
-				for r in range(GRID_ROWS):
-					for c in range(GRID_COLUMNS):
-						if grid_water[r][c]: waters.append(Vector2i(r, c))
-				if waters.is_empty():
-					for i in range(2):
-						var rr = randi() % GRID_ROWS; var cc = randi() % GRID_COLUMNS
-						_apply_water_to_cell(rr, cc, true)
-						waters.append(Vector2i(rr, cc))
-				var w_cnt = waters.size()
-				var heal_val = (150.0 + sk_lvl * 30.0) * stage_scale * float(maxi(1, w_cnt)) * (1.4 if has_w_spring else 1.0)
-				if sm:
-					sm.calchp(0.0, -heal_val)
-					_emit_combat_event("heal", "ally", "ally", heal_val)
-				var new_w_count = 0
-				var max_new_w = 2 + sk_lvl / 3
-				for w in waters:
-					if new_w_count >= max_new_w: break
-					for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
-						var nr = w.x + offset.x; var nc = w.y + offset.y
-						if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-							if not grid_water[nr][nc] and not _is_plant_cell(nr, nc):
-								_apply_water_to_cell(nr, nc, true)
-								new_w_count += 1
-								var w_pos = get_cell_position(nr, nc)
-								affected_positions.append(w_pos)
-								_spawn_aqua_splash_effect(w_pos, 1)
-								break
-				direct_skill_dmg = (100.0 + sk_lvl * 20.0) * stage_scale
-				_spawn_floating_text(get_cell_position(waters[0].x, waters[0].y), "💧 命の湧水 (水%dマス共鳴回復)！" % w_cnt, Color(0.2, 0.9, 1.0))
-			elif tier == 3:
-				# 💧 水T3【大海嘯タイダル・フラッド】：水マス上の駒を同色変換し大マッチ確定＋特大水流ダメージ
-				var waters: Array[Vector2i] = []
-				for r in range(GRID_ROWS):
-					for c in range(GRID_COLUMNS):
-						if grid_water[r][c]: waters.append(Vector2i(r, c))
-				if waters.is_empty():
-					for i in range(4):
-						var rr = randi() % GRID_ROWS; var cc = randi() % GRID_COLUMNS
-						_apply_water_to_cell(rr, cc, true)
-						waters.append(Vector2i(rr, cc))
-				var chosen_k = PieceType.POTION if (sm and sm.myhp < sm.myhpmax * 0.7) else PieceType.SWORD
-				for w in waters:
-					if grid_i.size() == GRID_ROWS and grid_i[w.x][w.y] != -1:
-						grid_n[w.x][w.y] = chosen_k
-						grid_att[w.x][w.y] = chosen_k % 5
-						var s_idx = grid_i[w.x][w.y]
-						if s_idx < piece.size() and piece[s_idx] != null:
-							piece[s_idx].texture = PIECE_TEXTURES[chosen_k]
-					var w_pos = get_cell_position(w.x, w.y)
-					affected_positions.append(w_pos)
-					_spawn_aqua_splash_effect(w_pos, 1)
-				direct_skill_dmg = float(waters.size()) * (200.0 + sk_lvl * 50.0) * stage_scale * (2.0 if has_w_deluge else 1.0)
-				_check_and_trigger_water_fire_synergy(is_in_match_phase)
-				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "🌊 大海嘯タイダル・フラッド！" if not has_w_deluge else "🌊 大海嘯・万象呑流 (極限神格化)！", Color(0.1, 0.8, 1.0))
+			# 💧 水スキル【清流展開】：移動可能な自軍水マスを生成し、そのマスの駒を消去
+			var candidates: Array[Vector2i] = []
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if not _is_plant_cell(r, c) and not grid_water[r][c]:
+						candidates.append(Vector2i(r, c))
+			candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+				var a_adj_fire = false
+				var b_adj_fire = false
+				for dr in [-1, 0, 1]:
+					for dc in [-1, 0, 1]:
+						if dr == 0 and dc == 0: continue
+						var ar = a.x + dr; var ac = a.y + dc
+						if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_fire[ar][ac] > 0: a_adj_fire = true
+						var br = b.x + dr; var bc = b.y + dc
+						if br >= 0 and br < GRID_ROWS and bc >= 0 and bc < GRID_COLUMNS and grid_fire[br][bc] > 0: b_adj_fire = true
+				return a_adj_fire if a_adj_fire != b_adj_fire else false
+			)
+			var count = mini(2 + sk_lvl / 2, candidates.size())
+			var cleared_cells: Array[Vector2i] = []
+			for i in range(count):
+				var cell = candidates[i]
+				_apply_water_to_cell(cell.x, cell.y, true)
+				var pos = get_cell_position(cell.x, cell.y)
+				affected_positions.append(pos)
+				_spawn_aqua_splash_effect(pos, 1)
+				if ismatched.size() == GRID_ROWS:
+					ismatched[cell.x][cell.y] = true
+				cleared_cells.append(cell)
+
+			# マッチ解決中でない場合は駒を直接消去し、上からの落下を誘発
+			if not is_in_match_phase and cleared_cells.size() > 0:
+				_clear_pieces_in_cells(cleared_cells)
+				_start_continuous_falling()
+
+			direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale * (1.5 if has_w_deluge else 1.0)
+			_check_and_trigger_water_fire_synergy(is_in_match_phase)
+			if not affected_positions.is_empty():
+				_spawn_floating_text(affected_positions[0], "💧 清流展開 (水%dマス生成＆駒消去)！" % count, Color(0.2, 0.8, 1.0))
 
 		"ice":
 			var has_ice_wall = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait(skill_id, "ice_mid_wall")
