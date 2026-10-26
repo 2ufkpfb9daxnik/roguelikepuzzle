@@ -1600,6 +1600,19 @@ func _init() -> void:
 	assert(not ("+40%" in w_mids[0]["desc"]), "Evolution must not hardcode +40% recovery; enhancement handles values")
 	print("✓ Water mid-evolution choices strictly match [HP回復 / 防御力増加 / 攻撃力上昇] without arbitrary % buffs!")
 
+	# 2.5 Verify that before mid-evolution (Lv.1-4), water does NOT heal HP, grant guard, or deal surge damage
+	sc.skill_evolutions.clear()
+	sc.skill_tree_items[0]["level"] = 1 # Lv1
+	sm.myhp = 500.0
+	sm.guard = 0.0
+	pb._initialize_board(null)
+	pb._apply_water_to_cell(1, 1, true)
+	pb._apply_water_to_cell(1, 2, true)
+	pb._reset_turn(sm, sc)
+	assert(sm.myhp == 500.0, "Before mid-evolution, water must NOT heal HP (myhp stays 500.0)")
+	assert(sm.guard == 0.0, "Before mid-evolution, water must NOT grant guard (guard stays 0.0)")
+	print("✓ Before mid-evolution, water has NO HP heal / guard / surge (only differentiates upon mid-evolution choice)!")
+
 	# 3. Test Mid-Evolution 1: water_mid_spring (Heal HP based on ally water cells each turn)
 	sc.skill_evolutions.clear()
 	sc.choose_skill_evolution("water_1", 5, "water_mid_spring")

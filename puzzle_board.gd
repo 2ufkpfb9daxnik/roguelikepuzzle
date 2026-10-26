@@ -2524,14 +2524,6 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 
 	_check_and_trigger_water_fire_synergy(true, _queue, _exploded_items)
 
-	# Lv7以上: 発動時にHP回復ボーナス
-	if lvl >= 7:
-		var sm = _get_stage_manager()
-		if sm and sm.myhpmax > 0:
-			var heal_ratio = 0.05 + lvl * 0.01
-			sm.myhp = minf(sm.myhpmax, sm.myhp + sm.myhpmax * heal_ratio)
-			_spawn_floating_text(pos, "清流回復 +%d" % int(sm.myhpmax * heal_ratio), Color(0.2, 0.9, 0.4))
-
 	# 周囲の植物による即時吸水
 	for plant in plant_entities.duplicate():
 		_process_plant_water_absorption(plant)
