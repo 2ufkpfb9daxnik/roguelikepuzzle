@@ -1175,12 +1175,13 @@ texture = ExtResource("13_kqb64")
 
 [node name="movefront" type="Button" parent="StageManager"]
 visible = false
-offset_left = 1730.0
-offset_top = 770.0
-offset_right = 1914.0
-offset_bottom = 847.0
-theme_override_font_sizes/font_size = 30
-text = "前に進む"
+z_index = 35
+offset_left = 710.0
+offset_top = 974.0
+offset_right = 1210.0
+offset_bottom = 1050.0
+theme_override_font_sizes/font_size = 28
+text = "⚔️ 前に進む" 
 
 [node name="danger" type="AudioStreamPlayer2D" parent="StageManager"]
 position = Vector2(1760, 770)

@@ -1414,7 +1414,7 @@ func _init() -> void:
 	assert(poison_spread_count >= 1, "Poison MUST spread on turn 2 (even turn)")
 	print("✓ Fire & poison 2-turn spread cadence verified!")
 
-	# 27.2 Proceed button (stagechangeb) placed in empty bottom margin below shop
+	# 27.2 Proceed button (stagechangeb & movefront) placed in empty bottom margin below shop
 	var sc_btn_node = sc.get_node_or_null("stagechangeb") as Button
 	if sc_btn_node == null:
 		sc_btn_node = Button.new()
@@ -1422,9 +1422,25 @@ func _init() -> void:
 		sc.add_child(sc_btn_node)
 		sc._setup_shop_page_controls()
 	assert(sc_btn_node != null, "stagechangeb button must exist")
-	assert(sc_btn_node.position.y >= 970.0, "Proceed button (y=%.1f) must be placed in bottom margin (>= 970)" % sc_btn_node.position.y)
+	assert(sc_btn_node.position.y >= 970.0, "Proceed button stagechangeb (y=%.1f) must be placed in bottom margin (>= 970)" % sc_btn_node.position.y)
 	assert(sc_btn_node.position.y + sc_btn_node.size.y <= 1080.0, "Proceed button must fit within screen height")
-	print("✓ Proceed button lower margin placement (y=%.1f, h=%.1f) verified!" % [sc_btn_node.position.y, sc_btn_node.size.y])
+
+	var sm_mf = sm.get_node_or_null("movefront") as Control
+	if sm_mf == null:
+		sm_mf = Button.new()
+		sm_mf.name = "movefront"
+		sm.add_child(sm_mf)
+		sm._ready()
+	assert(sm_mf.position.y >= 970.0, "movefront button (y=%.1f) must be placed in bottom margin (>= 970)" % sm_mf.position.y)
+	assert(sm_mf.position.y + sm_mf.size.y <= 1080.0, "movefront button must fit within screen height")
+	print("✓ Proceed buttons (stagechangeb & movefront) lower margin placement verified!")
+
+	# Verify skill evolution has no time limit restrictions
+	for elem_key in sc.SKILL_EVOLUTION_REGISTRY:
+		for tier_key in ["mid", "final"]:
+			for evo in sc.SKILL_EVOLUTION_REGISTRY[elem_key].get(tier_key, []):
+				assert("制限時間" not in evo.get("role", "") and "制限時間" not in evo.get("desc", ""), "Skill evolution must not contain time limits: %s" % evo.get("name"))
+	print("✓ Skill evolution has no time limits verified!")
 
 	# 27.3 S5 Boss Jump Button removed from StageManager
 	var sm_node_check = root.get_node_or_null("StageManager")

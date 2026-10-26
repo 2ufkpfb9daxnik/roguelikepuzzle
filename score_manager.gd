@@ -452,8 +452,8 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				"id": "wind_final_eternal",
 				"numeral": "Ⅲ",
 				"name": "常風の領域",
-				"role": "制限時間延長 ＆ コンボ加速",
-				"desc": "毎ターンの制限時間を+3秒延長し、コンボ倍率の上昇ペースを2倍にする。"
+				"role": "追い風循環 ＆ コンボ加速",
+				"desc": "コンボ倍率の上昇ペースが2倍になり、ターン終了時に追加の疾風刃が敵全体へ連鎖追撃。"
 			}
 		]
 	},

@@ -606,20 +606,29 @@ func _ready() -> void:
 
 	if move_front_btn != null:
 		move_front_btn.z_index = 35
+		move_front_btn.position = Vector2(710, 974)
+		move_front_btn.size = Vector2(500, 76)
+		move_front_btn.custom_minimum_size = Vector2(500, 76)
+		move_front_btn.text = "⚔️ 前に進む"
 		move_front_btn.add_theme_font_override("font", CUSTOM_FONT)
-		move_front_btn.add_theme_font_size_override("font_size", 30)
+		move_front_btn.add_theme_font_size_override("font_size", 28)
 		move_front_btn.add_theme_constant_override("outline_size", 6)
 		move_front_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		move_front_btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 1.0))
 		var mf_style = StyleBoxFlat.new()
 		mf_style.bg_color = Color(0.14, 0.36, 0.22, 0.96)
-		mf_style.border_color = Color(0.4, 1.0, 0.6, 1.0)
-		mf_style.set_border_width_all(3)
-		mf_style.set_corner_radius_all(12)
+		mf_style.border_color = Color(0.95, 0.82, 0.35, 1.0)
+		mf_style.set_border_width_all(2)
+		mf_style.set_corner_radius_all(10)
+		mf_style.shadow_color = Color(0, 0, 0, 0.6)
+		mf_style.shadow_size = 6
 		move_front_btn.add_theme_stylebox_override("normal", mf_style)
 		var mf_hover = mf_style.duplicate()
 		mf_hover.bg_color = Color(0.20, 0.48, 0.30, 1.0)
 		move_front_btn.add_theme_stylebox_override("hover", mf_hover)
+		var mf_press = mf_style.duplicate()
+		mf_press.bg_color = Color(0.10, 0.26, 0.16, 1.0)
+		move_front_btn.add_theme_stylebox_override("pressed", mf_press)
 
 	if choose_buff_rect != null and choose_buff_rect is ColorRect:
 		choose_buff_rect.color = Color(0, 0, 0, 0)
@@ -2363,13 +2372,19 @@ func _step_process() -> void:
 					_open_relic_selection(func():
 						if choose_buff_rect: choose_buff_rect.visible = true
 						_set_buff_buttons_visible(true)
-						if move_front_btn: move_front_btn.visible = true
+						if move_front_btn:
+							move_front_btn.position = Vector2(710, 974)
+							move_front_btn.size = Vector2(500, 76)
+							move_front_btn.visible = true
 						clicked = false
 					)
 				else:
 					if choose_buff_rect: choose_buff_rect.visible = true
 					_set_buff_buttons_visible(true)
-					if move_front_btn: move_front_btn.visible = true
+					if move_front_btn:
+						move_front_btn.position = Vector2(710, 974)
+						move_front_btn.size = Vector2(500, 76)
+						move_front_btn.visible = true
 					clicked = false
 			else:
 				clicked = false
