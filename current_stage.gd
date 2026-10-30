@@ -21,9 +21,19 @@ func _ready() -> void:
 	rui_node.name = "RelicUIManager"
 	add_child(rui_node)
 	
+	# チュートリアルモードの場合、チュートリアル案内マネージャーを生成
+	var sm_tut = get_node_or_null("/root/SettingsManager")
+	if sm_tut and "is_tutorial_mode" in sm_tut and sm_tut.is_tutorial_mode:
+		var tut_mgr = load("res://tutorial_manager.gd").new()
+		tut_mgr.name = "TutorialManager"
+		add_child(tut_mgr)
+	
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		var sys_font = SystemFont.new()
 		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
+		var emoji_f = SystemFont.new()
+		emoji_f.font_names = PackedStringArray(["Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"])
+		sys_font.set_fallbacks([emoji_f])
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
 	if return_title_btn:

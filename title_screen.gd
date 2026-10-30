@@ -15,6 +15,7 @@ const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 @onready var desc_label: RichTextLabel = get_node_or_null("description")
 @onready var desc_label2: RichTextLabel = get_node_or_null("description2")
 @onready var start_btn: Button = get_node_or_null("Button")
+var tutorial_btn: Button = null
 var settings_btn: Button = null
 var quit_btn: Button = null
 
@@ -112,7 +113,33 @@ func _setup_ui_elements() -> void:
 		start_btn.add_theme_stylebox_override("normal", style_start_normal)
 		start_btn.add_theme_stylebox_override("hover", style_start_hover)
 
-	# 2. 設定ボタン
+	# 2. チュートリアルボタン (TUTORIAL)
+	var style_tut_normal = StyleBoxFlat.new()
+	style_tut_normal.bg_color = Color(0.08, 0.22, 0.16, 0.94)
+	style_tut_normal.border_color = Color(0.2, 0.9, 0.6, 1.0)
+	style_tut_normal.set_border_width_all(3)
+	style_tut_normal.set_corner_radius_all(14)
+
+	var style_tut_hover = StyleBoxFlat.new()
+	style_tut_hover.bg_color = Color(0.14, 0.35, 0.26, 0.98)
+	style_tut_hover.border_color = Color(0.4, 1.0, 0.8, 1.0)
+	style_tut_hover.set_border_width_all(3)
+	style_tut_hover.set_corner_radius_all(14)
+
+	tutorial_btn = Button.new()
+	tutorial_btn.name = "TutorialButton"
+	tutorial_btn.text = "📖 チュートリアル (TUTORIAL)"
+	tutorial_btn.add_theme_font_override("font", CUSTOM_FONT)
+	tutorial_btn.add_theme_constant_override("outline_size", 6)
+	tutorial_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	tutorial_btn.add_theme_color_override("font_color", Color(0.5, 1.0, 0.75, 1))
+	tutorial_btn.add_theme_font_size_override("font_size", 34)
+	tutorial_btn.add_theme_stylebox_override("normal", style_tut_normal)
+	tutorial_btn.add_theme_stylebox_override("hover", style_tut_hover)
+	tutorial_btn.pressed.connect(_on_tutorial_pressed)
+	add_child(tutorial_btn)
+
+	# 3. 設定ボタン
 	var style_set_normal = StyleBoxFlat.new()
 	style_set_normal.bg_color = Color(0.12, 0.14, 0.22, 0.94)
 	style_set_normal.border_color = Color(0.3, 0.75, 1.0, 1.0)
@@ -313,41 +340,46 @@ func _update_layout() -> void:
 
 	# ボタン群（中央揃えでバランス良く縦並び）
 	var btn_w: float = 480.0
-	var btn_h: float = 80.0
-	var btn_gap: float = 20.0
+	var btn_h: float = 68.0
+	var btn_gap: float = 14.0
 	var btn_x: float = (vp_w - btn_w) * 0.5
 
 	# 難易度選択セクションのレイアウト
-	var diff_y: float = vp_h * 0.43
+	var diff_y: float = vp_h * 0.42
 	var diff_btn_w: float = (btn_w - 24.0) / 3.0 # 152 px each
-	var diff_btn_h: float = 50.0
+	var diff_btn_h: float = 46.0
 
 	if diff_title_lbl != null:
 		diff_title_lbl.position = Vector2(btn_x, diff_y)
-		diff_title_lbl.size = Vector2(btn_w, 30.0)
+		diff_title_lbl.size = Vector2(btn_w, 28.0)
 
 	for i in range(diff_buttons.size()):
-		diff_buttons[i].position = Vector2(btn_x + i * (diff_btn_w + 12.0), diff_y + 34.0)
+		diff_buttons[i].position = Vector2(btn_x + i * (diff_btn_w + 12.0), diff_y + 32.0)
 		diff_buttons[i].size = Vector2(diff_btn_w, diff_btn_h)
 
 	if diff_desc_lbl != null:
-		diff_desc_lbl.position = Vector2(btn_x - 160.0, diff_y + 34.0 + diff_btn_h + 8.0)
-		diff_desc_lbl.size = Vector2(btn_w + 320.0, 32.0)
+		diff_desc_lbl.position = Vector2(btn_x - 160.0, diff_y + 32.0 + diff_btn_h + 6.0)
+		diff_desc_lbl.size = Vector2(btn_w + 320.0, 30.0)
 
-	var start_y: float = diff_y + 34.0 + diff_btn_h + 8.0 + 36.0 + 10.0
+	var start_y: float = diff_y + 32.0 + diff_btn_h + 6.0 + 32.0 + 10.0
 
 	if start_btn != null:
 		start_btn.position = Vector2(btn_x, start_y)
 		start_btn.size = Vector2(btn_w, btn_h)
 		start_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
+	if tutorial_btn != null:
+		tutorial_btn.position = Vector2(btn_x, start_y + btn_h + btn_gap)
+		tutorial_btn.size = Vector2(btn_w, btn_h)
+		tutorial_btn.custom_minimum_size = Vector2(btn_w, btn_h)
+
 	if settings_btn != null:
-		settings_btn.position = Vector2(btn_x, start_y + btn_h + btn_gap)
+		settings_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 2.0)
 		settings_btn.size = Vector2(btn_w, btn_h)
 		settings_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
 	if quit_btn != null:
-		quit_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 2.0)
+		quit_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 3.0)
 		quit_btn.size = Vector2(btn_w, btn_h)
 		quit_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
@@ -355,6 +387,22 @@ func _update_layout() -> void:
 func _on_button_pressed() -> void:
 	if isclicked:
 		return
+	var sm = get_node_or_null("/root/SettingsManager")
+	if sm:
+		sm.is_tutorial_mode = false
+		sm.game_seed = randi()
+	if click_se:
+		click_se.play()
+	isclicked = true
+
+## チュートリアルボタン押下時
+func _on_tutorial_pressed() -> void:
+	if isclicked:
+		return
+	var sm = get_node_or_null("/root/SettingsManager")
+	if sm:
+		sm.is_tutorial_mode = true
+		sm.game_seed = 12345678
 	if click_se:
 		click_se.play()
 	isclicked = true

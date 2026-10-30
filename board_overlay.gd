@@ -63,6 +63,10 @@ func _process(delta: float) -> void:
 			animated = board.has_animated_board_hazards
 		elif "has_board_hazards" in board:
 			animated = board.has_board_hazards
+		if not animated and bool(board.get("has_gold_statue")):
+			var sm = board._get_stage_manager() if board.has_method("_get_stage_manager") else null
+			if sm and bool(sm.get("isfevertime")):
+				animated = true
 		if animated:
 			_anim_redraw_elapsed += delta
 			if _anim_redraw_elapsed >= ANIM_REDRAW_INTERVAL:
@@ -227,13 +231,12 @@ func _draw_ice_tile(r: int, c: int, hp: int, pulse: float) -> void:
 		draw_line(center - dir * 0.65 - b_dir, center - dir * 0.65 + b_dir, frame_outer, 10.0)
 	draw_circle(center, 30.0, corner_col)
 
-	if hp >= 2:
-		var badge_y = center.y - 120.0
-		draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.04, 0.15, 0.28, 0.92))
-		draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, frame_outer, 10.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, Color(0.95, 1.0, 1.0))
+	var badge_y = center.y - 120.0
+	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.04, 0.15, 0.28, 0.92))
+	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, frame_outer, 10.0)
+	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, Color(0.95, 1.0, 1.0))
 
-	var ice_label = ("❄ 氷盾(自)" if is_ally else ("❄ 凍結 %d" % hp if hp >= 2 else "❄ 凍結(敵)"))
+	var ice_label = ("❄ 氷盾(自)" if is_ally else "❄ 凍結(敵)")
 	var lbl_col = Color(0.45, 1.0, 0.85, 0.98) if is_ally else Color(0.88, 0.80, 1.0, 0.98)
 	draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), ice_label, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, lbl_col)
 
@@ -279,11 +282,31 @@ func _draw_stone_tile(r: int, c: int, hp: int) -> void:
 	var st_col = Color(0.45, 1.0, 0.80) if is_ally else Color(1.0, 0.75, 0.55)
 	draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 190), st_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, st_col)
 
+var _fever_dance_frames: SpriteFrames = null
+
+func _get_fever_dance_frames() -> SpriteFrames:
+	if _fever_dance_frames == null:
+		var sf_path = "res://Texture/fever_dance/fever_dance_frames.tres"
+		if ResourceLoader.exists(sf_path):
+			_fever_dance_frames = load(sf_path) as SpriteFrames
+	return _fever_dance_frames
+
 ## 光属性の黄金石像タイル描画（自＝神聖プラチナ聖像、敵＝呪われた赤銅黄金像）
+## フィーバータイム中は見た目が華麗なフィーバーダンスに切り替わる
 func _draw_gold_statue_tile(r: int, c: int, hp: int, pulse: float) -> void:
 	var is_ally = _is_ally_cell("grid_gold_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
+
+	var is_fever: bool = false
+	if board != null and board.has_method("_get_stage_manager"):
+		var sm = board._get_stage_manager()
+		if sm != null and "isfevertime" in sm:
+			is_fever = bool(sm.isfevertime)
+
+	if is_fever:
+		_draw_fever_dance_gold_statue(rect, center, hp, is_ally, pulse)
+		return
 
 	if is_ally:
 		draw_rect(rect, Color(0.08, 0.35, 0.40, 0.78), true)
@@ -312,6 +335,40 @@ func _draw_gold_statue_tile(r: int, c: int, hp: int, pulse: float) -> void:
 
 	var gd_lbl = "✨ 聖像(自)" if is_ally else "🏆 黄金像ブロック"
 	draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, b_col)
+
+func _draw_fever_dance_gold_statue(rect: Rect2, center: Vector2, hp: int, is_ally: bool, pulse: float) -> void:
+	# 黄金＆レインボーのフィーバーフロア背景
+	var bg_col = Color(0.20, 0.14, 0.03, 0.96) if not is_ally else Color(0.06, 0.28, 0.32, 0.95)
+	var border_col = Color(1.0, 0.85, 0.25, 1.0) if not is_ally else Color(0.40, 1.0, 0.95, 1.0)
+	draw_rect(rect, bg_col, true)
+	draw_rect(rect.grow(-4.0), Color(0.35, 0.26, 0.05, 0.9) if not is_ally else Color(0.12, 0.45, 0.50, 0.85), true)
+	draw_rect(rect, border_col, false, 24.0)
+	draw_rect(rect.grow(-18.0), Color(1.0, 0.95, 0.50, 0.70 * pulse), false, 8.0)
+	draw_circle(center, 90.0 * pulse, Color(1.0, 0.88, 0.3, 0.35))
+
+	# フィーバーダンスのアニメーションフレーム描画
+	var sf = _get_fever_dance_frames()
+	if sf != null and sf.get_frame_count("dance") > 0:
+		var f_count = sf.get_frame_count("dance")
+		var frame_idx = int(Time.get_ticks_msec() * 0.024) % f_count
+		var tex = sf.get_frame_texture("dance", frame_idx)
+		if tex:
+			var t_size = tex.get_size()
+			var aspect = t_size.x / maxf(1.0, t_size.y)
+			var draw_h = (CELL_PITCH - 20.0) * 1.08
+			var draw_w = draw_h * aspect
+			var draw_r = Rect2(center.x - draw_w * 0.5, center.y - draw_h * 0.5 - 6.0, draw_w, draw_h)
+			draw_texture_rect(tex, draw_r, false)
+
+	# 耐久値HPバッジ
+	var badge_y = center.y - 120.0
+	var b_col = Color(0.4, 1.0, 0.9) if is_ally else Color(1.0, 0.85, 0.2)
+	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
+	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
+	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
+
+	var gd_lbl = "✨ フィーバー聖像" if is_ally else "💃 フィーバーダンス！"
+	draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, Color(1.0, 0.92, 0.35))
 
 ## 雷属性の雷オブジェクト描画（自＝エメラルドシアンの過充電、敵＝赤黄の感電スパーク）
 func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
@@ -602,6 +659,16 @@ func _draw_poison_tile(r: int, c: int) -> void:
 	var tex = POISON_TILE_WET_TEX if is_wet else POISON_TILE_DRY_TEX
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
+
+	var p_stage = 1
+	if "grid_poison_stage" in board and board.grid_poison_stage.size() == GRID_ROWS and r < board.grid_poison_stage.size() and c < board.grid_poison_stage[r].size():
+		p_stage = maxi(1, int(board.grid_poison_stage[r][c]))
+
+	var stage_badge_y = center.y - 110.0
+	draw_circle(Vector2(center.x, stage_badge_y), 55.0, Color(0.12, 0.04, 0.20, 0.90))
+	var st_border = Color(0.35, 1.0, 0.80) if is_ally else Color(0.95, 0.35, 1.0)
+	draw_arc(Vector2(center.x, stage_badge_y), 55.0, 0.0, TAU, 24, st_border, 8.0)
+	draw_string(CUSTOM_FONT, Vector2(center.x - 45, stage_badge_y + 30), str(p_stage), HORIZONTAL_ALIGNMENT_CENTER, 90, 85, Color(1.0, 1.0, 1.0))
 
 	if is_ally:
 		var mod_col = Color(0.20, 1.0, 0.65, 0.95)

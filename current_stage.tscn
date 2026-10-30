@@ -1020,13 +1020,13 @@ text = "[color=FFD700]ステージクリアー!![/color]"
 
 [node name="stagechangeb" type="Button" parent="ScoreManager"]
 visible = false
-z_index = 20
-offset_left = 1710.0
-offset_top = 770.0
-offset_right = 1906.0
-offset_bottom = 846.0
-theme_override_font_sizes/font_size = 30
-text = "次へ進む"
+z_index = 100
+offset_left = 1480.0
+offset_top = 974.0
+offset_right = 1880.0
+offset_bottom = 1050.0
+theme_override_font_sizes/font_size = 26
+text = "⚔️ 次の戦いへ進む"
 
 [node name="stageclearWhite2" type="ColorRect" parent="ScoreManager"]
 visible = false
@@ -1175,10 +1175,10 @@ texture = ExtResource("13_kqb64")
 
 [node name="movefront" type="Button" parent="StageManager"]
 visible = false
-z_index = 35
-offset_left = 710.0
+z_index = 100
+offset_left = 1480.0
 offset_top = 974.0
-offset_right = 1210.0
+offset_right = 1880.0
 offset_bottom = 1050.0
 theme_override_font_sizes/font_size = 28
 text = "⚔️ 前に進む" 

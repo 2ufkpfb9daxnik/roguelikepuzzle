@@ -1,13 +1,27 @@
 extends CanvasLayer
 class_name RelicUIManager
+const GlossaryDatabase = preload("res://glossary_database.gd")
 
 var skill_container: HFlowContainer
 var container: HFlowContainer
 var info_panel: PanelContainer
 var name_label: RichTextLabel
 var desc_label: RichTextLabel
+var glossary_panel: PanelContainer
+var glossary_title_label: RichTextLabel
+var glossary_desc_label: RichTextLabel
+var _tooltip_close_timer: Tween = null
 var icon_nodes: Dictionary = {}
 var skill_icon_nodes: Dictionary = {}
+var _bottom_bar_nodes: Array[CanvasItem] = []
+
+func set_bottom_bars_visible(vis: bool) -> void:
+	for node in _bottom_bar_nodes:
+		if node != null and is_instance_valid(node):
+			node.visible = vis
+
+func set_ui_visible(vis: bool) -> void:
+	set_bottom_bars_visible(vis)
 
 const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 
@@ -15,6 +29,9 @@ func _get_sys_font() -> SystemFont:
 	var sys_font = SystemFont.new()
 	sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
 	sys_font.font_weight = 700
+	var emoji_f = SystemFont.new()
+	emoji_f.font_names = PackedStringArray(["Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"])
+	sys_font.set_fallbacks([emoji_f])
 	return sys_font
 
 func _ready() -> void:
@@ -28,7 +45,7 @@ func _ready() -> void:
 	# スキルの左端を盤面の外枠左端 (x=244.0) に完全一致させ、スキル欄とレリック欄の幅を完全同一 (826 x 114) に統一
 	# AIっぽさを排除した重厚なアンティークゴールド＆オブシディアンガラス調の美しいデザイン
 	var gold_border = Color(0.85, 0.72, 0.38, 1.0)
-	var bg_dark = Color(0.07, 0.09, 0.13, 0.96)
+	var bg_dark = Color(0.02, 0.02, 0.03, 0.75)
 	var div_color = Color(0.72, 0.60, 0.34, 0.5)
 	var panel_size = Vector2(826.0, 114.0)
 	var panel_inner_size = Vector2(822.0, 110.0)
@@ -59,7 +76,7 @@ func _ready() -> void:
 	skill_plate.size = Vector2(118.0, 102.0)
 	skill_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sp_style = StyleBoxFlat.new()
-	sp_style.bg_color = Color(0.16, 0.11, 0.22, 0.95)
+	sp_style.bg_color = Color(0.01, 0.01, 0.02, 0.60)
 	sp_style.border_color = Color(0.85, 0.72, 0.38, 0.75)
 	sp_style.set_border_width_all(1)
 	sp_style.set_corner_radius_all(8)
@@ -124,7 +141,7 @@ func _ready() -> void:
 	relic_plate.size = Vector2(118.0, 102.0)
 	relic_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var rp_style = StyleBoxFlat.new()
-	rp_style.bg_color = Color(0.20, 0.15, 0.08, 0.95)
+	rp_style.bg_color = Color(0.01, 0.01, 0.02, 0.60)
 	rp_style.border_color = Color(0.85, 0.72, 0.38, 0.75)
 	rp_style.set_border_width_all(1)
 	rp_style.set_corner_radius_all(8)
@@ -162,16 +179,21 @@ func _ready() -> void:
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(container)
+
+	_bottom_bar_nodes = [
+		skill_rect, skill2_rect, skill_plate, skill_tag, skill_vline, skill_container,
+		relic_rect, relic2_rect, relic_plate, relic_tag, relic_vline, container
+	]
 	
 	info_panel = PanelContainer.new()
 	info_panel.visible = false
 	info_panel.position = Vector2(316, 710)
 	info_panel.size = Vector2(460, 165)
 	info_panel.custom_minimum_size = Vector2(420, 100)
-	info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	info_panel.z_index = 100
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.07, 0.09, 0.13, 0.97)
+	style.bg_color = Color(0.01, 0.01, 0.02, 0.75)
 	style.border_color = Color(0.85, 0.72, 0.38, 1.0)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(10)
@@ -182,6 +204,12 @@ func _ready() -> void:
 	style.content_margin_top = 12
 	style.content_margin_bottom = 12
 	info_panel.add_theme_stylebox_override("panel", style)
+	info_panel.mouse_exited.connect(func():
+		var m_pos = info_panel.get_global_mouse_position() if info_panel else (get_viewport().get_mouse_position() if get_viewport() else Vector2.ZERO)
+		if not info_panel.get_global_rect().has_point(m_pos):
+			info_panel.visible = false
+			hide_glossary_tooltip()
+	)
 	add_child(info_panel)
 	
 	var vbox = VBoxContainer.new()
@@ -193,7 +221,8 @@ func _ready() -> void:
 	name_label.fit_content = true
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.custom_minimum_size = Vector2(420, 0)
-	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	GlossaryDatabase.bind_rich_text_label(name_label)
 	name_label.add_theme_font_override("normal_font", sys_font)
 	name_label.add_theme_font_override("bold_font", sys_font)
 	name_label.add_theme_font_size_override("normal_font_size", 26)
@@ -205,10 +234,64 @@ func _ready() -> void:
 	desc_label.fit_content = true
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_label.custom_minimum_size = Vector2(420, 0)
-	desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	GlossaryDatabase.bind_rich_text_label(desc_label)
 	desc_label.add_theme_font_override("normal_font", sys_font)
 	desc_label.add_theme_font_override("bold_font", sys_font)
 	vbox.add_child(desc_label)
+
+	# Wikipedia風 固有名詞解説用ホバーカード (Wikipedia-style Glossary Hovercard)
+	glossary_panel = PanelContainer.new()
+	glossary_panel.name = "GlossaryHovercard"
+	glossary_panel.visible = false
+	glossary_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glossary_panel.z_index = 250
+	var g_style = StyleBoxFlat.new()
+	g_style.bg_color = Color(0.01, 0.01, 0.02, 0.75)
+	g_style.border_color = Color(0.31, 0.76, 0.97, 1.0)
+	g_style.set_border_width_all(2)
+	g_style.set_corner_radius_all(10)
+	g_style.shadow_color = Color(0, 0, 0, 0.8)
+	g_style.shadow_size = 14
+	g_style.content_margin_left = 16
+	g_style.content_margin_right = 16
+	g_style.content_margin_top = 12
+	g_style.content_margin_bottom = 12
+	glossary_panel.add_theme_stylebox_override("panel", g_style)
+	add_child(glossary_panel)
+
+	var g_vbox = VBoxContainer.new()
+	g_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glossary_panel.add_child(g_vbox)
+
+	glossary_title_label = RichTextLabel.new()
+	glossary_title_label.bbcode_enabled = true
+	glossary_title_label.fit_content = true
+	glossary_title_label.custom_minimum_size = Vector2(360, 0)
+	glossary_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glossary_title_label.add_theme_font_override("normal_font", sys_font)
+	glossary_title_label.add_theme_font_override("bold_font", sys_font)
+	glossary_title_label.add_theme_font_size_override("normal_font_size", 22)
+	glossary_title_label.add_theme_font_size_override("bold_font_size", 22)
+	g_vbox.add_child(glossary_title_label)
+
+	var g_div = ColorRect.new()
+	g_div.custom_minimum_size = Vector2(440, 1)
+	g_div.color = Color(0.31, 0.76, 0.97, 0.4)
+	g_div.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g_vbox.add_child(g_div)
+
+	glossary_desc_label = RichTextLabel.new()
+	glossary_desc_label.bbcode_enabled = true
+	glossary_desc_label.fit_content = true
+	glossary_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	glossary_desc_label.custom_minimum_size = Vector2(440, 0)
+	glossary_desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glossary_desc_label.add_theme_font_override("normal_font", sys_font)
+	glossary_desc_label.add_theme_font_override("bold_font", sys_font)
+	glossary_desc_label.add_theme_font_size_override("normal_font_size", 17)
+	glossary_desc_label.add_theme_font_size_override("bold_font_size", 17)
+	g_vbox.add_child(glossary_desc_label)
 	
 	var rm = null
 	if get_tree() and get_tree().get_root():
@@ -233,6 +316,10 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		info_panel.visible = false
+		hide_glossary_tooltip()
+
+func update_skill_display(skill_id: String, new_level: int) -> void:
+	_on_skill_upgraded(skill_id, 0, new_level)
 
 func _on_skill_upgraded(skill_id: String, _sp_type: int, new_level: int) -> void:
 	var sm = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
@@ -300,6 +387,42 @@ func _on_skill_upgraded(skill_id: String, _sp_type: int, new_level: int) -> void
 	if l_lbl:
 		l_lbl.text = "Lv%d" % new_level
 
+	var evo_mid = sm.get_chosen_evolution(skill_id, 10) if (sm and sm.has_method("get_chosen_evolution")) else ""
+	if evo_mid == "" and sm and sm.has_method("get_chosen_evolution"):
+		evo_mid = sm.get_chosen_evolution(skill_id, 5)
+	var evo_final = sm.get_chosen_evolution(skill_id, 15) if (sm and sm.has_method("get_chosen_evolution")) else ""
+	if evo_final == "" and sm and sm.has_method("get_chosen_evolution"): evo_final = sm.get_chosen_evolution(skill_id, 20)
+
+	var mid_name = sm._get_evolution_name(skill_id, 10, evo_mid) if (evo_mid != "" and sm.has_method("_get_evolution_name")) else ""
+	if mid_name == "" and evo_mid != "" and sm and sm.has_method("_get_evolution_name"):
+		mid_name = sm._get_evolution_name(skill_id, 5, evo_mid)
+	var final_name = sm._get_evolution_name(skill_id, 20, evo_final) if (evo_final != "" and sm.has_method("_get_evolution_name")) else ""
+	if final_name == "" and evo_final != "" and sm and sm.has_method("_get_evolution_name"):
+		final_name = sm._get_evolution_name(skill_id, 15, evo_final)
+
+	var evo_lbl = node_rect.get_node_or_null("EvoLabel") as Label
+	if final_name != "" or mid_name != "":
+		if evo_lbl == null:
+			evo_lbl = Label.new()
+			evo_lbl.name = "EvoLabel"
+			evo_lbl.position = Vector2(0, 0)
+			evo_lbl.size = Vector2(56, 18)
+			evo_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			evo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			evo_lbl.add_theme_font_override("font", _get_sys_font())
+			evo_lbl.add_theme_font_size_override("font_size", 11)
+			evo_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+			evo_lbl.add_theme_constant_override("outline_size", 3)
+			node_rect.add_child(evo_lbl)
+		if final_name != "":
+			evo_lbl.text = "👑%s" % final_name.substr(0, 3)
+			evo_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		else:
+			evo_lbl.text = "✨%s" % mid_name.substr(0, 3)
+			evo_lbl.add_theme_color_override("font_color", Color(0.5, 0.85, 1.0))
+	elif evo_lbl != null:
+		evo_lbl.queue_free()
+
 	if info_panel.visible and info_panel.get_meta("current_id", "") == ("skill:" + skill_id):
 		_show_skill_tooltip(skill_id, node_rect)
 
@@ -316,8 +439,17 @@ func _on_skill_upgraded(skill_id: String, _sp_type: int, new_level: int) -> void
 	tw.parallel().tween_property(node_rect, "modulate", Color.WHITE, 0.22)
 
 func _hide_tooltip_if_matching(meta_key: String) -> void:
-	if info_panel.visible and info_panel.get_meta("current_id", "") == meta_key:
-		info_panel.visible = false
+	if _tooltip_close_timer != null and _tooltip_close_timer.is_valid():
+		_tooltip_close_timer.kill()
+	_tooltip_close_timer = create_tween()
+	_tooltip_close_timer.tween_interval(0.15)
+	_tooltip_close_timer.tween_callback(func():
+		if info_panel and info_panel.visible and info_panel.get_meta("current_id", "") == meta_key:
+			var m_pos = info_panel.get_global_mouse_position() if info_panel else (get_viewport().get_mouse_position() if get_viewport() else Vector2.ZERO)
+			if not info_panel.get_global_rect().has_point(m_pos):
+				info_panel.visible = false
+				hide_glossary_tooltip()
+	)
 
 func _show_skill_tooltip(skill_id: String, rect: ColorRect) -> void:
 	var sm = get_parent().get_node_or_null("ScoreManager") if get_parent() else null
@@ -332,15 +464,47 @@ func _show_skill_tooltip(skill_id: String, rect: ColorRect) -> void:
 	var is_max: bool = (cur_lvl >= max_lvl)
 	var col_hex: String = s_data.get("color", Color("#FF80CC")).to_html(false)
 	var level_str = " (Lv%d/MAX)" % cur_lvl if is_max else " (Lv%d/%d)" % [cur_lvl, max_lvl]
-	name_label.text = "[b][color=#%s]🌿 %s%s[/color][/b]" % [col_hex, s_data.get("name", "Skill"), level_str]
+
+	var evo_mid = sm.get_chosen_evolution(skill_id, 10) if (sm and sm.has_method("get_chosen_evolution")) else ""
+	if evo_mid == "" and sm and sm.has_method("get_chosen_evolution"):
+		evo_mid = sm.get_chosen_evolution(skill_id, 5)
+	var evo_final = sm.get_chosen_evolution(skill_id, 15) if (sm and sm.has_method("get_chosen_evolution")) else ""
+	if evo_final == "" and sm and sm.has_method("get_chosen_evolution"): evo_final = sm.get_chosen_evolution(skill_id, 20)
+
+	var mid_name = sm._get_evolution_name(skill_id, 10, evo_mid) if (evo_mid != "" and sm.has_method("_get_evolution_name")) else ""
+	var final_name = sm._get_evolution_name(skill_id, 20, evo_final) if (evo_final != "" and sm.has_method("_get_evolution_name")) else ""
+
+	var title_evo_suffix = ""
+	if final_name != "":
+		title_evo_suffix = " 👑[%s]" % final_name
+	elif mid_name != "":
+		title_evo_suffix = " ✨[%s]" % mid_name
+
+	name_label.text = GlossaryDatabase.format_text("[b][color=#%s]🌿 %s%s%s[/color][/b]" % [col_hex, s_data.get("name", "Skill"), level_str, title_evo_suffix])
 
 	var desc_arr: Array = s_data.get("desc_lv", [])
 	var cur_desc: String = desc_arr[clampi(cur_lvl - 1, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else ""
+	var evo_desc_block: String = ""
+	if evo_mid != "":
+		var m_data = sm.get_evolution_data(skill_id, 10, evo_mid) if sm.has_method("get_evolution_data") else {}
+		evo_desc_block += "\n\n[b][color=#80D8FF]✨【第1覚醒: %s】[/color][/b] [color=#B0BEC5](%s)[/color]\n[color=#E0F7FA]%s[/color]" % [
+			m_data.get("name", evo_mid), m_data.get("role", "覚醒"), m_data.get("desc", "")
+		]
+	if evo_final != "":
+		var f_data = sm.get_evolution_data(skill_id, 20, evo_final) if sm.has_method("get_evolution_data") else {}
+		evo_desc_block += "\n\n[b][color=#FFD700]👑【最終覚醒: %s】[/color][/b] [color=#FFE082](%s)[/color]\n[color=#FFF8E1]%s[/color]" % [
+			f_data.get("name", evo_final), f_data.get("role", "究極神格"), f_data.get("desc", "")
+		]
+
 	if is_max:
-		desc_label.text = "[font_size=20][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % cur_desc
+		desc_label.text = "[font_size=18][color=#FFD700]【最大レベル】[/color]\n%s%s[/font_size]" % [
+			GlossaryDatabase.format_text(cur_desc), GlossaryDatabase.format_text(evo_desc_block)
+		]
 	else:
 		var next_desc: String = desc_arr[clampi(cur_lvl, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else ""
-		desc_label.text = "[font_size=19][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [cur_desc, cur_lvl + 1, next_desc]
+		desc_label.text = "[font_size=17][color=#FFFFFF]現在: %s[/color]%s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
+			GlossaryDatabase.format_text(cur_desc), GlossaryDatabase.format_text(evo_desc_block), cur_lvl + 1, GlossaryDatabase.format_text(next_desc)
+		]
 
 	info_panel.set_meta("current_id", "skill:" + skill_id)
 	var panel_x = clampf(rect.global_position.x, 20.0, 1920.0 - info_panel.size.x - 20.0)
@@ -358,8 +522,8 @@ func show_custom_tooltip(title: String, desc: String, screen_pos: Vector2, meta_
 	if title.is_empty() and desc.is_empty():
 		hide_custom_tooltip(meta_key)
 		return
-	if name_label: name_label.text = title
-	if desc_label: desc_label.text = desc
+	if name_label: name_label.text = GlossaryDatabase.format_text(title)
+	if desc_label: desc_label.text = GlossaryDatabase.format_text(desc)
 	info_panel.set_meta("current_id", meta_key)
 	info_panel.reset_size()
 
@@ -379,6 +543,7 @@ func hide_custom_tooltip(meta_key: String = "") -> void:
 	if not info_panel: return
 	if meta_key.is_empty() or info_panel.get_meta("current_id", "") == meta_key:
 		info_panel.visible = false
+		hide_glossary_tooltip()
 
 func _on_relic_added(id: String) -> void:
 	if icon_nodes.has(id): return
@@ -501,14 +666,16 @@ func _show_relic_tooltip(id: String, rect: ColorRect) -> void:
 		rarity_tag = "☠ CURSED (呪い) ☠"
 	
 	var level_str = " (Lv%d/MAX)" % cur_lvl if is_max else " (Lv%d/%d)" % [cur_lvl, max_lvl]
-	name_label.text = "[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + " [" + rarity_tag + "]" + level_str + "[/color][/b]"
+	name_label.text = GlossaryDatabase.format_text("[b][color=" + r_color + "]" + r_data.get("name", "Unknown") + " [" + rarity_tag + "]" + level_str + "[/color][/b]")
 	
 	var desc_cur = RelicDatabase.get_description(id, cur_lvl)
 	if is_max:
-		desc_label.text = "[font_size=20][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % desc_cur
+		desc_label.text = "[font_size=20][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % GlossaryDatabase.format_text(desc_cur)
 	else:
 		var desc_next = RelicDatabase.get_description(id, cur_lvl + 1)
-		desc_label.text = "[font_size=19][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [desc_cur, cur_lvl + 1, desc_next]
+		desc_label.text = "[font_size=19][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
+			GlossaryDatabase.format_text(desc_cur), cur_lvl + 1, GlossaryDatabase.format_text(desc_next)
+		]
 		
 	info_panel.set_meta("current_id", id)
 	var panel_x = clampf(rect.global_position.x, 20.0, 1920.0 - info_panel.size.x - 20.0)
@@ -535,3 +702,36 @@ func _on_relic_triggered(id: String) -> void:
 	tw.tween_property(rect, "scale", Vector2(1.3, 1.3), 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(rect, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_property(rect, "modulate", Color.WHITE, 0.3)
+
+
+## Wikipedia風 固有名詞解説ホバーカードの表示
+func show_glossary_tooltip(term_key: String, mouse_pos: Vector2) -> void:
+	if not glossary_panel or not glossary_title_label or not glossary_desc_label:
+		return
+	var term_data = GlossaryDatabase.get_term(term_key)
+	if term_data.is_empty():
+		return
+
+	var col = term_data.get("color", "#4FC3F7")
+	var title = term_data.get("title", term_key)
+	var desc = term_data.get("desc", "")
+
+	glossary_title_label.text = "[b][color=%s]📖 %s[/color][/b]" % [col, title]
+	glossary_desc_label.text = "[color=#ECEFF1]%s[/color]" % desc
+
+	glossary_panel.reset_size()
+	var pw = maxf(460.0, glossary_panel.size.x)
+	var ph = maxf(120.0, glossary_panel.size.y)
+
+	var tx = clampf(mouse_pos.x + 16.0, 20.0, 1920.0 - pw - 20.0)
+	var ty = clampf(mouse_pos.y + 20.0, 20.0, 1080.0 - ph - 20.0)
+	if mouse_pos.y + ph + 30.0 > 1080.0:
+		ty = clampf(mouse_pos.y - ph - 16.0, 20.0, 1080.0 - ph - 20.0)
+
+	glossary_panel.position = Vector2(tx, ty)
+	glossary_panel.visible = true
+
+## Wikipedia風 固有名詞解説ホバーカードの非表示
+func hide_glossary_tooltip() -> void:
+	if glossary_panel:
+		glossary_panel.visible = false

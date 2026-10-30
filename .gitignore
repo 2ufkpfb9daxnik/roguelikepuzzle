@@ -2,3 +2,5 @@
 .godot/
 *.tmp
 test_out.txt
+scratch/
+

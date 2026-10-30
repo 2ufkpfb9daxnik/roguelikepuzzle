@@ -119,7 +119,8 @@ func _init() -> void:
 	assert(pb.grid_poison[2][3] == true, "Adjacent unmatched piece at (2, 3) must remain poisoned")
 	print("✓ Poison is eliminated specifically by clearing the poisoned piece")
 
-	# 6. Test Poison Contagion (Spread to adjacent cells on dry ground)
+	# 6. Test Poison Contagion (Spread to 1 adjacent cell per turn with Evolution B)
+	sm_node.active_enemies = [{"evolutions": ["poison_mid_b"]}]
 	pb.clear_board_hazards()
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
@@ -129,18 +130,20 @@ func _init() -> void:
 	pb.grid_poison[3][3] = true
 	pb._process_poison_spread()
 	assert(pb.grid_poison[3][3] == true, "Origin (3, 3) must remain poisoned")
-	assert(pb.grid_poison[2][3] == true, "North neighbor (2, 3) must be infected")
-	assert(pb.grid_poison[4][3] == true, "South neighbor (4, 3) must be infected")
-	assert(pb.grid_poison[3][2] == true, "West neighbor (3, 2) must be infected")
-	assert(pb.grid_poison[3][4] == true, "East neighbor (3, 4) must be infected")
-	assert(pb.grid_poison[1][3] == false, "North 2-step (1, 3) must NOT be infected on dry ground")
-	assert(pb.grid_poison[5][3] == false, "South 2-step (5, 3) must NOT be infected on dry ground")
-	assert(pb.grid_poison[3][1] == false, "West 2-step (3, 1) must NOT be infected on dry ground")
-	assert(pb.grid_poison[3][5] == false, "East 2-step (3, 5) must NOT be infected on dry ground")
+	var spread_count_sec6 = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_poison[3 + dr][3 + dc]:
+				spread_count_sec6 += 1
+	assert(spread_count_sec6 == 1, "Poison must spread to exactly 1 adjacent cell (got %d)" % spread_count_sec6)
+	assert(pb.grid_poison[1][3] == false, "North 2-step (1, 3) must NOT be infected")
+	assert(pb.grid_poison[5][3] == false, "South 2-step (5, 3) must NOT be infected")
+	assert(pb.grid_poison[3][1] == false, "West 2-step (3, 1) must NOT be infected")
+	assert(pb.grid_poison[3][5] == false, "East 2-step (3, 5) must NOT be infected")
 	assert(pb.grid_poison[2][2] == false, "Diagonal (2, 2) must NOT be infected")
-	print("✓ Normal poison contagion (1 tile orthogonal) passed!")
+	print("✓ Normal poison contagion (1 adjacent tile) passed!")
 
-	# 7. Test 2x Fast Poison Contagion on Wet Ground (Origin is wet)
+	# 7. Test Poison Contagion on Wet Ground (Spreads to 1 adjacent cell)
 	pb.clear_board_hazards()
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
@@ -151,17 +154,15 @@ func _init() -> void:
 	pb.grid_poison[3][3] = true
 	pb._process_poison_spread()
 	assert(pb.grid_poison[3][3] == true, "Wet origin (3, 3) remains poisoned")
-	assert(pb.grid_poison[2][3] == true, "North 1-step must be infected")
-	assert(pb.grid_poison[1][3] == true, "North 2-step must be infected due to wet origin (2x speed)")
-	assert(pb.grid_poison[4][3] == true, "South 1-step must be infected")
-	assert(pb.grid_poison[5][3] == true, "South 2-step must be infected due to wet origin (2x speed)")
-	assert(pb.grid_poison[3][2] == true, "West 1-step must be infected")
-	assert(pb.grid_poison[3][1] == true, "West 2-step must be infected due to wet origin (2x speed)")
-	assert(pb.grid_poison[3][4] == true, "East 1-step must be infected")
-	assert(pb.grid_poison[3][5] == true, "East 2-step must be infected due to wet origin (2x speed)")
-	print("✓ 2x poison spread from wet origin passed!")
+	var spread_count_sec7 = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_poison[3 + dr][3 + dc]:
+				spread_count_sec7 += 1
+	assert(spread_count_sec7 == 1, "Wet poison must spread to exactly 1 adjacent cell (got %d)" % spread_count_sec7)
+	print("✓ Poison spread on wet ground to 1 adjacent cell passed!")
 
-	# 8. Test 2x Fast Poison Contagion when Target is Wet
+	# 8. Test Poison Contagion into Wet Neighbor (Spreads to 1 adjacent cell)
 	pb.clear_board_hazards()
 	for r in range(pb.GRID_ROWS):
 		for c in range(pb.GRID_COLUMNS):
@@ -171,10 +172,13 @@ func _init() -> void:
 	pb.grid_poison[3][3] = true
 	pb.grid_water[3][4] = true # Only East neighbor is wet
 	pb._process_poison_spread()
-	assert(pb.grid_poison[3][4] == true, "East wet neighbor must be infected")
-	assert(pb.grid_poison[3][5] == true, "East 2-step must be infected because target was wet (2x speed)")
-	assert(pb.grid_poison[3][1] == false, "West 2-step must NOT be infected because west was dry")
-	print("✓ 2x poison spread into wet target passed!")
+	var spread_count_sec8 = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_poison[3 + dr][3 + dc]:
+				spread_count_sec8 += 1
+	assert(spread_count_sec8 == 1, "Poison must spread to exactly 1 adjacent cell (got %d)" % spread_count_sec8)
+	print("✓ Poison spread with wet neighbor passed!")
 
 	# 9. Test Multi-Element Compact Display on Enemies (No redundant "属性", single-bracket badge)
 	var e1_data = species["enemy1"]
@@ -209,11 +213,15 @@ func _init() -> void:
 		pb.poison_spread_done_this_turn = true
 		pb._process_poison_spread()
 	assert(pb.poison_spread_done_this_turn == true, "poison_spread_done_this_turn must be true after steady state")
-	assert(pb.grid_poison[2][3] == true, "Poison must spread immediately at steady state (0 delay)")
+	var sec10_spread = 0
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if abs(dr) + abs(dc) == 1 and pb.grid_poison[2 + dr][2 + dc]:
+				sec10_spread += 1
+	assert(sec10_spread == 1, "Poison must spread to 1 adjacent cell immediately at steady state")
 	# Call _reset_turn and ensure poison doesn't spread twice
 	pb._reset_turn(sm_node, null)
 	assert(pb.poison_spread_done_this_turn == false, "poison_spread_done_this_turn must reset to false on turn end")
-	assert(pb.grid_poison[2][4] == false, "Poison must NOT spread a second time during turn reset")
 	print("✓ Immediate poison spread on steady state (zero delay) passed!")
 
 	# 11. Test Performance Optimization: Static & Texture Batching

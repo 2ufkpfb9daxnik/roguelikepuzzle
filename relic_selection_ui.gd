@@ -1,5 +1,6 @@
 extends CanvasLayer
 class_name RelicSelectionUI
+const GlossaryDatabase = preload("res://glossary_database.gd")
 
 signal selection_finished()
 
@@ -29,42 +30,43 @@ func _ready() -> void:
 	
 	panel = Panel.new()
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.15, 0.2, 0.95)
+	style.bg_color = Color(0.01, 0.01, 0.02, 0.70)
 	style.border_color = Color(0.8, 0.6, 0.1, 1.0)
 	style.set_border_width_all(4)
 	style.set_corner_radius_all(16)
 	panel.add_theme_stylebox_override("panel", style)
 	
-	panel.custom_minimum_size = Vector2(1400, 700)
-	panel.size = Vector2(1400, 700)
-	panel.position = Vector2((1920.0 - 1400.0) / 2.0, (1080.0 - 700.0) / 2.0)
+	panel.custom_minimum_size = Vector2(1540, 760)
+	panel.size = Vector2(1540, 760)
+	panel.position = Vector2((1920.0 - 1540.0) / 2.0, (1080.0 - 760.0) / 2.0)
 	add_child(panel)
 	
 	title_label = Label.new()
 	title_label.text = "レリックを選択"
 	if CUSTOM_FONT:
 		title_label.add_theme_font_override("font", CUSTOM_FONT)
-	title_label.add_theme_font_size_override("font_size", 64)
+	title_label.add_theme_font_size_override("font_size", 42)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.position = Vector2(0, 40)
-	title_label.size = Vector2(1400, 80)
+	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title_label.position = Vector2(0, 25)
+	title_label.size = Vector2(1540, 75)
 	panel.add_child(title_label)
 	
 	hbox = HBoxContainer.new()
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	hbox.add_theme_constant_override("separation", 40)
-	hbox.position = Vector2(0, 150)
-	hbox.size = Vector2(1400, 400)
+	hbox.add_theme_constant_override("separation", 30)
+	hbox.position = Vector2(0, 110)
+	hbox.size = Vector2(1540, 540)
 	panel.add_child(hbox)
 	
 	skip_btn = Button.new()
 	skip_btn.text = "スキップ (Skip)"
 	if CUSTOM_FONT:
 		skip_btn.add_theme_font_override("font", CUSTOM_FONT)
-	skip_btn.add_theme_font_size_override("font_size", 40)
-	skip_btn.custom_minimum_size = Vector2(300, 80)
-	skip_btn.size = Vector2(300, 80)
-	skip_btn.position = Vector2((1400.0 - 300.0) / 2.0, 580)
+	skip_btn.add_theme_font_size_override("font_size", 32)
+	skip_btn.custom_minimum_size = Vector2(280, 65)
+	skip_btn.size = Vector2(280, 65)
+	skip_btn.position = Vector2((1540.0 - 280.0) / 2.0, 670)
 	skip_btn.pressed.connect(_on_skip_pressed)
 	panel.add_child(skip_btn)
 	
@@ -99,10 +101,10 @@ func _populate_choices() -> void:
 		
 	var choices: Array[String] = []
 
-	# 最初の敵撃破後（属性カテゴリー未選択の場合）：3つの属性カテゴリーから選択
+	# 最初の敵撃破後（属性カテゴリー未選択の場合）：3つの属性系統スキル解放権から選択
 	if not rm.has_chosen_element_category():
-		title_label.text = "【属性カテゴリー選択】使用する属性系統を選択してください"
-		title_label.add_theme_font_size_override("font_size", 44)
+		title_label.text = "【スキル解放権（属性カテゴリー）選択】冒険で使用する属性系統のスキル解放権を選択してください"
+		title_label.add_theme_font_size_override("font_size", 34)
 		if skip_btn:
 			skip_btn.visible = false # カテゴリー選択は必須選択
 		choices = ["relic_cat_nature", "relic_cat_force", "relic_cat_mystic"]
@@ -166,11 +168,11 @@ func _populate_choices() -> void:
 		var next_lvl = cur_lvl + 1
 		
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(380, 380)
-		btn.size = Vector2(380, 380)
+		btn.custom_minimum_size = Vector2(450, 520)
+		btn.size = Vector2(450, 520)
 		
 		var b_style = StyleBoxFlat.new()
-		b_style.bg_color = Color(0.10, 0.10, 0.14, 0.98)
+		b_style.bg_color = Color(0.02, 0.02, 0.04, 0.65)
 		var rarity = c_data.get("rarity", "common")
 		if rarity == "legendary":
 			b_style.border_color = Color(1.0, 0.84, 0.1, 1.0)
@@ -182,7 +184,7 @@ func _populate_choices() -> void:
 			b_style.border_color = Color(0.25, 0.85, 0.35, 1.0)
 		elif rarity == "cursed":
 			b_style.border_color = Color(1.0, 0.15, 0.35, 1.0)
-			b_style.bg_color = Color(0.16, 0.04, 0.08, 0.98)
+			b_style.bg_color = Color(0.06, 0.01, 0.03, 0.65)
 		else:
 			b_style.border_color = Color(0.68, 0.72, 0.76, 1.0)
 		b_style.set_border_width_all(5)
@@ -190,12 +192,13 @@ func _populate_choices() -> void:
 		btn.add_theme_stylebox_override("normal", b_style)
 		
 		var h_style = b_style.duplicate()
-		h_style.bg_color = Color(0.18, 0.18, 0.26, 1.0)
+		h_style.bg_color = Color(0.06, 0.06, 0.10, 0.75)
 		btn.add_theme_stylebox_override("hover", h_style)
 		
 		var vbox = VBoxContainer.new()
-		vbox.position = Vector2(16, 16)
-		vbox.size = Vector2(348, 348)
+		vbox.position = Vector2(20, 16)
+		vbox.size = Vector2(410, 488)
+		vbox.custom_minimum_size = Vector2(410, 488)
 		vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(vbox)
@@ -208,8 +211,8 @@ func _populate_choices() -> void:
 		if CUSTOM_FONT:
 			badge_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 			badge_label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		badge_label.add_theme_font_size_override("normal_font_size", 24)
-		badge_label.add_theme_font_size_override("bold_font_size", 24)
+		badge_label.add_theme_font_size_override("normal_font_size", 22)
+		badge_label.add_theme_font_size_override("bold_font_size", 22)
 		
 		if cur_lvl == 0:
 			badge_label.text = "[center][b][color=#00E5FF]★ NEW ★[/color][/b][/center]"
@@ -221,9 +224,11 @@ func _populate_choices() -> void:
 		var r_label = Label.new()
 		r_label.text = c_data.get("name", "???")
 		r_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		r_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		r_label.custom_minimum_size = Vector2(410, 56)
 		if CUSTOM_FONT:
 			r_label.add_theme_font_override("font", CUSTOM_FONT)
-		r_label.add_theme_font_size_override("font_size", 34)
+		r_label.add_theme_font_size_override("font_size", 22)
 		if rarity == "legendary":
 			r_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 		elif rarity == "epic":
@@ -261,31 +266,37 @@ func _populate_choices() -> void:
 		rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if CUSTOM_FONT:
 			rarity_label.add_theme_font_override("font", CUSTOM_FONT)
-		rarity_label.add_theme_font_size_override("font_size", 18)
+		rarity_label.add_theme_font_size_override("font_size", 16)
 		vbox.add_child(rarity_label)
 		
 		var spacer = Control.new()
-		spacer.custom_minimum_size = Vector2(0, 10)
+		spacer.custom_minimum_size = Vector2(0, 8)
 		vbox.add_child(spacer)
 		
 		# 説明文（未所持ならLv1説明、所持中なら現在値と強化後値の対比）
 		var d_label = RichTextLabel.new()
 		d_label.bbcode_enabled = true
-		d_label.custom_minimum_size = Vector2(348, 170)
+		d_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d_label.fit_content = true
+		d_label.scroll_active = false
+		d_label.custom_minimum_size = Vector2(410, 240)
 		if CUSTOM_FONT:
 			d_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 			d_label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		d_label.add_theme_font_size_override("normal_font_size", 22)
-		d_label.add_theme_font_size_override("bold_font_size", 22)
-		d_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		d_label.add_theme_font_size_override("normal_font_size", 18)
+		d_label.add_theme_font_size_override("bold_font_size", 18)
+		d_label.mouse_filter = Control.MOUSE_FILTER_PASS
+		GlossaryDatabase.bind_rich_text_label(d_label)
 		
 		if cur_lvl == 0:
 			var desc1 = RelicDatabase.get_description(c_id, 1)
-			d_label.text = "[center]%s[/center]" % desc1
+			d_label.text = "[center]%s[/center]" % GlossaryDatabase.format_text(desc1)
 		else:
 			var desc_cur = RelicDatabase.get_description(c_id, cur_lvl)
 			var desc_next = RelicDatabase.get_description(c_id, next_lvl)
-			d_label.text = "[center][color=#888888]現在: %s[/color]\n\n[color=#FFD700]▼ 次のレベル ▼\n[b]%s[/b][/color][/center]" % [desc_cur, desc_next]
+			d_label.text = "[center][color=#888888]現在: %s[/color]\n\n[color=#FFD700]▼ 次のレベル ▼\n[b]%s[/b][/color][/center]" % [
+				GlossaryDatabase.format_text(desc_cur), GlossaryDatabase.format_text(desc_next)
+			]
 		vbox.add_child(d_label)
 		
 		btn.pressed.connect(_on_choice_pressed.bind(c_id))

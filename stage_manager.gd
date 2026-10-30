@@ -7,6 +7,7 @@ signal stage_clear
 # --- ステージ＆敵データテーブル ---
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
 const RELIC_SELECTION_UI_SCRIPT = preload("res://relic_selection_ui.gd")
+const GlossaryDatabase = preload("res://glossary_database.gd")
 const RELIC_OFFER_BATTLE_INDICES: Array[int] = [1, 2, 3, 4, 5]
 const STAGE_BACKGROUNDS: Array[String] = ["plane", "cave", "desert", "snow field", "castle"]
 const STAGE_BACKGROUND_TEXTURES: Array[Texture2D] = [
@@ -49,8 +50,8 @@ const ENEMY_TEXTURES: Dictionary = {
 const STAGE_ENEMIES: Array[Dictionary] = [
 	{ # Stage 1 (草原)
 		"names": ["enemy4", "enemy5", "enemy8", "enemy12", "enemy15", "enemy24"],
-		"hp": [10000, 3000, 4000, 7500, 6000, 45000],
-		"atk": [1500, 1000, 1500, 2000, 1700, 2200]
+		"hp": [5500, 4200, 4800, 6000, 5000, 45000],
+		"atk": [1200, 900, 1000, 1300, 1100, 2200]
 	},
 	{ # Stage 2 (洞窟)
 		"names": ["enemy2", "enemy3", "enemy6", "enemy10", "enemy5", "enemy14"],
@@ -179,6 +180,8 @@ var clearinterval: int = 0
 var deadinterval: int = 0
 var dangerinterval: int = 0
 var lastbossinterval: int = 0
+var has_transitioned_after_death: bool = false
+var has_transitioned_stage_clear: bool = false
 
 # フィーバー突入時の大文字表示待機フレーム数 (等速1.0xで約1.0秒、速度設定に完全連動)
 const FEVER_INTRO_FRAMES: int = 60
@@ -307,6 +310,22 @@ func _format_comma(value: int) -> String:
 @onready var move_front_btn: Control = get_node_or_null("movefront")
 @onready var choose_buff_rect: Control = get_node_or_null("choosebuff")
 @onready var fever_face_template: Node2D = get_node_or_null("feverface")
+var last_damage_cause: String = "戦闘不能"
+var last_damage_source_name: String = ""
+var last_damage_amount: float = 0.0
+
+# フィーバーダンサーノード（敵画面背景2体、敵画面上隅2体、画面左下余白1体）
+var fever_dancer_bg_left: AnimatedSprite2D = null
+var fever_dancer_bg_right: AnimatedSprite2D = null
+var fever_dancer_top_left: AnimatedSprite2D = null
+var fever_dancer_top_right: AnimatedSprite2D = null
+var fever_dancer_bottom_left: AnimatedSprite2D = null
+var _fever_dance_frames: SpriteFrames = null
+var _dancer_tween: Tween = null
+var is_waiting_for_fever_se: bool = false
+var _fever_dancers_active: bool = false
+var _fever_se_wait_frames: int = 0
+var _fever_se_max_frames: int = 300
 
 # 外部ノード参照ヘルパー
 func _get_score_manager() -> Node2D:
@@ -318,6 +337,233 @@ func _get_puzzle_board() -> Node2D:
 	if not is_instance_valid(_cached_puzzle_board):
 		_cached_puzzle_board = get_parent().get_node_or_null("PuzzleBoard") if get_parent() else null
 	return _cached_puzzle_board
+
+func _setup_fever_dancers() -> void:
+	if fever_dancer_bg_left != null and is_instance_valid(fever_dancer_bg_left):
+		return
+
+	if _fever_dance_frames == null:
+		var sf_path = "res://Texture/fever_dance/fever_dance_frames.tres"
+		if ResourceLoader.exists(sf_path):
+			_fever_dance_frames = load(sf_path) as SpriteFrames
+		if _fever_dance_frames == null:
+			_fever_dance_frames = SpriteFrames.new()
+			_fever_dance_frames.add_animation("dance")
+			_fever_dance_frames.set_animation_loop("dance", true)
+			_fever_dance_frames.set_animation_speed("dance", 24.0)
+			for i in range(142):
+				var p = "res://Texture/fever_dance/frames/frame_%04d.png" % i
+				if ResourceLoader.exists(p):
+					var tex = load(p) as Texture2D
+					if tex: _fever_dance_frames.add_frame("dance", tex)
+
+	var enemy_parent: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
+
+	# 1. 敵画面背景・左ダンサー（敵と被らないよう敵画面枠内の左寄り、z_index=-5 で敵背後に配置）
+	fever_dancer_bg_left = AnimatedSprite2D.new()
+	fever_dancer_bg_left.name = "FeverDancerBgLeft"
+	fever_dancer_bg_left.sprite_frames = _fever_dance_frames
+	fever_dancer_bg_left.animation = "dance"
+	fever_dancer_bg_left.position = Vector2(1265.0, 205.0)
+	fever_dancer_bg_left.offset = Vector2(0, -60.0)
+	fever_dancer_bg_left.scale = Vector2(0.24, 0.24)
+	fever_dancer_bg_left.flip_h = false
+	fever_dancer_bg_left.z_index = -5
+	fever_dancer_bg_left.visible = false
+	enemy_parent.add_child(fever_dancer_bg_left)
+
+	# 2. 敵画面背景・右ダンサー（敵と被らないよう敵画面枠内の右寄り、z_index=-5 で敵背後に配置、中心向き反転）
+	fever_dancer_bg_right = AnimatedSprite2D.new()
+	fever_dancer_bg_right.name = "FeverDancerBgRight"
+	fever_dancer_bg_right.sprite_frames = _fever_dance_frames
+	fever_dancer_bg_right.animation = "dance"
+	fever_dancer_bg_right.position = Vector2(1840.0, 205.0)
+	fever_dancer_bg_right.offset = Vector2(0, -60.0)
+	fever_dancer_bg_right.scale = Vector2(0.24, 0.24)
+	fever_dancer_bg_right.flip_h = true
+	fever_dancer_bg_right.z_index = -5
+	fever_dancer_bg_right.visible = false
+	enemy_parent.add_child(fever_dancer_bg_right)
+
+	# 3. 敵画面上隅・左上ダンサー（敵画面上部の余白 X:1250, Y:70 に配置）
+	fever_dancer_top_left = AnimatedSprite2D.new()
+	fever_dancer_top_left.name = "FeverDancerTopLeft"
+	fever_dancer_top_left.sprite_frames = _fever_dance_frames
+	fever_dancer_top_left.animation = "dance"
+	fever_dancer_top_left.position = Vector2(1250.0, 70.0)
+	fever_dancer_top_left.offset = Vector2(0, -60.0)
+	fever_dancer_top_left.scale = Vector2(0.20, 0.20)
+	fever_dancer_top_left.flip_h = false
+	fever_dancer_top_left.z_index = -4
+	fever_dancer_top_left.visible = false
+	enemy_parent.add_child(fever_dancer_top_left)
+
+	# 4. 敵画面上隅・右上ダンサー（敵画面上部の余白 X:1855, Y:70 に配置、内向き反転）
+	fever_dancer_top_right = AnimatedSprite2D.new()
+	fever_dancer_top_right.name = "FeverDancerTopRight"
+	fever_dancer_top_right.sprite_frames = _fever_dance_frames
+	fever_dancer_top_right.animation = "dance"
+	fever_dancer_top_right.position = Vector2(1855.0, 70.0)
+	fever_dancer_top_right.offset = Vector2(0, -60.0)
+	fever_dancer_top_right.scale = Vector2(0.20, 0.20)
+	fever_dancer_top_right.flip_h = true
+	fever_dancer_top_right.z_index = -4
+	fever_dancer_top_right.visible = false
+	enemy_parent.add_child(fever_dancer_top_right)
+
+	# 5. 画面左下余白ダンサー（盤面・HUDの邪魔にならない画面左下の余白 X:120, Y:750 に配置）
+	fever_dancer_bottom_left = AnimatedSprite2D.new()
+	fever_dancer_bottom_left.name = "FeverDancerBottomLeft"
+	fever_dancer_bottom_left.sprite_frames = _fever_dance_frames
+	fever_dancer_bottom_left.animation = "dance"
+	fever_dancer_bottom_left.position = Vector2(120.0, 750.0)
+	fever_dancer_bottom_left.offset = Vector2(0, -60.0)
+	fever_dancer_bottom_left.scale = Vector2(0.32, 0.32)
+	fever_dancer_bottom_left.flip_h = false
+	fever_dancer_bottom_left.z_index = 10
+	fever_dancer_bottom_left.visible = false
+	add_child(fever_dancer_bottom_left)
+
+func _rush_in_fever_dancers() -> void:
+	_setup_fever_dancers()
+	if _dancer_tween != null and _dancer_tween.is_valid():
+		_dancer_tween.kill()
+	_dancer_tween = create_tween()
+
+	# 1. 敵画面背景・左ダンサー（画面左枠外・縮小状態から勢いよく乱入）
+	if fever_dancer_bg_left:
+		fever_dancer_bg_left.visible = true
+		fever_dancer_bg_left.position = Vector2(1160.0, 205.0)
+		fever_dancer_bg_left.scale = Vector2(0.05, 0.24)
+		fever_dancer_bg_left.modulate.a = 0.5
+		fever_dancer_bg_left.play("dance")
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_left, "position", Vector2(1265.0, 205.0), 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_left, "scale", Vector2(0.24, 0.24), 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_left, "modulate:a", 1.0, 0.15)
+
+	# 2. 敵画面背景・右ダンサー（画面右枠外・縮小状態から勢いよく乱入）
+	if fever_dancer_bg_right:
+		fever_dancer_bg_right.visible = true
+		fever_dancer_bg_right.position = Vector2(1940.0, 205.0)
+		fever_dancer_bg_right.scale = Vector2(0.05, 0.24)
+		fever_dancer_bg_right.modulate.a = 0.5
+		fever_dancer_bg_right.play("dance")
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_right, "position", Vector2(1840.0, 205.0), 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_right, "scale", Vector2(0.24, 0.24), 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bg_right, "modulate:a", 1.0, 0.15)
+
+	# 3. 敵画面上隅・左上ダンサー（上端枠外から勢いよく乱入）
+	if fever_dancer_top_left:
+		fever_dancer_top_left.visible = true
+		fever_dancer_top_left.position = Vector2(1250.0, -50.0)
+		fever_dancer_top_left.scale = Vector2(0.05, 0.20)
+		fever_dancer_top_left.modulate.a = 0.5
+		fever_dancer_top_left.play("dance")
+		_dancer_tween.parallel().tween_property(fever_dancer_top_left, "position", Vector2(1250.0, 70.0), 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_top_left, "scale", Vector2(0.20, 0.20), 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_top_left, "modulate:a", 1.0, 0.15)
+
+	# 4. 敵画面上隅・右上ダンサー（上端枠外から勢いよく乱入）
+	if fever_dancer_top_right:
+		fever_dancer_top_right.visible = true
+		fever_dancer_top_right.position = Vector2(1855.0, -50.0)
+		fever_dancer_top_right.scale = Vector2(0.05, 0.20)
+		fever_dancer_top_right.modulate.a = 0.5
+		fever_dancer_top_right.play("dance")
+		_dancer_tween.parallel().tween_property(fever_dancer_top_right, "position", Vector2(1855.0, 70.0), 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_top_right, "scale", Vector2(0.20, 0.20), 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_top_right, "modulate:a", 1.0, 0.15)
+
+	# 5. 画面左下余白ダンサー（画面下端外・縮小状態から勢いよく乱入）
+	if fever_dancer_bottom_left:
+		fever_dancer_bottom_left.visible = true
+		fever_dancer_bottom_left.position = Vector2(120.0, 960.0)
+		fever_dancer_bottom_left.scale = Vector2(0.1, 0.1)
+		fever_dancer_bottom_left.modulate.a = 0.5
+		fever_dancer_bottom_left.play("dance")
+		_dancer_tween.parallel().tween_property(fever_dancer_bottom_left, "position", Vector2(120.0, 750.0), 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bottom_left, "scale", Vector2(0.32, 0.32), 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_dancer_tween.parallel().tween_property(fever_dancer_bottom_left, "modulate:a", 1.0, 0.18)
+
+func _show_fever_dancers() -> void:
+	_rush_in_fever_dancers()
+
+func _hide_fever_dancers() -> void:
+	if _dancer_tween != null and _dancer_tween.is_valid():
+		_dancer_tween.kill()
+	if fever_dancer_bg_left:
+		fever_dancer_bg_left.stop()
+		fever_dancer_bg_left.visible = false
+	if fever_dancer_bg_right:
+		fever_dancer_bg_right.stop()
+		fever_dancer_bg_right.visible = false
+	if fever_dancer_top_left:
+		fever_dancer_top_left.stop()
+		fever_dancer_top_left.visible = false
+	if fever_dancer_top_right:
+		fever_dancer_top_right.stop()
+		fever_dancer_top_right.visible = false
+	if fever_dancer_bottom_left:
+		fever_dancer_bottom_left.stop()
+		fever_dancer_bottom_left.visible = false
+
+func _show_fever_banner() -> void:
+	var fever_lbl = get_parent().get_node_or_null("ScoreManager/feverlabel")
+	if fever_lbl:
+		fever_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+		fever_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+		fever_lbl.add_theme_constant_override("outline_size", 12)
+		fever_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+		fever_lbl.add_theme_font_size_override("normal_font_size", 64)
+		fever_lbl.add_theme_font_size_override("bold_font_size", 64)
+
+		# 実際のショップバフ倍率（2.0 + fever_boost_level * 0.5）と完全連動
+		var sm_node = _get_score_manager()
+		var mult: float = 2.0
+		if sm_node and "fever_boost_level" in sm_node:
+			mult = 2.0 + sm_node.fever_boost_level * 0.5
+		var mult_str: String = ("%.1f" % mult).trim_suffix(".0")
+		fever_lbl.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ FEVER TIME!! ★[/rainbow]\n[color=#FFD700]スコア %s 倍[/color][/b][/center]" % mult_str
+
+		# 画面中央（1920x1080）に大きく大迫力で配置
+		fever_lbl.size = Vector2(1000, 300)
+		fever_lbl.position = Vector2((1920.0 - 1000.0) / 2.0, (1080.0 - 300.0) / 2.0)
+		fever_lbl.z_index = 30
+
+		# ド派手なポップイン拡大アニメーション
+		fever_lbl.scale = Vector2(0.4, 0.4)
+		fever_lbl.pivot_offset = fever_lbl.size / 2.0
+		var tw = fever_lbl.create_tween()
+		tw.tween_property(fever_lbl, "scale", Vector2(1.15, 1.15), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(fever_lbl, "scale", Vector2(1.0, 1.0), 0.1)
+
+		if sm_node and sm_node.has_method("update_fever_label3"):
+			sm_node.update_fever_label3()
+
+func _on_fever_se_finished() -> void:
+	if not isfevertime or _fever_dancers_active:
+		return
+	is_waiting_for_fever_se = false
+	appeartime = 0
+	_fever_dancers_active = true
+	_ensure_fever_bgm()
+
+	# 効果音が鳴りきった後、フィーバータイムの各欄を表示
+	var sm_node = _get_score_manager()
+	if sm_node:
+		var fever_lbl = sm_node.get_node_or_null("feverlabel")
+		if fever_lbl:
+			var tw = fever_lbl.create_tween()
+			tw.tween_property(fever_lbl, "scale", Vector2.ZERO, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+			tw.tween_callback(func(): fever_lbl.position = Vector2(-1e9, -1e9))
+		for node_name in ["feverrect", "feverrect2", "feverlabel2", "feverlabel3", "fevertime", "fevertimecount"]:
+			var n = sm_node.get_node_or_null(node_name)
+			if n: n.visible = true
+		if sm_node.has_method("update_fever_label3"):
+			sm_node.update_fever_label3()
+
+	# 効果音が鳴りきってからフィーバーダンスを登場させる
+	_rush_in_fever_dancers()
 
 func _setup_enemy_viewport_container() -> void:
 	if _enemy_viewport_clip != null and is_instance_valid(_enemy_viewport_clip):
@@ -434,7 +680,7 @@ func _create_intent_ui(bar_bg_pos: Vector2, parent_node: Node, is_summon_wait: b
 	var intent_panel = PanelContainer.new()
 	intent_panel.name = "IntentPanel"
 	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.06, 0.07, 0.12, 0.92)
+	panel_style.bg_color = Color(0.01, 0.01, 0.02, 0.60)
 	panel_style.border_color = Color(0.73, 0.41, 0.78, 0.95) if is_summon_wait else Color(1.0, 0.32, 0.32, 0.95)
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(6)
@@ -453,7 +699,8 @@ func _create_intent_ui(bar_bg_pos: Vector2, parent_node: Node, is_summon_wait: b
 	var intent_badge = RichTextLabel.new()
 	intent_badge.name = "IntentBadge"
 	intent_badge.bbcode_enabled = true
-	intent_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intent_badge.mouse_filter = Control.MOUSE_FILTER_PASS
+	GlossaryDatabase.bind_rich_text_label(intent_badge)
 	intent_badge.fit_content = true
 	intent_badge.scroll_active = false
 	intent_badge.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -537,7 +784,7 @@ func update_enemy_intents(actions: Array) -> void:
 				var atk_val = int(e_item.get("atk", 1000))
 				acts_str = "[color=#FF5252]⚔️ 攻撃 (%d)[/color]" % atk_val
 
-			badge.text = "[center][color=#FFD54F][font_size=11]▼ 次の行動 (NEXT)[/font_size][/color]\n[b][font_size=14]%s[/font_size][/b][/center]" % acts_str
+			badge.text = "[center][color=#FFD54F][font_size=11]▼ 次の行動 (NEXT)[/font_size][/color]\n[b][font_size=14]%s[/font_size][/b][/center]" % GlossaryDatabase.format_text(acts_str)
 
 			if e_item.has("intent_panel") and is_instance_valid(e_item["intent_panel"]):
 				var panel: PanelContainer = e_item["intent_panel"]
@@ -547,6 +794,7 @@ func update_enemy_intents(actions: Array) -> void:
 
 func _ready() -> void:
 	_setup_enemy_viewport_container()
+	_setup_fever_dancers()
 	_vfx_container = Node2D.new()
 	_vfx_container.name = "VFXContainer"
 	if _enemy_zoom_root:
@@ -592,8 +840,8 @@ func _ready() -> void:
 	if label2 != null:
 		label2.add_theme_font_override("normal_font", CUSTOM_FONT)
 		label2.add_theme_font_override("bold_font", CUSTOM_FONT)
-		label2.add_theme_font_size_override("normal_font_size", 26)
-		label2.add_theme_font_size_override("bold_font_size", 26)
+		label2.add_theme_font_size_override("normal_font_size", 28)
+		label2.add_theme_font_size_override("bold_font_size", 28)
 		label2.add_theme_constant_override("outline_size", 5)
 		label2.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		label2.z_index = 2
@@ -606,10 +854,10 @@ func _ready() -> void:
 		danger_label.text = "[center][b][color=#FF1744]⚠ 危険 ⚠[/color][/b][/center]"
 
 	if move_front_btn != null:
-		move_front_btn.z_index = 35
-		move_front_btn.position = Vector2(710, 974)
-		move_front_btn.size = Vector2(500, 76)
-		move_front_btn.custom_minimum_size = Vector2(500, 76)
+		move_front_btn.z_index = 100
+		move_front_btn.position = Vector2(1480, 974)
+		move_front_btn.size = Vector2(400, 76)
+		move_front_btn.custom_minimum_size = Vector2(400, 76)
 		move_front_btn.text = "⚔️ 前に進む"
 		move_front_btn.add_theme_font_override("font", CUSTOM_FONT)
 		move_front_btn.add_theme_font_size_override("font_size", 28)
@@ -617,7 +865,7 @@ func _ready() -> void:
 		move_front_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 		move_front_btn.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 1.0))
 		var mf_style = StyleBoxFlat.new()
-		mf_style.bg_color = Color(0.14, 0.36, 0.22, 0.96)
+		mf_style.bg_color = Color(0.14, 0.36, 0.22, 0.90)
 		mf_style.border_color = Color(0.95, 0.82, 0.35, 1.0)
 		mf_style.set_border_width_all(2)
 		mf_style.set_corner_radius_all(10)
@@ -625,10 +873,10 @@ func _ready() -> void:
 		mf_style.shadow_size = 6
 		move_front_btn.add_theme_stylebox_override("normal", mf_style)
 		var mf_hover = mf_style.duplicate()
-		mf_hover.bg_color = Color(0.20, 0.48, 0.30, 1.0)
+		mf_hover.bg_color = Color(0.20, 0.48, 0.30, 0.95)
 		move_front_btn.add_theme_stylebox_override("hover", mf_hover)
 		var mf_press = mf_style.duplicate()
-		mf_press.bg_color = Color(0.10, 0.26, 0.16, 1.0)
+		mf_press.bg_color = Color(0.10, 0.26, 0.16, 0.95)
 		move_front_btn.add_theme_stylebox_override("pressed", mf_press)
 
 	if choose_buff_rect != null and choose_buff_rect is ColorRect:
@@ -668,7 +916,7 @@ func label_control() -> void:
 		add_child(stg_rect2)
 	stg_rect2.position = Vector2(30.0, 14.0)
 	stg_rect2.size = Vector2(182.0, 136.0)
-	stg_rect2.color = Color(0.07, 0.09, 0.13, 0.96)
+	stg_rect2.color = Color(0.07, 0.09, 0.13, 0.82)
 
 	var stg_div = get_node_or_null("stage_div") as ColorRect
 	if stg_div == null:
@@ -696,13 +944,13 @@ func label_control() -> void:
 		label.text = "[center][b][color=#FFD54F]STAGE[/color] [color=#FFFFFF]%d[/color]%s[/b][/center]" % [stage, diff_badge]
 	if label2:
 		label2.position = Vector2(30.0, 84.0)
-		label2.size = Vector2(182.0, 56.0)
+		label2.size = Vector2(200.0, 56.0)
 		label2.scroll_active = false
 		label2.z_index = 2
 		if is_boss_battle() or stage_enemy >= 5:
-			label2.text = "[center][b][font_size=20][color=#FF5252]⚔️ BOSS BATTLE[/color][/font_size][/b][/center]"
+			label2.text = "[center][b][font_size=24][color=#FF5252]⚔️ BOSS BATTLE[/color][/font_size][/b][/center]"
 		else:
-			label2.text = "[center][b][font_size=20][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color][/font_size][/b][/center]" % stage_enemy
+			label2.text = "[center][b][font_size=26][color=#64FFDA]BATTLE[/color] [color=#FFD700]%d[/color][color=#FFFFFF]/5[/color][/font_size][/b][/center]" % stage_enemy
 
 ## 敵の撃破または前進によるカウント加算
 func add_stage_label() -> void:
@@ -962,6 +1210,11 @@ func get_enemy_elements_bbcode(sp_data: Dictionary) -> String:
 		var el = elems[0]
 		var short_el = get_enemy_short_element(el)
 		var col = get_element_hex_color(el)
+		var full_el = (short_el + "属性") if not short_el.ends_with("属性") else short_el
+		var t_data = GlossaryDatabase.get_term(full_el)
+		var hint_str = t_data.get("desc", "").replace("[", "").replace("]", "") if not t_data.is_empty() else ""
+		if not hint_str.is_empty():
+			return "[url=" + full_el + "][hint=" + hint_str + "][color=" + col + "]【" + short_el + "】[/color][/hint][/url]"
 		return "[color=" + col + "]【" + short_el + "】[/color]"
 
 	# 複数属性（2つ以上）：各属性の色で短縮名を表示し、スラッシュで区切るコンパクト表記
@@ -969,7 +1222,13 @@ func get_enemy_elements_bbcode(sp_data: Dictionary) -> String:
 	for el in elems:
 		var short_el = get_enemy_short_element(el)
 		var col = get_element_hex_color(el)
-		parts.append("[color=" + col + "]" + short_el + "[/color]")
+		var full_el = (short_el + "属性") if not short_el.ends_with("属性") else short_el
+		var t_data = GlossaryDatabase.get_term(full_el)
+		var hint_str = t_data.get("desc", "").replace("[", "").replace("]", "") if not t_data.is_empty() else ""
+		if not hint_str.is_empty():
+			parts.append("[url=" + full_el + "][hint=" + hint_str + "][color=" + col + "]" + short_el + "[/color][/hint][/url]")
+		else:
+			parts.append("[color=" + col + "]" + short_el + "[/color]")
 
 	return "【" + "[color=#90A4AE]/[/color]".join(parts) + "】"
 
@@ -980,6 +1239,59 @@ func get_enemy_elements_plain(sp_data: Dictionary) -> String:
 	for el in elems:
 		short_elems.append(get_enemy_short_element(el))
 	return " / ".join(short_elems)
+
+func _elem_str_to_key(elem_str: String) -> String:
+	match elem_str:
+		"火属性", "火": return "fire"
+		"水属性", "水": return "water"
+		"氷属性", "氷": return "ice"
+		"風属性", "風": return "wind"
+		"木属性", "木": return "wood"
+		"地属性", "地": return "earth"
+		"雷属性", "雷": return "thunder"
+		"闇属性", "闇": return "dark"
+		"光属性", "光": return "light"
+		"毒属性", "毒": return "poison"
+		_: return ""
+
+func _assign_enemy_evolutions(sp_data: Dictionary, is_boss: bool) -> Dictionary:
+	var evos: Dictionary = {}
+	var sc = _get_score_manager()
+	if sc == null or not ("SKILL_EVOLUTION_REGISTRY" in sc):
+		return evos
+	var reg_all = sc.SKILL_EVOLUTION_REGISTRY
+	var elems = get_enemy_all_elements(sp_data)
+	for el in elems:
+		var el_key = _elem_str_to_key(el)
+		if el_key == "" or not reg_all.has(el_key):
+			continue
+		var reg = reg_all[el_key]
+		var stage_idx = stage
+		if stage_idx == 1:
+			if is_boss:
+				var mids = reg.get("mid", [])
+				if not mids.is_empty():
+					evos[el_key] = {"mid": mids[randi() % mids.size()]["id"], "final": ""}
+		elif stage_idx in [2, 3]:
+			var mids = reg.get("mid", [])
+			if not mids.is_empty():
+				var m_id = mids[randi() % mids.size()]["id"]
+				var f_id = ""
+				if is_boss:
+					var finals = reg.get("final", {}).get(m_id, [])
+					if not finals.is_empty():
+						f_id = finals[randi() % finals.size()]["id"]
+				evos[el_key] = {"mid": m_id, "final": f_id}
+		elif stage_idx >= 4:
+			var mids = reg.get("mid", [])
+			if not mids.is_empty():
+				var m_id = mids[randi() % mids.size()]["id"]
+				var f_id = ""
+				var finals = reg.get("final", {}).get(m_id, [])
+				if not finals.is_empty():
+					f_id = finals[randi() % finals.size()]["id"]
+				evos[el_key] = {"mid": m_id, "final": f_id}
+	return evos
 
 ## デバッグ用：ステージ5ボス（冥王デモニアス）との戦闘を即時開始
 func debug_start_stage5_boss() -> void:
@@ -996,6 +1308,8 @@ func debug_start_stage5_boss() -> void:
 	islastboss = false
 	lastbossinterval = 0
 	isdeadf = false
+	has_transitioned_after_death = false
+	has_transitioned_stage_clear = false
 	enemycount = 0
 	
 	hide_enemy_hover_tooltip()
@@ -1194,10 +1508,12 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	var parent_node: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
 	
 	for i in range(initial_spawn_count):
-		var e_idx: int = 5 if is_boss else (randi() % 5)
+		var sm_sett = get_node_or_null("/root/SettingsManager")
+		var is_tut: bool = (sm_sett and "is_tutorial_mode" in sm_sett and sm_sett.is_tutorial_mode)
+		var e_idx: int = 5 if is_boss else (0 if is_tut else (randi() % 5))
 		var ename: String = enemy_info["names"][e_idx]
 		var r_hp: int = enemy_info["hp"][e_idx]
-		var r_atk: int = enemy_info["atk"][e_idx]
+		var r_atk: int = int(enemy_info["atk"][e_idx] * (0.2 if is_tut else 1.0))
 		var sp_data = ENEMY_SPECIES.get(ename, {"name": ename, "element": "無属性", "race": "無属性", "color": "#FFFFFF"})
 		var en: Sprite2D = null
 		if ename in ENEMY_TEXTURES:
@@ -1243,8 +1559,17 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 				first_color_set = true
 			var diff_hp_mult: float = _get_difficulty_hp_mult()
 			var diff_atk_mult: float = _get_difficulty_atk_mult()
-			var e_hp = r_hp * stage_mult * diff_hp_mult
-			var e_atk = r_atk * stage_mult * diff_atk_mult
+			var stage1_progression_mult: float = 1.0
+			if stage == 1 and not is_boss:
+				# ステージ1: 敵種類は完全ランダム選出を維持し、進行度（BATTLE 1〜4）に応じて敵の強さを段階的にスケーリング
+				match stage_enemy:
+					1: stage1_progression_mult = 0.35 # 初戦はさらに弱く (約1,400〜2,100 HP, 300〜450 ATK)
+					2: stage1_progression_mult = 0.60 # 2戦目 (約2,400〜3,600 HP, 500〜750 ATK)
+					3: stage1_progression_mult = 0.90 # 3戦目 (約3,600〜5,400 HP, 800〜1,150 ATK)
+					4: stage1_progression_mult = 1.25 # 4戦目 (約5,000〜7,500 HP, 1,100〜1,600 ATK)
+					_: stage1_progression_mult = 1.0
+			var e_hp = r_hp * stage_mult * diff_hp_mult * stage1_progression_mult
+			var e_atk = r_atk * stage_mult * diff_atk_mult * stage1_progression_mult
 			ehp += e_hp
 			ehpmax += e_hp
 			enemyat += e_atk
@@ -1298,7 +1623,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 
 			var lbl = RichTextLabel.new()
 			lbl.bbcode_enabled = true
-			lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 			lbl.fit_content = true
 			lbl.scroll_active = false
 			lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -1312,6 +1637,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			lbl.position = bar_bg.position + Vector2(-120, -45)
 			var boss_tag = "[color=#FF1744]☠ BOSS ☠[/color]\n" if is_boss else ""
 			lbl.text = "[center]" + boss_tag + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
+			GlossaryDatabase.bind_rich_text_label(lbl)
 			parent_node.add_child(lbl)
 			var hp_lbl = RichTextLabel.new()
 			hp_lbl.bbcode_enabled = true
@@ -1327,9 +1653,26 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 			hp_lbl.text = "[center][color=#FFFFFF]" + str(int(e_hp)) + " / " + str(int(e_hp)) + "[/color][/center]"
 			parent_node.add_child(hp_lbl)
 			
+			var status_bar = RichTextLabel.new()
+			status_bar.name = "EnemyStatusBar"
+			status_bar.bbcode_enabled = true
+			status_bar.mouse_filter = Control.MOUSE_FILTER_PASS
+			status_bar.fit_content = true
+			status_bar.scroll_active = false
+			status_bar.autowrap_mode = TextServer.AUTOWRAP_OFF
+			status_bar.add_theme_font_override("normal_font", CUSTOM_FONT)
+			status_bar.add_theme_font_size_override("normal_font_size", 14)
+			status_bar.add_theme_constant_override("outline_size", 3)
+			status_bar.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+			status_bar.size = Vector2(300, 24)
+			status_bar.position = bar_bg.position + Vector2(-100, -70)
+			parent_node.add_child(status_bar)
+
+			var enemy_evos = _assign_enemy_evolutions(sp_data, is_boss)
 			active_enemies.append({
-				"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
+				"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk, "shield": 0.0,
 				"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
+				"status_bar": status_bar, "evolutions": enemy_evos,
 				"target_badge": target_badge, "target_frame": target_frame, "intent_panel": intent_panel, "intent_badge": intent_badge, "sp_data": sp_data
 			})
 
@@ -1494,7 +1837,7 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 
 	var lbl = RichTextLabel.new()
 	lbl.bbcode_enabled = true
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 	lbl.fit_content = true
 	lbl.scroll_active = false
 	lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -1507,6 +1850,7 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	lbl.size = Vector2(340, 50)
 	lbl.position = bar_bg.position + Vector2(-120, -45)
 	lbl.text = "[center]" + get_enemy_elements_bbcode(sp_data) + " " + sp_data["name"] + "[/center]"
+	GlossaryDatabase.bind_rich_text_label(lbl)
 	parent_node.add_child(lbl)
 
 	var hp_lbl = RichTextLabel.new()
@@ -1523,9 +1867,26 @@ func summon_boss_minion(specific_ename: String = "") -> Dictionary:
 	hp_lbl.text = "[center][color=#FFFFFF]" + str(int(e_hp)) + " / " + str(int(e_hp)) + "[/color][/center]"
 	parent_node.add_child(hp_lbl)
 
+	var minion_status_bar = RichTextLabel.new()
+	minion_status_bar.name = "EnemyStatusBar"
+	minion_status_bar.bbcode_enabled = true
+	minion_status_bar.mouse_filter = Control.MOUSE_FILTER_PASS
+	minion_status_bar.fit_content = true
+	minion_status_bar.scroll_active = false
+	minion_status_bar.autowrap_mode = TextServer.AUTOWRAP_OFF
+	minion_status_bar.add_theme_font_override("normal_font", CUSTOM_FONT)
+	minion_status_bar.add_theme_font_size_override("normal_font_size", 14)
+	minion_status_bar.add_theme_constant_override("outline_size", 3)
+	minion_status_bar.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	minion_status_bar.size = Vector2(300, 24)
+	minion_status_bar.position = bar_bg.position + Vector2(-100, -70)
+	parent_node.add_child(minion_status_bar)
+
+	var minion_evos = _assign_enemy_evolutions(sp_data, false)
 	var new_e = {
-		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk,
+		"key": ename, "sprite": en, "hp": e_hp, "max_hp": e_hp, "atk": e_atk, "shield": 0.0,
 		"bar_bg": bar_bg, "bar_red": bar_red, "bar_green": bar_green, "lbl": lbl, "hp_lbl": hp_lbl,
+		"status_bar": minion_status_bar, "evolutions": minion_evos,
 		"target_badge": target_badge, "target_frame": target_frame, "intent_panel": intent_panel, "intent_badge": intent_badge, "sp_data": sp_data,
 		"just_summoned": true
 	}
@@ -1899,11 +2260,13 @@ func reset_enemy_zoom(duration: float = 0.18) -> void:
 
 ## HP計算（ダメージ適用：指定された敵、または集中攻撃ターゲットへダメージを適用）
 func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = null) -> void:
+	if damage_to_player > 0.0:
+		last_damage_amount = damage_to_player
 	myhp = clampf(myhp - damage_to_player, 0.0, myhpmax)
 	myhppar = myhp / myhpmax if myhpmax > 0 else 0.0
 	displayhp()
 	
-	if damage_to_enemy > 0.0 and active_enemies.size() > 0:
+	if active_enemies.size() > 0:
 		var target_idx: int = -1
 		if typeof(target_specifier) == TYPE_OBJECT and not is_instance_valid(target_specifier):
 			target_specifier = null
@@ -1927,7 +2290,89 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 				target_idx = 0
 
 		var e_data = active_enemies[target_idx]
-		if e_data["hp"] > 0:
+		var pb = get_node_or_null("../PuzzleBoard")
+		if damage_to_enemy < 0.0:
+			# 敵HP回復
+			var heal_val = -damage_to_enemy
+			var cur_e_hp = float(e_data.get("hp", 0.0))
+			var max_e_hp = float(e_data.get("max_hp", cur_e_hp))
+			var new_e_hp = cur_e_hp + heal_val
+			if new_e_hp > max_e_hp:
+				# 💧 溢れる泉: 超過回復シールド変換
+				if pb != null and pb.has_method("has_actor_skill_trait") and pb.has_actor_skill_trait(false, "water", "water_final_a2", e_data):
+					e_data["shield"] = float(e_data.get("shield", 0.0)) + (new_e_hp - max_e_hp)
+				e_data["hp"] = max_e_hp
+			else:
+				e_data["hp"] = new_e_hp
+		elif damage_to_enemy > 0.0 and e_data["hp"] > 0:
+			# 敵側の防御系進化（対称適用）
+			if pb != null and pb.has_method("has_actor_skill_trait"):
+				# 🪨 城壁 (earth_final_a1): 敵石1個につき被ダメ-5%(最大40%)
+				if pb.has_actor_skill_trait(false, "earth", "earth_final_a1", e_data):
+					var e_stone_cnt = 0
+					if pb.grid_stones.size() == pb.GRID_ROWS:
+						for str_r in range(pb.GRID_ROWS):
+							for str_c in range(pb.GRID_COLUMNS):
+								if pb.grid_stones[str_r][str_c] > 0 and not pb.is_ally_stone(str_r, str_c):
+									e_stone_cnt += 1
+					var st_red = minf(0.40, float(e_stone_cnt) * 0.05)
+					damage_to_enemy *= (1.0 - st_red)
+
+				# 🌱 森の加護 (wood_final_b1): 敵植物1本につき被ダメ-5%(最大40%)
+				if pb.has_actor_skill_trait(false, "wood", "wood_final_b1", e_data):
+					var e_plant_cnt = 0
+					for pl in pb.plant_entities:
+						if not pb.is_ally_plant(pl):
+							e_plant_cnt += 1
+					var pl_red = minf(0.40, float(e_plant_cnt) * 0.05)
+					damage_to_enemy *= (1.0 - pl_red)
+
+				# ❄️ 寒気 (ice_final_c1): 敵氷1個につきプレイヤー攻撃力-3%(最大30%)
+				if pb.has_actor_skill_trait(false, "ice", "ice_final_c1", e_data):
+					var e_ice_cnt = 0
+					if pb.grid_ice.size() == pb.GRID_ROWS:
+						for ir in range(pb.GRID_ROWS):
+							for ic in range(pb.GRID_COLUMNS):
+								if pb.grid_ice[ir][ic] > 0 and not pb.is_ally_ice(ir, ic):
+									e_ice_cnt += 1
+					var chill_red = minf(0.30, float(e_ice_cnt) * 0.03)
+					damage_to_enemy *= (1.0 - chill_red)
+
+				# 🧪 弱体 (poison_mid_c): 敵毒1個につきプレイヤー攻撃力-3%(最大30%)
+				if pb.has_actor_skill_trait(false, "poison", "poison_mid_c", e_data):
+					var e_poi_cnt = 0
+					if pb.grid_poison.size() == pb.GRID_ROWS:
+						for pr in range(pb.GRID_ROWS):
+							for pc in range(pb.GRID_COLUMNS):
+								if pb.grid_poison[pr][pc] and not pb.is_ally_poison(pr, pc):
+									e_poi_cnt += 1
+					var poi_red = minf(0.30, float(e_poi_cnt) * 0.03)
+					damage_to_enemy *= (1.0 - poi_red)
+
+			# 敵シールドの吸収
+			var cur_shield = float(e_data.get("shield", 0.0))
+			var blocked = 0.0
+			if cur_shield > 0.0:
+				blocked = minf(cur_shield, damage_to_enemy)
+				e_data["shield"] = cur_shield - blocked
+				damage_to_enemy -= blocked
+
+			# ❄️ 氷A2: 氷柱反撃 (敵がシールドで受け止めたダメージをプレイヤーへ反射)
+			if blocked > 0.0 and pb != null and pb.has_method("has_actor_skill_trait") and pb.has_actor_skill_trait(false, "ice", "ice_final_a2", e_data):
+				# 反射ダメージはプレイヤーのシールド・防御で軽減可能とし、理不尽な即死を防ぐ
+				var raw_refl: float = minf(blocked * 0.25, myhpmax * 0.20)
+				if "guard" in self and guard > 0.0:
+					var guard_block = minf(guard, raw_refl)
+					guard -= guard_block
+					raw_refl -= guard_block
+				if raw_refl > 0.0:
+					raw_refl = minf(raw_refl, maxf(0.0, myhp - 1.0))
+					if raw_refl > 0.0:
+						last_damage_cause = "敵シールドによる氷柱反撃"
+						calchp(0.0, raw_refl)
+						if pb and pb.has_method("_spawn_floating_text"):
+							pb._spawn_floating_text(Vector2(640, 600), "❄️ 氷柱反撃 -%d!" % int(raw_refl), Color(0.4, 0.8, 1.0))
+
 			e_data["hp"] -= damage_to_enemy
 			if is_instance_valid(e_data.get("sprite")):
 				var spr = e_data["sprite"]
@@ -1953,6 +2398,7 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 				if e_data.has("bar_fg") and is_instance_valid(e_data["bar_fg"]): e_data["bar_fg"].queue_free()
 				if e_data.has("lbl") and is_instance_valid(e_data["lbl"]): e_data["lbl"].queue_free()
 				if e_data.has("hp_lbl") and is_instance_valid(e_data["hp_lbl"]): e_data["hp_lbl"].queue_free()
+				if e_data.has("status_bar") and is_instance_valid(e_data["status_bar"]): e_data["status_bar"].queue_free()
 				if e_data.has("target_badge") and is_instance_valid(e_data["target_badge"]): e_data["target_badge"].queue_free()
 				if e_data.has("target_frame") and is_instance_valid(e_data["target_frame"]): e_data["target_frame"].queue_free()
 				if e_data.has("intent_panel") and is_instance_valid(e_data["intent_panel"]): e_data["intent_panel"].queue_free()
@@ -1968,15 +2414,15 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 		if active_enemies.size() > 0:
 			var cur_focus = get_focused_enemy_index()
 			if cur_focus >= 0 and cur_focus < active_enemies.size():
-				enemy = active_enemies[cur_focus]["sprite"]
+				enemy = active_enemies[cur_focus].get("sprite", null)
 			else:
-				enemy = active_enemies[0]["sprite"]
+				enemy = active_enemies[0].get("sprite", null)
 		else:
 			enemy = null
 			_active_single_anims.clear()
 			is_playing_custom_animation = false
 			_current_custom_anim = ""
-		if target_idx < active_enemies.size() and active_enemies[target_idx]["hp"] > 0:
+		if damage_to_enemy > 0.0 and target_idx < active_enemies.size() and active_enemies[target_idx].get("hp", 0) > 0:
 			var target_e = active_enemies[target_idx]
 			var t_spr = target_e.get("sprite")
 			if is_instance_valid(t_spr):
@@ -1988,11 +2434,14 @@ func calchp(damage_to_enemy: float, damage_to_player: float, target_specifier = 
 						t_spr.set_meta("last_damaged_time", now_sec)
 						play_single_enemy_animation(target_idx, "damaged")
 
-	var sum_hp = 0.0
-	for e in active_enemies:
-		var cur_e_hp = float(e.get("hp", 0.0))
-		if cur_e_hp > 0: sum_hp += cur_e_hp
-	ehp = sum_hp
+	if active_enemies.size() > 0:
+		var sum_hp = 0.0
+		for e in active_enemies:
+			var cur_e_hp = float(e.get("hp", 0.0))
+			if cur_e_hp > 0: sum_hp += cur_e_hp
+		ehp = sum_hp
+	elif damage_to_enemy > 0.0:
+		ehp = maxf(0.0, ehp - damage_to_enemy)
 	ehppar = ehp / ehpmax if ehpmax > 0 else 0.0
 	if ehp <= 0 and not isdeadf:
 		isdead()
@@ -2025,10 +2474,10 @@ func displayhp() -> void:
 				
 		if e.has("hp_lbl") and is_instance_valid(e.get("hp_lbl")):
 			var cur_hp_int = int(cur_hp)
-			var last_hp = e.get("last_hp_int", -1)
-			if cur_hp_int != last_hp:
-				e["last_hp_int"] = cur_hp_int
-				e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(max_hp)) + "[/color][/center]"
+			var cur_sh_int = int(e.get("shield", 0.0))
+			var sh_tag = (" [color=#4DD0E1]🛡️" + str(cur_sh_int) + "[/color]") if cur_sh_int > 0 else ""
+			e["last_hp_int"] = cur_hp_int
+			e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(max_hp)) + sh_tag + "[/color][/center]"
 				
 	if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl) and enemy_race_lbl.visible:
 		enemy_race_lbl.visible = false
@@ -2187,17 +2636,18 @@ func isdead() -> void:
 			b.stop()
 			
 	for e in active_enemies:
-		if is_instance_valid(e["sprite"]):
+		if e.has("sprite") and is_instance_valid(e["sprite"]):
 			if e["sprite"].has_meta("active_skill_tween"):
 				var tw = e["sprite"].get_meta("active_skill_tween")
 				if is_instance_valid(tw) and tw is Tween: tw.kill()
 			e["sprite"].queue_free()
-		if is_instance_valid(e["bar_bg"]): e["bar_bg"].queue_free()
+		if e.has("bar_bg") and is_instance_valid(e["bar_bg"]): e["bar_bg"].queue_free()
 		if e.has("bar_red") and is_instance_valid(e["bar_red"]): e["bar_red"].queue_free()
 		if e.has("bar_green") and is_instance_valid(e["bar_green"]): e["bar_green"].queue_free()
 		if e.has("bar_fg") and is_instance_valid(e["bar_fg"]): e["bar_fg"].queue_free()
-		if is_instance_valid(e["lbl"]): e["lbl"].queue_free()
-		if is_instance_valid(e["hp_lbl"]): e["hp_lbl"].queue_free()
+		if e.has("lbl") and is_instance_valid(e["lbl"]): e["lbl"].queue_free()
+		if e.has("hp_lbl") and is_instance_valid(e["hp_lbl"]): e["hp_lbl"].queue_free()
+		if e.has("status_bar") and is_instance_valid(e["status_bar"]): e["status_bar"].queue_free()
 		if e.has("target_badge") and is_instance_valid(e["target_badge"]): e["target_badge"].queue_free()
 		if e.has("target_frame") and is_instance_valid(e["target_frame"]): e["target_frame"].queue_free()
 		if e.has("intent_panel") and is_instance_valid(e["intent_panel"]): e["intent_panel"].queue_free()
@@ -2216,6 +2666,8 @@ func isdead() -> void:
 	
 	enemycount = 0
 	isdeadf = true
+	deadinterval = 0
+	has_transitioned_after_death = false
 	
 	if (is_current_boss or stage_enemy == 5) and stage == 5:
 		islastboss = true
@@ -2223,6 +2675,7 @@ func isdead() -> void:
 	elif is_current_boss or stage_enemy == 5:
 		isstageclear = true
 		clearinterval = 0
+		has_transitioned_stage_clear = false
 		var rm = _get_relic_manager()
 		if rm: rm.on_stage_clear()
 ## フィーバータイム開始
@@ -2234,6 +2687,9 @@ func fevertime() -> void:
 		_last_fever_pct = -1
 		appeartime = 0
 		isfevertime = true
+		_fever_dancers_active = false
+		_setup_fever_dancers()
+		_hide_fever_dancers() # 効果音が鳴りきるまでダンサーは非表示
 		
 		var rm = _get_relic_manager()
 		if rm and rm.has_method("on_fever_started"):
@@ -2241,46 +2697,44 @@ func fevertime() -> void:
 		
 		var field_bgm = get_node_or_null("fieldbgm")
 		if field_bgm: field_bgm.stop()
-		var fever_se = get_parent().get_node_or_null("fevertime")
-		if fever_se: fever_se.play()
+		var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
+		is_waiting_for_fever_se = true
+		_fever_se_wait_frames = 0
+		appeartime = 0
+		if fever_se:
+			fever_se.play()
+			if fever_se.stream:
+				_fever_se_max_frames = maxi(60, int(ceil(fever_se.stream.get_length() * 60.0)) + 10)
+			else:
+				_fever_se_max_frames = 285
+			if not fever_se.finished.is_connected(_on_fever_se_finished):
+				fever_se.finished.connect(_on_fever_se_finished)
+		else:
+			_fever_se_max_frames = 285
 		
-		var fever_lbl = get_parent().get_node_or_null("ScoreManager/feverlabel")
-		if fever_lbl:
-			fever_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
-			fever_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
-			fever_lbl.add_theme_constant_override("outline_size", 12)
-			fever_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-			fever_lbl.add_theme_font_size_override("normal_font_size", 64)
-			fever_lbl.add_theme_font_size_override("bold_font_size", 64)
+		# フィーバー突入時: フィーバータイムの文字（大文字バナー）を大きく画面中央に表示！
+		_show_fever_banner()
 
-			# 実際のショップバフ倍率（2.0 + fever_boost_level * 0.5）と完全連動
-			var sm_node = _get_score_manager()
-			var mult: float = 2.0
-			if sm_node and "fever_boost_level" in sm_node:
-				mult = 2.0 + sm_node.fever_boost_level * 0.5
-			var mult_str: String = ("%.1f" % mult).trim_suffix(".0")
-			fever_lbl.text = "[center][b][rainbow freq=0.8 sat=2 val=20]★ FEVER TIME!! ★[/rainbow]\n[color=#FFD700]スコア %s 倍[/color][/b][/center]" % mult_str
-
-			# 画面中央（1920x1080）に大きく大迫力で配置
-			fever_lbl.size = Vector2(1000, 300)
-			fever_lbl.position = Vector2((1920.0 - 1000.0) / 2.0, (1080.0 - 300.0) / 2.0)
-			fever_lbl.z_index = 30
-
-			# ド派手なポップイン拡大アニメーション
-			fever_lbl.scale = Vector2(0.4, 0.4)
-			fever_lbl.pivot_offset = fever_lbl.size / 2.0
-			var tw = fever_lbl.create_tween()
-			tw.tween_property(fever_lbl, "scale", Vector2(1.15, 1.15), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tw.tween_property(fever_lbl, "scale", Vector2(1.0, 1.0), 0.1)
-
-			if sm_node and sm_node.has_method("update_fever_label3"):
-				sm_node.update_fever_label3()
+		# 効果音が鳴りきるまで、フィーバー各欄（HUD）は非表示待機状態にする
+		var sm_node = _get_score_manager()
+		if sm_node:
+			for node_name in ["feverrect", "feverrect2", "feverlabel2", "feverlabel3", "fevertime", "fevertimecount"]:
+				var n = sm_node.get_node_or_null(node_name)
+				if n: n.visible = false
 
 ## フィーバータイム終了
 func notfevertime() -> void:
 	if not isfevertime:
 		return
 	isfevertime = false
+	is_waiting_for_fever_se = false
+	_fever_dancers_active = false
+	if _dancer_tween != null and _dancer_tween.is_valid():
+		_dancer_tween.kill()
+	var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
+	if fever_se and fever_se.playing:
+		fever_se.stop()
+	_hide_fever_dancers()
 	fevergage = 0.0
 	feverpar = 0.0
 	_last_fever_pct = -1
@@ -2328,6 +2782,9 @@ func _process(_delta: float) -> void:
 		_sim_accumulator = 0.0
 
 func _ensure_fever_bgm() -> void:
+	# 効果音の演奏中はBGMを開始しない（SEが鳴りきってから開始）
+	if is_waiting_for_fever_se:
+		return
 	var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
 	if fever_se and fever_se.playing:
 		fever_se.stop()
@@ -2338,15 +2795,25 @@ func _ensure_fever_bgm() -> void:
 func _step_process() -> void:
 	var _prof = Profiler.begin("stage_manager::_step_process")
 	# フィーバータイム突入演出の更新（敵状態・クリア演出に関わらず速度連動で確実に進行）
-	if isfevertime and appeartime < FEVER_INTRO_FRAMES + 10:
-		appeartime += 1
-		if appeartime >= FEVER_INTRO_FRAMES - 8:
+	if isfevertime:
+		if is_waiting_for_fever_se:
+			_fever_se_wait_frames += 1
+			var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
+			if fever_se:
+				var is_se_playing: bool = fever_se.playing
+				if not is_se_playing or _fever_se_wait_frames >= _fever_se_max_frames:
+					_on_fever_se_finished()
+			else:
+				if _fever_se_wait_frames >= _fever_se_max_frames:
+					_on_fever_se_finished()
+		else:
 			_ensure_fever_bgm()
-		if appeartime >= FEVER_INTRO_FRAMES:
-			_process_fever_effects()
-	elif isfevertime:
-		_ensure_fever_bgm()
-		_process_fever_effects()
+			if appeartime < FEVER_INTRO_FRAMES + 10:
+				appeartime += 1
+				if appeartime >= FEVER_INTRO_FRAMES:
+					_process_fever_effects()
+			else:
+				_process_fever_effects()
 
 	# 1. ボス警告（デンジャー演出）処理
 	if isdanger and not is_current_boss:
@@ -2365,7 +2832,14 @@ func _step_process() -> void:
 		
 	# 4. 敵撃破後の待機
 	if isdeadf:
-		if deadinterval == 100:
+		var pb = _get_puzzle_board()
+		var is_steady: bool = (pb == null or not pb.has_method("is_steady_state") or pb.is_steady_state())
+		if deadinterval < 100 or (not is_steady and deadinterval < 300):
+			deadinterval += 1
+			return
+
+		if not has_transitioned_after_death:
+			has_transitioned_after_death = true
 			# ボス戦突入前・ボス戦中は絶対にショップを開かない
 			if not is_boss_battle():
 				# RELIC_OFFER_BATTLE_INDICES (例: 2戦目) に該当する場合のみレリック選択画面を挟む
@@ -2374,8 +2848,9 @@ func _step_process() -> void:
 						if choose_buff_rect: choose_buff_rect.visible = true
 						_set_buff_buttons_visible(true)
 						if move_front_btn:
-							move_front_btn.position = Vector2(710, 974)
-							move_front_btn.size = Vector2(500, 76)
+							move_front_btn.position = Vector2(1480, 974)
+							move_front_btn.size = Vector2(400, 76)
+							move_front_btn.z_index = 100
 							move_front_btn.visible = true
 						clicked = false
 					)
@@ -2383,8 +2858,9 @@ func _step_process() -> void:
 					if choose_buff_rect: choose_buff_rect.visible = true
 					_set_buff_buttons_visible(true)
 					if move_front_btn:
-						move_front_btn.position = Vector2(710, 974)
-						move_front_btn.size = Vector2(500, 76)
+						move_front_btn.position = Vector2(1480, 974)
+						move_front_btn.size = Vector2(400, 76)
+						move_front_btn.z_index = 100
 						move_front_btn.visible = true
 					clicked = false
 			else:
@@ -2446,6 +2922,8 @@ func _process_danger_sequence() -> void:
 		isdeadf = false
 		clicked = true
 		deadinterval = 0
+		has_transitioned_after_death = false
+		has_transitioned_stage_clear = false
 		isdanger = false
 		dangerinterval = 0
 		return
@@ -2487,21 +2965,43 @@ func _process_stage_clear_sequence() -> void:
 		if b_bgm: b_bgm.stop()
 		var kirikae = get_parent().get_node_or_null("stagekirikae")
 		if kirikae: kirikae.play()
-	elif clearinterval == 161:
-		if 5 in RELIC_OFFER_BATTLE_INDICES:
-			_open_relic_selection(func():
+	elif clearinterval >= 161:
+		var pb = _get_puzzle_board()
+		var is_steady: bool = (pb == null or not pb.has_method("is_steady_state") or pb.is_steady_state())
+		if not is_steady and clearinterval < 360:
+			clearinterval += 1
+			return
+
+		if not has_transitioned_stage_clear:
+			has_transitioned_stage_clear = true
+			if 5 in RELIC_OFFER_BATTLE_INDICES:
+				_open_relic_selection(func():
+					if choose_buff_rect: choose_buff_rect.visible = true
+					_set_buff_buttons_visible(true)
+					if move_front_btn:
+						move_front_btn.position = Vector2(1480, 974)
+						move_front_btn.size = Vector2(400, 76)
+						move_front_btn.z_index = 100
+						move_front_btn.text = "⚔️ 次のステージへ進む"
+						move_front_btn.visible = true
+					if sm:
+						var next_btn = sm.get_node_or_null("stagechangeb")
+						if next_btn: next_btn.visible = true
+					clicked = false
+				)
+			else:
 				if choose_buff_rect: choose_buff_rect.visible = true
 				_set_buff_buttons_visible(true)
+				if move_front_btn:
+					move_front_btn.position = Vector2(1480, 974)
+					move_front_btn.size = Vector2(400, 76)
+					move_front_btn.z_index = 100
+					move_front_btn.text = "⚔️ 次のステージへ進む"
+					move_front_btn.visible = true
 				if sm:
 					var next_btn = sm.get_node_or_null("stagechangeb")
 					if next_btn: next_btn.visible = true
-			)
-		else:
-			if choose_buff_rect: choose_buff_rect.visible = true
-			_set_buff_buttons_visible(true)
-			if sm:
-				var next_btn = sm.get_node_or_null("stagechangeb")
-				if next_btn: next_btn.visible = true
+				clicked = false
 	clearinterval += 1
 
 ## レリック選択画面を開き、選択（またはスキップ）後に on_finished を呼ぶ
@@ -2519,6 +3019,9 @@ func _process_fever_effects() -> void:
 	var field_bgm = get_node_or_null("fieldbgm")
 	if field_bgm: field_bgm.stop()
 	
+	if is_waiting_for_fever_se:
+		return
+
 	var sm = _get_score_manager()
 	if sm:
 		var f_lbl = sm.get_node_or_null("feverlabel")
@@ -2531,7 +3034,7 @@ func _process_fever_effects() -> void:
 	var alive_faces: Array[Node2D] = []
 	for face in facearr:
 		if face != null and is_instance_valid(face):
-			face.position.y += 24.0
+			face.position.y += 6.0
 			if face.position.y >= 4000.0:
 				face.queue_free()
 			else:
@@ -2622,19 +3125,28 @@ func _on_stagechangeb_pressed() -> void:
 		for n in ["stageclear", "stagechangeb", "stageclearWhite2", "stageclearblack"]:
 			var node = sm.get_node_or_null(n)
 			if node: node.visible = false
+		if sm.has_method("set_shop_ui_visible"):
+			sm.set_shop_ui_visible(false)
 			
 	if choose_buff_rect: choose_buff_rect.visible = false
 	_set_buff_buttons_visible(false)
-	if move_front_btn: move_front_btn.visible = false
+	if move_front_btn:
+		move_front_btn.text = "⚔️ 前に進む"
+		move_front_btn.visible = false
 	
 	make_enemy(false)
 	isdeadf = false
 	clicked = true
 	deadinterval = 0
 	clearinterval = 0
+	has_transitioned_after_death = false
+	has_transitioned_stage_clear = false
 
 ## 「次へ進む」ボタン押下時
 func _on_movefront_pressed() -> void:
+	if isstageclear:
+		_on_stagechangeb_pressed()
+		return
 	if not clicked:
 		# ボタン押下時に即座に「前に進む」ボタンとバフ選択画面を非表示化（ボス戦突入時も確実に消去）
 		if move_front_btn: move_front_btn.visible = false
@@ -2647,12 +3159,16 @@ func _on_movefront_pressed() -> void:
 			isdeadf = false
 			clicked = true
 			deadinterval = 0
+			has_transitioned_after_death = false
+			has_transitioned_stage_clear = false
 		else:
 			stage_enemy += 1
 			make_enemy(false)
 			isdeadf = false
 			clicked = true
 			deadinterval = 0
+			has_transitioned_after_death = false
+			has_transitioned_stage_clear = false
 
 func play_single_enemy_animation(target, anim_name: String, on_complete: Callable = Callable()) -> bool:
 	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):

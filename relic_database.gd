@@ -28,7 +28,7 @@ const ELEMENT_CATEGORIES: Dictionary = {
 		"color": Color("#00E676"),
 		"elements": ["water", "ice", "wood", "wind"],
 		"relic_id": "relic_cat_nature",
-		"desc": "水・氷・木・風の属性。生命回復や凍結防御、不利益な効果を浄化する力を持つ。"
+		"desc": "水属性・氷属性・木属性・風属性の系統。生命回復や凍結防御、不利益な効果を浄化する力を持つ。"
 	},
 	"force": {
 		"key": "force",
@@ -37,7 +37,7 @@ const ELEMENT_CATEGORIES: Dictionary = {
 		"color": Color("#FF3D00"),
 		"elements": ["fire", "thunder", "earth"],
 		"relic_id": "relic_cat_force",
-		"desc": "火・雷・地の属性。爆炎と落雷、岩盤破砕の圧倒的な瞬間火力を誇る。"
+		"desc": "火属性・雷属性・地属性の系統。爆炎と落雷、岩盤破砕の圧倒的な瞬間火力を誇る。"
 	},
 	"mystic": {
 		"key": "mystic",
@@ -46,43 +46,43 @@ const ELEMENT_CATEGORIES: Dictionary = {
 		"color": Color("#E040FB"),
 		"elements": ["poison", "light", "dark"],
 		"relic_id": "relic_cat_mystic",
-		"desc": "毒・光・闇の属性。猛毒の侵食、聖像の加護、虚無の重力吸引を操る。"
+		"desc": "毒属性・光属性・闇属性の系統。猛毒の侵食、聖像の加護、虚無の重力吸引を操る。"
 	}
 }
 
 const RELICS: Dictionary = {
 	"relic_cat_nature": {
 		"id": "relic_cat_nature",
-		"name": "【天恵】自然の福音",
+		"name": "【スキル解放権】自然・生命系統 (水属性・氷属性・木属性・風属性)",
 		"rarity": "legendary",
 		"max_level": 1,
 		"category": "category_starter",
 		"element_category": "nature",
-		"description": "【属性：自然・生命】水・氷・木・風属性を解放。該当属性の与ダメージ+30%、自然系スキルツリーを解放。",
+		"description": "水属性・氷属性・木属性・風属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。",
 		"levels": [
 			{"damage_bonus": 0.30}
 		]
 	},
 	"relic_cat_force": {
 		"id": "relic_cat_force",
-		"name": "【天恵】破壊の劫火",
+		"name": "【スキル解放権】元素・破壊系統 (火属性・雷属性・地属性)",
 		"rarity": "legendary",
 		"max_level": 1,
 		"category": "category_starter",
 		"element_category": "force",
-		"description": "【属性：元素・破壊】火・雷・地属性を解放。該当属性の与ダメージ+30%、破壊系スキルツリーを解放。",
+		"description": "火属性・雷属性・地属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。",
 		"levels": [
 			{"damage_bonus": 0.30}
 		]
 	},
 	"relic_cat_mystic": {
 		"id": "relic_cat_mystic",
-		"name": "【天恵】神秘の冥光",
+		"name": "【スキル解放権】神秘・冥術系統 (毒属性・光属性・闇属性)",
 		"rarity": "legendary",
 		"max_level": 1,
 		"category": "category_starter",
 		"element_category": "mystic",
-		"description": "【属性：神秘・冥術】毒・光・闇属性を解放。該当属性の与ダメージ+30%、神秘系スキルツリーを解放。",
+		"description": "毒属性・光属性・闇属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。",
 		"levels": [
 			{"damage_bonus": 0.30}
 		]
@@ -567,10 +567,10 @@ static func get_description(id: String, level: int) -> String:
 			var cm = float(p.get("coin_multiplier", 3.0))
 			return "【呪い】コイン獲得量が%.1f倍になるが、敵の攻撃力も+30%%上昇する" % [cm]
 		"relic_cat_nature":
-			return "【属性：自然・生命】水・氷・木・風属性を解放。該当属性の与ダメージ+30%、自然系スキルツリーを解放。"
+			return "水属性・氷属性・木属性・風属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。"
 		"relic_cat_force":
-			return "【属性：元素・破壊】火・雷・地属性を解放。該当属性の与ダメージ+30%、破壊系スキルツリーを解放。"
+			return "火属性・雷属性・地属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。"
 		"relic_cat_mystic":
-			return "【属性：神秘・冥術】毒・光・闇属性を解放。該当属性の与ダメージ+30%、神秘系スキルツリーを解放。"
+			return "毒属性・光属性・闇属性の系統。該当属性の与ダメージ+30%。ショップでポーションを消費してスキルを習得可能になります。"
 		_:
 			return r.get("description", "")

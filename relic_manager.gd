@@ -27,8 +27,12 @@ func set_chosen_element_category(cat_key: String) -> void:
 	var p = get_parent()
 	if p:
 		var sc = p.get_node_or_null("ScoreManager")
-		if sc and sc.has_method("on_element_category_chosen"):
-			sc.on_element_category_chosen(cat_key)
+		if sc:
+			if sc.has_method("on_element_category_chosen"):
+				sc.on_element_category_chosen(cat_key)
+			if "divscore" in sc and sc.divscore is Array and sc.divscore.size() > 3:
+				# スキル解放権の獲得に伴い、ショップで最初のスキルを即座に解放できるようポーションを最低1000保証
+				sc.divscore[3] = maxi(int(sc.divscore[3]), 1000)
 		var pb = p.get_node_or_null("PuzzleBoard")
 		if pb and pb.has_method("on_element_category_chosen"):
 			pb.on_element_category_chosen(cat_key)

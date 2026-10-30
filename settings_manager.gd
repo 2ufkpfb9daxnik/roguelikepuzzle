@@ -10,6 +10,10 @@ var bgm_volume: float = 0.2   # 0.0 ~ 1.0
 var se_volume: float = 0.2    # 0.0 ~ 1.0
 var game_speed: float = 1.0   # 0.5 ~ 3.0
 
+# チュートリアル関連フラグ & 共通乱数シード
+var is_tutorial_mode: bool = false
+var game_seed: int = 0
+
 enum Difficulty {
 	EASY = 0,
 	NORMAL = 1,
