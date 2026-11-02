@@ -1,0 +1,423 @@
+============================================================
+ レリック画像生成プロンプト集（背景透過対応）
+============================================================
+対象: relic_database.gd の RELICS 全57件
+出力: 1:1 / 1024x1024 / PNG (RGBA)
+保存先の例: Texture/relic/<relic_id>.png
+
+【共通の狙い】
+・既存の剣・盾・コイン・敵スプライトに合わせた、濃厚なダークファンタジー・アニメ調
+・64x64 でも判別できる太いシルエット
+・UI側でレアリティ枠を描くため、画像自体に枠・文字・背景は入れない
+・光源は左上、3/4ビュー、中央配置、余白10%
+・背景は完全透過。透過非対応モデルは末尾の「透過処理」を参照
+
+【共通ネガティブプロンプト】
+background, scenery, landscape, floor, ground, cast shadow, drop shadow,
+reflection, checkerboard, transparency grid, text, letters, numbers,
+readable runes, logo, watermark, signature, UI frame, rectangular border,
+multiple objects, duplicate, cropped, cut off, blurry, low resolution,
+jpeg artifacts, photorealistic, 3D render, plastic toy, flat vector icon,
+messy composition
+
+【透過処理】
+1. 透過対応モデル（GPT-image-1 API の background="transparent" など）
+   そのまま PNG で出力する。
+2. ChatGPT / Gemini / DALL-E など
+   「背景を完全に透明にした PNG で出力して」と追加指示する。
+   チェッカー柄が描き込まれた場合は 3. へ。
+3. 透過非対応モデル
+   各プロンプト末尾の
+   "isolated on transparent background, alpha channel PNG"
+   を
+   "isolated on a flat solid magenta background (#FF00FF), no shadow"
+   に置換して生成し、rembg / Photoshop / GIMP で背景を削除する。
+   ※白背景は聖光・氷・水レリックの白い発光と溶けるため避ける。
+   ※被写体にマゼンタが含まれる場合は、被写体にない色（緑 #00FF00 など）を使う。
+4. 背景除去用の追加プロンプト
+   "Remove the background completely and return a PNG with a transparent
+   background. Preserve the relic's edges, glow, and fine details.
+   Do not add shadows or a new background."
+5. 保存は JPEG ではなく PNG-24（アルファ付き）。
+   生成後に余白をトリムし、256x256 または 512x512 に縮小する。
+
+============================================================
+ カテゴリー解放レリック（3）
+============================================================
+
+------------------------------------------------------------
+No.01 / relic_cat_nature / 【スキル解放権】自然・生命系統 / legendary
+------------------------------------------------------------
+PROMPT:
+A legendary tri-element crest combining a clear water droplet, a six-pointed ice crystal, a young green leaf, and a curling wind swirl, arranged in a balanced circular emblem, emerald green, aqua, and gold, radiant nature magic, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.02 / relic_cat_force / 【スキル解放権】元素・破壊系統 / legendary
+------------------------------------------------------------
+PROMPT:
+A legendary tri-element crest combining a roaring flame, a forked thunderbolt, and a jagged stone gauntlet, arranged in a balanced circular emblem, crimson, orange, and gold, explosive force magic, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.03 / relic_cat_mystic / 【スキル解放権】神秘・冥術系統 / legendary
+------------------------------------------------------------
+PROMPT:
+A legendary tri-element crest combining a dripping poison droplet, a radiant holy sunburst, and a swirling dark void, arranged in a balanced circular emblem, violet, magenta, and gold, eerie mystic magic, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ 汎用レリック（26）
+============================================================
+
+------------------------------------------------------------
+No.04 / chain_ring / 連鎖の指輪 / uncommon
+------------------------------------------------------------
+PROMPT:
+A ring made of interlocking silver chain links, each link engraved with faint abstract blue runes, a small sapphire set in the center, blue arcane glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.05 / four_orb / 4連の宝珠 / common
+------------------------------------------------------------
+PROMPT:
+Four glowing crystal orbs arranged in a diamond formation around a golden core, each orb a different warm color, delicate gold filigree connecting them, radiant warm glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.06 / old_shield / 古びた盾 / common
+------------------------------------------------------------
+PROMPT:
+A weathered round shield of scratched steel and tarnished bronze, chipped rim, old leather straps, muted silver and brown, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.07 / healing_drop / 癒しの雫 / common
+------------------------------------------------------------
+PROMPT:
+A large teardrop-shaped crystal vial filled with luminous emerald healing liquid, tiny golden sparkles suspended inside, soft green glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.08 / indomitable_heart / 不屈の心 / rare
+------------------------------------------------------------
+PROMPT:
+A crimson crystal heart wrapped in golden thorns and a small unbroken chain, glowing from within, defiant aura, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.09 / fire_shard / 炎のかけら / common
+------------------------------------------------------------
+PROMPT:
+A jagged shard of fiery orange crystal, molten veins and small embers, dark charred base, warm red-orange glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.10 / wetland_crown / 湿地の王冠 / uncommon
+------------------------------------------------------------
+PROMPT:
+An ancient golden crown overgrown with reeds, water lilies, and moss, droplets of water clinging to the metal, teal and gold, faint blue-green glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.11 / ruins_collector / 廃墟の収集家 / uncommon
+------------------------------------------------------------
+PROMPT:
+A worn leather collector's satchel overflowing with broken stone fragments, ice shards, and a small golden idol head, dusty brown and gold, faint green glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.12 / resonant_explosive / 共鳴する爆薬 / uncommon
+------------------------------------------------------------
+PROMPT:
+A bundle of alchemical explosive sticks bound with gold wire, a glowing orange core, concentric sound-wave rings, orange and gold, faint orange glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.13 / bloodstained_sword / 血塗られた剣 / rare
+------------------------------------------------------------
+PROMPT:
+A dark steel longsword with a crimson-stained blade and a ruby pommel, dried blood on the edge, menacing blood-red aura, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.14 / desperate_banner / 背水の旗 / uncommon
+------------------------------------------------------------
+PROMPT:
+A tattered crimson war banner on a broken black pole, torn edges, a golden emblem, wind-blown fabric, red and black, faint red glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.15 / excavator_pickaxe / 掘削者の鶴嘴 / common
+------------------------------------------------------------
+PROMPT:
+A heavy steel pickaxe with a wooden handle, bronze reinforcements, small earth, wood, and ice crystals embedded in the head, sturdy and practical, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.16 / pure_oath / 純色の誓い / rare
+------------------------------------------------------------
+PROMPT:
+A pristine white ceremonial sword with a single colorless gem in the guard, surrounded by a thin ring of pure light, one accent color, elegant and absolute, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.17 / tome_of_four_elements / 四象の書 / epic
+------------------------------------------------------------
+PROMPT:
+An open ancient spellbook with four floating elemental sigils above it: flame, water droplet, wind swirl, and thunderbolt, gold-trimmed pages, arcane diagrams, four-color glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.18 / counter_blade / 反撃の刃 / uncommon
+------------------------------------------------------------
+PROMPT:
+A blue steel sword with a shield-shaped crossguard, small shield emblems along the blade, polished silver and sapphire, defensive stance, faint blue glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.19 / alchemy_flask / 錬金術のフラスコ / uncommon
+------------------------------------------------------------
+PROMPT:
+A round-bottom alchemical flask with glowing green-gold liquid, bubbling, cork stopper, brass fittings, faint green-gold glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.20 / executioner_brand / 断罪の刻印 / rare
+------------------------------------------------------------
+PROMPT:
+A heavy iron branding iron with a glowing red-hot judgment seal at the tip, chains wrapped around the handle, dark steel and crimson, faint red glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.21 / soul_harvester / 魂の刈り取り / rare
+------------------------------------------------------------
+PROMPT:
+A curved dark steel scythe with a bone handle, green soul wisps curling around the blade, faint emerald glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.22 / fever_overdrive / 狂熱の心臓 / epic
+------------------------------------------------------------
+PROMPT:
+A blazing mechanical heart of gold and crimson crystal, pistons and gears, fire bursting from the seams, orange-red glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.23 / prismatic_resonator / 万象の共鳴器 / epic
+------------------------------------------------------------
+PROMPT:
+A crystal tuning fork surrounded by floating prismatic shards, rainbow light refracted through the crystal, silver and iridescent, faint rainbow aura, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.24 / crown_of_origin / 始源の神冠 / legendary
+------------------------------------------------------------
+PROMPT:
+An ancient divine crown of white gold with a floating central crystal, cosmic constellations engraved on the band, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.25 / midas_chalice / ミダスの杯 / legendary
+------------------------------------------------------------
+PROMPT:
+A golden chalice overflowing with gold coins and liquid gold, ornate filigree, shimmering liquid gold, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.26 / resonant_spark / 共鳴の点火石 / rare
+------------------------------------------------------------
+PROMPT:
+A dark flint ignition stone with a glowing orange spark, concentric resonance rings and small embers, gold and charcoal, faint orange glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.27 / cursed_shura_sword / 修羅の魔剣 / cursed
+------------------------------------------------------------
+PROMPT:
+A demonic katana with a blood-red blade, black lacquer scabbard, skull-shaped guard, corrupted black iron and tarnished gold, jagged edges, crimson gem inlay, crimson-black curse smoke, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.28 / cursed_gluttony_grail / 暴食の聖杯 / cursed
+------------------------------------------------------------
+PROMPT:
+An ornate dark gold grail with a monstrous open-mouthed design, overflowing with red liquid, bone accents, corrupted black iron and tarnished gold, jagged edges, crimson gem inlay, crimson-black curse smoke, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.29 / cursed_midas_touch / 黄金のミダスタッチ / cursed
+------------------------------------------------------------
+PROMPT:
+A golden gauntlet with fingertips turning a coin into gold, black cracks spreading across the gold, gold and black, corrupted black iron and tarnished gold, jagged edges, crimson gem inlay, crimson-black curse smoke, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ 自然・生命系統（8）
+============================================================
+
+------------------------------------------------------------
+No.30 / water_sacred_crown / 水神の聖杯 / rare
+------------------------------------------------------------
+PROMPT:
+An ornate silver chalice filled with swirling clear water, seashell and wave motifs, aquamarine gems, blue glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.31 / ice_crystal_crown / 氷晶の王冠 / rare
+------------------------------------------------------------
+PROMPT:
+A crown formed from sharp ice crystals, frost mist, pale cyan and silver, faint icy blue glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.32 / world_tree_seed / 世界樹の種 / epic
+------------------------------------------------------------
+PROMPT:
+A glowing green seed split open to reveal a tiny world tree with roots and leaves, golden light, emerald glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.33 / swift_wind_feather / 疾風の羽根 / uncommon
+------------------------------------------------------------
+PROMPT:
+A long white-green feather with curling wind arcs and small leaves, dynamic motion, pale green and silver, faint wind aura, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.34 / flowing_water_charm / 流水の護符 / common
+------------------------------------------------------------
+PROMPT:
+An oval jade amulet carved with flowing water patterns, silver chain, water droplets, blue-green glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.35 / frozen_earth_oath / 凍土の誓約 / uncommon
+------------------------------------------------------------
+PROMPT:
+A stone oath tablet bound with an icy ring, frozen soil and small crystals, brown, gray, and cyan, faint frost glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.36 / vine_binding / 藤蔓の拘束 / rare
+------------------------------------------------------------
+PROMPT:
+A thick thorny green vine wrapped around a broken iron lock and chain, small leaves, emerald glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.37 / tide_ring / 潮汐の指輪 / epic
+------------------------------------------------------------
+PROMPT:
+A silver ring with a crescent moon and a cresting tidal wave, pearl and sapphire, blue glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ 元素・破壊系統（8）
+============================================================
+
+------------------------------------------------------------
+No.38 / blazing_fire_orb / 業炎の宝珠 / rare
+------------------------------------------------------------
+PROMPT:
+A spherical orb of roaring orange-red fire, molten core, small flame tongues, gold ring setting, intense fire glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.39 / thunder_god_bracelet / 雷神の腕輪 / rare
+------------------------------------------------------------
+PROMPT:
+An ornate gold bracelet with a forked lightning bolt motif, blue-white electric arcs, storm clouds engraved on the band, gold and blue, electric glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.40 / earth_heart / 大地の心臓 / epic
+------------------------------------------------------------
+PROMPT:
+A heart-shaped geode of brown rock split open to reveal golden crystal, small stone fragments floating, earthy gold glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.41 / demolition_book / 爆破の書 / uncommon
+------------------------------------------------------------
+PROMPT:
+A thick dark red spellbook with a bomb emblem on the cover, pages bursting with sparks and smoke, black and red, explosive glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.42 / molten_iron_armor / 熔鉄の甲冑 / uncommon
+------------------------------------------------------------
+PROMPT:
+A heavy iron chestplate with molten orange cracks and glowing rivets, charred steel, heat haze, orange-red glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.43 / magnet_charm / 磁石の護符 / rare
+------------------------------------------------------------
+PROMPT:
+A horseshoe magnet amulet of dark iron and gold, blue-white electric arcs between the poles, small lightning bolts, faint electric glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.44 / rock_fortress / 岩塊の要塞 / common
+------------------------------------------------------------
+PROMPT:
+A miniature stone fortress with battlements and a heavy gate, gray rock and moss, small golden flag, faint earth glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.45 / superconduct_ring / 超電導の指輪 / legendary
+------------------------------------------------------------
+PROMPT:
+A sleek silver ring with a floating blue crystal core, crackling white-blue electric arcs, futuristic and elegant, faint electric glow, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ 神秘・冥術系統（8）
+============================================================
+
+------------------------------------------------------------
+No.46 / venom_crown / 猛毒の王冠 / rare
+------------------------------------------------------------
+PROMPT:
+A jagged dark gold crown dripping with luminous green poison, small fangs, purple-green toxic mist, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.47 / holy_lighthouse / 聖光の灯台 / rare
+------------------------------------------------------------
+PROMPT:
+An ornate golden lighthouse lantern with a radiant white-gold flame, stained glass panels, beams of holy light, faint gold halo, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.48 / void_ring / 虚無の指環 / epic
+------------------------------------------------------------
+PROMPT:
+A black ring surrounding a swirling purple void, small stars and debris pulled inward, black and violet, eerie glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.49 / underworld_contract / 冥府の契約 / uncommon
+------------------------------------------------------------
+PROMPT:
+An ancient parchment contract sealed with a dark purple wax sigil, black chains, a quill, purple-black glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.50 / corrosion_charm / 腐蝕の護符 / common
+------------------------------------------------------------
+PROMPT:
+A corroded bronze amulet with acid-eaten holes, dripping green corrosive liquid, black chain, green-black glow, simple weathered materials, minimal ornamentation, subtle silver rim light, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.51 / sanctuary_lamp / 聖域の灯 / uncommon
+------------------------------------------------------------
+PROMPT:
+An ornate silver lamp with a warm white-gold holy flame, protective abstract runes, stained glass, gentle gold glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.52 / shadow_pin / 影縫いの杭 / rare
+------------------------------------------------------------
+PROMPT:
+A long black iron spike wrapped in shadowy chains, purple-black mist, ominous and sharp, faint violet glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.53 / underworld_scale / 黄泉の秤 / rare
+------------------------------------------------------------
+PROMPT:
+An ornate set of scales made of bone and dark gold, one pan holding a soul flame, purple-black glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ クロスカテゴリー（4）
+============================================================
+
+------------------------------------------------------------
+No.54 / elemental_affinity_ring / 属性親和の指輪 / epic
+------------------------------------------------------------
+PROMPT:
+A silver ring set with multiple elemental gemstones: red flame, blue water, green wind, yellow thunder, purple dark, rainbow light, faint rainbow glow, highly ornate gold and silver filigree, violet crystal inlay, subtle violet energy aura, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.55 / spirit_blessing / 精霊の祝福 / rare
+------------------------------------------------------------
+PROMPT:
+A luminous spirit orb surrounded by tiny winged sylphs and floating leaves, green-blue-gold light, gentle glow, ornate gold filigree, polished materials, subtle blue magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.56 / magic_crystal / 魔力結晶 / uncommon
+------------------------------------------------------------
+PROMPT:
+A large faceted violet-blue magic crystal cluster, inner light, floating shards, silver base, arcane glow, moderate ornamentation, brushed bronze and dark wood, subtle green magical accent, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+------------------------------------------------------------
+No.57 / ancient_dragon_scale / 古龍の鱗 / legendary
+------------------------------------------------------------
+PROMPT:
+A single ancient dragon scale of gold and emerald, engraved with abstract magical runes, faint dragon aura, majestic and heavy, divine gold filigree, radiant jewels, intricate sacred engravings, warm gold halo, dark fantasy anime RPG relic icon, single centered game item, hand-painted 2D digital illustration, rich saturated colors, dramatic upper-left rim light, crisp bold silhouette, high detail, readable at 64x64, full object visible with 10% margin, front view or slight three-quarter view, isolated on transparent background, alpha channel PNG, no backdrop, no ground, no cast shadow, no reflection, no readable text, no letters, no numbers, no logo, no signature, no watermark, no UI frame, no rectangular border, 1:1 square
+
+============================================================
+ 補足
+============================================================
+・レアリティ別の装飾フレーズを変更したい場合は、各PROMPT内の
+  「simple weathered materials ...」「moderate ornamentation ...」
+  「ornate gold filigree ...」「highly ornate ...」
+  「divine gold filigree ...」「corrupted black iron ...」
+  を差し替える。
+・同じレリックで複数案を出す場合は、seed を固定するか、
+  「same composition, alternative color variation」を追加する。
+・画像生成後に文字・枠・影が入った場合は、ネガティブプロンプトを強化するか
+  インペイントで消す。
+・ゲーム内の表示サイズは56x56のため、生成後は必ず縮小して
+  シルエットが潰れていないか確認する。

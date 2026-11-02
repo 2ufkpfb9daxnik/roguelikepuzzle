@@ -638,7 +638,8 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 		draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(0.10, 0.65, 1.0, 0.65))
 		draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(0.35, 0.95, 1.0, 0.82))
 		draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(0.85, 1.0, 1.0, 0.92))
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🔥 蒼炎(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 0.98, 1.0))
+		var lbl = "🔥 蒼炎(残%dT)" % fire_type if fire_type > 0 else "🔥 蒼炎(自)"
+		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 0.98, 1.0))
 	else:
 		var glow_col = Color(1.0, 0.25, 0.0, 0.38 * pulse) if fire_type == 1 else Color(1.0, 0.1, 0.1, 0.55 * pulse)
 		var border_col = Color(1.0, 0.5, 0.1, 0.88 * pulse) if fire_type == 1 else Color(1.0, 0.2, 0.0, 0.95 * pulse)
@@ -647,10 +648,11 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 		draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(1.0, 0.35, 0.0, 0.65))
 		draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(1.0, 0.75, 0.1, 0.80))
 		draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(1.0, 1.0, 0.6, 0.90))
-		if fire_type == 2:
+		if fire_type == 2 and board.has_method("_is_plant_cell") and board._is_plant_cell(r, c):
 			draw_string(CUSTOM_FONT, center + Vector2(-120, 140), "⚠大延焼⚠", HORIZONTAL_ALIGNMENT_CENTER, 240, 40, Color(1.0, 0.9, 0.2, 0.95))
 		else:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🔥 炎上(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.55, 0.35))
+			var lbl = "🔥 炎上(残%dT)" % fire_type if fire_type > 0 else "🔥 炎上(敵)"
+			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.55, 0.35))
 
 ## 毒属性の猛毒沼マス描画（自＝エメラルド薬毒・免疫リング、敵＝紫黒の猛毒沼・危険警告）
 func _draw_poison_tile(r: int, c: int) -> void:

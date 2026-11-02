@@ -23,6 +23,22 @@ var diff_title_lbl: RichTextLabel = null
 var diff_buttons: Array[Button] = []
 var diff_desc_lbl: RichTextLabel = null
 
+func _get_settings_manager() -> Node:
+	if is_inside_tree():
+		var sm = get_node_or_null("/root/SettingsManager")
+		if sm: return sm
+	var root_node = null
+	if is_inside_tree() and get_tree():
+		root_node = get_tree().root
+	elif Engine.get_main_loop() is SceneTree:
+		root_node = (Engine.get_main_loop() as SceneTree).root
+	if root_node:
+		var sm_autoload = root_node.get_node_or_null("SettingsManager")
+		if sm_autoload == null:
+			sm_autoload = root_node.find_child("SettingsManager", true, false)
+		return sm_autoload
+	return null
+
 func _ready() -> void:
 	# ルートControlを確実に全画面（Full Rect）に初期化
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -45,7 +61,7 @@ func _ready() -> void:
 	ResourceLoader.load_threaded_request("res://current_stage.tscn")
 
 	# 設定変更のリアルタイム連動
-	var sm = get_node_or_null("/root/SettingsManager")
+	var sm = _get_settings_manager()
 	if sm and sm.has_signal("difficulty_changed"):
 		if not sm.difficulty_changed.is_connected(_on_difficulty_changed):
 			sm.difficulty_changed.connect(_on_difficulty_changed)
@@ -103,15 +119,23 @@ func _setup_ui_elements() -> void:
 	style_start_hover.set_border_width_all(3)
 	style_start_hover.set_corner_radius_all(14)
 
-	if start_btn != null:
-		start_btn.add_theme_font_override("font", CUSTOM_FONT)
-		start_btn.add_theme_constant_override("outline_size", 6)
-		start_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		start_btn.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 1))
-		start_btn.add_theme_font_size_override("font_size", 44)
-		start_btn.text = "START"
-		start_btn.add_theme_stylebox_override("normal", style_start_normal)
-		start_btn.add_theme_stylebox_override("hover", style_start_hover)
+	if start_btn == null:
+		start_btn = Button.new()
+		start_btn.name = "StartButton"
+		add_child(start_btn)
+	start_btn.name = "StartButton"
+	start_btn.add_theme_font_override("font", CUSTOM_FONT)
+	start_btn.add_theme_constant_override("outline_size", 6)
+	start_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	start_btn.add_theme_color_override("font_color", Color(1, 0.9, 0.3, 1))
+	start_btn.add_theme_font_size_override("font_size", 28)
+	start_btn.text = "⚔️ ゲーム開始 (START)"
+	start_btn.custom_minimum_size = Vector2(520, 66)
+	start_btn.size = Vector2(520, 66)
+	start_btn.add_theme_stylebox_override("normal", style_start_normal)
+	start_btn.add_theme_stylebox_override("hover", style_start_hover)
+	if not start_btn.pressed.is_connected(_on_button_pressed):
+		start_btn.pressed.connect(_on_button_pressed)
 
 	# 2. チュートリアルボタン (TUTORIAL)
 	var style_tut_normal = StyleBoxFlat.new()
@@ -133,7 +157,9 @@ func _setup_ui_elements() -> void:
 	tutorial_btn.add_theme_constant_override("outline_size", 6)
 	tutorial_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	tutorial_btn.add_theme_color_override("font_color", Color(0.5, 1.0, 0.75, 1))
-	tutorial_btn.add_theme_font_size_override("font_size", 34)
+	tutorial_btn.add_theme_font_size_override("font_size", 28)
+	tutorial_btn.custom_minimum_size = Vector2(520, 66)
+	tutorial_btn.size = Vector2(520, 66)
 	tutorial_btn.add_theme_stylebox_override("normal", style_tut_normal)
 	tutorial_btn.add_theme_stylebox_override("hover", style_tut_hover)
 	tutorial_btn.pressed.connect(_on_tutorial_pressed)
@@ -159,12 +185,14 @@ func _setup_ui_elements() -> void:
 	settings_btn.add_theme_constant_override("outline_size", 6)
 	settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	settings_btn.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0, 1))
-	settings_btn.add_theme_font_size_override("font_size", 34)
+	settings_btn.add_theme_font_size_override("font_size", 28)
+	settings_btn.custom_minimum_size = Vector2(520, 66)
+	settings_btn.size = Vector2(520, 66)
 	settings_btn.add_theme_stylebox_override("normal", style_set_normal)
 	settings_btn.add_theme_stylebox_override("hover", style_set_hover)
 	settings_btn.pressed.connect(func():
 		if click_se: click_se.play()
-		var sm = get_node_or_null("/root/SettingsManager")
+		var sm = _get_settings_manager()
 		if sm:
 			sm.open_settings()
 	)
@@ -190,7 +218,9 @@ func _setup_ui_elements() -> void:
 	quit_btn.add_theme_constant_override("outline_size", 6)
 	quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	quit_btn.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5, 1))
-	quit_btn.add_theme_font_size_override("font_size", 34)
+	quit_btn.add_theme_font_size_override("font_size", 28)
+	quit_btn.custom_minimum_size = Vector2(520, 66)
+	quit_btn.size = Vector2(520, 66)
 	quit_btn.add_theme_stylebox_override("normal", style_quit_normal)
 	quit_btn.add_theme_stylebox_override("hover", style_quit_hover)
 	quit_btn.pressed.connect(func():
@@ -232,7 +262,7 @@ func _setup_ui_elements() -> void:
 		var d_val = item["diff"]
 		btn.pressed.connect(func():
 			if click_se: click_se.play()
-			var sm = get_node_or_null("/root/SettingsManager")
+			var sm = _get_settings_manager()
 			if sm and sm.has_method("set_difficulty"):
 				sm.set_difficulty(d_val)
 			_update_difficulty_ui()
@@ -261,7 +291,7 @@ func _on_difficulty_changed(_new_diff: int) -> void:
 
 ## 難易度UIの選択状態および説明テキストのリアルタイム更新
 func _update_difficulty_ui() -> void:
-	var sm = get_node_or_null("/root/SettingsManager")
+	var sm = _get_settings_manager()
 	var cur_diff = sm.difficulty if (sm and "difficulty" in sm) else 1
 	
 	for i in range(diff_buttons.size()):
@@ -338,10 +368,10 @@ func _update_layout() -> void:
 		desc_label.position = Vector2(0, vp_h * 0.32)
 		desc_label.size = Vector2(vp_w, 70)
 
-	# ボタン群（中央揃えでバランス良く縦並び）
-	var btn_w: float = 480.0
-	var btn_h: float = 68.0
-	var btn_gap: float = 14.0
+	# ボタン群（中央揃えでバランス良く縦並び、4ボタン完全同一寸法・タイポグラフィ統一）
+	var btn_w: float = 520.0
+	var btn_h: float = 66.0
+	var btn_gap: float = 12.0
 	var btn_x: float = (vp_w - btn_w) * 0.5
 
 	# 難易度選択セクションのレイアウト
@@ -387,7 +417,7 @@ func _update_layout() -> void:
 func _on_button_pressed() -> void:
 	if isclicked:
 		return
-	var sm = get_node_or_null("/root/SettingsManager")
+	var sm = _get_settings_manager()
 	if sm:
 		sm.is_tutorial_mode = false
 		sm.game_seed = randi()
@@ -399,7 +429,7 @@ func _on_button_pressed() -> void:
 func _on_tutorial_pressed() -> void:
 	if isclicked:
 		return
-	var sm = get_node_or_null("/root/SettingsManager")
+	var sm = _get_settings_manager()
 	if sm:
 		sm.is_tutorial_mode = true
 		sm.game_seed = 12345678

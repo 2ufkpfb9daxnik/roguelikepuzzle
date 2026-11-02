@@ -188,8 +188,8 @@ func _ready() -> void:
 	info_panel = PanelContainer.new()
 	info_panel.visible = false
 	info_panel.position = Vector2(316, 710)
-	info_panel.size = Vector2(460, 165)
-	info_panel.custom_minimum_size = Vector2(420, 100)
+	info_panel.size = Vector2(520, 180)
+	info_panel.custom_minimum_size = Vector2(480, 110)
 	info_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	info_panel.z_index = 100
 	var style = StyleBoxFlat.new()
@@ -220,20 +220,20 @@ func _ready() -> void:
 	name_label.bbcode_enabled = true
 	name_label.fit_content = true
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_label.custom_minimum_size = Vector2(420, 0)
+	name_label.custom_minimum_size = Vector2(480, 0)
 	name_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	GlossaryDatabase.bind_rich_text_label(name_label)
 	name_label.add_theme_font_override("normal_font", sys_font)
 	name_label.add_theme_font_override("bold_font", sys_font)
-	name_label.add_theme_font_size_override("normal_font_size", 26)
-	name_label.add_theme_font_size_override("bold_font_size", 26)
+	name_label.add_theme_font_size_override("normal_font_size", 28)
+	name_label.add_theme_font_size_override("bold_font_size", 28)
 	vbox.add_child(name_label)
 	
 	desc_label = RichTextLabel.new()
 	desc_label.bbcode_enabled = true
 	desc_label.fit_content = true
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_label.custom_minimum_size = Vector2(420, 0)
+	desc_label.custom_minimum_size = Vector2(480, 0)
 	desc_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	GlossaryDatabase.bind_rich_text_label(desc_label)
 	desc_label.add_theme_font_override("normal_font", sys_font)
@@ -293,13 +293,27 @@ func _ready() -> void:
 	glossary_desc_label.add_theme_font_size_override("bold_font_size", 17)
 	g_vbox.add_child(glossary_desc_label)
 	
-	var rm = null
-	if get_tree() and get_tree().get_root():
+	var rm: Node = null
+	if is_inside_tree() and get_tree() and get_tree().get_root():
 		rm = get_tree().get_root().find_child("RelicManager", true, false)
+	if not rm:
+		var p = get_parent()
+		while p:
+			if p.name == "RelicManager":
+				rm = p
+				break
+			var f = p.find_child("RelicManager", true, false)
+			if f:
+				rm = f
+				break
+			p = p.get_parent()
 	if rm:
-		rm.connect("relic_added", _on_relic_added)
-		rm.connect("relic_leveled_up", _on_relic_leveled_up)
-		rm.connect("relic_triggered", _on_relic_triggered)
+		if not rm.is_connected("relic_added", _on_relic_added):
+			rm.connect("relic_added", _on_relic_added)
+		if not rm.is_connected("relic_leveled_up", _on_relic_leveled_up):
+			rm.connect("relic_leveled_up", _on_relic_leveled_up)
+		if not rm.is_connected("relic_triggered", _on_relic_triggered):
+			rm.connect("relic_triggered", _on_relic_triggered)
 		for r_id in rm.get_relics():
 			_on_relic_added(r_id)
 
@@ -487,22 +501,22 @@ func _show_skill_tooltip(skill_id: String, rect: ColorRect) -> void:
 	var evo_desc_block: String = ""
 	if evo_mid != "":
 		var m_data = sm.get_evolution_data(skill_id, 10, evo_mid) if sm.has_method("get_evolution_data") else {}
-		evo_desc_block += "\n\n[b][color=#80D8FF]✨【第1覚醒: %s】[/color][/b] [color=#B0BEC5](%s)[/color]\n[color=#E0F7FA]%s[/color]" % [
+		evo_desc_block += "\n\n[font_size=20][b][color=#80D8FF]✨【第1覚醒: %s】[/color][/b] [color=#B0BEC5](%s)[/color]\n[color=#E0F7FA]%s[/color][/font_size]" % [
 			m_data.get("name", evo_mid), m_data.get("role", "覚醒"), m_data.get("desc", "")
 		]
 	if evo_final != "":
 		var f_data = sm.get_evolution_data(skill_id, 20, evo_final) if sm.has_method("get_evolution_data") else {}
-		evo_desc_block += "\n\n[b][color=#FFD700]👑【最終覚醒: %s】[/color][/b] [color=#FFE082](%s)[/color]\n[color=#FFF8E1]%s[/color]" % [
+		evo_desc_block += "\n\n[font_size=20][b][color=#FFD700]👑【最終覚醒: %s】[/color][/b] [color=#FFE082](%s)[/color]\n[color=#FFF8E1]%s[/color][/font_size]" % [
 			f_data.get("name", evo_final), f_data.get("role", "究極神格"), f_data.get("desc", "")
 		]
 
 	if is_max:
-		desc_label.text = "[font_size=18][color=#FFD700]【最大レベル】[/color]\n%s%s[/font_size]" % [
+		desc_label.text = "[font_size=22][color=#FFD700]【最大レベル】[/color]\n%s%s[/font_size]" % [
 			GlossaryDatabase.format_text(cur_desc), GlossaryDatabase.format_text(evo_desc_block)
 		]
 	else:
 		var next_desc: String = desc_arr[clampi(cur_lvl, 0, desc_arr.size() - 1)] if not desc_arr.is_empty() else ""
-		desc_label.text = "[font_size=17][color=#FFFFFF]現在: %s[/color]%s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
+		desc_label.text = "[font_size=22][color=#FFFFFF]現在: %s[/color]%s\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
 			GlossaryDatabase.format_text(cur_desc), GlossaryDatabase.format_text(evo_desc_block), cur_lvl + 1, GlossaryDatabase.format_text(next_desc)
 		]
 
@@ -527,8 +541,8 @@ func show_custom_tooltip(title: String, desc: String, screen_pos: Vector2, meta_
 	info_panel.set_meta("current_id", meta_key)
 	info_panel.reset_size()
 
-	var panel_w = maxf(420.0, info_panel.size.x)
-	var panel_h = maxf(100.0, info_panel.size.y)
+	var panel_w = maxf(480.0, info_panel.size.x)
+	var panel_h = maxf(110.0, info_panel.size.y)
 	var target_x = clampf(screen_pos.x + 24.0, 20.0, 1920.0 - panel_w - 20.0)
 	var target_y = clampf(screen_pos.y - panel_h - 15.0, 20.0, 1080.0 - panel_h - 20.0)
 	# 画面上部付近の場合はマウスの下側に配置
@@ -555,12 +569,23 @@ func _on_relic_added(id: String) -> void:
 	rect.size = Vector2(56, 56)
 	
 	var rarity = r_data.get("rarity", "common")
-	if rarity == "legendary": rect.color = Color(0.85, 0.65, 0.08)
-	elif rarity == "epic": rect.color = Color(0.60, 0.18, 0.82)
-	elif rarity == "rare": rect.color = Color(0.18, 0.45, 0.92)
-	elif rarity == "uncommon": rect.color = Color(0.16, 0.68, 0.24)
-	elif rarity == "cursed": rect.color = Color(0.55, 0.06, 0.16)
-	else: rect.color = Color(0.48, 0.50, 0.54)
+	var rarity_col: Color
+	if rarity == "legendary": rarity_col = Color(0.85, 0.65, 0.08)
+	elif rarity == "epic": rarity_col = Color(0.60, 0.18, 0.82)
+	elif rarity == "rare": rarity_col = Color(0.18, 0.45, 0.92)
+	elif rarity == "uncommon": rarity_col = Color(0.16, 0.68, 0.24)
+	elif rarity == "cursed": rarity_col = Color(0.55, 0.06, 0.16)
+	else: rarity_col = Color(0.48, 0.50, 0.54)
+
+	# 背景透過済みのレリックアイコン
+	var icon_texture := RelicDatabase.get_icon(id)
+
+	# アイコンが存在する場合は重厚なオブシディアンガラス調の背景（透過画像が美しく映える）
+	# アイコンが無い場合のみフォールバックとしてレアリティ色をベタ塗り
+	if icon_texture != null:
+		rect.color = Color(0.02, 0.02, 0.04, 0.85)
+	else:
+		rect.color = rarity_col
 
 	var border = ReferenceRect.new()
 	border.size = Vector2(56, 56)
@@ -574,8 +599,20 @@ func _on_relic_added(id: String) -> void:
 	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.add_child(border)
 
+	if icon_texture != null:
+		var icon_rect = TextureRect.new()
+		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.custom_minimum_size = Vector2(50, 50)
+		icon_rect.size = Vector2(50, 50)
+		icon_rect.position = Vector2(3, 3)
+		icon_rect.texture = icon_texture
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.clip_contents = true
+		rect.add_child(icon_rect)
+
 	var sys_font = _get_sys_font()
-	# レリック頭文字ラベル
+	# レリック頭文字ラベル（アイコン未配置時のフォールバック）
 	var lbl = Label.new()
 	lbl.text = r_data.get("name", "?").substr(0, 1)
 	lbl.position = Vector2.ZERO
@@ -587,21 +624,31 @@ func _on_relic_added(id: String) -> void:
 	lbl.add_theme_font_size_override("font_size", 30)
 	lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 	lbl.add_theme_constant_override("outline_size", 4)
+	lbl.visible = icon_texture == null
 	rect.add_child(lbl)
 	
 	# レベルラベル (Lv1から常時わかりやすく表示)
 	var lvl_lbl = Label.new()
 	lvl_lbl.name = "LevelLabel"
-	var rm = get_tree().get_root().find_child("RelicManager", true, false)
-	var cur_lvl = rm.get_level(id) if rm else 1
+	var rm: Node = null
+	if is_inside_tree() and get_tree() and get_tree().get_root():
+		rm = get_tree().get_root().find_child("RelicManager", true, false)
+	if not rm:
+		var p = get_parent()
+		while p:
+			if p.name == "RelicManager": rm = p; break
+			var f = p.find_child("RelicManager", true, false)
+			if f: rm = f; break
+			p = p.get_parent()
+	var cur_lvl = rm.get_level(id) if (rm and rm.has_method("get_level")) else 1
 	lvl_lbl.text = "Lv%d" % cur_lvl
 	lvl_lbl.position = Vector2(14, 34)
 	lvl_lbl.size = Vector2(40, 22)
 	lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	lvl_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lvl_lbl.add_theme_font_override("font", sys_font)
-	lvl_lbl.add_theme_font_size_override("font_size", 15)
-	lvl_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2, 1.0))
+	lvl_lbl.add_theme_font_size_override("font_size", 14)
+	lvl_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.25, 1.0))
 	lvl_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
 	lvl_lbl.add_theme_constant_override("outline_size", 4)
 	rect.add_child(lvl_lbl)
@@ -670,10 +717,10 @@ func _show_relic_tooltip(id: String, rect: ColorRect) -> void:
 	
 	var desc_cur = RelicDatabase.get_description(id, cur_lvl)
 	if is_max:
-		desc_label.text = "[font_size=20][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % GlossaryDatabase.format_text(desc_cur)
+		desc_label.text = "[font_size=23][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % GlossaryDatabase.format_text(desc_cur)
 	else:
 		var desc_next = RelicDatabase.get_description(id, cur_lvl + 1)
-		desc_label.text = "[font_size=19][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
+		desc_label.text = "[font_size=22][color=#FFFFFF]現在: %s[/color]\n\n[color=#FFD700]次 (Lv%d): %s[/color][/font_size]" % [
 			GlossaryDatabase.format_text(desc_cur), cur_lvl + 1, GlossaryDatabase.format_text(desc_next)
 		]
 		

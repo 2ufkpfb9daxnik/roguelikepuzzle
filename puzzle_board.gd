@@ -3,6 +3,70 @@ const ElementDataScript = preload("res://element_data.gd")
 var combat_ui_manager: Node2D
 
 signal combat_event(event_data: Dictionary)
+signal tutorial_swap_completed(from_cell: Vector2i, to_cell: Vector2i)
+signal tutorial_items_scored()
+signal tutorial_attack_landed()
+signal tutorial_enemy_acted()
+signal tutorial_special_detonated(sp_type: int)
+
+# チュートリアル制限・一時停止用
+var tutorial_allowed_swap: Array[Vector2i] = []
+var is_tutorial_paused: bool = false
+var has_emitted_items_scored: bool = false
+
+func set_tutorial_allowed_swap(c1: Vector2i, c2: Vector2i) -> void:
+	tutorial_allowed_swap = [c1, c2]
+	if swap_guide_overlay:
+		swap_guide_overlay.queue_redraw()
+
+func clear_tutorial_allowed_swap() -> void:
+	tutorial_allowed_swap.clear()
+	if swap_guide_overlay:
+		swap_guide_overlay.queue_redraw()
+
+func pause_tutorial_turn() -> void:
+	is_tutorial_paused = true
+
+func resume_tutorial_turn() -> void:
+	is_tutorial_paused = false
+
+## チュートリアル用：戦闘ターン演出シーケンスが進行中かどうか
+func is_turn_sequence_running() -> bool:
+	return current_state == BoardState.TURN_SEQUENCE
+
+func setup_tutorial_stage2_board() -> void:
+	if grid_n.size() < GRID_ROWS or grid_i.size() < GRID_ROWS:
+		return
+	# 4つのポーションが横一列に並ぶよう、(1, 4)と(2, 4)の入れ替えで(2, 3..6)がポーション4連になる盤面を準備
+	grid_n[2][3] = PieceType.POTION
+	grid_n[2][4] = PieceType.SHIELD
+	grid_n[2][5] = PieceType.POTION
+	grid_n[2][6] = PieceType.POTION
+	grid_n[1][4] = PieceType.POTION
+
+	# スプライトのテクスチャも即座に同期
+	var p_23 = grid_i[2][3]; if p_23 >= 0 and p_23 < piece.size() and piece[p_23]: piece[p_23].texture = PIECE_TEXTURES[PieceType.POTION]
+	var p_24 = grid_i[2][4]; if p_24 >= 0 and p_24 < piece.size() and piece[p_24]: piece[p_24].texture = PIECE_TEXTURES[PieceType.SHIELD]
+	var p_25 = grid_i[2][5]; if p_25 >= 0 and p_25 < piece.size() and piece[p_25]: piece[p_25].texture = PIECE_TEXTURES[PieceType.POTION]
+	var p_26 = grid_i[2][6]; if p_26 >= 0 and p_26 < piece.size() and piece[p_26]: piece[p_26].texture = PIECE_TEXTURES[PieceType.POTION]
+	var p_14 = grid_i[1][4]; if p_14 >= 0 and p_14 < piece.size() and piece[p_14]: piece[p_14].texture = PIECE_TEXTURES[PieceType.POTION]
+
+	set_tutorial_allowed_swap(Vector2i(1, 4), Vector2i(2, 4))
+
+func setup_tutorial_move2_board() -> void:
+	if grid_n.size() < GRID_ROWS or grid_i.size() < GRID_ROWS:
+		return
+	grid_n[0][9] = PieceType.SWORD
+	grid_n[0][10] = PieceType.COIN
+	grid_n[1][10] = PieceType.SWORD
+	grid_n[2][10] = PieceType.SWORD
+
+	for p_pos in [Vector2i(0, 9), Vector2i(0, 10), Vector2i(1, 10), Vector2i(2, 10)]:
+		var idx = grid_i[p_pos.x][p_pos.y]
+		if idx >= 0 and idx < piece.size() and piece[idx]:
+			piece[idx].texture = PIECE_TEXTURES[grid_n[p_pos.x][p_pos.y]]
+
+	set_tutorial_allowed_swap(Vector2i(0, 9), Vector2i(0, 10))
 
 var turn_skill_log: Array = []
 const DEBUG_COMBAT_EVENTS = true
@@ -77,8 +141,8 @@ func set_board_seed(new_seed: int) -> void:
 
 func _ensure_board_rng_initialized() -> void:
 	if board_seed == 0:
-		var sm = get_node_or_null("/root/SettingsManager")
-		if sm and "is_tutorial_mode" in sm and sm.is_tutorial_mode:
+		var sm = _get_settings_manager()
+		if (sm and "is_tutorial_mode" in sm and sm.is_tutorial_mode) or is_tutorial_mode:
 			set_board_seed(TUTORIAL_SEED)
 		elif sm and "game_seed" in sm and sm.game_seed != 0:
 			set_board_seed(sm.game_seed)
@@ -202,7 +266,8 @@ var special_item: Array = []   # [row][col] -> SpecialItemType (int)
 var special_charge: Array = [] # [row][col] -> int (チャージ段階 1..3)
 var grid_water: Array = []     # [row][col] -> bool (水浸しマス・スワップ禁止・雷感電)
 var grid_ice: Array = []       # [row][col] -> int (氷漬けマス・耐久値・スワップ禁止・落雷除去不可)
-var grid_fire: Array = []      # [row][col] -> int (0:なし, 1:炎, 2:木燃焼中・次ターン全方位大延焼)
+const DEFAULT_FIRE_LIFETIME: int = 3 # 火の基本寿命（ターン数）
+var grid_fire: Array = []      # [row][col] -> int (0:なし, 1..N:火の残り寿命ターン数, 2:木燃焼中)
 var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/マッチで反動ダメージ)
 var grid_stones: Array = []    # [row][col] -> int (石・耐久値 1)
 var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int, "enemy_owned": bool}] (黒い霧)
@@ -280,6 +345,7 @@ var last_swap_cells: Array = []
 var pending_special_spawns: Dictionary = {} # Vector2i -> int (SpecialItemType)
 var poison_mist_detonated_cells: Dictionary = {}
 var steady_spark_triggered_this_turn: bool = false
+var current_clear_source: String = "ally" # "ally" または "enemy" (PvP前提の便益帰属管理)
 
 # 演出用状態
 var encolor: float = 1.0
@@ -624,6 +690,11 @@ func sync_special_levels_from_score_manager() -> void:
 				special_levels[sp_type] = lvl
 
 func _initialize_board(collid_template: Node) -> void:
+	is_tutorial_paused = false
+	has_emitted_items_scored = false
+	enemy_shock_stacks = 0
+	player_shock_stacks = 0
+	enemy_turn_skip_count = 0
 	_ensure_board_rng_initialized()
 	sync_special_levels_from_score_manager()
 	_clear_all_combat_projectiles()
@@ -965,6 +1036,9 @@ func _update_status_ailments() -> void:
 
 			e_bar.text = " ".join(e_tags)
 
+func _update_turn_combat_status_tags(_sm: Node2D = null) -> void:
+	_update_status_ailments()
+
 ## 盤面が完全に停止・安定した「定常状態」にあるかを判定
 func is_steady_state() -> bool:
 	if current_state != BoardState.IDLE:
@@ -983,7 +1057,9 @@ func is_steady_state() -> bool:
 
 # --- マウス入力とスワップ処理 ---
 
-func _get_mouse_local() -> Vector2:
+func _get_mouse_local(event: InputEvent = null) -> Vector2:
+	if event is InputEventMouse:
+		return to_local(event.position)
 	if is_inside_tree():
 		return get_local_mouse_position()
 	elif get_viewport() != null:
@@ -992,7 +1068,7 @@ func _get_mouse_local() -> Vector2:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		_current_local_mouse = _get_mouse_local()
+		_current_local_mouse = _get_mouse_local(event)
 		if selected_cell.x != -1 and current_state == BoardState.IDLE:
 			if is_holding and selected_piece_idx >= 0 and selected_piece_idx < piece.size() and piece[selected_piece_idx] != null:
 				var clamped_pos = _current_local_mouse + drag_offset
@@ -1043,7 +1119,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if current_state != BoardState.IDLE:
 		return
 
-	var local_pos = _get_mouse_local()
+	var local_pos = _get_mouse_local(event)
 	_current_local_mouse = local_pos
 	var col_idx = int(floor((local_pos.x - BOARD_LEFT) / CELL_PITCH))
 	var row_idx = int(floor((local_pos.y - BOARD_TOP) / CELL_PITCH))
@@ -1052,6 +1128,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	if mouse_event.pressed:
 		is_holding = true
 		press_start_cell = Vector2i(row_idx, col_idx) if is_in_bounds else Vector2i(-1, -1)
+
+		# チュートリアル中の操作マス制限（指示された2マス間の入れ替え、またはスキル駒等の特殊駒タップ起爆を許可）
+		if _is_tutorial_mode():
+			if tutorial_allowed_swap.size() == 2 and is_in_bounds:
+				var cur_c = Vector2i(row_idx, col_idx)
+				var c1 = tutorial_allowed_swap[0]
+				var c2 = tutorial_allowed_swap[1]
+				if cur_c != c1 and cur_c != c2:
+					if selected_cell.x != -1:
+						_deselect_piece()
+					return
+			elif is_in_bounds:
+				var is_sp_cell = (special_item.size() == GRID_ROWS and special_item[row_idx][col_idx] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[row_idx][col_idx])
+				if not is_sp_cell:
+					if selected_cell.x != -1:
+						_deselect_piece()
+					return
+				else:
+					# チュートリアル中のスキル駒タップ起爆：即座に起爆を実行
+					_deselect_piece()
+					_detonate_special_by_click(row_idx, col_idx)
+					return
+			else:
+				if selected_cell.x != -1:
+					_deselect_piece()
+				return
 
 		# 植物（木・苗）のマスは駒が存在せずクリック・スワップ不可
 		if is_in_bounds and _is_plant_cell(row_idx, col_idx):
@@ -1097,12 +1199,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				sm.calchp(0.0, shock_dmg)
 				var rm_br = _get_relic_manager()
 				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
+				player_shock_stacks = mini(5, player_shock_stacks + 1)
+				_spawn_floating_text(get_cell_position(row_idx, col_idx), "⚡ 感電スタック付与 (%d/5)！" % player_shock_stacks, Color(1.0, 0.4, 0.4))
 			_spawn_shock_zap_effect(get_cell_position(row_idx, col_idx))
 			_redraw_board_effects()
 
 		# すでに選択中の場合で、隣接マス（特殊アイテム含む）をクリックしたならスワップ成立
 		if selected_cell.x != -1:
-			if is_in_bounds and (abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1):
+			var can_teleport = (has_dark_teleport_swap or free_swap_turns > 0)
+			if is_in_bounds and ((abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1) or (can_teleport and (row_idx != selected_cell.x or col_idx != selected_cell.y))):
 				var r1 = selected_cell.x
 				var c1 = selected_cell.y
 				_execute_swap(r1, c1, row_idx, col_idx)
@@ -1136,7 +1241,8 @@ func _unhandled_input(event: InputEvent) -> void:
 					if se2: se2.play()
 		else:
 			# すでに選択中: 今回クリックしたマスとの位置関係でスワップまたは解除
-			if is_in_bounds and (abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1):
+			var can_teleport_c = (has_dark_teleport_swap or free_swap_turns > 0)
+			if is_in_bounds and ((abs(row_idx - selected_cell.x) + abs(col_idx - selected_cell.y) == 1) or (can_teleport_c and (row_idx != selected_cell.x or col_idx != selected_cell.y))):
 				var r1 = selected_cell.x
 				var c1 = selected_cell.y
 				_execute_swap(r1, c1, row_idx, col_idx)
@@ -1149,18 +1255,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		# マウスボタン解放
 		is_holding = false
 		if selected_cell.x != -1:
-			var rel_pos = _get_mouse_local()
+			var rel_pos = _get_mouse_local(event)
 			var rel_col = int(floor((rel_pos.x - BOARD_LEFT) / CELL_PITCH))
 			var rel_row = int(floor((rel_pos.y - BOARD_TOP) / CELL_PITCH))
 			var rel_in_bounds: bool = (rel_row >= 0 and rel_row < GRID_ROWS and rel_col >= 0 and rel_col < GRID_COLUMNS)
 			
-			if rel_in_bounds and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) == 1):
-				# 隣接マスで離した (ドラッグ&ドロップ成立)
+			var can_teleport_d = (has_dark_teleport_swap or free_swap_turns > 0)
+			if rel_in_bounds and ((abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) == 1) or (can_teleport_d and (rel_row != selected_cell.x or rel_col != selected_cell.y))):
+				# 隣接マスまたは空間転移で離した (ドラッグ&ドロップ成立)
 				_execute_swap(selected_cell.x, selected_cell.y, rel_row, rel_col)
 			elif hovered_swap_cell.x != -1 and press_start_cell == selected_cell:
 				# 移動先として強調表示されていた隣接マスで離した (補正スワップ成立)
 				_execute_swap(selected_cell.x, selected_cell.y, hovered_swap_cell.x, hovered_swap_cell.y)
-			elif not rel_in_bounds or (press_start_cell != Vector2i(rel_row, rel_col) and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) > 1)):
+			elif not rel_in_bounds or (press_start_cell != Vector2i(rel_row, rel_col) and not can_teleport_d and (abs(rel_row - selected_cell.x) + abs(rel_col - selected_cell.y) > 1)):
 				# 盤面外や2マス以上離れた場所で離した (ドラッグ失敗・キャンセル)
 				_deselect_piece()
 			else:
@@ -1231,6 +1338,22 @@ func _splash_water_jiggle(r: int, c: int) -> void:
 
 ## 2つの駒をTweenで滑らかにスワップ
 func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
+	if _is_tutorial_mode():
+		if tutorial_allowed_swap.size() == 2:
+			var a1 = tutorial_allowed_swap[0]
+			var a2 = tutorial_allowed_swap[1]
+			var sw1 = Vector2i(r1, c1)
+			var sw2 = Vector2i(r2, c2)
+			if not ((sw1 == a1 and sw2 == a2) or (sw1 == a2 and sw2 == a1)):
+				_deselect_piece()
+				return
+			tutorial_allowed_swap.clear()
+		else:
+			_deselect_piece()
+			return
+	if _is_tutorial_mode():
+		emit_signal("tutorial_swap_completed", Vector2i(r1, c1), Vector2i(r2, c2))
+
 	if _is_plant_cell(r1, c1) or _is_plant_cell(r2, c2):
 		_deselect_piece()
 		return
@@ -1322,7 +1445,6 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 			_detonate_specials(detonates)
 		if has_match:
 			_detect_and_spawn_special_from_matches()
-			_check_and_trigger_bomb_reactions()
 
 		_start_match_highlight()
 	else:
@@ -1407,6 +1529,15 @@ func _swap_grid_data(r1: int, c1: int, r2: int, c2: int) -> void:
 			grid_stones_ally[r1][c1] = grid_stones_ally[r2][c2]
 			grid_stones_ally[r2][c2] = tmp_sta
 
+	if grid_fire.size() == GRID_ROWS:
+		var tmp_f = grid_fire[r1][c1]
+		grid_fire[r1][c1] = grid_fire[r2][c2]
+		grid_fire[r2][c2] = tmp_f
+		if grid_fire_ally.size() == GRID_ROWS:
+			var tmp_fa = grid_fire_ally[r1][c1]
+			grid_fire_ally[r1][c1] = grid_fire_ally[r2][c2]
+			grid_fire_ally[r2][c2] = tmp_fa
+
 	if tmp_i >= 0 and tmp_i < piececollid.size() and piececollid[tmp_i]:
 		piececollid[tmp_i].position = get_cell_position(r2, c2)
 	var other_i = grid_i[r1][c1]
@@ -1477,7 +1608,7 @@ func _check_matches_exist(changed_rows: Array = [], changed_cols: Array = []) ->
 			i += match_len
 
 	return found
-# --- 特殊アイテムシステム（爆弾・クロスボム・ディスコ・ペンキ・雷・黒穴・磁石・時限・分裂） ---
+# --- 特殊アイテムシステム（爆弾・クロスボム・ディスコ・ペンキ・雷・ブラックホール・磁石・時限・分裂） ---
 
 ## 最多属性の取得ヘルパー
 func _get_dominant_attribute() -> int:
@@ -1812,26 +1943,8 @@ func _detect_and_spawn_special_from_matches() -> void:
 					pivot = unique_cells[unique_cells.size() / 2]
 
 		if pivot != Vector2i(-1, -1):
+			# 仕様変更(I3): スキル駒生成は1マッチにつき常に1個固定（強化は範囲・威力・効果でスケーリング）
 			pending_special_spawns[pivot] = target_sp
-
-			# スキルLvスケーリング生成ボーナス: Lv3+で2個、Lv10+で3個、Lv18+で4個同時生成
-			var sp_lvl = special_levels.get(target_sp, 0)
-			var max_spawns = 1
-			if sp_lvl >= 18:
-				max_spawns = 4
-			elif sp_lvl >= 10:
-				max_spawns = 3
-			elif sp_lvl >= 3:
-				max_spawns = 2
-
-			var spawned_count = 1
-			if max_spawns > 1:
-				for extra_cell in unique_cells:
-					if extra_cell != pivot and not pending_special_spawns.has(extra_cell):
-						pending_special_spawns[extra_cell] = target_sp
-						spawned_count += 1
-						if spawned_count >= max_spawns:
-							break
 
 ## 落下時の特殊アイテム抽選（仕様刷新：スキルコマは同じコマのn個消しのみで生成され、自動落下・自動湧きは完全廃止）
 func _roll_falling_special() -> int:
@@ -1879,27 +1992,12 @@ func _detonate_bomb_by_click(r: int, c: int) -> void:
 
 ## マッチした駒に隣接する特殊アイテムの連鎖誘爆判定
 func _check_and_trigger_special_reactions() -> void:
-	if special_item.size() != GRID_ROWS and is_bomb.size() != GRID_ROWS:
-		return
-	var items_to_detonate: Array[Vector2i] = []
-	for r in range(GRID_ROWS):
-		for c in range(GRID_COLUMNS):
-			if ismatched[r][c]:
-				for dr in [-1, 0, 1]:
-					for dc in [-1, 0, 1]:
-						if dr == 0 and dc == 0: continue
-						var nr = r + dr
-						var nc = c + dc
-						if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-							var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-							if has_sp and not (Vector2i(nr, nc) in items_to_detonate):
-								items_to_detonate.append(Vector2i(nr, nc))
-
-	if items_to_detonate.size() > 0:
-		_detonate_specials(items_to_detonate)
+	# 仕様変更(I1): マッチ隣接による自動起爆経路を廃止（スキル駒の起爆は操作または爆風誘爆のみ）
+	return
 
 func _check_and_trigger_bomb_reactions() -> void:
-	_check_and_trigger_special_reactions()
+	# 仕様変更(I1): マッチ隣接による自動起爆経路を廃止
+	return
 
 ## 特殊アイテムの連鎖起爆キュー処理
 func _detonate_specials(start_items: Array) -> void:
@@ -1921,6 +2019,9 @@ func _detonate_specials(start_items: Array) -> void:
 			special_item[b.x][b.y] = SpecialItemType.NONE
 		if is_bomb.size() == GRID_ROWS:
 			is_bomb[b.x][b.y] = false
+
+		if _is_tutorial_mode():
+			emit_signal("tutorial_special_detonated", item_type)
 
 		var rm_sp = _get_relic_manager()
 		if rm_sp: rm_sp.on_special_detonated(item_type)
@@ -2111,6 +2212,18 @@ func _check_and_trigger_water_fire_synergy(in_match_phase: bool = false, queue: 
 				if dist_w == 1 and dist_f == 1:
 					common_cells[cand] = true
 
+	# 🔥 B1 蒸気爆発: 自陣の火マスと水マスが接触した瞬間、周囲3×3の駒を消去して相手に大ダメージ
+	if has_actor_skill_trait(true, "fire", "fire_final_b1"):
+		for pair in pairs:
+			for base_pos in pair:
+				for dr in [-1, 0, 1]:
+					for dc in [-1, 0, 1]:
+						var nr = base_pos.x + dr; var nc = base_pos.y + dc
+						if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+							var cand = Vector2i(nr, nc)
+							if not reacting_waters.has(cand) and not reacting_fires.has(cand):
+								common_cells[cand] = true
+
 	# 水と火自体は消火（消滅）する（その上のコマ自体は消さない）
 	for w_cell in reacting_waters.keys():
 		grid_water[w_cell.x][w_cell.y] = false
@@ -2167,6 +2280,9 @@ func _check_and_trigger_water_fire_synergy(in_match_phase: bool = false, queue: 
 
 	if cleared_count > 0 and sm and not in_match_phase:
 		var syn_dmg = float(cleared_count) * 180.0 * stage_scale
+		var rm_wf = _get_relic_manager()
+		if rm_wf and rm_wf.has_relic("flowing_water_charm"):
+			syn_dmg *= (1.0 + float(rm_wf.get_param("flowing_water_charm", "synergy_bonus", 0.25)))
 		sm.calchp(syn_dmg, 0.0, sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1)
 		_emit_combat_event("damage", "ally", "enemy", syn_dmg, "steam_synergy")
 
@@ -2288,6 +2404,9 @@ func _trigger_thunder_shatter_synergy(r: int, c: int, in_match_phase: bool = fal
 
 	if cleared > 0 and sm and not in_match_phase:
 		var syn_dmg = float(cleared) * 160.0 * stage_scale
+		var rm_sh = _get_relic_manager()
+		if rm_sh and has_ice and rm_sh.has_relic("ice_crystal_crown"):
+			syn_dmg *= (1.0 + float(rm_sh.get_param("ice_crystal_crown", "shatter_bonus", 1.00)))
 		sm.calchp(syn_dmg, 0.0, sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1)
 		_emit_combat_event("damage", "ally", "enemy", syn_dmg, "shatter_synergy")
 
@@ -2301,10 +2420,12 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 	if grid_stones.size() != GRID_ROWS or grid_stones[r][c] <= 0:
 		return false
 
+	var prev_dur = grid_stones[r][c]
 	grid_stones[r][c] -= dmg
 	var pos = get_cell_position(r, c)
 	if grid_stones[r][c] <= 0:
 		grid_stones[r][c] = 0
+		var broken_dur = maxi(1, prev_dur)
 		var rm_h = _get_relic_manager()
 		if rm_h:
 			rm_h.on_hazard_destroyed("stone", 1)
@@ -2342,7 +2463,7 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 
 		# 🪨 地C: 落石・連鎖崩落・地割れ
 		if score_mgr_st and score_mgr_st.has_method("has_skill_trait"):
-			var base_rock_dmg = (150.0 + 1.0 * 50.0) * st_scale
+			var base_rock_dmg = (150.0 + float(broken_dur) * 50.0) * st_scale
 			if score_mgr_st.has_skill_trait("earth_1", "earth_final_c2"):
 				# 地割れ: 石破壊時、周囲8マスの敵妨害マス（火・毒・氷・暗雲）を除去
 				var cleared_hazards = 0
@@ -2373,8 +2494,9 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 				for offset in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
 					var ar = r + offset.x; var ac = c + offset.y
 					if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_stones.size() == GRID_ROWS and grid_stones[ar][ac] > 0:
+						var adj_dur = maxi(1, grid_stones[ar][ac])
 						grid_stones[ar][ac] = 0
-						chain_dmg += base_rock_dmg
+						chain_dmg += (150.0 + float(adj_dur) * 50.0) * st_scale
 						_spawn_stone_break_effect(get_cell_position(ar, ac))
 				if sm_st and sm_st.ehp > 0 and not sm_st.isdeadf:
 					sm_st.calchp(chain_dmg, 0.0)
@@ -2384,7 +2506,7 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 				if sm_st and sm_st.ehp > 0 and not sm_st.isdeadf:
 					sm_st.calchp(base_rock_dmg, 0.0)
 					_emit_combat_event("damage", "ally", "enemy", base_rock_dmg, "earth_falling_rocks")
-					_spawn_floating_text(pos, "🪨 落石破片 -%d!" % int(base_rock_dmg), Color(0.8, 0.7, 0.3))
+					_spawn_floating_text(pos, "🪨 砕石破片(耐久%d) -%d!" % [broken_dur, int(base_rock_dmg)], Color(0.8, 0.7, 0.3))
 
 		# 🔥 火C: 破砕熱・火砕流 (石破壊時破片飛散、着弾地点火マス化＆敵ダメージ)
 		if score_mgr_st and score_mgr_st.has_method("has_skill_trait"):
@@ -2419,17 +2541,14 @@ func _trigger_ice_shield(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	var tier: int = 1
 	if lvl >= 10: tier = 3
 	elif lvl >= 5: tier = 2
-	cast_player_skill("ice", true, tier)
-	_spawn_shockwave_ring(pos, Color(0.4, 0.9, 1.0), 90.0, 0.25)
-	for dr in range(-1, 2):
-		for dc in range(-1, 2):
-			var nr = r + dr; var nc = c + dc
-			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				if grid_i[nr][nc] != -1:
-					ismatched[nr][nc] = true
-					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-					if has_sp and not (Vector2i(nr, nc) in exploded_items):
-						queue.append(Vector2i(nr, nc))
+	# 起爆した氷スキル駒自体は確実にマッチ消去対象とし、特殊アイテム・爆弾属性を解除
+	ismatched[r][c] = true
+	if special_item.size() == GRID_ROWS:
+		special_item[r][c] = SpecialItemType.NONE
+	if is_bomb.size() == GRID_ROWS:
+		is_bomb[r][c] = false
+	# 氷スキル基本形: 周囲駒は消さず、ランダムな複数マスを氷マスに変換する
+	cast_player_skill("ice", true, tier, true, pos)
 
 func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.POISON_MIST, 1))
@@ -2459,6 +2578,8 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 	_ensure_ally_grids()
 
 
+	# 毒スキル：発動中心および周囲マスへ毒マスを展開（Lv1は3x3）
+	var poisoned_cells: Array[Vector2i] = []
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
 			var nr = r + dr
@@ -2467,12 +2588,30 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 				if not _is_plant_cell(nr, nc):
 					grid_poison[nr][nc] = true
 					_set_ally_flag(grid_poison_ally, nr, nc, true)
+					poisoned_cells.append(Vector2i(nr, nc))
 					if not (dr == 0 and dc == 0):
 						_spawn_poison_bubble_burst_effect(get_cell_position(nr, nc))
 				var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
 				if has_sp and not (Vector2i(nr, nc) in exploded_items):
 					queue.append(Vector2i(nr, nc))
 
+	# 毒の王冠レリック等による追加ランダム散布
+	var rm_p = _get_relic_manager()
+	if rm_p and rm_p.has_relic("venom_crown"):
+		var extra_cnt = int(rm_p.get_param("venom_crown", "initial_stage_bonus", 1))
+		var cands: Array[Vector2i] = []
+		for ar in range(GRID_ROWS):
+			for ac in range(GRID_COLUMNS):
+				if not grid_poison[ar][ac] and not _is_plant_cell(ar, ac):
+					cands.append(Vector2i(ar, ac))
+		cands.shuffle()
+		for i in range(mini(extra_cnt, cands.size())):
+			var ec = cands[i]
+			grid_poison[ec.x][ec.y] = true
+			_set_ally_flag(grid_poison_ally, ec.x, ec.y, true)
+			poisoned_cells.append(ec)
+
+	_play_poison_expansion(poisoned_cells, pos, true)
 	_spawn_floating_text(pos, "🧪 薬毒散布！", Color(0.2, 1.0, 0.6))
 	if board_bg:
 		board_bg.queue_redraw()
@@ -2525,8 +2664,8 @@ func _spawn_shrapnel_fragment_vfx(start_pos: Vector2, target_pos: Vector2, is_ho
 
 	tw.chain().tween_callback(func():
 		if is_instance_valid(shard):
-			_spawn_explosion_effect(target_pos)
-			_spawn_floating_text(target_pos, "💥 榴弾直撃!" if is_howitzer else "破片消去!", Color(1.0, 0.4, 0.1) if is_howitzer else Color(1.0, 0.85, 0.2))
+			_spawn_fire_ignition_effect(target_pos, is_ally)
+			_spawn_floating_text(target_pos, "🔥 榴弾着火!" if is_howitzer else "破片消去!", Color(1.0, 0.4, 0.1) if is_howitzer else Color(1.0, 0.85, 0.2))
 			shard.queue_free()
 	)
 
@@ -2607,112 +2746,105 @@ func _trigger_fire_shrapnel_evolution(exploded_cells: Array[Vector2i], is_ally: 
 
 	# 敵発動時かつマッチフェーズ外の場合はその場で駒を消去・落下開始
 	if not is_ally and current_state == BoardState.IDLE and cleared_cells.size() > 0:
-		_clear_pieces_in_cells(cleared_cells)
+		current_clear_source = "enemy"
+		_clear_pieces_in_cells(cleared_cells, "enemy")
 		_start_continuous_falling()
+		current_clear_source = "ally"
 
 func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
+	# 仕様変更(I7): 火スキル駒（フレイムボム → ブレイズブラスト）の味方版換装
 	var lvl: int = max(1, special_levels.get(SpecialItemType.BOMB, 1))
-	var radius: int = 1 # Lv1: 3x3
-	if lvl >= 16:
-		radius = 5 # 画面ほぼ全域
-	elif lvl >= 10:
-		radius = 4 # 9x9
-	elif lvl >= 5:
-		radius = 3 # 7x7
-	elif lvl >= 2:
-		radius = 2 # 5x5
+	var fire_lifetime: int = DEFAULT_FIRE_LIFETIME + int((lvl - 1) / 3)
+	var base_count: int = 3 + int((lvl - 1) / 2)
+	var rm_b = _get_relic_manager()
+	if rm_b:
+		if rm_b.has_relic("demolition_book"):
+			base_count += int(rm_b.get_param("demolition_book", "range_bonus", 1))
+		if rm_b.has_relic("blazing_fire_orb"):
+			base_count += int(rm_b.get_param("blazing_fire_orb", "fire_range_bonus", 2))
+	var count: int = mini(base_count, GRID_ROWS * GRID_COLUMNS)
 
+	var sm = _get_stage_manager()
 	var score_mgr = _get_score_manager()
-	var stone_dmg: int = 1 + int((lvl - 1) / 4)
-	if score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_mid_a"):
-		radius = maxi(radius, 2) # 火薬庫: 基本爆発範囲が5x5に拡大
-		stone_dmg += 1          # 石破壊ダメージ+1
-
-	var has_f_induced = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_a1")
-	var has_f_double = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_a2")
-	var has_f_cross = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_c2")
-
-	if has_f_double:
-		delayed_explosions.append({ "r": r, "c": c, "radius": 1, "stone_dmg": 1, "delay": 1 })
+	var stage_scale: float = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
 
 	_spawn_explosion_effect(pos)
 
-	var exploded_cells: Array[Vector2i] = []
+	# 着火候補マスの選定（発動中心を最優先、周囲8マス、盤面全体の順）
+	var candidates: Array[Vector2i] = [Vector2i(r, c)]
+	var adj_cands: Array[Vector2i] = []
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if dr == 0 and dc == 0: continue
+			var nr = r + dr; var nc = c + dc
+			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+				if not _is_plant_cell(nr, nc):
+					adj_cands.append(Vector2i(nr, nc))
+	adj_cands.shuffle()
+	candidates.append_array(adj_cands)
+
+	var other_cands: Array[Vector2i] = []
+	for ar in range(GRID_ROWS):
+		for ac in range(GRID_COLUMNS):
+			var cp = Vector2i(ar, ac)
+			if not candidates.has(cp) and not _is_plant_cell(ar, ac):
+				other_cands.append(cp)
+	other_cands.shuffle()
+	candidates.append_array(other_cands)
+
+	var actual_count: int = mini(count, candidates.size())
 
 	# 🔥 C2 十字炎: 爆発が十字方向に盤端まで延伸
-	if has_f_cross:
+	if has_actor_skill_trait(true, "fire", "fire_final_c2"):
 		_spawn_cross_effect(pos, 3)
 		_spawn_floating_text(pos, "🔥 十字炎！", Color(1.0, 0.45, 0.1))
 		for cr in range(GRID_ROWS):
-			if grid_i[cr][c] != -1:
-				ismatched[cr][c] = true
-				if not Vector2i(cr, c) in exploded_cells:
-					exploded_cells.append(Vector2i(cr, c))
+			var cp = Vector2i(cr, c)
+			if not candidates.has(cp) and not _is_plant_cell(cr, c):
+				candidates.insert(0, cp)
 		for cc in range(GRID_COLUMNS):
-			if grid_i[r][cc] != -1:
-				ismatched[r][cc] = true
-				if not Vector2i(r, cc) in exploded_cells:
-					exploded_cells.append(Vector2i(r, cc))
+			var cp = Vector2i(r, cc)
+			if not candidates.has(cp) and not _is_plant_cell(r, cc):
+				candidates.insert(0, cp)
+		actual_count = mini(actual_count + GRID_ROWS + GRID_COLUMNS, candidates.size())
 
-	# 🔥 A1 誘爆: 爆風内の自軍火マスが十字型に誘爆
-	if has_f_induced:
-		for dr in range(-radius, radius + 1):
-			for dc in range(-radius, radius + 1):
-				var nr = r + dr; var nc = c + dc
-				if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-					if grid_fire.size() == GRID_ROWS and grid_fire[nr][nc] > 0 and is_ally_fire(nr, nc):
-						for off in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
-							var xr = nr + off.x; var xc = nc + off.y
-							if xr >= 0 and xr < GRID_ROWS and xc >= 0 and xc < GRID_COLUMNS and grid_i[xr][xc] != -1:
-								ismatched[xr][xc] = true
-								if not Vector2i(xr, xc) in exploded_cells:
-									exploded_cells.append(Vector2i(xr, xc))
-						_spawn_explosion_effect(get_cell_position(nr, nc))
-		_spawn_floating_text(pos, "🔥 火炎誘爆！", Color(1.0, 0.4, 0.1))
+	var ignited_cells: Array[Vector2i] = []
+	_ensure_ally_grids()
 
-	for dr in range(-radius, radius + 1):
-		for dc in range(-radius, radius + 1):
-			var nr = r + dr
-			var nc = c + dc
-			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				# 石マスへのスキルダメージ
-				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
-					_damage_stone_at(nr, nc, stone_dmg)
-					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
-						ismatched[nr][nc] = true
-						if not Vector2i(nr, nc) in exploded_cells:
-							exploded_cells.append(Vector2i(nr, nc))
-					continue
+	for i in range(actual_count):
+		var cell = candidates[i]
+		ignited_cells.append(cell)
+		grid_fire[cell.x][cell.y] = maxi(int(grid_fire[cell.x][cell.y]), fire_lifetime)
+		_set_ally_flag(grid_fire_ally, cell.x, cell.y, true)
+		var c_pos = get_cell_position(cell.x, cell.y)
+		_spawn_fire_ignition_effect(c_pos, true)
+		_spawn_floating_text(c_pos, "🔥 ブレイズブラスト！", Color(1.0, 0.45, 0.1))
 
-				var is_water = (grid_water.size() == GRID_ROWS and grid_water[nr][nc])
-				if is_water:
-					grid_water[nr][nc] = false
-					_spawn_steam_effect(get_cell_position(nr, nc))
-					if score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("fire_1", "fire_final_b1"):
-						for dr2 in [-1, 0, 1]:
-							for dc2 in [-1, 0, 1]:
-								var w_nr = nr + dr2; var w_nc = nc + dc2
-								if w_nr >= 0 and w_nr < GRID_ROWS and w_nc >= 0 and w_nc < GRID_COLUMNS:
-									if grid_i[w_nr][w_nc] != -1:
-										ismatched[w_nr][w_nc] = true
-										if not Vector2i(w_nr, w_nc) in exploded_cells:
-											exploded_cells.append(Vector2i(w_nr, w_nc))
-						_spawn_floating_text(get_cell_position(nr, nc), "💨 水蒸気爆発！", Color(0.9, 0.9, 1.0))
-					elif grid_i[nr][nc] != -1:
-						ismatched[nr][nc] = true
-						if not Vector2i(nr, nc) in exploded_cells:
-							exploded_cells.append(Vector2i(nr, nc))
-				else:
-					if grid_i[nr][nc] != -1:
-						ismatched[nr][nc] = true
-						if not Vector2i(nr, nc) in exploded_cells:
-							exploded_cells.append(Vector2i(nr, nc))
-						var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-						if has_sp and not (Vector2i(nr, nc) in exploded_items):
-							queue.append(Vector2i(nr, nc))
+		var has_sp = (special_item.size() == GRID_ROWS and special_item[cell.x][cell.y] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[cell.x][cell.y])
+		if has_sp and not (cell in exploded_items):
+			queue.append(cell)
 
-	_check_burn_plants_in_rect(r - radius, r + radius, c - radius, c + radius, queue, exploded_items)
-	_trigger_fire_shrapnel_evolution(exploded_cells, true, queue, exploded_items)
+	# 敵への火属性ダメージ
+	var blast_dmg: float = (80.0 + lvl * 20.0) * stage_scale
+	if sm and sm.ehp > 0 and not sm.isdeadf:
+		sm.calchp(blast_dmg, 0.0)
+		_emit_combat_event("damage", "ally", "enemy", blast_dmg, "player_skill_fire")
+
+	# 火マス上の駒を消去
+	if ignited_cells.size() > 0:
+		_clear_pieces_in_cells(ignited_cells, "ally")
+
+	# 破片・榴弾進化 (fire_mid_c, fire_final_c1)
+	if has_actor_skill_trait(true, "fire", "fire_mid_c") or has_actor_skill_trait(true, "fire", "fire_final_c1"):
+		_trigger_fire_shrapnel_evolution(ignited_cells, true, queue, exploded_items)
+
+	# 延焼進化 (fire_mid_b)
+	if has_actor_skill_trait(true, "fire", "fire_mid_b"):
+		_process_fire_spread()
+
+	_check_and_trigger_ice_fire_melting()
+	_check_and_trigger_water_fire_synergy(true, queue, exploded_items)
+	_redraw_board_effects()
 
 func _trigger_cross_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.CROSS_BOMB, 1))
@@ -2795,8 +2927,12 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 		half_w = 1 # Lv2: 幅3マス (疾風竜巻)
 
 	var score_mgr = _get_score_manager()
-	var has_wi_bidirectional = score_mgr and score_mgr.has_method("has_skill_trait") and (score_mgr.has_skill_trait("wind_1", "wind_mid_a") or score_mgr.has_skill_trait("wind_1", "wind_final_b1"))
+	var has_wi_wide = score_mgr and score_mgr.has_method("has_skill_trait") and (score_mgr.has_skill_trait("wind_1", "wind_mid_a") or score_mgr.has_skill_trait("wind_1", "wind_final_b1"))
 	var has_wi_sweep = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("wind_1", "wind_mid_b")
+
+	# 仕様変更(I6): 進化特性(wind_mid_a/wind_final_b1)で隣接列へ竜巻拡大（幅+1）
+	if has_wi_wide:
+		half_w = mini(GRID_COLUMNS / 2, half_w + 1)
 
 	_spawn_tornado_effect(pos, lvl, half_w)
 
@@ -2804,14 +2940,19 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 	var tornado_dmg: int = 1 + int((lvl - 1) / 4)
 	var swept_normal_pieces: int = 0
 
-	# 範囲決定: 上下双方向移動なら 0 〜 GRID_ROWS-1 全域、通常なら r から頭上(0)へ上昇
+	# 起爆したトルネード駒自体は確実に消費・消去対象とする
+	ismatched[r][c] = true
+	if special_item.size() == GRID_ROWS:
+		special_item[r][c] = SpecialItemType.NONE
+	if is_bomb.size() == GRID_ROWS:
+		is_bomb[r][c] = false
+
+	# 仕様: 列全体（全行 0 〜 GRID_ROWS - 1）の直線状の床効果・ハザードを一掃消去
+	# 【重要】進化前（wind_mid_b 未所持）は通常駒は消去せず、直線状の効果（水・炎・毒・石・植物等）のみを消去する。
+	# 進化「突風」(wind_mid_b) 所持時のみ、通常駒も巻き込んで消去する。
 	var row_range: Array[int] = []
-	if has_wi_bidirectional:
-		for nr in range(GRID_ROWS):
-			row_range.append(nr)
-	else:
-		for nr in range(r, -1, -1):
-			row_range.append(nr)
+	for nr in range(GRID_ROWS):
+		row_range.append(nr)
 
 	for nr in row_range:
 		for dc in range(-half_w, half_w + 1):
@@ -2819,19 +2960,30 @@ func _trigger_tornado(r: int, c: int, pos: Vector2, queue: Array, exploded_items
 			if nc >= 0 and nc < GRID_COLUMNS:
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
 					_damage_stone_at(nr, nc, tornado_dmg)
-					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
+					if grid_stones[nr][nc] == 0 and has_wi_sweep and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
 
 				if grid_water.size() == GRID_ROWS:
 					grid_water[nr][nc] = false
+				if grid_fire.size() == GRID_ROWS and not is_ally_fire(nr, nc):
+					grid_fire[nr][nc] = 0
+				if grid_poison.size() == GRID_ROWS and not is_ally_poison(nr, nc):
+					grid_poison[nr][nc] = false
+				if grid_cursed.size() == GRID_ROWS and not is_ally_cursed(nr, nc):
+					grid_cursed[nr][nc] = false
+				if grid_electrified.size() == GRID_ROWS and not is_ally_electrified(nr, nc):
+					grid_electrified[nr][nc] = false
+
 				if grid_i[nr][nc] != -1:
 					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-					if not has_sp:
+					if has_sp:
+						ismatched[nr][nc] = true
+						if not (Vector2i(nr, nc) in exploded_items):
+							queue.append(Vector2i(nr, nc))
+					elif has_wi_sweep:
 						swept_normal_pieces += 1
-					ismatched[nr][nc] = true
-					if has_sp and not (Vector2i(nr, nc) in exploded_items):
-						queue.append(Vector2i(nr, nc))
+						ismatched[nr][nc] = true
 
 				var plant = _get_plant_at(nr, nc)
 				if not plant.is_empty() and not (plant in hit_plants):
@@ -2971,6 +3123,9 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
+			# 仕様変更(I4): 起爆点からのユークリッド距離 <= radius のマスのみ円状展開
+			if float(dr * dr + dc * dc) > float(radius * radius):
+				continue
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
@@ -3051,11 +3206,36 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 		radius = 3
 	elif lvl >= 2:
 		radius = 2
+
+	var score_mgr_d = _get_score_manager()
+	var sm = _get_stage_manager()
+	var stage_scale = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
+
+	# 起爆したブラックホール駒自体を確実にマッチ消去対象とし、特殊アイテム・ボム属性を解除
+	ismatched[r][c] = true
+	if special_item.size() == GRID_ROWS:
+		special_item[r][c] = SpecialItemType.NONE
+	if is_bomb.size() == GRID_ROWS:
+		is_bomb[r][c] = false
+
+	# 🌙 闇B: 代償 (HP8%消費で吸引範囲拡大 3x3->5x5 つまり radius 1 -> 2)
+	if has_actor_skill_trait(true, "dark", "dark_mid_b"):
+		radius = maxi(radius, 2)
+		if sm and sm.myhp > 0:
+			var hp_cost = sm.myhp * 0.08
+			sm.calchp(0.0, hp_cost)
+			_spawn_floating_text(pos, "🌑 代償(HP-8%)！ブラックホール拡大！", Color(0.7, 0.2, 0.9))
+
+	var rm_bh = _get_relic_manager()
+	if rm_bh and rm_bh.has_relic("void_ring"):
+		radius = maxi(radius, int(rm_bh.get_param("void_ring", "radius", 2)))
+
 	_spawn_black_hole_effect(pos, radius)
 	var stone_dmg: int = 1 + int((lvl - 1) / 3)
 
-	var score_mgr_d = _get_score_manager()
-	var has_d_devour = score_mgr_d and score_mgr_d.has_method("has_skill_trait") and score_mgr_d.has_skill_trait("dark_1", "dark_final_b1")
+	var has_d_devour = has_actor_skill_trait(true, "dark", "dark_final_b1")
+	var has_d_horizon = has_actor_skill_trait(true, "dark", "dark_final_b2")
+	var sucked_count: int = 0
 
 	for dr in range(-radius, radius + 1):
 		for dc in range(-radius, radius + 1):
@@ -3066,25 +3246,125 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 				if has_d_devour:
 					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[nr][nc] > 0:
 						grid_gold_statue[nr][nc] = 0
+						sucked_count += 1
 						_spawn_floating_text(get_cell_position(nr, nc), "🌑 黄金像吸引消滅！", Color(0.7, 0.3, 0.9))
 					if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0 and not is_ally_stone(nr, nc):
 						grid_stones[nr][nc] = 0
+						sucked_count += 1
 						_spawn_floating_text(get_cell_position(nr, nc), "🌑 敵石吸引消滅！", Color(0.7, 0.3, 0.9))
 					var p_ent = _get_plant_at(nr, nc)
 					if not p_ent.is_empty() and p_ent.get("enemy_planted", false):
 						_damage_plant(p_ent, 999, "dark_devour")
+						sucked_count += 1
 
 				if grid_stones.size() == GRID_ROWS and grid_stones[nr][nc] > 0:
 					_damage_stone_at(nr, nc, stone_dmg)
+					sucked_count += 1
 					if grid_stones[nr][nc] == 0 and grid_i[nr][nc] != -1:
 						ismatched[nr][nc] = true
 					continue
 
 				if grid_i[nr][nc] != -1:
+					if not ismatched[nr][nc]:
+						sucked_count += 1
 					ismatched[nr][nc] = true
 					var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
 					if has_sp and not (Vector2i(nr, nc) in exploded_items):
 						queue.append(Vector2i(nr, nc))
+
+	# 🌙 闇B2: 事象の地平 (吸い込み数比例の闇属性ダメージ)
+	if has_d_horizon and sucked_count > 0:
+		var sk_lvl: int = maxi(1, score_mgr_d.get_skill_level("dark_1") if (score_mgr_d and score_mgr_d.has_method("get_skill_level")) else 1)
+		var horizon_dmg = float(sucked_count) * (70.0 + sk_lvl * 18.0) * stage_scale
+		if sm: sm.calchp(horizon_dmg, 0.0)
+		_emit_combat_event("damage", "ally", "enemy", horizon_dmg, "dark_event_horizon")
+		_spawn_floating_text(pos, "🌑 事象の地平！+%dダメ(吸込%d)" % [int(horizon_dmg), sucked_count], Color(0.8, 0.2, 1.0))
+
+	# 🌙 闇A: 空間転移 / 歪曲 (自由スワップ獲得)
+	if has_actor_skill_trait(true, "dark", "dark_final_a2"):
+		free_swap_turns = max(free_swap_turns, 3)
+		has_dark_teleport_swap = true
+		_spawn_floating_text(Vector2(640, 360), "🌙 空間転移！3ターン自由スワップ！", Color(0.8, 0.4, 1.0))
+	elif has_actor_skill_trait(true, "dark", "dark_mid_a"):
+		free_swap_turns = max(free_swap_turns, 1)
+		has_dark_teleport_swap = true
+		_spawn_floating_text(Vector2(640, 360), "🌙 重力場！1ターン自由スワップ！", Color(0.7, 0.3, 1.0))
+
+	if rm_bh and rm_bh.has_relic("nether_pact"):
+		var extra_sw = int(rm_bh.get_param("nether_pact", "extra_swap_turns", 1))
+		free_swap_turns += extra_sw
+		has_dark_teleport_swap = true
+
+	# 🌙 闇A1: 重力崩壊 (中心から斜め✕字衝撃波消去)
+	if has_actor_skill_trait(true, "dark", "dark_final_a1"):
+		for d in range(1, maxi(GRID_ROWS, GRID_COLUMNS)):
+			for diag in [Vector2i(-d, -d), Vector2i(-d, d), Vector2i(d, -d), Vector2i(d, d)]:
+				var dr_x = r + diag.x; var dc_x = c + diag.y
+				if dr_x >= 0 and dr_x < GRID_ROWS and dc_x >= 0 and dc_x < GRID_COLUMNS:
+					if grid_i[dr_x][dc_x] != -1:
+						ismatched[dr_x][dc_x] = true
+						var has_sp_x = (special_item.size() == GRID_ROWS and special_item[dr_x][dc_x] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[dr_x][dc_x])
+						if has_sp_x and not (Vector2i(dr_x, dc_x) in exploded_items):
+							queue.append(Vector2i(dr_x, dc_x))
+		_spawn_floating_text(pos, "🌑 重力崩壊！斜め✕字衝撃波！", Color(0.85, 0.3, 1.0))
+
+	# 🌙 闇C: 混沌・反動放出 (被ダメージ蓄積の解放)
+	if has_actor_skill_trait(true, "dark", "dark_mid_c") and dark_accumulated_damage > 0.0:
+		var release_dmg = dark_accumulated_damage
+		dark_accumulated_damage = 0.0
+		if has_actor_skill_trait(true, "dark", "dark_final_c1"): # 復讐 / 暗黒の解放 (+50%)
+			release_dmg *= 1.50
+		if has_actor_skill_trait(true, "dark", "dark_final_c2"): # 逆流 / 吸命 (35%回復)
+			var heal_amt = release_dmg * 0.35
+			if sm: sm.calchp(0.0, -heal_amt)
+			_emit_combat_event("heal", "ally", "ally", heal_amt)
+		if sm and release_dmg > 0.0:
+			sm.calchp(release_dmg, 0.0)
+			_emit_combat_event("damage", "ally", "enemy", release_dmg, "dark_release")
+		_spawn_floating_text(pos, "🌙 混沌解放 -%d!" % int(release_dmg), Color(0.8, 0.2, 0.95))
+
+	# 🌙 闇スキル効果：影護マス（加護）を盤面に展開
+	_ensure_ally_grids()
+	var shadow_count = mini(2 + int(lvl / 2), GRID_ROWS * GRID_COLUMNS)
+	var shadow_candidates: Array[Vector2i] = []
+	# 優先度1: 敵の妨害マス（敵呪い、敵毒、敵炎）を優先して安全に上書き・影護化
+	for ar in range(GRID_ROWS):
+		for ac in range(GRID_COLUMNS):
+			if not (ar == r and ac == c) and not _is_plant_cell(ar, ac) and not is_ally_cursed(ar, ac):
+				var is_enemy_hazard = (grid_cursed.size() == GRID_ROWS and grid_cursed[ar][ac] and not is_ally_cursed(ar, ac)) or \
+									  (grid_poison.size() == GRID_ROWS and grid_poison[ar][ac] and not is_ally_poison(ar, ac)) or \
+									  (grid_fire.size() == GRID_ROWS and grid_fire[ar][ac] > 0 and not is_ally_fire(ar, ac))
+				if is_enemy_hazard:
+					shadow_candidates.append(Vector2i(ar, ac))
+	shadow_candidates.shuffle()
+
+	# 優先度2: 通常マス
+	var normal_cands: Array[Vector2i] = []
+	for ar in range(GRID_ROWS):
+		for ac in range(GRID_COLUMNS):
+			var cp = Vector2i(ar, ac)
+			if not (ar == r and ac == c) and not shadow_candidates.has(cp) and not _is_plant_cell(ar, ac) and not is_ally_cursed(ar, ac):
+				normal_cands.append(cp)
+	normal_cands.shuffle()
+	shadow_candidates.append_array(normal_cands)
+
+	var actual_shadow_cnt = mini(shadow_count, shadow_candidates.size())
+	var shadow_vfx_targets: Array[Vector2] = []
+	for i in range(actual_shadow_cnt):
+		var scell = shadow_candidates[i]
+		grid_cursed[scell.x][scell.y] = true
+		_set_ally_flag(grid_cursed_ally, scell.x, scell.y, true)
+		if grid_poison.size() == GRID_ROWS: grid_poison[scell.x][scell.y] = false
+		if grid_fire.size() == GRID_ROWS: grid_fire[scell.x][scell.y] = 0
+		var cpos = get_cell_position(scell.x, scell.y)
+		shadow_vfx_targets.append(cpos)
+		_spawn_floating_text(cpos, "🌙 影護マス！", Color(0.65, 0.45, 1.0))
+
+	# 視覚演出: ブラックホール起爆位置から影護マスへ属性魔力弾演出
+	if not shadow_vfx_targets.is_empty():
+		_spawn_player_skill_beams(pos, shadow_vfx_targets, "dark")
+	if board_bg:
+		board_bg.queue_redraw()
 
 func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.HOLY_LIGHT, 1))
@@ -3092,8 +3372,8 @@ func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	var stage_scale = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
 	ismatched[r][c] = true
 
-	# 1. 聖像（味方の黄金像）を盤面に降臨させる (アイテムLv強化で増加)
-	var statue_count = 1 + int(lvl / 5)
+	# 1. 聖像（味方の黄金像）を盤面のランダムなマスに降臨させる (アイテムLv強化で増加)
+	var statue_count = mini(2 + int((lvl - 1) / 3), GRID_ROWS * GRID_COLUMNS)
 
 	var candidates: Array[Vector2i] = []
 	for nr in range(GRID_ROWS):
@@ -3103,14 +3383,15 @@ func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 					candidates.append(Vector2i(nr, nc))
 	candidates.shuffle()
 
-	var placed_statues: Array[Vector2] = []
+	var placed_statues: Array[Vector2i] = []
 	for k in range(mini(statue_count, candidates.size())):
 		var cp = candidates[k]
 		grid_gold_statue[cp.x][cp.y] = 2
 		_set_ally_flag(grid_gold_ally, cp.x, cp.y, true)
-		placed_statues.append(get_cell_position(cp.x, cp.y))
-		_spawn_gold_shatter_effect(get_cell_position(cp.x, cp.y))
+		placed_statues.append(cp)
 		_spawn_floating_text(get_cell_position(cp.x, cp.y), "✨ 聖像降臨！", Color(1.0, 0.95, 0.3))
+
+	_play_light_expansion(placed_statues, pos, true)
 
 	# 2. 聖域浄化 (敵の毒・火・呪い・敵氷などの妨害マスを一掃浄化)
 	var purify_targets: Array[Vector2] = []
@@ -3163,7 +3444,8 @@ func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 						queue.append(Vector2i(ar, ac))
 
 	var vfx_pts: Array[Vector2] = []
-	vfx_pts.append_array(placed_statues)
+	for p_st in placed_statues:
+		vfx_pts.append(get_cell_position(p_st.x, p_st.y))
 	vfx_pts.append_array(purify_targets)
 	if vfx_pts.is_empty():
 		vfx_pts.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
@@ -3350,8 +3632,49 @@ func _get_plant_occupied_cells(plant: Dictionary) -> Array[Vector2i]:
 func _is_plant_cell(r: int, c: int) -> bool:
 	return not _get_plant_at(r, c).is_empty()
 
-## 指定マスの駒を盤面から完全に消去（植物占有時等）
-func _clear_pieces_in_cells(cells: Array[Vector2i]) -> void:
+## 駒消去による便益処理（PvP前提：消去の出所 source に応じて帰属を分岐）
+func _process_piece_cleared_benefits(cleared_kinds: Array[int], source: String = "ally") -> void:
+	if cleared_kinds.is_empty():
+		return
+	var sm = _get_stage_manager()
+	var stage_scale: float = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
+
+	if source == "enemy":
+		# 敵の消去による敵への便益（プレイヤーへのスコア・divscore・属性・遺物トリガーは一切加算しない）
+		for k in cleared_kinds:
+			match k:
+				PieceType.SWORD:
+					var dmg = 8.0 * stage_scale
+					if sm:
+						sm.last_damage_cause = "敵による剣駒の消去奪取"
+						sm.calchp(0.0, dmg)
+					_emit_combat_event("damage", "enemy", "ally", dmg, "enemy_piece_clear_sword")
+				PieceType.SHIELD:
+					var shield_amt = 10.0 * stage_scale
+					_emit_combat_event("shield", "enemy", "enemy", shield_amt, "enemy_piece_clear_shield")
+				PieceType.POTION:
+					var heal_amt = 12.0 * stage_scale
+					if sm and sm.ehp > 0:
+						sm.calchp(-heal_amt, 0.0)
+					_emit_combat_event("heal", "enemy", "enemy", heal_amt, "enemy_piece_clear_potion")
+				PieceType.COIN:
+					_emit_combat_event("coin", "enemy", "enemy", 1.0, "enemy_piece_clear_coin")
+				_:
+					pass
+	else:
+		# 味方による消去（通常マッチは sm.calcscore 経由で集計）
+		pass
+
+## 指定マスの駒を盤面から完全に消去（植物占有時・スキル着火時等）
+func _clear_pieces_in_cells(cells: Array, source: String = "ally") -> void:
+	_apply_electrified_and_cursed_effects(cells)
+	var cleared_kinds: Array[int] = []
+	for cell in cells:
+		if cell.x < 0 or cell.x >= GRID_ROWS or cell.y < 0 or cell.y >= GRID_COLUMNS:
+			continue
+		if grid_n.size() == GRID_ROWS and grid_n[cell.x][cell.y] != -1:
+			cleared_kinds.append(grid_n[cell.x][cell.y])
+	_process_piece_cleared_benefits(cleared_kinds, source)
 	for cell in cells:
 		if cell.x < 0 or cell.x >= GRID_ROWS or cell.y < 0 or cell.y >= GRID_COLUMNS:
 			continue
@@ -4132,6 +4455,57 @@ func _spawn_explosion_effect(pos: Vector2) -> void:
 		tw_e.tween_property(ember, "modulate:a", 0.0, dur)
 		tw_e.chain().tween_callback(ember.queue_free)
 
+func _spawn_fire_ignition_effect(pos: Vector2, is_ally: bool = true, power: float = 1.0) -> void:
+	var effects_parent = _get_effects_parent()
+	var core_col = Color(0.55, 0.95, 1.0, 0.95) if is_ally else Color(1.0, 0.55, 0.15, 0.95)
+	var outer_col = Color(0.10, 0.65, 1.0, 0.55) if is_ally else Color(1.0, 0.20, 0.05, 0.55)
+
+	for layer in range(3):
+		var flame = Polygon2D.new()
+		var h = (130.0 - layer * 20.0) * power
+		var w = (44.0 - layer * 8.0) * power
+		flame.polygon = PackedVector2Array([
+			Vector2(0, -h),
+			Vector2(w * 0.55, -h * 0.45),
+			Vector2(w, 18.0 * power),
+			Vector2(w * 0.45, 8.0 * power),
+			Vector2(0, 30.0 * power),
+			Vector2(-w * 0.45, 8.0 * power),
+			Vector2(-w, 18.0 * power),
+			Vector2(-w * 0.55, -h * 0.45)
+		])
+		flame.color = outer_col.lerp(core_col, float(layer) / 2.0)
+		flame.position = pos + Vector2(randf_range(-8.0, 8.0), 0.0)
+		flame.scale = Vector2(0.25, 0.08)
+		flame.z_index = 30 + layer
+		Profiler.add_child_count += 1
+		effects_parent.add_child(flame)
+
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(flame, "scale", Vector2(randf_range(0.85, 1.15), randf_range(0.90, 1.20)), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(flame, "rotation", randf_range(-0.12, 0.12), 0.28)
+		tw.tween_property(flame, "modulate:a", 0.0, 0.42).set_delay(0.10)
+		tw.chain().tween_callback(flame.queue_free)
+
+	for i in range(8):
+		var ember = Polygon2D.new()
+		var sz = randf_range(4.0, 9.0) * power
+		ember.polygon = PackedVector2Array([
+			Vector2(0, -sz), Vector2(sz * 0.6, 0), Vector2(0, sz), Vector2(-sz * 0.6, 0)
+		])
+		ember.color = Color(core_col.r, core_col.g, core_col.b, 0.9)
+		ember.position = pos + Vector2(randf_range(-35.0, 35.0), randf_range(5.0, 35.0))
+		ember.z_index = 33
+		Profiler.add_child_count += 1
+		effects_parent.add_child(ember)
+
+		var tw_e = create_tween().set_parallel(true)
+		tw_e.tween_property(ember, "position", ember.position + Vector2(randf_range(-28.0, 28.0), randf_range(-120.0, -60.0) * power), 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw_e.tween_property(ember, "rotation", randf_range(-PI, PI), 0.5)
+		tw_e.tween_property(ember, "scale", Vector2.ZERO, 0.5)
+		tw_e.tween_property(ember, "modulate:a", 0.0, 0.5)
+		tw_e.chain().tween_callback(ember.queue_free)
+
 ## 十字クロス爆砕エフェクト（高エネルギーレーザービーム ＆ スターフレア）
 func _spawn_cross_effect(pos: Vector2, _lvl: int) -> void:
 	var effects_parent = _get_effects_parent()
@@ -4584,9 +4958,9 @@ class TornadoVortexNode extends Node2D:
 			l_col.a *= fade_alpha
 			draw_colored_polygon(l_poly, l_col)
 
-## 竜巻・つむじ風エフェクト（高速回転サイクロンファンネル ＆ 旋回風刃 ＆ 渦巻き木の葉）
+## 竜巻・つむじ風エフェクト
+## 仕様変更: 敵「ダウンバースト」と同じアニメーションで、起爆駒の列（+進化幅）を上端から下端へ風が横断する
 func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
-	var effects_parent = _get_effects_parent()
 	_trigger_screen_shake(35.0 + lvl * 10.0)
 
 	var sound = get_node_or_null("AudioStreamPlayer")
@@ -4594,11 +4968,20 @@ func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
 		sound.pitch_scale = 1.45
 		sound.play()
 
-	var width_px = (half_w * 2 + 1) * CELL_PITCH
-	var target_top_y = get_cell_position(0, 0).y - CELL_PITCH * 2.5
-
-	var vortex = TornadoVortexNode.new(pos, target_top_y, width_px, lvl)
-	Profiler.add_child_count += 1; effects_parent.add_child(vortex)
+	# 起爆駒の列を特定
+	var center_col: int = int(round((pos.x - BOARD_LEFT) / CELL_PITCH))
+	# 敵ダウンオールと同じ active_wind_tornadoes 方式で上→下に横断
+	for dc in range(-half_w, half_w + 1):
+		var col: int = center_col + dc
+		if col >= 0 and col < GRID_COLUMNS:
+			active_wind_tornadoes.append({
+				"col": col,
+				"y": BOARD_TOP,
+				"speed": 5500.0,
+				"active": true,
+				"ally": true
+			})
+	_redraw_board_effects()
 
 ## 敵キャラクター専用の竜巻エフェクト（敵画面枠 X:1190..1915, Y:10..410 を決して越えず内部に美しく収束）
 func _spawn_enemy_tornado_effect(pos: Vector2, size: int) -> void:
@@ -4982,6 +5365,19 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 					stage_mgr.calchp(bonus_el_dmg, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
 					_emit_combat_event("damage", "ally", "enemy", bonus_el_dmg, "ally_electrified")
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 充電追撃！", Color(0.35, 1.0, 0.85))
+				if sm and sm.has_method("has_skill_trait") and (sm.has_skill_trait("thunder_1", "thunder_mid_b") or sm.has_skill_trait("thunder_1", "thunder_mid_c")):
+					enemy_shock_stacks = mini(5, enemy_shock_stacks + 1)
+					_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 感電スタック付与 (%d/5)！" % enemy_shock_stacks, Color(1.0, 0.9, 0.2))
+					# ⚡ C1 解放: 5スタック到達時一斉解放大ダメージ
+					if enemy_shock_stacks >= 5 and sm.has_skill_trait("thunder_1", "thunder_final_c1"):
+						enemy_shock_stacks = 0
+						var sk_lvl_th = maxi(1, sm.get_skill_level("thunder_1"))
+						var discharge_dmg = (350.0 + sk_lvl_th * 75.0) * stage_scale_b
+						if stage_mgr and stage_mgr.ehp > 0 and not stage_mgr.isdeadf:
+							stage_mgr.calchp(discharge_dmg, 0.0)
+							_emit_combat_event("damage", "ally", "enemy", discharge_dmg, "thunder_shock_discharge")
+						_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.4), 0.25)
+						_spawn_floating_text(Vector2(640, 360), "⚡ 感電5スタック解放！特大放電 -%d!" % int(discharge_dmg), Color(1.0, 0.95, 0.2))
 			elif cells_cleared_by_special.has(cell):
 				# 特殊アイテム・ボム爆発等による消去時はプレイヤーへの反動ダメージを安全に無効化（浄化・破壊）
 				_spawn_shock_zap_effect(get_cell_position(cell.x, cell.y))
@@ -4993,6 +5389,8 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 					stage_mgr.calchp(0.0, shock_dmg)
 					var rm_br = _get_relic_manager()
 					if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
+					player_shock_stacks = mini(5, player_shock_stacks + 1)
+					_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 感電スタック付与 (%d/5)！" % player_shock_stacks, Color(1.0, 0.4, 0.4))
 				_spawn_shock_zap_effect(get_cell_position(cell.x, cell.y))
 
 		if grid_cursed.size() == GRID_ROWS and grid_cursed[cell.x][cell.y]:
@@ -5163,10 +5561,10 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 func _start_breaking_animation() -> void:
 	current_state = BoardState.BREAKING
 
-	# スコア計算
+	# スコア計算（PvP前提：current_clear_source に応じて帰属を分岐）
 	var sm = _get_score_manager()
 	if sm and sm.has_method("calcscore"):
-		sm.calcscore(ismatched, grid_att, grid_element)
+		sm.calcscore(ismatched, grid_att, grid_element, current_clear_source)
 
 	# 画面微細シェイクを発生（適度な振動に抑える）
 	if matched_cells_list.size() > 0:
@@ -5335,12 +5733,22 @@ func _start_breaking_animation() -> void:
 			if grid_electrified.size() == GRID_ROWS and grid_electrified[cell.x][cell.y] and is_ally_electrified(cell.x, cell.y):
 				grid_electrified[cell.x][cell.y] = false
 				_set_ally_flag(grid_electrified_ally, cell.x, cell.y, false)
-				if score_mgr_m and score_mgr_m.has_method("has_skill_trait") and score_mgr_m.has_skill_trait("thunder_1", "thunder_mid_b"):
+				if score_mgr_m and score_mgr_m.has_method("has_skill_trait") and (score_mgr_m.has_skill_trait("thunder_1", "thunder_mid_b") or score_mgr_m.has_skill_trait("thunder_1", "thunder_mid_c")):
 					enemy_shock_stacks = mini(5, enemy_shock_stacks + 1)
 					_spawn_floating_text(p.position, "⚡ 感電スタック付与 (%d/5)！" % enemy_shock_stacks, Color(1.0, 0.9, 0.2))
+					# ⚡ C1 解放: 5スタック到達時一斉解放大ダメージ
+					if enemy_shock_stacks >= 5 and score_mgr_m.has_skill_trait("thunder_1", "thunder_final_c1"):
+						enemy_shock_stacks = 0
+						var sk_lvl_th = maxi(1, score_mgr_m.get_skill_level("thunder_1"))
+						var discharge_dmg = (350.0 + sk_lvl_th * 75.0) * st_scale_m
+						if sm_m and sm_m.ehp > 0 and not sm_m.isdeadf:
+							sm_m.calchp(discharge_dmg, 0.0)
+							_emit_combat_event("damage", "ally", "enemy", discharge_dmg, "thunder_shock_discharge")
+						_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.4), 0.25)
+						_spawn_floating_text(Vector2(640, 360), "⚡ 感電5スタック解放！特大放電 -%d!" % int(discharge_dmg), Color(1.0, 0.95, 0.2))
 
-			# 🌪️ 風B1: 暴風圏 (竜巻が通った列でマッチするたび敵へダメージ)
-			if storm_zones.get(cell.y, 0) > 0 and score_mgr_m and score_mgr_m.has_method("has_skill_trait") and score_mgr_m.has_skill_trait("wind_1", "wind_final_b1"):
+			# 🌪️ 風B2: 暴風圏 (竜巻が通った列でマッチするたび敵へダメージ)
+			if storm_zones.get(cell.y, 0) > 0 and score_mgr_m and score_mgr_m.has_method("has_skill_trait") and score_mgr_m.has_skill_trait("wind_1", "wind_final_b2"):
 				var sk_lvl_wi = maxi(1, score_mgr_m.get_skill_level("wind_1"))
 				var st_dmg = (80.0 + sk_lvl_wi * 20.0) * st_scale_m
 				if sm_m and sm_m.ehp > 0 and not sm_m.isdeadf:
@@ -5402,6 +5810,7 @@ func _start_breaking_animation() -> void:
 	for cell in matched_cells_list:
 		if pending_special_spawns.has(cell):
 			# 生成されたスキルコマは破棄せずそのまま盤面に残留
+			ismatched[cell.x][cell.y] = false
 			continue
 
 		var idx = grid_i[cell.x][cell.y]
@@ -5435,6 +5844,31 @@ func _start_breaking_animation() -> void:
 				grid_poison[cell.x][cell.y] = true
 				_set_ally_flag(grid_poison_ally, cell.x, cell.y, true)
 
+	# 全マスについて ismatched 残留を確実にクリア＆未回収の破砕マスを消去（I2対策）
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if ismatched[r][c]:
+				if pending_special_spawns.has(Vector2i(r, c)):
+					ismatched[r][c] = false
+					continue
+				var idx = grid_i[r][c]
+				if idx >= 0 and idx < piece.size() and piece[idx] != null:
+					piece[idx].queue_free(); Profiler.queue_free_count += 1
+					piece[idx] = null
+				if idx >= 0 and idx < piececollid.size() and piececollid[idx] != null:
+					piececollid[idx].queue_free(); Profiler.queue_free_count += 1
+					piececollid[idx] = null
+				grid_i[r][c] = -1
+				grid_n[r][c] = -1
+				grid_att[r][c] = -1
+				ismatched[r][c] = false
+				if is_bomb.size() == GRID_ROWS:
+					is_bomb[r][c] = false
+				if special_item.size() == GRID_ROWS:
+					special_item[r][c] = SpecialItemType.NONE
+				if special_charge.size() == GRID_ROWS:
+					special_charge[r][c] = 0
+
 	pending_special_spawns.clear()
 	poison_mist_detonated_cells.clear()
 	_redraw_board_effects()
@@ -5459,6 +5893,8 @@ func _make_empty_sim_cell(r: int, c: int) -> Dictionary:
 		"is_cursed_ally": false,
 		"is_poison": false,
 		"is_poison_ally": false,
+		"fire": 0,
+		"fire_ally": false,
 		"is_tree": _is_plant_cell(r, c),
 		"is_new": false,
 		"horizontal_moved": false,
@@ -5538,6 +5974,8 @@ func _start_continuous_falling() -> void:
 				"is_cursed_ally": is_ally_cursed(r, c),
 				"is_poison": is_poison,
 				"is_poison_ally": is_ally_poison(r, c),
+				"fire": (grid_fire[r][c] if grid_fire.size() == GRID_ROWS else 0),
+				"fire_ally": is_ally_fire(r, c),
 				"is_tree": is_tree,
 				"is_new": false,
 				"horizontal_moved": false,
@@ -5564,6 +6002,9 @@ func _start_continuous_falling() -> void:
 				if cell.p_idx != -1 and not cell.get("is_obstacle", false) and not cell.get("is_locked", false):
 					var below = sim_grid[r + 1][c]
 					if below.p_idx == -1 and not below.get("is_obstacle", false):
+						if below.get("fire", 0) > 0 and cell.get("fire", 0) == 0:
+							cell["fire"] = below["fire"]
+							cell["fire_ally"] = below["fire_ally"]
 						sim_grid[r + 1][c] = cell
 						sim_grid[r][c] = _make_empty_sim_cell(r, c)
 						any_movement = true
@@ -5579,6 +6020,9 @@ func _start_continuous_falling() -> void:
 				var spawn_count = spawn_counts_per_col[c]
 				spawn_counts_per_col[c] += 1
 
+				var init_fire = cell.get("fire", 0)
+				var init_fire_ally = cell.get("fire_ally", false)
+
 				var spawn_item = {
 					"p_idx": -2, # 新規フラグ
 					"kind": nval,
@@ -5592,6 +6036,8 @@ func _start_continuous_falling() -> void:
 					"is_obstacle": false,
 					"is_electrified": false,
 					"is_cursed": false,
+					"fire": init_fire,
+					"fire_ally": init_fire_ally,
 					"is_tree": false,
 					"is_new": true,
 					"horizontal_moved": false,
@@ -5624,6 +6070,9 @@ func _start_continuous_falling() -> void:
 									chosen_sc = candidates[1]
 
 								var moving_cell = sim_grid[r - 1][chosen_sc]
+								if target_cell.get("fire", 0) > 0 and moving_cell.get("fire", 0) == 0:
+									moving_cell["fire"] = target_cell["fire"]
+									moving_cell["fire_ally"] = target_cell["fire_ally"]
 								moving_cell.waypoints.append(get_cell_position(r - 1, chosen_sc))
 								moving_cell.waypoints.append(get_cell_position(r, c))
 
@@ -5656,6 +6105,9 @@ func _start_continuous_falling() -> void:
 											chosen_sc = h_cands[1]
 
 									var moving_cell = sim_grid[r][chosen_sc]
+									if target_cell.get("fire", 0) > 0 and moving_cell.get("fire", 0) == 0:
+										moving_cell["fire"] = target_cell["fire"]
+										moving_cell["fire_ally"] = target_cell["fire_ally"]
 									moving_cell["horizontal_moved"] = true
 									moving_cell.waypoints.append(get_cell_position(r, chosen_sc))
 									moving_cell.waypoints.append(get_cell_position(r, c))
@@ -5725,6 +6177,9 @@ func _start_continuous_falling() -> void:
 			if grid_poison.size() == GRID_ROWS:
 				grid_poison[r][c] = final_cell.get("is_poison", false)
 				_set_ally_flag(grid_poison_ally, r, c, final_cell.get("is_poison_ally", false))
+			if grid_fire.size() == GRID_ROWS:
+				grid_fire[r][c] = final_cell.get("fire", 0)
+				_set_ally_flag(grid_fire_ally, r, c, final_cell.get("fire_ally", false))
 
 
 			if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null:
@@ -5756,6 +6211,7 @@ func _start_continuous_falling() -> void:
 					sprite.position = dest_pos
 
 	if falling_pieces.size() == 0:
+		_ensure_board_pieces_consistency()
 		_check_cascade()
 
 ## 落下中の重力・斜めスライド物理更新 (毎フレーム)
@@ -5797,6 +6253,7 @@ func _update_falling_physics(delta: float) -> void:
 
 	if all_landed:
 		falling_pieces.clear()
+		_ensure_board_pieces_consistency()
 		_redraw_board_effects()
 		_check_cascade()
 
@@ -5809,7 +6266,6 @@ func _check_cascade() -> void:
 	var has_match = _check_matches_exist()
 	if has_match:
 		_detect_and_spawn_special_from_matches()
-		_check_and_trigger_bomb_reactions()
 		_start_match_highlight()
 	else:
 		# 定常状態（マッチ連鎖終了）：定常状態レリック（共鳴の点火石）の起爆判定
@@ -5821,10 +6277,14 @@ func _check_cascade() -> void:
 		# 盤面が安定した際の毒侵攻フラグ管理（火・毒の侵攻は2ターンに1度、ターンリセット時に実行）
 		poison_spread_done_this_turn = true
 
-		# 盤面が安定したらターン演出へ
-		current_state = BoardState.TURN_SEQUENCE
-		endbreak = true
-		interval = 0
+		# 盤面が安定したらターン演出へ（敵ターン中の落下ならプレイヤー攻撃ターンを誤開始しない）
+		_ensure_board_pieces_consistency()
+		if is_enemy_turn_in_progress:
+			current_state = BoardState.IDLE
+		else:
+			current_state = BoardState.TURN_SEQUENCE
+			endbreak = true
+			interval = 0
 
 ## 共鳴の点火石レリック：定常状態突入時の自動起爆
 func trigger_random_specials_for_spark(det_count: int) -> bool:
@@ -5931,11 +6391,86 @@ func _compact_piece_arrays() -> void:
 
 	for i in range(GRID_ROWS):
 		for j in range(GRID_COLUMNS):
-			if grid_i[i][j] != -1 and grid_i[i][j] in old_to_new:
-				grid_i[i][j] = old_to_new[grid_i[i][j]]
+			if grid_i[i][j] != -1:
+				if grid_i[i][j] in old_to_new:
+					grid_i[i][j] = old_to_new[grid_i[i][j]]
+				else:
+					grid_i[i][j] = -1
 
 	piece = remaining_pieces
 	piececollid = remaining_collids
+
+## 盤面論理グリッドと駒スプライトの1:1整合性保証（駒の重複・残留・位置ズレの解消 I2対策）
+func _ensure_board_pieces_consistency() -> void:
+	if grid_i.size() != GRID_ROWS or grid_n.size() != GRID_ROWS:
+		return
+
+	# 1. grid_i の重複参照チェック＆無効インデックスのクリア
+	var seen_indices: Dictionary = {}
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var idx = grid_i[r][c]
+			if idx != -1:
+				if idx < 0 or idx >= piece.size() or piece[idx] == null:
+					grid_i[r][c] = -1
+				elif seen_indices.has(idx):
+					# 重複参照を解消：新しいスプライトを生成して割り当てる
+					var kind = grid_n[r][c]
+					if kind >= 0 and kind < PIECE_TEXTURES.size():
+						var new_sp = Sprite2D.new()
+						new_sp.texture = PIECE_TEXTURES[kind]
+						new_sp.position = get_cell_position(r, c)
+						new_sp.scale = cellsize
+						new_sp.modulate = Color.WHITE
+						_add_element_mark_to_sprite(new_sp)
+						Profiler.add_child_count += 1; add_child(new_sp)
+						piece.append(new_sp)
+						piececollid.append(null)
+						grid_i[r][c] = piece.size() - 1
+						seen_indices[grid_i[r][c]] = Vector2i(r, c)
+					else:
+						grid_i[r][c] = -1
+				else:
+					seen_indices[idx] = Vector2i(r, c)
+
+	# 2. piece 配列内の浮遊スプライト（どのマスにも所属していないスプライト）の回収
+	var has_orphans: bool = false
+	for p_idx in range(piece.size()):
+		if piece[p_idx] != null and not seen_indices.has(p_idx):
+			piece[p_idx].queue_free(); Profiler.queue_free_count += 1
+			piece[p_idx] = null
+			if p_idx < piececollid.size() and piececollid[p_idx] != null:
+				piececollid[p_idx].queue_free(); Profiler.queue_free_count += 1
+				piececollid[p_idx] = null
+			has_orphans = true
+
+	if has_orphans:
+		_compact_piece_arrays()
+
+	# 3. 各マスのスプライト位置とテクスチャ、状態フラグの同期
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var idx = grid_i[r][c]
+			if idx != -1 and idx < piece.size() and piece[idx] != null:
+				var target_pos = get_cell_position(r, c)
+				var is_currently_falling = false
+				for fp in falling_pieces:
+					if fp.get("sprite") == piece[idx] and not fp.get("landed", false):
+						is_currently_falling = true
+						break
+				if not is_currently_falling:
+					piece[idx].position = target_pos
+					piece[idx].visible = true
+					if idx < piececollid.size() and piececollid[idx] != null:
+						piececollid[idx].position = target_pos
+				var sp = special_item[r][c] if special_item.size() == GRID_ROWS else SpecialItemType.NONE
+				if sp == SpecialItemType.NONE:
+					var kind = grid_n[r][c]
+					if kind >= 0 and kind < PIECE_TEXTURES.size():
+						piece[idx].texture = PIECE_TEXTURES[kind]
+			else:
+				if not _is_plant_cell(r, c):
+					grid_n[r][c] = -1
 
 # --- 戦闘・エフェクト処理群 (バグ修正済み) ---
 
@@ -5984,6 +6519,9 @@ func _process(delta: float) -> void:
 			hovered_swap_cell = Vector2i(-1, -1)
 			if swap_guide_overlay:
 				swap_guide_overlay.queue_redraw()
+
+	if tutorial_allowed_swap.size() == 2 and swap_guide_overlay:
+		swap_guide_overlay.queue_redraw()
 
 	# 戦闘演出ターンおよび発射物シミュレーションのゲーム速度連動
 	var spd: float = maxf(0.1, _get_game_speed())
@@ -6342,6 +6880,24 @@ func moveswords() -> void:
 			continue
 
 		if t >= 0:
+			# 目標の敵がすでに撃破されている場合、現在生存している別の敵へ自動リターゲット
+			var target_spr = item.get("target_sprite")
+			var target_e = item.get("target_enemy")
+			var active_en_check = sm.active_enemies if (sm and "active_enemies" in sm) else []
+			var is_target_alive = false
+			if is_instance_valid(target_spr) and target_e != null:
+				for e_chk in active_en_check:
+					if e_chk == target_e and float(e_chk.get("hp", 0.0)) > 0:
+						is_target_alive = true
+						break
+			if not is_target_alive and not active_en_check.is_empty():
+				var next_e = active_en_check[0]
+				item["target_enemy"] = next_e
+				var next_spr = next_e.get("sprite")
+				if is_instance_valid(next_spr):
+					item["target_sprite"] = next_spr
+					item["target_pos"] = self.to_local(next_spr.global_position)
+
 			var progress = t / 50.0
 			var ease_p = progress
 			var sp = item.get("start_pos", Vector2(12200, 6648))
@@ -6362,11 +6918,17 @@ func moveswords() -> void:
 				if sm:
 					var base_dmg: float = item.get("damage", 100.0 * swordt)
 					var atk_el = item.get("element", 0)
-					var target_spr = item.get("target_sprite")
+					target_spr = item.get("target_sprite")
 					var active_en = sm.active_enemies if "active_enemies" in sm else []
 					
 					# 狙っていた敵が撃破されていた場合は、現在生存しているフォーカス敵（または0番目）にフォールバック
-					if not is_instance_valid(target_spr) and not active_en.is_empty():
+					var is_target_spr_active = false
+					if is_instance_valid(target_spr):
+						for e_chk in active_en:
+							if e_chk.get("sprite") == target_spr and float(e_chk.get("hp", 0.0)) > 0:
+								is_target_spr_active = true
+								break
+					if not is_target_spr_active and not active_en.is_empty():
 						var f_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else 0
 						if f_idx >= 0 and f_idx < active_en.size():
 							target_spr = active_en[f_idx].get("sprite")
@@ -6389,6 +6951,8 @@ func moveswords() -> void:
 					
 					# 実際に着弾した特定の敵にダメージを適用
 					sm.calchp(final_dmg, 0, target_spr)
+					if _is_tutorial_mode():
+						emit_signal("tutorial_attack_landed")
 					
 					var eff_str = "normal"
 					if mult >= 1.2: eff_str = "weak"
@@ -6568,11 +7132,30 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		_handle_gameover_sequence(sm)
 		return
 
+	if is_tutorial_paused:
+		return
+
 	# ターン開始時（interval == 0）に、実際に発射物・アクションが発生するかを厳密に判定
 	if interval == 0:
 		has_enemy_attacked = false
 		isattack = 0
 		isblock = 0
+		if _is_tutorial_mode() and not has_emitted_items_scored:
+			has_emitted_items_scored = true
+			emit_signal("tutorial_items_scored")
+			if is_tutorial_paused:
+				_restore_score_label_positions()
+				return
+
+		# ⚡ 自軍感電5スタック超過時の過負荷放電
+		if player_shock_stacks >= 5:
+			player_shock_stacks = 0
+			var ol_dmg = (minf(sm.myhpmax * 0.12, 600.0) if (sm and sm.myhpmax > 0) else 600.0) * _get_difficulty_skill_mult()
+			if sm:
+				sm.last_damage_cause = "感電スタック過負荷放電"
+				sm.calchp(0.0, ol_dmg)
+			_spawn_screen_flash(Color(1.0, 0.9, 0.2, 0.4), 0.25)
+			_spawn_floating_text(Vector2(640, 500), "⚡ 感電過負荷放電 -%d!" % int(ol_dmg), Color(1.0, 0.4, 0.3))
 		if score_mgr:
 			var s_cnt = min(int((sm.ehp if sm else 0) / swordt), int(score_mgr.divscore[PieceType.SWORD] / (swordt * 100.0)))
 			var food_heal_unit: float = maxf(1.0, foodt * 100.0)
@@ -6629,6 +7212,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 				if is_anim and sm and sm.has_method("stop_enemy_animation"):
 					sm.stop_enemy_animation()
 				is_enemy_turn_in_progress = false
+				if _is_tutorial_mode():
+					emit_signal("tutorial_enemy_acted")
 				_reset_turn(sm, score_mgr)
 				current_state = BoardState.IDLE
 				return
@@ -6722,6 +7307,8 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 			if is_anim and sm and sm.has_method("stop_enemy_animation"):
 				sm.stop_enemy_animation()
 			is_enemy_turn_in_progress = false
+			if _is_tutorial_mode():
+				emit_signal("tutorial_enemy_acted")
 			_reset_turn(sm, score_mgr)
 			current_state = BoardState.IDLE
 			return
@@ -6752,25 +7339,51 @@ func _spawn_attack_projectiles(sm: Node2D, score_mgr: Node2D) -> void:
 	var spawn_sword_cnt: int = clampi(raw_sword_cnt, 0, MAX_COMBAT_PROJECTILES)
 	var dmg_per_sword: float = (float(raw_sword_cnt) / float(max(1, spawn_sword_cnt))) * 100.0 * swordt
 
+	var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
+	var sim_enemy_hp: Array[float] = []
+	for e_item in active_en:
+		sim_enemy_hp.append(float(e_item.get("hp", 0.0)))
+
 	for i in range(spawn_sword_cnt):
 		var s: Sprite2D = _get_sprite_from_pool()
 		s.texture = PIECE_TEXTURES[PieceType.SWORD]
 		var target_pos = Vector2(12300.0 + float(randi() % 2000 - 1000), 2700.0)
-		var active_en = sm.active_enemies if sm and "active_enemies" in sm else []
 		var target_e = null
 		var target_spr = null
 		if not active_en.is_empty():
 			var focus_idx = sm.get_focused_enemy_index() if sm.has_method("get_focused_enemy_index") else -1
+			var chosen_idx = -1
 			if focus_idx >= 0 and focus_idx < active_en.size():
-				# ターゲット指定あり：指定した敵へ集中
-				target_e = active_en[focus_idx]
+				# ターゲット指定あり：指定敵のHPが残っている間は集中、HP超過分は生存している他敵へ配分
+				if sim_enemy_hp[focus_idx] > 0.0:
+					chosen_idx = focus_idx
+				else:
+					for o_idx in range(active_en.size()):
+						var cand_idx = (focus_idx + 1 + o_idx) % active_en.size()
+						if sim_enemy_hp[cand_idx] > 0.0:
+							chosen_idx = cand_idx
+							break
+					if chosen_idx == -1:
+						chosen_idx = (i - focus_idx) % active_en.size()
 			else:
 				# ターゲットなし：生存している敵全体へ均等に分散
-				target_e = active_en[i % active_en.size()]
-			var spr = target_e.get("sprite")
-			if is_instance_valid(spr):
-				target_spr = spr
-				target_pos = self.to_local(spr.global_position)
+				for o_idx in range(active_en.size()):
+					var check_idx = (i + o_idx) % active_en.size()
+					if sim_enemy_hp[check_idx] > 0.0:
+						chosen_idx = check_idx
+						break
+				if chosen_idx == -1:
+					chosen_idx = i % active_en.size()
+
+			if chosen_idx >= 0 and chosen_idx < active_en.size():
+				target_e = active_en[chosen_idx]
+				sim_enemy_hp[chosen_idx] -= dmg_per_sword
+
+			if target_e:
+				var spr = target_e.get("sprite")
+				if is_instance_valid(spr):
+					target_spr = spr
+					target_pos = self.to_local(spr.global_position)
 		
 		var start_x = 12200.0
 		var start_y = 6648.0
@@ -7055,13 +7668,26 @@ var _cached_settings_manager: Node = null
 func _get_settings_manager() -> Node:
 	if _cached_settings_manager and is_instance_valid(_cached_settings_manager):
 		return _cached_settings_manager
+	if is_inside_tree():
+		var sm_direct = get_node_or_null("/root/SettingsManager")
+		if sm_direct:
+			_cached_settings_manager = sm_direct
+			return _cached_settings_manager
 	var root_node = null
 	if is_inside_tree() and get_tree():
 		root_node = get_tree().root
 	elif Engine.get_main_loop() is SceneTree:
 		root_node = (Engine.get_main_loop() as SceneTree).root
+	elif is_instance_valid(Engine.get_main_loop()) and Engine.get_main_loop().has_method("get_root"):
+		root_node = Engine.get_main_loop().get_root()
+	if root_node == null:
+		var st = Engine.get_main_loop()
+		if st and "root" in st:
+			root_node = st.root
 	if root_node:
 		var sm_autoload = root_node.get_node_or_null("SettingsManager")
+		if sm_autoload == null:
+			sm_autoload = root_node.find_child("SettingsManager", true, false)
 		if sm_autoload:
 			_cached_settings_manager = sm_autoload
 			return _cached_settings_manager
@@ -7072,6 +7698,18 @@ func _get_settings_manager() -> Node:
 			return _cached_settings_manager
 		p = p.get_parent()
 	return null
+
+var is_tutorial_mode: bool = false
+
+func _is_tutorial_mode(sm_node: Node = null) -> bool:
+	if is_tutorial_mode:
+		return true
+	if sm_node and sm_node.has_method("_is_tutorial_mode") and sm_node._is_tutorial_mode():
+		return true
+	if sm_node and "is_tutorial_mode" in sm_node and sm_node.is_tutorial_mode:
+		return true
+	var sm = _get_settings_manager()
+	return (sm != null and "is_tutorial_mode" in sm and sm.is_tutorial_mode)
 
 ## 難易度に応じた敵スキル強度倍率を取得 (EASY: 0.70, NORMAL: 1.0, HARD: 1.35)
 func _get_difficulty_skill_mult() -> float:
@@ -7123,8 +7761,16 @@ func _decide_enemy_actions(sm: Node2D) -> bool:
 				
 				var action = "attack"
 				var chosen_skill = ""
+				var is_tut: bool = _is_tutorial_mode(sm)
 				var skill_chance = 0.50 * _get_difficulty_skill_mult()
-				if is_boss or randf() < skill_chance:
+				if is_tut:
+					if sm.stage <= 1:
+						action = "attack"
+					else:
+						action = "skill"
+						has_skill = true
+						chosen_skill = _select_enemy_skill(e, sm)
+				elif is_boss or randf() < skill_chance:
 					action = "skill"
 					has_skill = true
 					chosen_skill = _select_enemy_skill(e, sm)
@@ -7158,7 +7804,7 @@ func _spawn_slash_effect(pos: Vector2) -> void:
 	Profiler.add_child_count += 1
 	root_node.add_child(node)
 
-func _execute_enemy_turn_actions(sm: Node2D) -> void:
+func _execute_enemy_turn_actions(sm: Node2D, synchronous: bool = false) -> void:
 	if enemy_turn_skip_count > 0:
 		enemy_turn_skip_count -= 1
 		has_enemy_attacked = true
@@ -7179,12 +7825,17 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		is_enemy_turn_in_progress = false
 		return
 
+	if _enemy_turn_actions.is_empty():
+		_decide_enemy_actions(sm)
+
 	is_enemy_turn_in_progress = true
 	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
 		_enemy_turn_tween.kill()
 
-	var seq_tw = create_tween()
-	_enemy_turn_tween = seq_tw
+	var seq_tw: Tween = null
+	if not synchronous and is_inside_tree() and get_tree() != null:
+		seq_tw = create_tween()
+		_enemy_turn_tween = seq_tw
 	
 	for act_idx in range(_enemy_turn_actions.size()):
 		var act_info = _enemy_turn_actions[act_idx]
@@ -7213,10 +7864,13 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 		
 		# 行動する敵へズームイン演出（敵画面内限定）
 		if sm and sm.has_method("zoom_on_attacking_enemy"):
-			seq_tw.tween_callback(func():
-				if is_instance_valid(sm):
-					sm.zoom_on_attacking_enemy(e_idx)
-			)
+			if seq_tw != null:
+				seq_tw.tween_callback(func():
+					if is_instance_valid(sm):
+						sm.zoom_on_attacking_enemy(e_idx)
+				)
+			elif is_instance_valid(sm):
+				sm.zoom_on_attacking_enemy(e_idx)
 		
 		if action == "attack":
 			var anim_dur = sm.get_enemy_animation_duration(spr, "attack") if (sm and sm.has_method("get_enemy_animation_duration")) else ENEMY_ATTACK_MOTION_DURATION
@@ -7224,7 +7878,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var effect_delay = minf(0.24, anim_dur * 0.4)
 			var after_delay = maxf(0.15, anim_dur - effect_delay + 0.1)
 
-			seq_tw.tween_callback(func():
+			var anim_cb = func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				
 				# 5番目のボス（冥王デモニアス等）の2回行動時、攻撃アクションの発生を明確に告知
@@ -7236,19 +7890,17 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if sm.has_method("play_single_enemy_animation"):
 					has_anim = sm.play_single_enemy_animation(spr, "attack")
 					
-				if not has_anim:
+				if not has_anim and is_inside_tree() and get_tree() != null:
 					var orig_pos = spr.position
 					var atk_tw = create_tween()
-					atk_tw.bind_node(spr)
-					spr.set_meta("rush_tween", atk_tw)
-					atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), anim_dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-					atk_tw.tween_property(spr, "position", orig_pos, anim_dur * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-					atk_tw.tween_callback(func(): if is_instance_valid(spr): spr.position = orig_pos)
-			)
-			
-			seq_tw.tween_interval(effect_delay)
-			
-			seq_tw.tween_callback(func():
+					if atk_tw != null:
+						atk_tw.bind_node(spr)
+						spr.set_meta("rush_tween", atk_tw)
+						atk_tw.tween_property(spr, "position", orig_pos + Vector2(-80, 0), anim_dur * 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+						atk_tw.tween_property(spr, "position", orig_pos, anim_dur * 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+						atk_tw.tween_callback(func(): if is_instance_valid(spr): spr.position = orig_pos)
+
+			var dmg_cb = func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				
 				_play_pooled_se(ENEMY_ATTACK_SE, linear_to_db(clampf(se_vol * 1.2, 0.001, 1.5)), 1.0)
@@ -7276,6 +7928,16 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 					if randf() < paralyze_chance:
 						_spawn_floating_text(spr.position, "🧪 麻痺毒！敵攻撃不発！", Color(0.7, 0.2, 0.9))
 						return
+
+				# ⚡ 雷C2 静電気: 感電スタックを持つ相手が攻撃行動を行うたびスタック比例自傷
+				if enemy_shock_stacks > 0 and has_actor_skill_trait(true, "thunder", "thunder_final_c2"):
+					var sc_m = _get_score_manager()
+					var sk_lvl_th = maxi(1, sc_m.get_skill_level("thunder_1")) if (sc_m and sc_m.has_method("get_skill_level")) else 1
+					var static_dmg = float(enemy_shock_stacks) * (60.0 + sk_lvl_th * 15.0) * pow(10.0, max(0, (sm.stage - 1) if sm else 0))
+					sm.calchp(static_dmg, 0.0)
+					_emit_combat_event("damage", "ally", "enemy", static_dmg, "thunder_static_shock")
+					_spawn_floating_text(spr.position if is_instance_valid(spr) else Vector2(640, 360), "⚡ 静電気自傷 -%d! (スタック%d)" % [int(static_dmg), enemy_shock_stacks], Color(1.0, 0.9, 0.2))
+					enemy_shock_stacks = maxi(0, enemy_shock_stacks - 1)
 
 				# ❄️ 寒気 (ice_final_c1) & 🧪 弱体 (poison_mid_c): 敵攻撃力低下デバフ
 				var debuff_rate = 0.0
@@ -7328,10 +7990,10 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 					_spawn_floating_text(Vector2(640, 360), "❄️ 氷柱反撃！シールド防御分を反射 -%d!" % int(total_blocked), Color(0.5, 0.85, 1.0))
 
 				var incoming_damage = maxf(0.0, remaining_atk)
+				var pre_mitigation_damage = incoming_damage
 				var rm = _get_relic_manager()
 				if rm:
 					incoming_damage = rm.modify_damage_taken(incoming_damage, {"element": atk_el})
-					if sm: incoming_damage = rm.check_fatal_damage(sm.myhp, incoming_damage)
 
 				# 🌱 木B1: 森の加護 (-5%/本, 最大40%) & 🪨 地A1: 城壁 (-5%/個, 最大40%)
 				if has_actor_skill_trait(true, "wood", "wood_final_b1"):
@@ -7363,8 +8025,17 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 					incoming_damage *= 0.75
 					_spawn_floating_text(Vector2(640, 360), "✨ 聖域結界！被ダメージ-25%", Color(1.0, 0.95, 0.5))
 
-				# 🌙 闇C: 混沌 (戦闘で受けたダメージを蓄積、最大5000)
-				if incoming_damage > 0.0:
+				# 🛡️ 防御スタック合計キャップ（最大75%カット、最低25%保障）
+				if pre_mitigation_damage > 0.0:
+					var min_dmg = pre_mitigation_damage * 0.25
+					if incoming_damage < min_dmg:
+						incoming_damage = min_dmg
+
+				if rm and sm:
+					incoming_damage = rm.check_fatal_damage(sm.myhp, incoming_damage)
+
+				# 🌙 闇C: 混沌・反動 (戦闘で受けたダメージを蓄積、最大5000)
+				if incoming_damage > 0.0 and has_actor_skill_trait(true, "dark", "dark_mid_c"):
 					dark_accumulated_damage = minf(5000.0, dark_accumulated_damage + incoming_damage * 0.50)
 
 				turn_damage_taken += incoming_damage
@@ -7386,9 +8057,15 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				_emit_combat_event("damage", "enemy", "ally", incoming_damage, "", false, "normal", event_payload)
 				if sm.myhp <= 0:
 					_trigger_gameover(sm)
-			)
-			
-			seq_tw.tween_interval(after_delay)
+
+			if seq_tw != null:
+				seq_tw.tween_callback(anim_cb)
+				seq_tw.tween_interval(effect_delay)
+				seq_tw.tween_callback(dmg_cb)
+				seq_tw.tween_interval(after_delay)
+			else:
+				anim_cb.call()
+				dmg_cb.call()
 
 		elif action == "summon":
 			var sk_anim_dur = sm.get_enemy_animation_duration(spr, "skill") if (sm and sm.has_method("get_enemy_animation_duration")) else 1.2
@@ -7396,7 +8073,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var chant_delay = 0.75
 			var after_summon_delay = maxf(0.5, sk_anim_dur - chant_delay + 0.1)
 
-			seq_tw.tween_callback(func():
+			var chant_cb = func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				_play_enemy_skill_se(true)
 				_show_enemy_skill_banner("冥府の号令・使徒召喚", "#D500F9", true, "【使徒召喚】冥界より下僕を召喚する！")
@@ -7405,25 +8082,32 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if sm.has_method("play_single_enemy_animation"):
 					has_anim = sm.play_single_enemy_animation(spr, "skill")
 				
-				if not has_anim and is_instance_valid(spr):
+				if not has_anim and is_instance_valid(spr) and is_inside_tree() and get_tree() != null:
 					var orig_s = spr.get_meta("anim_orig_scale", spr.scale)
 					var sk_tw = create_tween()
-					sk_tw.bind_node(spr)
-					spr.set_meta("rush_tween", sk_tw)
-					sk_tw.tween_property(spr, "scale", orig_s * 1.3, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-					sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+					if sk_tw != null:
+						sk_tw.bind_node(spr)
+						spr.set_meta("rush_tween", sk_tw)
+						sk_tw.tween_property(spr, "scale", orig_s * 1.3, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+						sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 					
 				_spawn_enemy_skill_chant_vfx(sm, spr, "#D500F9", true)
-			)
-			seq_tw.tween_interval(chant_delay)
-			seq_tw.tween_callback(func():
+
+			var summon_cb = func():
 				if sm == null or sm.isdeadf or sm.ehp <= 0: return
 				if sm.has_method("summon_boss_minion"):
 					var res = sm.summon_boss_minion()
 					if not res.is_empty():
 						_spawn_floating_text(Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, BOARD_TOP + 80), "使徒召喚！", Color(0.9, 0.4, 1.0))
-			)
-			seq_tw.tween_interval(after_summon_delay)
+
+			if seq_tw != null:
+				seq_tw.tween_callback(chant_cb)
+				seq_tw.tween_interval(chant_delay)
+				seq_tw.tween_callback(summon_cb)
+				seq_tw.tween_interval(after_summon_delay)
+			else:
+				chant_cb.call()
+				summon_cb.call()
 
 		else:
 			var is_boss = false
@@ -7444,7 +8128,7 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 			var chant_delay = 0.8
 			var after_skill_delay = maxf(0.5, sk_anim_dur - chant_delay + 0.1)
 
-			seq_tw.tween_callback(func():
+			var skill_chant_cb = func():
 				if not is_instance_valid(spr) or sm == null or sm.isdeadf or sm.ehp <= 0: return
 				_play_enemy_skill_se(is_boss)
 				_show_enemy_skill_banner(s_name, elem_color, is_boss)
@@ -7453,26 +8137,32 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				if sm.has_method("play_single_enemy_animation"):
 					has_anim = sm.play_single_enemy_animation(spr, "skill")
 				
-				if not has_anim and is_instance_valid(spr):
+				if not has_anim and is_instance_valid(spr) and is_inside_tree() and get_tree() != null:
 					var orig_s = spr.get_meta("anim_orig_scale", spr.scale)
 					var sk_tw = create_tween()
-					sk_tw.bind_node(spr)
-					spr.set_meta("rush_tween", sk_tw)
-					sk_tw.tween_property(spr, "scale", orig_s * 1.25, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-					sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+					if sk_tw != null:
+						sk_tw.bind_node(spr)
+						spr.set_meta("rush_tween", sk_tw)
+						sk_tw.tween_property(spr, "scale", orig_s * 1.25, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+						sk_tw.tween_property(spr, "scale", orig_s, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 					
 				_spawn_enemy_skill_chant_vfx(sm, spr, elem_color, is_boss)
-			)
-			seq_tw.tween_interval(chant_delay)
-			seq_tw.tween_callback(func():
+
+			var skill_exec_cb = func():
 				if sm == null or sm.isdeadf or sm.ehp <= 0: return
 				var tgs = _apply_enemy_elemental_skill_effect(elem, is_boss)
 				_spawn_enemy_skill_beam_and_burst(sm, spr, elem_color, is_boss, tgs)
 
-			)
-			seq_tw.tween_interval(after_skill_delay)
+			if seq_tw != null:
+				seq_tw.tween_callback(skill_chant_cb)
+				seq_tw.tween_interval(chant_delay)
+				seq_tw.tween_callback(skill_exec_cb)
+				seq_tw.tween_interval(after_skill_delay)
+			else:
+				skill_chant_cb.call()
+				skill_exec_cb.call()
 
-	seq_tw.tween_callback(func():
+	var cleanup_cb = func():
 		is_enemy_turn_in_progress = false
 		if sm and sm.has_method("reset_enemy_zoom"):
 			sm.reset_enemy_zoom()
@@ -7486,7 +8176,11 @@ func _execute_enemy_turn_actions(sm: Node2D) -> void:
 				en_data["just_summoned"] = false
 		if sm and sm.myhp <= 0:
 			_trigger_gameover(sm)
-	)
+
+	if seq_tw != null:
+		seq_tw.tween_callback(cleanup_cb)
+	else:
+		cleanup_cb.call()
 func _execute_enemy_attack(sm: Node2D) -> void:
 	if has_enemy_attacked: return
 	has_enemy_attacked = true
@@ -7699,17 +8393,23 @@ func _get_stage_index() -> int:
 
 ## 盤面への各属性妨害効果の適用
 func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> Array[Vector2]:
-	# ✨ 後光の像 (light_final_b1): 自陣の聖像が存在する限り、敵妨害マス設置を完全遮断
+	# ✨ 後光の像 (light_final_b1): 自陣の聖像が敵スキルの妨害マス設置を身代わりとなって遮断（遮断ごとに聖像耐久-1）
 	if has_actor_skill_trait(true, "light", "light_final_b1"):
-		var has_ally_st = false
+		var blocked_by_statue = false
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and is_ally_gold(r, c):
-					has_ally_st = true
+					grid_gold_statue[r][c] -= 1
+					if grid_gold_statue[r][c] <= 0:
+						grid_gold_statue[r][c] = 0
+						_set_ally_flag(grid_gold_ally, r, c, false)
+						_spawn_floating_text(get_cell_position(r, c), "✨ 聖像身代わり昇天！", Color(1.0, 0.9, 0.4))
+					else:
+						_spawn_floating_text(get_cell_position(r, c), "✨ 聖像身代わり遮断！(耐久%d)" % grid_gold_statue[r][c], Color(1.0, 1.0, 0.6))
+					blocked_by_statue = true
 					break
-			if has_ally_st: break
-		if has_ally_st or has_light_sanctuary_this_turn:
-			_spawn_floating_text(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2), "✨ 後光の像！妨害マス設置阻止！", Color(1.0, 1.0, 0.6))
+			if blocked_by_statue: break
+		if blocked_by_statue or has_light_sanctuary_this_turn:
 			return []
 
 	match elem:
@@ -7852,8 +8552,69 @@ func _spawn_enemy_skill_beam_and_burst(sm: Node2D, enemy_sp: Sprite2D, elem_colo
 			if vc: Profiler.add_child_count += 1; vc.add_child(burst_node)
 			else: Profiler.add_child_count += 1; root_node.add_child(burst_node)
 	)
+
+## プレイヤースキル発動時の属性魔力弾（スペルビーム／彗星弾頭）演出
+## 敵の _spawn_enemy_skill_beam_and_burst と同一の SkillVFXNode SPELL_BEAM + BURST_RING を使用
+func _spawn_player_skill_beams(origin_pos: Vector2, targets: Array[Vector2], skill_key: String) -> void:
+	if not is_inside_tree() or get_tree() == null:
+		return
+	if targets.is_empty():
+		return
+
+	# スキル属性に応じた属性色を決定
+	var elem_col: Color
+	match skill_key:
+		"fire": elem_col = Color(1.0, 0.4, 0.2)
+		"water": elem_col = Color(0.3, 0.6, 1.0)
+		"wind": elem_col = Color(0.4, 0.9, 0.4)
+		"thunder": elem_col = Color(0.9, 0.9, 0.2)
+		"light": elem_col = Color(1.0, 0.9, 0.6)
+		"dark": elem_col = Color(0.7, 0.3, 0.9)
+		"poison": elem_col = Color(0.67, 0.28, 0.74)
+		"ice": elem_col = Color(0.5, 0.85, 1.0)
+		"wood": elem_col = Color(0.3, 0.85, 0.4)
+		"earth": elem_col = Color(0.85, 0.65, 0.35)
+		_: elem_col = Color(0.45, 0.98, 1.0)
+
+	var p = get_parent()
+	var root_node = p if p != null else self
+	var origin_global = to_global(origin_pos)
+
+	_play_spell_beam_se()
+
+	# レグレーション: 大量ターゲットでのラグ防止のためビーム最大8本に制限
+	var visual_targets = targets.duplicate()
+	visual_targets.shuffle()
+	var max_beams = mini(8, visual_targets.size())
+
+	for i in range(max_beams):
+		var target_global = to_global(visual_targets[i])
+		var beam_node = SkillVFXNode.new(SkillVFXNode.VFXMode.SPELL_BEAM, elem_col, 0.35)
+		beam_node.start_pos = origin_global
+		beam_node.target_pos = target_global
+		var vc = root_node.get_node_or_null("VFXContainer")
+		if vc: Profiler.add_child_count += 1; vc.add_child(beam_node)
+		else: Profiler.add_child_count += 1; root_node.add_child(beam_node)
+
+	# ビーム着弾後にバーストリングを展開
+	var tw_burst = create_tween()
+	tw_burst.tween_interval(0.30)
+	tw_burst.tween_callback(func():
+		if not is_instance_valid(root_node): return
+		for i in range(max_beams):
+			var target_root_local = root_node.to_local(to_global(visual_targets[i]))
+			var burst_node = SkillVFXNode.new(SkillVFXNode.VFXMode.BURST_RING, elem_col, 0.40)
+			burst_node.position = target_root_local
+			burst_node.max_radius = 140.0
+			var vc = root_node.get_node_or_null("VFXContainer")
+			if vc: Profiler.add_child_count += 1; vc.add_child(burst_node)
+			else: Profiler.add_child_count += 1; root_node.add_child(burst_node)
+	)
+
 ## 敵エリアのスキル発動カットインビジュアル演出（互換用）
 func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_boss: bool, effect_desc: String = "") -> void:
+	if not is_inside_tree() or get_tree() == null:
+		return
 	var custom_font = preload("res://font/g_comickoin_freeR.ttf")
 	var p = get_parent()
 	var target_parent = p if p != null else self
@@ -7930,6 +8691,35 @@ func _show_enemy_skill_banner(skill_name: String, elem_color_hex: String, is_bos
 	tw.parallel().tween_property(panel, "position:y", panel.position.y - 25.0, 0.30)
 	tw.tween_callback(panel.queue_free)
 
+## 敵ハザード設置阻止判定（風の守り・要塞防壁）
+func _check_and_block_enemy_hazard(r: int, c: int) -> bool:
+	if wind_ward_columns.get(c, 0) > 0:
+		var pos = get_cell_position(r, c)
+		_spawn_floating_text(pos, "🌪️ 風の守り！妨害阻止！", Color(0.4, 1.0, 0.8))
+		return true
+
+	# 🪨 地A 要塞: 味方石の周囲8マスへの敵妨害設置を阻止し、阻止のたび石耐久-1
+	if has_actor_skill_trait(true, "earth", "earth_mid_a"):
+		if grid_stones.size() == GRID_ROWS:
+			for dr in [-1, 0, 1]:
+				for dc in [-1, 0, 1]:
+					if dr == 0 and dc == 0: continue
+					var nr = r + dr; var nc = c + dc
+					if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+						if grid_stones[nr][nc] > 0 and is_ally_stone(nr, nc):
+							_damage_stone_at(nr, nc, 1)
+							var pos = get_cell_position(r, c)
+							_spawn_floating_text(pos, "🪨 要塞防壁！妨害阻止！", Color(0.9, 0.7, 0.4))
+							return true
+
+	# 🌙 闇 影護: 影護マスの加護により敵妨害（呪い・毒・火・氷・石等）の設置を遮断・防御
+	if is_ally_cursed(r, c):
+		var pos = get_cell_position(r, c)
+		_spawn_floating_text(pos, "🌙 影護！妨害阻止！", Color(0.6, 0.4, 0.95))
+		return true
+
+	return false
+
 ## 1. 水属性スキル: 水浸しで操作困難（通常1〜2マス、ボスは初期5〜6マスから緩やかに増加）
 func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[Vector2]:
 	var _targets: Array[Vector2] = []
@@ -7952,6 +8742,8 @@ func _cast_enemy_water_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		_apply_water_to_cell(p.x, p.y, false)
 		_spawn_floating_text(get_cell_position(p.x, p.y), "水没", Color(0.2, 0.8, 1.0))
 		_spawn_aqua_splash_effect(get_cell_position(p.x, p.y), 1)
@@ -8010,6 +8802,8 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		var ice_dur = 1
 		if is_boss:
 			ice_dur = 2 + (1 if (st_idx >= 3 and i < 3) else 0)
@@ -8017,16 +8811,23 @@ func _cast_enemy_ice_skill(is_boss: bool, show_banner: bool = true) -> Array[Vec
 			ice_dur = 2
 
 		# 氷のブレス/スキルが水マスに当たった場合、水の塊ごと全体を一括凍結！
+		var cell_p = get_cell_position(p.x, p.y)
 		var is_water = (grid_water.size() == GRID_ROWS and grid_water[p.x][p.y] and not is_ally_water(p.x, p.y))
 		if is_water:
 			_freeze_connected_water(p, ice_dur, false)
-			_targets.append(get_cell_position(p.x, p.y))
+			_targets.append(cell_p)
 		else:
 			grid_ice[p.x][p.y] = ice_dur
 			_set_ally_flag(grid_ice_ally, p.x, p.y, false)
-			_spawn_floating_text(get_cell_position(p.x, p.y), "氷結", Color(0.7, 0.9, 1.0))
-			_spawn_ice_break_effect(get_cell_position(p.x, p.y))
-			_targets.append(get_cell_position(p.x, p.y))
+			_spawn_floating_text(cell_p, "氷結", Color(0.7, 0.9, 1.0))
+			_targets.append(cell_p)
+
+		# 敵位置から対象凍結マスへ氷晶弾を飛翔（視覚的な飛翔軌跡）
+		var sm_enemy_ice = _get_stage_manager()
+		var enemy_pos = Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, 200.0)
+		if sm_enemy_ice and is_instance_valid(sm_enemy_ice.enemy):
+			enemy_pos = sm_enemy_ice.enemy.global_position
+		_spawn_ice_shard_projectile(enemy_pos, cell_p, float(i) * 0.08)
 
 	_redraw_board_effects()
 	return _targets
@@ -8146,6 +8947,8 @@ func _cast_enemy_wood_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var num_saplings = (1 + int(st_idx / 2)) if is_boss else (1 if st_idx >= 3 else 0)
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		var idx = grid_i[p.x][p.y]
 		if idx >= 0 and idx < piece.size() and piece[idx] != null:
 			piece[idx].queue_free(); Profiler.queue_free_count += 1
@@ -8209,6 +9012,8 @@ func _cast_enemy_earth_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	var heavy_stones = (1 + int(st_idx / 2)) if is_boss else 0
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		var stone_dur = (base_dur + 1) if i < heavy_stones else base_dur
 		grid_stones[p.x][p.y] = stone_dur
 		_set_ally_flag(grid_stones_ally, p.x, p.y, false)
@@ -8289,9 +9094,10 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 			if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
 				if (grid_stones.size() == GRID_ROWS and grid_stones[r][c] == 0) and \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] == 0):
-					grid_electrified[r][c] = true
-					_set_ally_flag(grid_electrified_ally, r, c, false)
-					_spawn_floating_text(get_cell_position(r, c), "帯電", Color(0.9, 1.0, 0.2))
+					if not _check_and_block_enemy_hazard(r, c):
+						grid_electrified[r][c] = true
+						_set_ally_flag(grid_electrified_ally, r, c, false)
+						_spawn_floating_text(get_cell_position(r, c), "帯電", Color(0.9, 1.0, 0.2))
 
 			_redraw_board_effects()
 		)
@@ -8346,6 +9152,8 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var num = mini(curse_count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		grid_cursed[p.x][p.y] = true
 		_set_ally_flag(grid_cursed_ally, p.x, p.y, false)
 		_spawn_floating_text(get_cell_position(p.x, p.y), "【呪い】消去で反動！", Color(0.9, 0.4, 1.0))
@@ -8386,30 +9194,22 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 	count = maxi(1, int(round(float(count) * diff_m)))
 
 	var sm = _get_stage_manager()
-	# プレイヤーピンチ時は盾、それ以外は剣を優先してスカコマ化
-	var target_kind = PieceType.SHIELD if (sm and sm.myhp < sm.myhpmax * 0.4) else PieceType.SWORD
-
+	# ランダムなマスに効果を与える（火・氷と同様に盤面のランダムなマスを黄金像化）
 	var cands: Array[Vector2i] = []
-	var backup_cands: Array[Vector2i] = []
-
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] == 0:
-					if grid_n[r][c] == target_kind:
-						cands.append(Vector2i(r, c))
-					else:
-						backup_cands.append(Vector2i(r, c))
-
+					cands.append(Vector2i(r, c))
 	cands.shuffle()
-	backup_cands.shuffle()
-	cands.append_array(backup_cands)
 
 	var statue_dur = (2 + (1 if st_idx >= 3 else 0)) if is_boss else (1 + (1 if st_idx >= 3 else 0))
 
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		# 独立お邪魔ブロック化: 既存の通常駒を完全消去し、セルそのものを独立した黄金像ブロックに置き換え
 		var idx = grid_i[p.x][p.y]
 		if idx >= 0 and idx < piece.size() and piece[idx] != null:
@@ -8424,9 +9224,16 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 		if special_charge.size() == GRID_ROWS: special_charge[p.x][p.y] = 0
 		grid_gold_statue[p.x][p.y] = statue_dur
 		_set_ally_flag(grid_gold_ally, p.x, p.y, false)
-		_spawn_floating_text(get_cell_position(p.x, p.y), "黄金像ブロック", Color(1.0, 0.9, 0.2))
-		_spawn_gold_shatter_effect(get_cell_position(p.x, p.y))
-		_targets.append(get_cell_position(p.x, p.y))
+		var cell_pos_lgt = get_cell_position(p.x, p.y)
+		_spawn_floating_text(cell_pos_lgt, "黄金像ブロック", Color(1.0, 0.9, 0.2))
+		_targets.append(cell_pos_lgt)
+
+		# 敵位置から対象黄金像マスへ聖光弾を飛翔（視覚的な飛翔軌跡）
+		var sm_enemy_lgt = _get_stage_manager()
+		var enemy_pos = Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, 200.0)
+		if sm_enemy_lgt and is_instance_valid(sm_enemy_lgt.enemy):
+			enemy_pos = sm_enemy_lgt.enemy.global_position
+		_spawn_holy_light_projectile(enemy_pos, cell_pos_lgt, float(i) * 0.08)
 
 	# ボス時はさらにランダムな通常コマも追加で独立した黄金像ブロック化（Stage 2以上から）
 	if is_boss and st_idx >= 1:
@@ -8440,6 +9247,8 @@ func _cast_enemy_light_skill(is_boss: bool, show_banner: bool = true) -> Array[V
 		var extra_num = mini(randi_range(1, 2) + int(st_idx * 0.5), extra_cands.size())
 		for j in range(extra_num):
 			var p2 = extra_cands[j]
+			if _check_and_block_enemy_hazard(p2.x, p2.y):
+				continue
 			var idx2 = grid_i[p2.x][p2.y]
 			if idx2 >= 0 and idx2 < piece.size() and piece[idx2] != null:
 				piece[idx2].queue_free()
@@ -8507,15 +9316,18 @@ func _cast_enemy_fire_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 	var ignited_cells: Array[Vector2i] = []
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		ignited_cells.append(p)
-		grid_fire[p.x][p.y] = 1
+		grid_fire[p.x][p.y] = DEFAULT_FIRE_LIFETIME
 		_set_ally_flag(grid_fire_ally, p.x, p.y, false)
 		var cell_p = get_cell_position(p.x, p.y)
 		_spawn_floating_text(cell_p, "炎上！", Color(1.0, 0.4, 0.1))
-		_spawn_explosion_effect(cell_p)
+		_spawn_fire_ignition_effect(cell_p, false)
 		_targets.append(cell_p)
 
-	# 敵の火属性進化（破片・榴弾）発動：ブレイズブラストの破片が飛び散って隣接駒を消去
+	# 敵スキルでは盤面炎上床設置と直接ダメージのみ（駒の消去や落下は行わない。ターンループ防止）
+	# 敵の火属性進化（破片・榴弾）発動：ブレイズブラストの破片が飛び散って隣接炎上
 	if has_actor_skill_trait(false, "fire", "fire_mid_c") or has_actor_skill_trait(false, "fire", "fire_final_c1"):
 		_trigger_fire_shrapnel_evolution(ignited_cells, false)
 
@@ -8545,13 +9357,21 @@ func _cast_enemy_poison_skill(is_boss: bool, show_banner: bool = true) -> Array[
 	var num = mini(count, cands.size())
 	for i in range(num):
 		var p = cands[i]
+		if _check_and_block_enemy_hazard(p.x, p.y):
+			continue
 		if grid_poison.size() == GRID_ROWS:
 			grid_poison[p.x][p.y] = true
 			_set_ally_flag(grid_poison_ally, p.x, p.y, false)
 		var cell_p = get_cell_position(p.x, p.y)
 		_spawn_floating_text(cell_p, "毒沼！", Color(0.85, 0.35, 0.95))
-		_spawn_poison_bubble_burst_effect(cell_p)
 		_targets.append(cell_p)
+
+		# 敵位置から対象毒マスへ毒胞子弾を飛翔（視覚的な飛翔軌跡）
+		var sm_enemy_psn = _get_stage_manager()
+		var enemy_pos = Vector2(BOARD_LEFT + BOARD_WIDTH * 0.5, 200.0)
+		if sm_enemy_psn and is_instance_valid(sm_enemy_psn.enemy):
+			enemy_pos = sm_enemy_psn.enemy.global_position
+		_spawn_poison_bubble_projectile(enemy_pos, cell_p, float(i) * 0.08)
 
 	_redraw_board_effects()
 	return _targets
@@ -8590,18 +9410,26 @@ func _process_fire_spread() -> void:
 		next_fire.append(row)
 		next_fire_ally.append(row_ally)
 
+	var ally_added: int = 0
+	var enemy_added: int = 0
+
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			var f_state = grid_fire[r][c]
 			var is_src_ally: bool = is_ally_fire(r, c)
 			if is_src_ally and not ally_can_spread: continue
 			if not is_src_ally and not enemy_can_spread: continue
+			if is_src_ally and ally_fire_cnt + ally_added >= 12: continue
+			if not is_src_ally and enemy_fire_cnt + enemy_added >= 12: continue
+			# 既に他火源の消火処理で鎮火したマスからは延焼しない
+			if next_fire[r][c] <= 0: continue
 
 			var can_burn_hazards = has_actor_skill_trait(is_src_ally, "fire", "fire_final_b2")
 
-			if f_state == 1:
+			if not _is_plant_cell(r, c) and f_state > 0:
 				# 通常の炎：1ターンごとに隣接するマスの1つへ延焼
-				var candidates: Array[Vector2i] = []
+				var empty_candidates: Array[Vector2i] = []
+				var occupied_candidates: Array[Vector2i] = []
 				for offset in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
 					var nr = r + offset.x
 					var nc = c + offset.y
@@ -8610,6 +9438,10 @@ func _process_fire_spread() -> void:
 
 					# 1. 延焼先が水マスの場合は水×火シナジーに委ねる、または水の結界で保護
 					if grid_water.size() == GRID_ROWS and grid_water[nr][nc]:
+						continue
+
+					# 影護マスによる敵炎上延焼防御
+					if not is_src_ally and is_ally_cursed(nr, nc):
 						continue
 
 					# 2. 味方の炎は味方の木を燃やさない、敵の炎は敵の木を燃やさない
@@ -8628,8 +9460,13 @@ func _process_fire_spread() -> void:
 						if not can_burn_hazards or (is_src_ally and is_ally_stone(nr, nc)) or (not is_src_ally and not is_ally_stone(nr, nc)):
 							continue
 
-					candidates.append(Vector2i(nr, nc))
+					# 空きマスを優先し、空きが無い場合のみ駒マスへ延焼する
+					if grid_i.size() == GRID_ROWS and grid_i[nr][nc] == -1:
+						empty_candidates.append(Vector2i(nr, nc))
+					else:
+						occupied_candidates.append(Vector2i(nr, nc))
 
+				var candidates: Array[Vector2i] = empty_candidates if not empty_candidates.is_empty() else occupied_candidates
 				if not candidates.is_empty():
 					var chosen_cell: Vector2i = candidates[randi() % candidates.size()]
 					var nr = chosen_cell.x
@@ -8660,21 +9497,25 @@ func _process_fire_spread() -> void:
 					elif _is_plant_cell(nr, nc):
 						next_fire[nr][nc] = 2
 						next_fire_ally[nr][nc] = is_src_ally
-						_spawn_explosion_effect(get_cell_position(nr, nc))
+						if is_src_ally: ally_added += 1
+						else: enemy_added += 1
+						_spawn_fire_ignition_effect(get_cell_position(nr, nc), is_src_ally)
 					else:
-						next_fire[nr][nc] = 1
+						next_fire[nr][nc] = DEFAULT_FIRE_LIFETIME
 						next_fire_ally[nr][nc] = is_src_ally
-						_spawn_explosion_effect(get_cell_position(nr, nc))
+						if is_src_ally: ally_added += 1
+						else: enemy_added += 1
+						_spawn_fire_ignition_effect(get_cell_position(nr, nc), is_src_ally)
 
-			elif f_state == 2:
+			elif _is_plant_cell(r, c) and f_state >= 2:
 				# 前ターンに木に火が移ったマス：このターンで木を燃焼し、隣接マスの1つへ延焼
 				var plant = _get_plant_at(r, c)
-				if not plant.is_empty() and not is_src_ally:
+				if not plant.is_empty():
 					_burn_plant(plant)
 
-				next_fire[r][c] = 1
+				next_fire[r][c] = DEFAULT_FIRE_LIFETIME
 				next_fire_ally[r][c] = is_src_ally
-				_spawn_mega_explosion_effect(get_cell_position(r, c), 2)
+				_spawn_fire_ignition_effect(get_cell_position(r, c), is_src_ally, 1.4)
 
 				var candidates_f2: Array[Vector2i] = []
 				for dr in [-1, 0, 1]:
@@ -8695,7 +9536,8 @@ func _process_fire_spread() -> void:
 							continue
 						candidates_f2.append(Vector2i(nr, nc))
 
-				if not candidates_f2.is_empty():
+				var at_cap = (ally_fire_cnt + ally_added >= 12) if is_src_ally else (enemy_fire_cnt + enemy_added >= 12)
+				if not at_cap and not candidates_f2.is_empty():
 					var chosen_cell2: Vector2i = candidates_f2[randi() % candidates_f2.size()]
 					var nr2 = chosen_cell2.x
 					var nc2 = chosen_cell2.y
@@ -8712,11 +9554,15 @@ func _process_fire_spread() -> void:
 					elif _is_plant_cell(nr2, nc2):
 						next_fire[nr2][nc2] = 2
 						next_fire_ally[nr2][nc2] = is_src_ally
-						_spawn_explosion_effect(get_cell_position(nr2, nc2))
+						if is_src_ally: ally_added += 1
+						else: enemy_added += 1
+						_spawn_fire_ignition_effect(get_cell_position(nr2, nc2), is_src_ally)
 					else:
-						next_fire[nr2][nc2] = 1
+						next_fire[nr2][nc2] = DEFAULT_FIRE_LIFETIME
 						next_fire_ally[nr2][nc2] = is_src_ally
-						_spawn_explosion_effect(get_cell_position(nr2, nc2))
+						if is_src_ally: ally_added += 1
+						else: enemy_added += 1
+						_spawn_fire_ignition_effect(get_cell_position(nr2, nc2), is_src_ally)
 
 	grid_fire = next_fire
 	grid_fire_ally = next_fire_ally
@@ -8724,6 +9570,50 @@ func _process_fire_spread() -> void:
 	_check_and_trigger_water_fire_synergy(false)
 	_update_status_ailments()
 	_redraw_board_effects()
+
+## 飛び火進化: 火が燃え尽きるときに、周囲48マス（7×7）のランダムなマスを燃やす
+func _trigger_tobibi(origin_r: int, origin_c: int, is_ally: bool) -> Array[Vector2i]:
+	var cands: Array[Vector2i] = []
+	# 周囲48マス = 7x7 (dr in -3..3, dc in -3..3) except (0, 0)
+	for dr in range(-3, 4):
+		for dc in range(-3, 4):
+			if dr == 0 and dc == 0:
+				continue
+			var nr = origin_r + dr
+			var nc = origin_c + dc
+			if nr < 0 or nr >= GRID_ROWS or nc < 0 or nc >= GRID_COLUMNS:
+				continue
+			if _is_plant_cell(nr, nc):
+				continue
+			if grid_fire.size() == GRID_ROWS and grid_fire[nr][nc] > 0:
+				continue
+			if grid_water.size() == GRID_ROWS and grid_water[nr][nc]:
+				continue
+			if grid_ice.size() == GRID_ROWS and int(grid_ice[nr][nc]) > 0:
+				continue
+			if grid_stones.size() == GRID_ROWS and int(grid_stones[nr][nc]) > 0:
+				continue
+			if grid_gold_statue.size() == GRID_ROWS and int(grid_gold_statue[nr][nc]) > 0:
+				continue
+			cands.append(Vector2i(nr, nc))
+	if cands.is_empty():
+		return []
+
+	cands.shuffle()
+	var tobibi_ignited: Array[Vector2i] = []
+	var count = 2 if has_actor_skill_trait(is_ally, "fire", "fire_final_a1") else 1
+	var num = mini(count, cands.size())
+	var lifetime = DEFAULT_FIRE_LIFETIME + (1 if has_actor_skill_trait(is_ally, "fire", "fire_final_a2") else 0)
+	for i in range(num):
+		var target = cands[i]
+		tobibi_ignited.append(target)
+		if grid_fire.size() == GRID_ROWS:
+			grid_fire[target.x][target.y] = lifetime
+			_set_ally_flag(grid_fire_ally, target.x, target.y, is_ally)
+		var t_pos = get_cell_position(target.x, target.y)
+		_spawn_fire_ignition_effect(t_pos, is_ally)
+		_spawn_floating_text(t_pos, "🔥 飛び火！", Color(0.3, 0.9, 1.0) if is_ally else Color(1.0, 0.45, 0.1))
+	return tobibi_ignited
 
 ## 毒の毎ターン伝染処理（伝染進化所持時のみ1ターンごとに隣接マスの1つへ伝染、上限12マス）
 func _process_poison_spread() -> void:
@@ -8809,8 +9699,11 @@ func _process_poison_spread() -> void:
 
 				if not empty_candidates.is_empty():
 					var chosen: Vector2i = empty_candidates[randi() % empty_candidates.size()]
-					if is_src_ally: ally_pressure[chosen.x][chosen.y] += base_weight
-					else: enemy_pressure[chosen.x][chosen.y] += base_weight
+					if is_src_ally:
+						ally_pressure[chosen.x][chosen.y] += base_weight
+					else:
+						if not _check_and_block_enemy_hazard(chosen.x, chosen.y):
+							enemy_pressure[chosen.x][chosen.y] += base_weight
 
 	var newly_infected: Array[Vector2i] = []
 	var invaded_ally_cells: Array[Vector2i] = []
@@ -8922,6 +9815,245 @@ func _jiggle_cell_piece(r: int, c: int, color: Color) -> void:
 		tw_p.tween_property(p, "position", center + Vector2(cos(a), sin(a)) * 70.0, 0.22).set_ease(Tween.EASE_OUT)
 		tw_p.tween_property(p, "modulate:a", 0.0, 0.22)
 		tw_p.chain().tween_callback(p.queue_free)
+
+## ❄️ 氷晶弾エフェクト: 起点（起爆位置や敵位置）から各凍結マスへ氷晶を飛翔させ、着弾時に氷結演出を展開
+func _spawn_ice_shard_projectile(from_pos: Vector2, to_pos: Vector2, delay: float = 0.0, on_reach: Callable = Callable()) -> void:
+	if not is_inside_tree() or get_tree() == null:
+		if on_reach.is_valid():
+			on_reach.call()
+		return
+
+	var p = get_parent()
+	var root_node = p if p != null else self
+
+	var shard_holder = Node2D.new()
+	shard_holder.position = from_pos
+	shard_holder.z_index = 45
+
+	var shard_visual = Node2D.new()
+	shard_visual.draw.connect(func():
+		var c_main = Color(0.4, 0.9, 1.0, 0.95)
+		var c_core = Color(1.0, 1.0, 1.0, 1.0)
+		shard_visual.draw_circle(Vector2.ZERO, 8.0, c_main)
+		shard_visual.draw_circle(Vector2.ZERO, 4.0, c_core)
+		for i in range(6):
+			var a = float(i) * (PI / 3.0)
+			var p_out = Vector2(cos(a), sin(a)) * 14.0
+			shard_visual.draw_line(Vector2.ZERO, p_out, c_core, 2.5)
+	)
+	shard_holder.add_child(shard_visual)
+	Profiler.add_child_count += 1
+	root_node.add_child(shard_holder)
+
+	var tw = create_tween()
+	if delay > 0.0:
+		shard_holder.visible = false
+		tw.tween_interval(delay)
+		tw.tween_callback(func():
+			if is_instance_valid(shard_holder):
+				shard_holder.visible = true
+		)
+
+	var fly_time = 0.22
+	tw.tween_property(shard_holder, "position", to_pos, fly_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(shard_visual, "rotation", TAU * 2.0, fly_time)
+	tw.tween_callback(func():
+		if is_instance_valid(shard_holder):
+			shard_holder.queue_free()
+			Profiler.queue_free_count += 1
+		_spawn_ice_break_effect(to_pos)
+		_spawn_shockwave_ring(to_pos, Color(0.5, 0.95, 1.0, 0.8), 50.0, 0.2)
+		if on_reach.is_valid():
+			on_reach.call()
+	)
+
+## ❄️ 氷スキル発動の展開過程アニメーション（I5: 中心・起点から順に凍結が広がる過程を描画）
+func _play_ice_freeze_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector2.ZERO, animate: bool = true) -> void:
+	if cells.is_empty():
+		return
+	if origin_pos == Vector2.ZERO:
+		origin_pos = get_cell_position(cells[0].x, cells[0].y)
+
+	# 起点からのユークリッド距離でソート（中心から外側へ順に展開）
+	var sorted_cells = cells.duplicate()
+	sorted_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var pos_a = get_cell_position(a.x, a.y)
+		var pos_b = get_cell_position(b.x, b.y)
+		return pos_a.distance_squared_to(origin_pos) < pos_b.distance_squared_to(origin_pos)
+	)
+
+	if animate and is_inside_tree() and get_tree() != null:
+		_spawn_shockwave_ring(origin_pos, Color(0.4, 0.9, 1.0, 0.9), 110.0, 0.3)
+		for i in range(sorted_cells.size()):
+			var c = sorted_cells[i]
+			var c_pos = get_cell_position(c.x, c.y)
+			var delay = float(i) * 0.06
+			_spawn_ice_shard_projectile(origin_pos, c_pos, delay)
+	else:
+		for c in sorted_cells:
+			var c_pos = get_cell_position(c.x, c.y)
+			_spawn_ice_break_effect(c_pos)
+
+	if board_bg:
+		board_bg.queue_redraw()
+
+## 🧪 毒スキルプロジェクタイル演出（起点から対象マスへ毒泡・胞子弾が飛翔）
+func _spawn_poison_bubble_projectile(from_pos: Vector2, to_pos: Vector2, delay: float = 0.0, on_reach: Callable = Callable()) -> void:
+	if not is_inside_tree() or get_tree() == null:
+		if on_reach.is_valid():
+			on_reach.call()
+		return
+
+	var p = get_parent()
+	var root_node = p if p != null else self
+
+	var bubble_holder = Node2D.new()
+	bubble_holder.position = from_pos
+	bubble_holder.z_index = 45
+
+	var bubble_visual = Node2D.new()
+	bubble_visual.draw.connect(func():
+		var c_main = Color(0.72, 0.22, 0.92, 0.92)
+		var c_core = Color(0.28, 0.96, 0.45, 0.95)
+		bubble_visual.draw_circle(Vector2.ZERO, 9.0, c_main)
+		bubble_visual.draw_circle(Vector2.ZERO, 5.0, c_core)
+		for i in range(4):
+			var a = float(i) * (PI / 2.0)
+			var p_out = Vector2(cos(a), sin(a)) * 11.0
+			bubble_visual.draw_circle(p_out, 3.0, c_core)
+	)
+	bubble_holder.add_child(bubble_visual)
+	Profiler.add_child_count += 1
+	root_node.add_child(bubble_holder)
+
+	var tw = create_tween()
+	if delay > 0.0:
+		bubble_holder.visible = false
+		tw.tween_interval(delay)
+		tw.tween_callback(func():
+			if is_instance_valid(bubble_holder):
+				bubble_holder.visible = true
+		)
+
+	var fly_time = 0.22
+	tw.tween_property(bubble_holder, "position", to_pos, fly_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(bubble_visual, "rotation", TAU * 1.5, fly_time)
+	tw.tween_callback(func():
+		if is_instance_valid(bubble_holder):
+			bubble_holder.queue_free()
+			Profiler.queue_free_count += 1
+		_spawn_poison_bubble_burst_effect(to_pos)
+		_spawn_shockwave_ring(to_pos, Color(0.68, 0.28, 0.95, 0.8), 50.0, 0.2)
+		if on_reach.is_valid():
+			on_reach.call()
+	)
+
+## 🧪 毒スキル発動の展開アニメーション（ランダム対象マスへ起点から毒泡が飛翔）
+func _play_poison_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector2.ZERO, animate: bool = true) -> void:
+	if cells.is_empty():
+		return
+	if origin_pos == Vector2.ZERO:
+		origin_pos = get_cell_position(cells[0].x, cells[0].y)
+
+	var sorted_cells = cells.duplicate()
+	sorted_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var pos_a = get_cell_position(a.x, a.y)
+		var pos_b = get_cell_position(b.x, b.y)
+		return pos_a.distance_squared_to(origin_pos) < pos_b.distance_squared_to(origin_pos)
+	)
+
+	if animate and is_inside_tree() and get_tree() != null:
+		_spawn_shockwave_ring(origin_pos, Color(0.65, 0.25, 0.95, 0.9), 110.0, 0.3)
+		for i in range(sorted_cells.size()):
+			var c = sorted_cells[i]
+			var c_pos = get_cell_position(c.x, c.y)
+			var delay = float(i) * 0.06
+			_spawn_poison_bubble_projectile(origin_pos, c_pos, delay)
+	else:
+		for c in sorted_cells:
+			var c_pos = get_cell_position(c.x, c.y)
+			_spawn_poison_bubble_burst_effect(c_pos)
+
+	if board_bg:
+		board_bg.queue_redraw()
+
+## ✨ 聖光スキルプロジェクタイル演出（起点から対象マスへ聖光弾・光星が飛翔）
+func _spawn_holy_light_projectile(from_pos: Vector2, to_pos: Vector2, delay: float = 0.0, on_reach: Callable = Callable()) -> void:
+	if not is_inside_tree() or get_tree() == null:
+		if on_reach.is_valid():
+			on_reach.call()
+		return
+
+	var p = get_parent()
+	var root_node = p if p != null else self
+
+	var light_holder = Node2D.new()
+	light_holder.position = from_pos
+	light_holder.z_index = 45
+
+	var light_visual = Node2D.new()
+	light_visual.draw.connect(func():
+		var c_main = Color(1.0, 0.88, 0.32, 0.95)
+		var c_core = Color(1.0, 1.0, 0.95, 1.0)
+		light_visual.draw_circle(Vector2.ZERO, 8.5, c_main)
+		light_visual.draw_circle(Vector2.ZERO, 4.5, c_core)
+		light_visual.draw_line(Vector2(-14, 0), Vector2(14, 0), c_core, 2.2)
+		light_visual.draw_line(Vector2(0, -14), Vector2(0, 14), c_core, 2.2)
+	)
+	light_holder.add_child(light_visual)
+	Profiler.add_child_count += 1
+	root_node.add_child(light_holder)
+
+	var tw = create_tween()
+	if delay > 0.0:
+		light_holder.visible = false
+		tw.tween_interval(delay)
+		tw.tween_callback(func():
+			if is_instance_valid(light_holder):
+				light_holder.visible = true
+		)
+
+	var fly_time = 0.22
+	tw.tween_property(light_holder, "position", to_pos, fly_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(light_visual, "rotation", TAU * 2.0, fly_time)
+	tw.tween_callback(func():
+		if is_instance_valid(light_holder):
+			light_holder.queue_free()
+			Profiler.queue_free_count += 1
+		_spawn_gold_shatter_effect(to_pos)
+		_spawn_shockwave_ring(to_pos, Color(1.0, 0.95, 0.4, 0.8), 55.0, 0.2)
+		if on_reach.is_valid():
+			on_reach.call()
+	)
+
+## ✨ 光スキル発動の展開アニメーション（ランダム対象マスへ起点から聖光弾が飛翔）
+func _play_light_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector2.ZERO, animate: bool = true) -> void:
+	if cells.is_empty():
+		return
+	if origin_pos == Vector2.ZERO:
+		origin_pos = get_cell_position(cells[0].x, cells[0].y)
+
+	var sorted_cells = cells.duplicate()
+	sorted_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var pos_a = get_cell_position(a.x, a.y)
+		var pos_b = get_cell_position(b.x, b.y)
+		return pos_a.distance_squared_to(origin_pos) < pos_b.distance_squared_to(origin_pos)
+	)
+
+	if animate and is_inside_tree() and get_tree() != null:
+		_spawn_shockwave_ring(origin_pos, Color(1.0, 0.95, 0.4, 0.9), 110.0, 0.3)
+		for i in range(sorted_cells.size()):
+			var c = sorted_cells[i]
+			var c_pos = get_cell_position(c.x, c.y)
+			var delay = float(i) * 0.06
+			_spawn_holy_light_projectile(origin_pos, c_pos, delay)
+	else:
+		for c in sorted_cells:
+			var c_pos = get_cell_position(c.x, c.y)
+			_spawn_gold_shatter_effect(c_pos)
+
+	if board_bg:
+		board_bg.queue_redraw()
 
 ## エフェクト演出（氷割れ・石粉砕・黄金像破壊・感電・呪い）
 func _spawn_ice_break_effect(pos: Vector2) -> void:
@@ -9052,6 +10184,9 @@ func _clear_all_combat_projectiles(preserve_shields: bool = false) -> void:
 	flying_cells.clear()
 ## ターン終了時リセット
 func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	has_emitted_items_scored = false
+	if player_shock_stacks > 0:
+		player_shock_stacks = maxi(0, player_shock_stacks - 1)
 	is_enemy_turn_in_progress = false
 	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
 		_enemy_turn_tween.kill()
@@ -9253,6 +10388,19 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			if grid_poison_stage.size() == GRID_ROWS:
 				grid_poison_stage[pt.x][pt.y] = mini(3, grid_poison_stage[pt.x][pt.y] + 1)
 
+	# 🧪 毒B1: 腐食 (自陣毒マス上の敵石・敵黄金像の耐久を毎ターン-1)
+	if has_actor_skill_trait(true, "poison", "poison_final_b1"):
+		for pt in ally_poison_tiles:
+			var pr = pt.x; var pc = pt.y
+			if grid_stones.size() == GRID_ROWS and grid_stones[pr][pc] > 0 and not is_ally_stone(pr, pc):
+				_damage_stone_at(pr, pc, 1)
+				_spawn_floating_text(get_cell_position(pr, pc), "🧪 毒腐食！敵石耐久-1", Color(0.6, 0.9, 0.2))
+			if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[pr][pc] > 0 and not is_ally_gold(pr, pc):
+				grid_gold_statue[pr][pc] = maxi(0, grid_gold_statue[pr][pc] - 1)
+				if grid_gold_statue[pr][pc] == 0:
+					_spawn_gold_shatter_effect(get_cell_position(pr, pc))
+				_spawn_floating_text(get_cell_position(pr, pc), "🧪 毒腐食！敵像耐久-1", Color(0.6, 0.9, 0.2))
+
 	# 炎マス / 蒼炎（grid_fire）による持続ダメージ（自分による蒼炎は敵へダメージ！）
 	var enemy_fire_tiles: Array[Vector2i] = []
 	var ally_fire_tiles: Array[Vector2i] = []
@@ -9285,7 +10433,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		var total_fire_dmg: float = base_f_dmg * stage_scale * float(enemy_fire_tiles.size()) * _get_difficulty_skill_mult()
 		for ft in enemy_fire_tiles.slice(0, 3):
 			var ft_pos = get_cell_position(ft.x, ft.y)
-			_spawn_explosion_effect(ft_pos)
+			_spawn_fire_ignition_effect(ft_pos, false)
 		var center_ft = enemy_fire_tiles[enemy_fire_tiles.size() / 2]
 		_spawn_floating_text(get_cell_position(center_ft.x, center_ft.y), "火傷ダメージ -%d" % int(total_fire_dmg), Color(1.0, 0.45, 0.1))
 		if sm:
@@ -9559,11 +10707,48 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	has_light_tenrin_triggered_this_turn = false
 	_update_status_ailments()
 	_spawn_turn_bombs()
+	# ターン開始時に存在した炎マスを記録（延焼で新しく発生したマスを即時減衰させないため）
+	var fires_to_decay: Array[Vector2i] = []
+	if grid_fire.size() == GRID_ROWS:
+		for fr in range(GRID_ROWS):
+			for fc in range(GRID_COLUMNS):
+				if grid_fire[fr][fc] > 0 and not _is_plant_cell(fr, fc):
+					fires_to_decay.append(Vector2i(fr, fc))
+
 	# 火と毒の侵攻：1ターンごとに隣接マスの1つへ伝播
 	hazard_spread_turn_counter += 1
 	_process_fire_spread()
 	_process_poison_spread()
 	poison_spread_done_this_turn = false
+
+	# 🔥 火のターン経過寿命減少＆燃え尽き時の駒消去＆飛び火進化
+	var fire_burnout_cleared: Array[Vector2i] = []
+	for pos in fires_to_decay:
+		var fr = pos.x
+		var fc = pos.y
+		if grid_fire.size() == GRID_ROWS and grid_fire[fr][fc] > 0:
+			grid_fire[fr][fc] -= 1
+			if grid_fire[fr][fc] <= 0:
+				grid_fire[fr][fc] = 0
+				var was_ally = is_ally_fire(fr, fc)
+				_set_ally_flag(grid_fire_ally, fr, fc, false)
+				# 消えるときは、そこにある駒も同時に消す
+				if grid_i.size() == GRID_ROWS and grid_i[fr][fc] != -1:
+					fire_burnout_cleared.append(Vector2i(fr, fc))
+					_spawn_floating_text(get_cell_position(fr, fc), "灰燼（駒消去）", Color(0.3, 0.9, 1.0) if was_ally else Color(1.0, 0.45, 0.1))
+				else:
+					_spawn_floating_text(get_cell_position(fr, fc), "鎮火", Color(0.6, 0.6, 0.6))
+				
+				# 飛び火(燃え尽きるときに、周囲48マスのランダムなマスを燃やす)
+				if has_actor_skill_trait(was_ally, "fire", "fire_mid_a"):
+					var tobibi_cleared = _trigger_tobibi(fr, fc, was_ally)
+					for tc in tobibi_cleared:
+						if not (tc in fire_burnout_cleared):
+							fire_burnout_cleared.append(tc)
+
+	if fire_burnout_cleared.size() > 0:
+		_clear_pieces_in_cells(fire_burnout_cleared)
+		_start_continuous_falling()
 	player_skill_energy = minf(player_skill_max_energy, player_skill_energy + 25.0)
 	_update_player_skill_ui()
 	_redraw_board_effects()
@@ -10027,10 +11212,10 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 
 	match sp:
 		SpecialItemType.BOMB:
-			title = "[b][color=#FF9100]💣 フレイムボム (Lv%d/20)[/color][/b]" % sp_lvl
-			var radius_str = "3×3マス" if sp_lvl == 1 else ("5×5マス" if sp_lvl < 5 else ("7×7マス" if sp_lvl < 10 else ("9×9マス" if sp_lvl < 16 else "全域")))
-			var stone_str = "（石貫通ダメージ %d）" % (1 + int((sp_lvl - 1) / 4))
-			desc = "[font_size=19]起爆すると周囲[color=#FFD700]%s[/color]を業火で爆破消去！%s\n敵に炎属性ダメージを与えます。[/font_size]" % [radius_str, stone_str]
+			title = "[b][color=#FF3D00]🔥 ブレイズブラスト (Lv%d/20)[/color][/b]" % sp_lvl
+			var blast_cnt = mini(3 + int((sp_lvl - 1) / 2), GRID_ROWS * GRID_COLUMNS)
+			var blast_dmg = int(80.0 + sp_lvl * 20.0)
+			desc = "[font_size=19]盤面に味方の火マス（[color=#FFD700]%dマス[/color]）を展開して駒を焼き払い、\n敵に火属性ダメージ（威力 %d）を与えます。[/font_size]" % [blast_cnt, blast_dmg]
 		SpecialItemType.CROSS_BOMB:
 			title = "[b][color=#FF3D00]⚔️ クロスブレイズ (Lv%d/20)[/color][/b]" % sp_lvl
 			var width_str = "縦横1列" if sp_lvl == 1 else ("縦横3列" if sp_lvl < 6 else "全画面十字貫通")
@@ -10053,11 +11238,11 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 		SpecialItemType.TORNADO:
 			title = "[b][color=#00E676]🌪️ つむじ風・竜巻 (Lv%d/20)[/color][/b]" % sp_lvl
 			var w_str = "1列" if sp_lvl < 2 else ("3列" if sp_lvl < 7 else "幅5マスの超巨大竜巻")
-			desc = "[font_size=19]上空へ直進する竜巻で[color=#FFD700]%s[/color]を一掃！（石貫通 %d）\n敵に風属性ダメージを与えます。[/font_size]" % [w_str, 1 + int((sp_lvl - 1) / 4)]
+			desc = "[font_size=19]直線状の床効果・ハザードを一掃する竜巻で[color=#FFD700]%s[/color]を巻き上げ！（石貫通 %d）\n（進化【突風】で通常駒も巻き込み消去）[/font_size]" % [w_str, 1 + int((sp_lvl - 1) / 4)]
 		SpecialItemType.AQUA_SPLASH:
 			title = "[b][color=#00B0FF]💧 アクアスプラッシュ (Lv%d/20)[/color][/b]" % sp_lvl
-			var aqua_rad = "周囲3×3" if sp_lvl < 3 else ("周囲5×5" if sp_lvl < 8 else "盤面全域")
-			desc = "[font_size=19]%sに水しぶきを拡散し水たまりを展開！\n落雷の感電や、苗木の成長を促進します。[/font_size]" % aqua_rad
+			var aqua_rad = "半径1の円状範囲" if sp_lvl < 3 else ("半径2の円状範囲" if sp_lvl < 8 else "広域円状範囲")
+			desc = "[font_size=19]中心から[color=#FFD700]%s[/color]に水しぶきを拡散し水たまりを展開！\n落雷の感電や、苗木の成長を促進します。[/font_size]" % aqua_rad
 		SpecialItemType.TREE_SPROUT:
 			title = "[b][color=#76FF03]🌱 生命の苗木 (Lv%d/20)[/color][/b]" % sp_lvl
 			var th_def = 1 + int((sp_lvl - 1) / 3)
@@ -10223,6 +11408,9 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 func get_board_state() -> Dictionary:
 	var w_cnt = 0
 	var f_cnt = 0
+	var p_cnt = 0
+	var s_cnt = 0
+	var i_cnt = 0
 	if grid_water.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
@@ -10233,6 +11421,21 @@ func get_board_state() -> Dictionary:
 			for c in range(GRID_COLUMNS):
 				if grid_fire[r][c] > 0:
 					f_cnt += 1
+	if grid_poison.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_poison[r][c]:
+					p_cnt += 1
+	if grid_stones.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if grid_stones[r][c] > 0:
+					s_cnt += 1
+	if grid_ice.size() == GRID_ROWS:
+		for r in range(GRID_ROWS):
+			for c in range(GRID_COLUMNS):
+				if int(grid_ice[r][c]) > 0:
+					i_cnt += 1
 	var big_tree = false
 	for plant in plant_entities:
 		if plant.get("stage", 0) >= 2:
@@ -10241,8 +11444,31 @@ func get_board_state() -> Dictionary:
 	return {
 		"water_count": w_cnt,
 		"fire_count": f_cnt,
+		"poison_count": p_cnt,
+		"stone_count": s_cnt,
+		"ice_count": i_cnt,
 		"has_big_tree": big_tree
 	}
+
+## 凍土の誓約レリック：ターン開始時に味方氷マスを生成
+func spawn_ally_ice_for_relic() -> bool:
+	if grid_i.size() != GRID_ROWS:
+		return false
+	_ensure_ally_grids()
+	var cands: Array[Vector2i] = []
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if not _is_plant_cell(r, c) and grid_i[r][c] != -1:
+				if grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) == 0:
+					cands.append(Vector2i(r, c))
+	if cands.is_empty():
+		return false
+	var chosen = cands[randi() % cands.size()]
+	grid_ice[chosen.x][chosen.y] = 2
+	_set_ally_flag(grid_ice_ally, chosen.x, chosen.y, true)
+	_play_ice_freeze_expansion([chosen], get_cell_position(chosen.x, chosen.y), true)
+	_spawn_floating_text(get_cell_position(chosen.x, chosen.y), "❄️ 凍土の誓約", Color(0.4, 0.9, 1.0))
+	return true
 
 ## 指定マスがスワップ移動不可（障害物や固定マス）かどうかを判定
 func _is_cell_blocked_for_swap(r: int, c: int) -> bool:
@@ -10302,7 +11528,26 @@ func _update_hovered_swap_direction(local_mouse: Vector2) -> void:
 
 ## 移動可能隣接マスガイドおよび移動先方向の強調表示を描画
 func _draw_swap_guides_on_overlay(overlay: Node2D) -> void:
-	if overlay == null or selected_cell.x == -1 or current_state != BoardState.IDLE:
+	if overlay == null or current_state != BoardState.IDLE:
+		return
+
+	# チュートリアル指示マスの強調および方向矢印描画
+	if tutorial_allowed_swap.size() == 2:
+		var c1 = tutorial_allowed_swap[0]
+		var c2 = tutorial_allowed_swap[1]
+		var p1 = get_cell_position(c1.x, c1.y)
+		var p2 = get_cell_position(c2.x, c2.y)
+		var half_p = CELL_PITCH * 0.5 - 10.0
+		var r1 = Rect2(p1.x - half_p, p1.y - half_p, half_p * 2.0, half_p * 2.0)
+		var r2 = Rect2(p2.x - half_p, p2.y - half_p, half_p * 2.0, half_p * 2.0)
+		var pulse = 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008)
+		overlay.draw_rect(r1, Color(1.0, 0.85, 0.2, 0.25 * pulse), true)
+		overlay.draw_rect(r1, Color(1.0, 0.9, 0.2, 0.95), false, 12.0)
+		overlay.draw_rect(r2, Color(0.2, 0.95, 0.6, 0.25 * pulse), true)
+		overlay.draw_rect(r2, Color(0.2, 0.95, 0.6, 0.95), false, 12.0)
+		_draw_direction_arrow(overlay, p1, p2)
+
+	if selected_cell.x == -1:
 		return
 
 	var sel_pos = get_cell_position(selected_cell.x, selected_cell.y)
@@ -10413,49 +11658,49 @@ const PLAYER_SKILL_DEFS: Dictionary = {
 		]
 	},
 	"wood": {
-		"key": "wood", "label": "🌱木", "name": "生命の苗木", "color": Color(0.25, 0.88, 0.45),
+		"key": "wood", "label": "🌱木", "name": "命の萌芽", "color": Color(0.25, 0.88, 0.45),
 		"tiers": [
-			{"tier": 1, "id": "wood_1", "name": "生命の苗木", "cost": 30},
+			{"tier": 1, "id": "wood_1", "name": "命の萌芽", "cost": 30},
 			{"tier": 2, "id": "wood_2", "name": "大樹根張り", "cost": 45},
 			{"tier": 3, "id": "wood_3", "name": "世界樹結実", "cost": 60},
 		]
 	},
 	"wind": {
-		"key": "wind", "label": "🌪️風", "name": "ダウンバースト", "color": Color(0.20, 0.90, 0.65),
+		"key": "wind", "label": "🌪️風", "name": "疾風突風", "color": Color(0.20, 0.90, 0.65),
 		"tiers": [
-			{"tier": 1, "id": "wind_1", "name": "ダウンバースト", "cost": 30},
+			{"tier": 1, "id": "wind_1", "name": "疾風突風", "cost": 30},
 			{"tier": 2, "id": "wind_2", "name": "ゲイルシフト",   "cost": 45},
 			{"tier": 3, "id": "wind_3", "name": "廻風反転",     "cost": 60},
 		]
 	},
 	"fire": {
-		"key": "fire", "label": "🔥火", "name": "蒼炎陣", "color": Color(1.00, 0.45, 0.15),
+		"key": "fire", "label": "🔥火", "name": "紅蓮爆破", "color": Color(1.00, 0.45, 0.15),
 		"tiers": [
-			{"tier": 1, "id": "fire_1", "name": "蒼炎陣",       "cost": 30},
-			{"tier": 2, "id": "fire_2", "name": "バックドラフト", "cost": 45},
-			{"tier": 3, "id": "fire_3", "name": "劫火大爆破",   "cost": 60},
+			{"tier": 1, "id": "fire_1", "name": "紅蓮爆破",   "cost": 30},
+			{"tier": 2, "id": "fire_2", "name": "劫火延焼", "cost": 45},
+			{"tier": 3, "id": "fire_3", "name": "焦土劫火", "cost": 60},
 		]
 	},
 	"thunder": {
-		"key": "thunder", "label": "⚡雷", "name": "紫電共鳴", "color": Color(0.95, 0.85, 0.20),
+		"key": "thunder", "label": "⚡雷", "name": "雷電連鎖", "color": Color(0.95, 0.85, 0.20),
 		"tiers": [
-			{"tier": 1, "id": "thunder_1", "name": "紫電共鳴", "cost": 30},
+			{"tier": 1, "id": "thunder_1", "name": "雷電連鎖", "cost": 30},
 			{"tier": 2, "id": "thunder_2", "name": "感電網電導", "cost": 45},
 			{"tier": 3, "id": "thunder_3", "name": "超電磁砲", "cost": 60},
 		]
 	},
 	"earth": {
-		"key": "earth", "label": "💎地", "name": "輝石生成", "color": Color(0.20, 0.82, 0.65),
+		"key": "earth", "label": "💎地", "name": "岩盤崩落", "color": Color(0.20, 0.82, 0.65),
 		"tiers": [
-			{"tier": 1, "id": "earth_1", "name": "輝石生成", "cost": 30},
+			{"tier": 1, "id": "earth_1", "name": "岩盤崩落", "cost": 30},
 			{"tier": 2, "id": "earth_2", "name": "地脈引力", "cost": 45},
 			{"tier": 3, "id": "earth_3", "name": "大陸破砕", "cost": 60},
 		]
 	},
 	"poison": {
-		"key": "poison", "label": "🧪毒", "name": "薬毒散布", "color": Color(0.70, 0.35, 0.95),
+		"key": "poison", "label": "🧪毒", "name": "瘴気毒霧", "color": Color(0.70, 0.35, 0.95),
 		"tiers": [
-			{"tier": 1, "id": "poison_1", "name": "薬毒散布", "cost": 30},
+			{"tier": 1, "id": "poison_1", "name": "瘴気毒霧", "cost": 30},
 			{"tier": 2, "id": "poison_2", "name": "腐食培養", "cost": 45},
 			{"tier": 3, "id": "poison_3", "name": "劇毒大爆発", "cost": 60},
 		]
@@ -10713,10 +11958,26 @@ func _evolve_plant_stage(plant: Dictionary, target_stage: int) -> void:
 		board_bg.queue_redraw()
 
 ## プレイヤーによる10属性×3段階 盤面スキル発動
-func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 1) -> Array[Vector2]:
+func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 1, animate: bool = true, origin_pos: Vector2 = Vector2.ZERO) -> Array[Vector2]:
 	_ensure_ally_grids()
 	tier = clampi(tier, 1, 3)
 	var t_cost: float = 30.0 if tier == 1 else (45.0 if tier == 2 else 60.0)
+	var rm_cost = _get_relic_manager()
+	if rm_cost:
+		if rm_cost.has_relic("elemental_affinity_ring"):
+			var chosen_cat = rm_cost.get_chosen_element_category()
+			var cat_elements = []
+			if chosen_cat == "nature":
+				cat_elements = ["water", "ice", "wood", "wind"]
+			elif chosen_cat == "force":
+				cat_elements = ["fire", "thunder", "earth"]
+			elif chosen_cat == "mystic":
+				cat_elements = ["poison", "light", "dark"]
+			if skill_key in cat_elements:
+				var cost_mult = float(rm_cost.get_param("elemental_affinity_ring", "mp_cost_mult", 0.70))
+				t_cost *= cost_mult
+		if rm_cost.has_relic("superconduct_ring") and skill_key == "thunder":
+			t_cost *= 0.70
 	if not ignore_cost:
 		if player_skill_energy < t_cost:
 			return []
@@ -10738,44 +11999,133 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 	match skill_key:
 		"water":
-			# 💧 水スキル【清流展開】：移動可能な自軍水マスを生成し、そのマスの駒を消去
-			var candidates: Array[Vector2i] = []
-			for r in range(GRID_ROWS):
-				for c in range(GRID_COLUMNS):
-					if not _is_plant_cell(r, c) and not grid_water[r][c]:
-						candidates.append(Vector2i(r, c))
-			candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-				var a_adj_fire = false
-				var b_adj_fire = false
-				for dr in [-1, 0, 1]:
-					for dc in [-1, 0, 1]:
-						if dr == 0 and dc == 0: continue
-						var ar = a.x + dr; var ac = a.y + dc
-						if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_fire[ar][ac] > 0: a_adj_fire = true
-						var br = b.x + dr; var bc = b.y + dc
-						if br >= 0 and br < GRID_ROWS and bc >= 0 and bc < GRID_COLUMNS and grid_fire[br][bc] > 0: b_adj_fire = true
-				return a_adj_fire if a_adj_fire != b_adj_fire else false
-			)
-			var count = mini(2 + sk_lvl / 2, candidates.size())
-			var cleared_cells: Array[Vector2i] = []
-			for i in range(count):
-				var cell = candidates[i]
-				_apply_water_to_cell(cell.x, cell.y, true)
-				var pos = get_cell_position(cell.x, cell.y)
-				affected_positions.append(pos)
-				_spawn_aqua_splash_effect(pos, 1)
-				if ismatched.size() == GRID_ROWS:
-					ismatched[cell.x][cell.y] = true
-				cleared_cells.append(cell)
+			if tier == 2:
+				# 💧 水T2【命の湧水】：盤面の水マス数×(150+30L) HP回復＋隣接(2+L/3)マスへ浸水拡大
+				var water_count: int = 0
+				var existing_water: Array[Vector2i] = []
+				for r in range(GRID_ROWS):
+					for c in range(GRID_COLUMNS):
+						if grid_water[r][c]:
+							water_count += 1
+							existing_water.append(Vector2i(r, c))
 
-			if not is_in_match_phase and cleared_cells.size() > 0:
-				_clear_pieces_in_cells(cleared_cells)
-				_start_continuous_falling()
+				var spread_candidates: Array[Vector2i] = []
+				for wc in existing_water:
+					for dr in [-1, 0, 1]:
+						for dc in [-1, 0, 1]:
+							if abs(dr) + abs(dc) != 1: continue
+							var nr = wc.x + dr; var nc = wc.y + dc
+							if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
+								if not grid_water[nr][nc] and not _is_plant_cell(nr, nc):
+									var v = Vector2i(nr, nc)
+									if not spread_candidates.has(v):
+										spread_candidates.append(v)
+				if spread_candidates.is_empty():
+					for r in range(GRID_ROWS):
+						for c in range(GRID_COLUMNS):
+							if not grid_water[r][c] and not _is_plant_cell(r, c):
+								spread_candidates.append(Vector2i(r, c))
+				spread_candidates.shuffle()
+				var spread_count = mini(2 + sk_lvl / 3, spread_candidates.size())
+				var rm_w = _get_relic_manager()
+				if rm_w and rm_w.has_relic("water_sacred_crown"):
+					var sp_b = int(rm_w.get_param("water_sacred_crown", "spread_bonus", 1))
+					spread_count = mini(spread_count + sp_b, spread_candidates.size())
+				for i in range(spread_count):
+					var cell = spread_candidates[i]
+					_apply_water_to_cell(cell.x, cell.y, true)
+					var pos = get_cell_position(cell.x, cell.y)
+					affected_positions.append(pos)
+					_spawn_aqua_splash_effect(pos, 2)
+					water_count += 1
 
-			direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
-			_check_and_trigger_water_fire_synergy(is_in_match_phase)
-			if not affected_positions.is_empty():
-				_spawn_floating_text(affected_positions[0], "💧 清流展開 (水%dマス生成)！" % count, Color(0.2, 0.8, 1.0))
+				var heal_amount = float(water_count) * (150.0 + sk_lvl * 30.0) * stage_scale
+				if rm_w and rm_w.has_relic("water_sacred_crown"):
+					heal_amount *= (1.0 + float(rm_w.get_param("water_sacred_crown", "heal_bonus", 0.50)))
+				if sm:
+					sm.calchp(0.0, -heal_amount)
+					_emit_combat_event("heal", "ally", "ally", heal_amount, "water_spring_heal")
+
+				direct_skill_dmg = (130.0 + sk_lvl * 25.0) * stage_scale
+				_check_and_trigger_water_fire_synergy(is_in_match_phase)
+				var fl_pos = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
+				_spawn_floating_text(fl_pos, "💧 命の湧水！HP+%d (水マス%d)" % [int(heal_amount), water_count], Color(0.2, 0.9, 0.6))
+
+			elif tier == 3:
+				# 💧 水T3【大海嘯・駒変換】：水マス上の駒を同色変換し大マッチ確定＋水流ダメージ+20%
+				var water_cells: Array[Vector2i] = []
+				for r in range(GRID_ROWS):
+					for c in range(GRID_COLUMNS):
+						if grid_water[r][c]:
+							water_cells.append(Vector2i(r, c))
+				if water_cells.size() < 4:
+					var fill_candidates: Array[Vector2i] = []
+					for r in range(GRID_ROWS):
+						for c in range(GRID_COLUMNS):
+							if not grid_water[r][c] and not _is_plant_cell(r, c):
+								fill_candidates.append(Vector2i(r, c))
+					fill_candidates.shuffle()
+					var need_fill = mini(4 - water_cells.size(), fill_candidates.size())
+					for i in range(need_fill):
+						var fc = fill_candidates[i]
+						_apply_water_to_cell(fc.x, fc.y, true)
+						water_cells.append(fc)
+
+				for wc in water_cells:
+					var pos = get_cell_position(wc.x, wc.y)
+					affected_positions.append(pos)
+					_spawn_aqua_splash_effect(pos, 3)
+					grid_n[wc.x][wc.y] = PieceType.SWORD
+					grid_att[wc.x][wc.y] = PieceType.SWORD % 5
+					if grid_i[wc.x][wc.y] >= 0 and grid_i[wc.x][wc.y] < piece.size() and piece[grid_i[wc.x][wc.y]] != null:
+						piece[grid_i[wc.x][wc.y]].texture = PIECE_TEXTURES[PieceType.SWORD]
+					ismatched[wc.x][wc.y] = true
+
+				var surge_mult = 1.0 + float(sk_lvl) * 0.20
+				direct_skill_dmg = (260.0 + sk_lvl * 55.0) * surge_mult * stage_scale
+				_check_and_trigger_water_fire_synergy(is_in_match_phase)
+				var fl_pos = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
+				_spawn_floating_text(fl_pos, "🌊 大海嘯！水流激突！(x%.1f)" % surge_mult, Color(0.1, 0.7, 1.0))
+
+			else:
+				# 💧 水スキル【清流展開】：移動可能な自軍水マスを生成し、そのマスの駒を消去
+				var candidates: Array[Vector2i] = []
+				for r in range(GRID_ROWS):
+					for c in range(GRID_COLUMNS):
+						if not _is_plant_cell(r, c) and not grid_water[r][c]:
+							candidates.append(Vector2i(r, c))
+				candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+					var a_adj_fire = false
+					var b_adj_fire = false
+					for dr in [-1, 0, 1]:
+						for dc in [-1, 0, 1]:
+							if dr == 0 and dc == 0: continue
+							var ar = a.x + dr; var ac = a.y + dc
+							if ar >= 0 and ar < GRID_ROWS and ac >= 0 and ac < GRID_COLUMNS and grid_fire[ar][ac] > 0: a_adj_fire = true
+							var br = b.x + dr; var bc = b.y + dc
+							if br >= 0 and br < GRID_ROWS and bc >= 0 and bc < GRID_COLUMNS and grid_fire[br][bc] > 0: b_adj_fire = true
+					return a_adj_fire if a_adj_fire != b_adj_fire else false
+				)
+				var count = mini(2 + sk_lvl / 2, candidates.size())
+				var cleared_cells: Array[Vector2i] = []
+				for i in range(count):
+					var cell = candidates[i]
+					_apply_water_to_cell(cell.x, cell.y, true)
+					var pos = get_cell_position(cell.x, cell.y)
+					affected_positions.append(pos)
+					_spawn_aqua_splash_effect(pos, 1)
+					if ismatched.size() == GRID_ROWS:
+						ismatched[cell.x][cell.y] = true
+					cleared_cells.append(cell)
+
+				if not is_in_match_phase and cleared_cells.size() > 0:
+					_clear_pieces_in_cells(cleared_cells)
+					_start_continuous_falling()
+
+				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				_check_and_trigger_water_fire_synergy(is_in_match_phase)
+				if not affected_positions.is_empty():
+					_spawn_floating_text(affected_positions[0], "💧 清流展開 (水%dマス生成)！" % count, Color(0.2, 0.8, 1.0))
 
 		"ice":
 			# 氷中間進化 A: 氷壁 (発動時にシールド獲得)
@@ -10798,16 +12148,22 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 								targets.append(Vector2i(r, c))
 				targets.shuffle()
 				var freeze_cnt = mini(2 + sk_lvl / 2, targets.size())
+				var frozen_cells: Array[Vector2i] = []
+				var ice_dur = 3
+				var rm_ice2 = _get_relic_manager()
+				if rm_ice2 and rm_ice2.has_relic("ice_crystal_crown"):
+					ice_dur += int(rm_ice2.get_param("ice_crystal_crown", "durability_bonus", 1))
 				for i in range(freeze_cnt):
 					var t_pos = targets[i]
 					grid_water[t_pos.x][t_pos.y] = false
 					grid_poison[t_pos.x][t_pos.y] = false
 					grid_fire[t_pos.x][t_pos.y] = 0
-					grid_ice[t_pos.x][t_pos.y] = 3
+					grid_ice[t_pos.x][t_pos.y] = ice_dur
 					_set_ally_flag(grid_ice_ally, t_pos.x, t_pos.y, true)
+					frozen_cells.append(t_pos)
 					var pos = get_cell_position(t_pos.x, t_pos.y)
 					affected_positions.append(pos)
-					_spawn_ice_break_effect(pos)
+				_play_ice_freeze_expansion(frozen_cells, origin_pos, animate)
 				direct_skill_dmg = (140.0 + sk_lvl * 25.0) * stage_scale
 				var fl_pos2 = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
 				_spawn_floating_text(fl_pos2, "❄️ 連鎖氷結フリージング・チェーン！", Color(0.4, 0.9, 1.0))
@@ -10827,9 +12183,11 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_trigger_thunder_shatter_synergy(ic.x, ic.y, is_in_match_phase)
 					var pos = get_cell_position(ic.x, ic.y)
 					affected_positions.append(pos)
+				_play_ice_freeze_expansion(ices, origin_pos, animate)
+				enemy_turn_skip_count += 1
 				direct_skill_dmg = float(ices.size()) * (240.0 + sk_lvl * 60.0) * stage_scale
 				var fl_pos = affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360)
-				_spawn_floating_text(fl_pos, "❄️ 絶対零度アブソリュート・ゼロ！", Color(0.3, 0.95, 1.0))
+				_spawn_floating_text(fl_pos, "❄️ 絶対零度アブソリュート・ゼロ！敵行動停止！", Color(0.3, 0.95, 1.0))
 			else:
 				# ❄️ 氷スキル：氷マス生成（耐久値3）
 				var candidates: Array[Vector2i] = []
@@ -10840,13 +12198,18 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				candidates.shuffle()
 				var count = mini(2 + sk_lvl / 2, candidates.size())
 				var dur = 3
+				var rm_ice = _get_relic_manager()
+				if rm_ice and rm_ice.has_relic("ice_crystal_crown"):
+					dur += int(rm_ice.get_param("ice_crystal_crown", "durability_bonus", 1))
+				var frozen_cells: Array[Vector2i] = []
 				for i in range(count):
 					var cell = candidates[i]
 					grid_ice[cell.x][cell.y] = dur
 					_set_ally_flag(grid_ice_ally, cell.x, cell.y, true)
+					frozen_cells.append(cell)
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
-					_spawn_ice_break_effect(pos)
+				_play_ice_freeze_expansion(frozen_cells, origin_pos, animate)
 				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
 				_check_and_trigger_ice_fire_melting()
 				if not affected_positions.is_empty():
@@ -10856,6 +12219,11 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 			# 🌱 木スキル：植樹＆成長
 			if tier == 1:
 				_plant_sprout_on_board()
+				var rm_wood = _get_relic_manager()
+				if rm_wood and rm_wood.has_relic("world_tree_seed"):
+					var extra_p = int(rm_wood.get_param("world_tree_seed", "extra_plants", 1))
+					for _ei in range(extra_p):
+						_plant_sprout_on_board()
 				var p_pos = get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2)
 				if not plant_entities.is_empty():
 					var last_pl = plant_entities[plant_entities.size() - 1]
@@ -10882,6 +12250,12 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				})
 				affected_positions.append(get_cell_position(center_cell.x, center_cell.y))
 				direct_skill_dmg = (250.0 + sk_lvl * 50.0) * stage_scale
+
+			var rm_vine = _get_relic_manager()
+			if rm_vine and rm_vine.has_relic("vine_binding"):
+				var delay_t = int(rm_vine.get_param("vine_binding", "delay_turns", 1))
+				enemy_turn_skip_count += delay_t
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "🌿 藤蔓の拘束！敵行動%dターン遅延！" % delay_t, Color(0.3, 0.95, 0.4))
 
 			if board_bg: board_bg.queue_redraw()
 
@@ -10929,7 +12303,14 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				# 🌪️ 風スキル：竜巻召喚（全盤面の敵ハザード除去・突風による駒消去）
 				var col = randi() % GRID_COLUMNS
 				var cols_to_sweep: Array[int] = [col]
-				if has_actor_skill_trait(true, "wind", "wind_final_b2"): # 大竜巻 (2列幅)
+				var rm_wind = _get_relic_manager()
+				if rm_wind and rm_wind.has_relic("swift_wind_feather"):
+					var w_extra = int(rm_wind.get_param("swift_wind_feather", "width_bonus", 1))
+					if w_extra > 0:
+						var adj_w = (col + 1) if col < GRID_COLUMNS - 1 else (col - 1)
+						if not cols_to_sweep.has(adj_w):
+							cols_to_sweep.append(adj_w)
+				if has_actor_skill_trait(true, "wind", "wind_final_b1"): # 大竜巻 (2列幅)
 					var adj_c = (col + 1) if col < GRID_COLUMNS - 1 else (col - 1)
 					cols_to_sweep.append(adj_c)
 
@@ -11041,7 +12422,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 				# 6. 特殊ゾーン (暴風圏・風の守り) & エフェクト
 				for sweep_col in cols_to_sweep:
-					if has_actor_skill_trait(true, "wind", "wind_final_b1"):
+					if has_actor_skill_trait(true, "wind", "wind_final_b2"):
 						storm_zones[sweep_col] = 2
 					if has_actor_skill_trait(true, "wind", "wind_final_c1"):
 						wind_ward_columns[sweep_col] = 2
@@ -11055,104 +12436,79 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					direct_skill_dmg *= (1.0 + float(c_cnt) * 0.15)
 
 		"fire":
-			if tier == 2:
-				# 🔥 火T2【爆燃加速バックドラフト】：全炎マスをその場で強制延焼＋融解＆蒸気シナジー即時誘発
-				_process_fire_spread()
-				_check_and_trigger_ice_fire_melting()
-				_check_and_trigger_water_fire_synergy(false)
-				var fire_cnt = 0
+			# 🔥 火スキル：炎マス生成＆駒消去（敵火スキルとコンセプト統一）
+			# 爆発系スキルではなく、ランダムなマスを炎上させて駒を消し、寿命付きの火を配置
+			var fire_lifetime = DEFAULT_FIRE_LIFETIME + (tier - 1)
+			var base_count = 2 + (tier - 1) * 2 # T1: 2, T2: 4, T3: 6
+			var rm_fire = _get_relic_manager()
+			if rm_fire and rm_fire.has_relic("blazing_fire_orb"):
+				base_count += int(rm_fire.get_param("blazing_fire_orb", "fire_range_bonus", 2))
+			var count = mini(base_count + sk_lvl / 2, GRID_ROWS * GRID_COLUMNS)
+
+			var candidates: Array[Vector2i] = []
+			var empty_candidates: Array[Vector2i] = []
+			for r in range(GRID_ROWS):
+				for c in range(GRID_COLUMNS):
+					if _is_plant_cell(r, c) or grid_fire[r][c] != 0:
+						continue
+					if grid_i.size() == GRID_ROWS and grid_i[r][c] != -1:
+						candidates.append(Vector2i(r, c))
+					else:
+						empty_candidates.append(Vector2i(r, c))
+			candidates.shuffle()
+			empty_candidates.shuffle()
+			candidates.append_array(empty_candidates)
+			if candidates.is_empty():
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
-						if grid_fire[r][c] > 0: fire_cnt += 1
-				direct_skill_dmg = float(fire_cnt) * (60.0 + sk_lvl * 15.0) * stage_scale
-				affected_positions.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
-				_spawn_floating_text(affected_positions[0], "🔥 爆燃加速バックドラフト！", Color(1.0, 0.4, 0.1))
-			elif tier == 3:
-				# 🔥 火T3【プロミネンス・ノヴァ】：全炎マスを一斉起爆(周囲3x3消去)＋紅蓮特大ダメージ
-				var fires: Array[Vector2i] = []
-				for r in range(GRID_ROWS):
-					for c in range(GRID_COLUMNS):
-						if grid_fire[r][c] > 0: fires.append(Vector2i(r, c))
-				if fires.is_empty():
-					for i in range(2):
-						var rr = randi() % GRID_ROWS; var cc = randi() % GRID_COLUMNS
-						grid_fire[rr][cc] = 1
-						_set_ally_flag(grid_fire_ally, rr, cc, true)
-						fires.append(Vector2i(rr, cc))
-				var nova_cleared: Array[Vector2i] = []
-				for f in fires:
-					_spawn_mega_explosion_effect(get_cell_position(f.x, f.y), 2)
-					grid_fire[f.x][f.y] = 0
-					_set_ally_flag(grid_fire_ally, f.x, f.y, false)
-					affected_positions.append(get_cell_position(f.x, f.y))
-					for dr in [-1, 0, 1]:
-						for dc in [-1, 0, 1]:
-							var nr = f.x + dr; var nc = f.y + dc
-							if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-								if grid_i[nr][nc] != -1:
-									ismatched[nr][nc] = true
-									nova_cleared.append(Vector2i(nr, nc))
-				_trigger_fire_shrapnel_evolution(nova_cleared, true)
-				if not is_in_match_phase and current_state == BoardState.IDLE and nova_cleared.size() > 0:
-					_start_match_highlight()
-				direct_skill_dmg = float(fires.size()) * (240.0 + sk_lvl * 50.0) * stage_scale
-				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "💥 劫火大爆破プロミネンス・ノヴァ！", Color(1.0, 0.2, 0.1))
-			else:
-				# 🔥 火スキル：蒼炎陣（炎マス生成）＆爆弾起爆
-				var candidates: Array[Vector2i] = []
-				for r in range(GRID_ROWS):
-					for c in range(GRID_COLUMNS):
-						if not _is_plant_cell(r, c) and grid_fire[r][c] == 0:
+						if not _is_plant_cell(r, c):
 							candidates.append(Vector2i(r, c))
 				candidates.shuffle()
-				var count = mini(2 + sk_lvl / 2, candidates.size())
-				for i in range(count):
-					var cell = candidates[i]
-					grid_fire[cell.x][cell.y] = 1
-					_set_ally_flag(grid_fire_ally, cell.x, cell.y, true)
-					var pos = get_cell_position(cell.x, cell.y)
-					affected_positions.append(pos)
-					_spawn_explosion_effect(pos)
 
-				var b_pos = candidates[0] if count > 0 else Vector2i(randi() % GRID_ROWS, randi() % GRID_COLUMNS)
-				var blast_radius = 2 if has_actor_skill_trait(true, "fire", "fire_mid_a") else 1 # 火薬庫で5x5 (radius 2)
-				var stone_damage = 2 if has_actor_skill_trait(true, "fire", "fire_mid_a") else 1
+			var actual_count = mini(count, candidates.size())
+			var ignited_cells: Array[Vector2i] = []
+			for i in range(actual_count):
+				var cell = candidates[i]
+				ignited_cells.append(cell)
+				grid_fire[cell.x][cell.y] = maxi(int(grid_fire[cell.x][cell.y]), fire_lifetime)
+				_set_ally_flag(grid_fire_ally, cell.x, cell.y, true)
+				var pos = get_cell_position(cell.x, cell.y)
+				affected_positions.append(pos)
+				_spawn_floating_text(pos, "🔥 蒼炎！", Color(0.2, 0.7, 1.0))
+				_spawn_fire_ignition_effect(pos, true)
 
-				# 誘爆 (fire_final_a1): 爆風内の味方火マスが十字型に誘爆
-				if has_actor_skill_trait(true, "fire", "fire_final_a1"):
-					for dr in range(-blast_radius, blast_radius + 1):
-						for dc in range(-blast_radius, blast_radius + 1):
-							var nr = b_pos.x + dr; var nc = b_pos.y + dc
-							if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-								if grid_fire.size() == GRID_ROWS and grid_fire[nr][nc] > 0 and is_ally_fire(nr, nc):
-									for off in [Vector2i(-1,0), Vector2i(1,0), Vector2i(0,-1), Vector2i(0,1)]:
-										var xr = nr + off.x; var xc = nc + off.y
-										if xr >= 0 and xr < GRID_ROWS and xc >= 0 and xc < GRID_COLUMNS and grid_i[xr][xc] != -1:
-											ismatched[xr][xc] = true
+			# 炎上マスの駒を消去して重力落下処理
+			if ignited_cells.size() > 0:
+				_clear_pieces_in_cells(ignited_cells)
+				_start_continuous_falling()
 
-				# 二段爆発 (fire_final_a2): ターン終了時に3x3の二次爆発予約
-				if has_actor_skill_trait(true, "fire", "fire_final_a2"):
-					delayed_explosions.append({
-						"r": b_pos.x, "c": b_pos.y,
-						"radius": 1, "stone_dmg": 1, "delay": 1
-					})
+			# 破片・榴弾進化 (fire_mid_c, fire_final_c1)
+			if has_actor_skill_trait(true, "fire", "fire_mid_c") or has_actor_skill_trait(true, "fire", "fire_final_c1"):
+				_trigger_fire_shrapnel_evolution(ignited_cells, true)
 
-				_trigger_bomb(b_pos.x, b_pos.y, get_cell_position(b_pos.x, b_pos.y), [], {})
-				direct_skill_dmg = (100.0 + sk_lvl * 20.0) * stage_scale
-				_check_and_trigger_ice_fire_melting()
-				_check_and_trigger_water_fire_synergy(is_in_match_phase)
-				if not is_in_match_phase and current_state == BoardState.IDLE:
-					var has_any_m = false
-					for mir in range(GRID_ROWS):
-						for mic in range(GRID_COLUMNS):
-							if ismatched[mir][mic]:
-								has_any_m = true
-								break
-						if has_any_m: break
-					if has_any_m:
-						_start_match_highlight()
+			# 延焼進化 (fire_mid_b) 所持時のみ追加延焼
+			if has_actor_skill_trait(true, "fire", "fire_mid_b"):
+				_process_fire_spread()
+
+			_check_and_trigger_ice_fire_melting()
+			_check_and_trigger_water_fire_synergy(is_in_match_phase)
+
+			var base_dmg = 100.0 if tier == 1 else (180.0 if tier == 2 else 320.0)
+			var lvl_mult = 20.0 if tier == 1 else (35.0 if tier == 2 else 60.0)
+			direct_skill_dmg = (base_dmg + sk_lvl * lvl_mult) * stage_scale
+
+			var banner_title = "🔥 蒼炎陣！" if tier == 1 else ("🔥 劫火延焼！" if tier == 2 else "🔥 焦土劫火！")
+			_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), banner_title, Color(1.0, 0.45, 0.15))
 
 		"thunder":
+			var rm_th = _get_relic_manager()
+			if rm_th and rm_th.has_relic("magnet_charm"):
+				for wr in range(GRID_ROWS):
+					for wc in range(GRID_COLUMNS):
+						if grid_water.size() == GRID_ROWS and grid_water[wr][wc]:
+							grid_electrified[wr][wc] = true
+							_set_ally_flag(grid_electrified_ally, wr, wc, true)
+							_spawn_shock_zap_effect(get_cell_position(wr, wc))
 			if tier == 2:
 				# ⚡ 雷T2【プラズマ・コンダクト】：帯電マスと水マスを雷ラインで結び一斉感電消去
 				var nodes: Array[Vector2i] = []
@@ -11181,6 +12537,8 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 			else:
 				# ⚡ 雷スキル：紫電共鳴（帯電マス生成＆落雷）
 				var count = mini(2 + sk_lvl / 2, 5)
+				if rm_th and rm_th.has_relic("thunder_god_bracelet"):
+					count += int(rm_th.get_param("thunder_god_bracelet", "chain_bonus", 2))
 				for i in range(count):
 					var r = randi() % GRID_ROWS; var c = randi() % GRID_COLUMNS
 					grid_electrified[r][c] = true
@@ -11210,13 +12568,23 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 								if grid_i[r][edge_c] != -1: ismatched[r][edge_c] = true
 						break
 
-				# 電磁場 (thunder_mid_c): コイン駒吸引
+				# 電磁場・感電 (thunder_mid_c): コイン駒帯電化＆敵へ感電スタック付与
 				if has_actor_skill_trait(true, "thunder", "thunder_mid_c"):
 					for r in range(GRID_ROWS):
 						for c in range(GRID_COLUMNS):
 							if grid_n.size() == GRID_ROWS and grid_n[r][c] == PieceType.COIN and not grid_electrified[r][c]:
 								grid_electrified[r][c] = true
 								_set_ally_flag(grid_electrified_ally, r, c, true)
+					enemy_shock_stacks = mini(5, enemy_shock_stacks + 1)
+					_spawn_floating_text(Vector2(640, 360), "⚡ 雷撃感電スタック付与 (%d/5)！" % enemy_shock_stacks, Color(1.0, 0.9, 0.2))
+					if enemy_shock_stacks >= 5 and has_actor_skill_trait(true, "thunder", "thunder_final_c1"):
+						enemy_shock_stacks = 0
+						var discharge_dmg = (350.0 + sk_lvl * 75.0) * stage_scale
+						if sm and sm.ehp > 0 and not sm.isdeadf:
+							sm.calchp(discharge_dmg, 0.0)
+							_emit_combat_event("damage", "ally", "enemy", discharge_dmg, "thunder_shock_discharge")
+						_spawn_screen_flash(Color(1.0, 1.0, 0.4, 0.4), 0.25)
+						_spawn_floating_text(Vector2(640, 360), "⚡ 感電5スタック解放！特大放電 -%d!" % int(discharge_dmg), Color(1.0, 0.95, 0.2))
 
 				affected_positions.append(get_cell_position(0, strike_col))
 				_spawn_vertical_lightning_bolt(get_cell_position(GRID_ROWS / 2, strike_col), 0.0)
@@ -11233,6 +12601,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_damage_stone_at(st.x, st.y, 1)
 					affected_positions.append(get_cell_position(st.x, st.y))
 				direct_skill_dmg = float(maxi(1, stones_pos.size())) * (110.0 + sk_lvl * 25.0) * stage_scale
+				var rm_earth2 = _get_relic_manager()
+				if rm_earth2 and rm_earth2.has_relic("earth_heart"):
+					direct_skill_dmg *= 1.50
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "🪨 大地の激震アースクエイク！", Color(0.8, 0.65, 0.3))
 			elif tier == 3:
 				# 💎 地T3【天変地異カタクリズム】：全石を一斉粉砕し超巨大岩石落とし
@@ -11256,6 +12627,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				candidates.shuffle()
 				var count = mini(2 + sk_lvl / 3, candidates.size())
 				var stone_dur = 3 if has_actor_skill_trait(true, "earth", "earth_mid_a") else 2 # 堅牢で耐久3
+				var rm_earth = _get_relic_manager()
+				if rm_earth and rm_earth.has_relic("earth_heart"):
+					stone_dur += int(rm_earth.get_param("earth_heart", "durability_bonus", 2))
 				for i in range(count):
 					var cell = candidates[i]
 					grid_stones[cell.x][cell.y] = stone_dur
@@ -11269,6 +12643,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 			if tier == 2:
 				# 🧪 毒T2【ヴェノム・インキュベート】：全毒マスを即座に1歩伝染＋敵設置物を毒へ融解変換
 				_process_poison_spread()
+				var rm_poison2 = _get_relic_manager()
+				if rm_poison2 and rm_poison2.has_relic("venom_crown"):
+					_process_poison_spread()
 				var p_cnt = 0
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
@@ -11304,16 +12681,23 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				candidates.shuffle()
 				var count = mini(2 + sk_lvl / 2, candidates.size())
 				var init_stage = 2 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 1 # 濃縮で初期段階2
+				var rm_poison = _get_relic_manager()
+				if rm_poison and rm_poison.has_relic("venom_crown"):
+					init_stage += int(rm_poison.get_param("venom_crown", "initial_stage_bonus", 1))
+				var poisoned_cells: Array[Vector2i] = []
 				for i in range(count):
 					var cell = candidates[i]
 					grid_poison[cell.x][cell.y] = true
 					_set_ally_flag(grid_poison_ally, cell.x, cell.y, true)
 					if grid_poison_stage.size() == GRID_ROWS:
 						grid_poison_stage[cell.x][cell.y] = init_stage
+					poisoned_cells.append(cell)
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
-					_spawn_poison_bubble_burst_effect(pos)
+				_play_poison_expansion(poisoned_cells, origin_pos, animate)
 				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
+				if not affected_positions.is_empty():
+					_spawn_floating_text(affected_positions[0], "🧪 劇毒散布 (毒%dマス)！" % count, Color(0.3, 1.0, 0.6))
 
 		"light":
 			if tier == 2:
@@ -11351,27 +12735,34 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				direct_skill_dmg = float(st_cnt + 1) * (260.0 + sk_lvl * 55.0) * stage_scale
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "⚔️ 神聖聖剣エクスカリバー！", Color(1.0, 1.0, 0.6))
 			else:
-				# ✨ 光スキル：聖像降臨 (召喚数はスキルレベル強化依存: Lv1:1体, Lv4:2体, Lv8:3体, Lv12:4体, Lv16:5体)
+				# ✨ 光スキル：ランダムなマスに聖像降臨 (火・氷と同様に複数ランダムマスに効果付与)
 				var candidates: Array[Vector2i] = []
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
 						if not _is_plant_cell(r, c) and int(grid_gold_statue[r][c]) == 0:
 							candidates.append(Vector2i(r, c))
 				candidates.shuffle()
-				var count = mini(1 + sk_lvl / 4, candidates.size())
+				var count = mini(2 + sk_lvl / 2, candidates.size())
+				var statue_cells: Array[Vector2i] = []
 				for i in range(count):
 					var cell = candidates[i]
 					grid_gold_statue[cell.x][cell.y] = 2
 					_set_ally_flag(grid_gold_ally, cell.x, cell.y, true)
+					statue_cells.append(cell)
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
-					_spawn_gold_shatter_effect(pos)
 					_spawn_floating_text(pos, "✨ 聖像降臨！", Color(1.0, 0.95, 0.3))
+				_play_light_expansion(statue_cells, origin_pos, animate)
 
+				var rm_light = _get_relic_manager()
 				var shield_gain = (80.0 + sk_lvl * 15.0) * stage_scale
+				if rm_light and rm_light.has_relic("holy_lighthouse"):
+					shield_gain *= (1.0 + float(rm_light.get_param("holy_lighthouse", "statue_damage", 0.50)))
 				_apply_skill_shield(shield_gain)
 
 				has_light_dazzle_this_turn = true
+				if rm_light and rm_light.has_relic("sanctuary_lamp"):
+					has_light_sanctuary_this_turn = true
 
 				# 聖域の像 (light_mid_b): 発動ターン被ダメ25%軽減
 				if has_actor_skill_trait(true, "light", "light_mid_b"):
@@ -11403,7 +12794,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 				affected_positions.append(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2))
 				_spawn_screen_flash(Color(1.0, 1.0, 0.7, 0.4), 0.3)
-			direct_skill_dmg = (100.0 + sk_lvl * 20.0) * stage_scale
+				direct_skill_dmg = (100.0 + sk_lvl * 20.0) * stage_scale
 
 		"dark":
 			if tier == 2:
@@ -11434,11 +12825,15 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_set_ally_flag(grid_cursed_ally, cr.x, cr.y, false)
 					affected_positions.append(get_cell_position(cr.x, cr.y))
 				direct_skill_dmg = float(maxi(1, curses.size())) * (240.0 + sk_lvl * 50.0) * stage_scale
-				var drain_heal = direct_skill_dmg * 0.50
+				var drain_rate = 0.50
+				var rm_dark_t3 = _get_relic_manager()
+				if rm_dark_t3 and rm_dark_t3.has_relic("void_ring"):
+					drain_rate = float(rm_dark_t3.get_param("void_ring", "drain_rate", 0.75))
+				var drain_heal = direct_skill_dmg * drain_rate
 				if sm:
 					sm.calchp(0.0, -drain_heal)
 					_emit_combat_event("heal", "ally", "ally", drain_heal)
-				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "🌑 虚無の特異点アビス・ブラックホール！", Color(0.5, 0.3, 0.9))
+				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else get_cell_position(0,0), "🌑 虚無特異点アビス・ブラックホール！", Color(0.5, 0.3, 0.9))
 			else:
 				# 🌙 闇スキル：暗雲・影護マス生成＆重力場・混沌放出
 				var r0 = randi() % (GRID_ROWS - 2)
@@ -11450,22 +12845,50 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				})
 				affected_positions.append(get_cell_position(r0, c0))
 				var candidates: Array[Vector2i] = []
+				# 優先度1: 敵妨害マス（敵呪い・毒・炎を安全に上書き）
 				for r in range(GRID_ROWS):
 					for c in range(GRID_COLUMNS):
-						if not _is_plant_cell(r, c) and not grid_cursed[r][c]:
-							candidates.append(Vector2i(r, c))
+						if not _is_plant_cell(r, c) and not is_ally_cursed(r, c):
+							var is_enemy_hz = (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c] and not is_ally_cursed(r, c)) or \
+											  (grid_poison.size() == GRID_ROWS and grid_poison[r][c] and not is_ally_poison(r, c)) or \
+											  (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0 and not is_ally_fire(r, c))
+							if is_enemy_hz:
+								candidates.append(Vector2i(r, c))
 				candidates.shuffle()
+				var other_cands: Array[Vector2i] = []
+				for r in range(GRID_ROWS):
+					for c in range(GRID_COLUMNS):
+						var cp = Vector2i(r, c)
+						if not candidates.has(cp) and not _is_plant_cell(r, c) and not is_ally_cursed(r, c):
+							other_cands.append(cp)
+				other_cands.shuffle()
+				candidates.append_array(other_cands)
+
 				var count = mini(2 + sk_lvl / 2, candidates.size())
 				for i in range(count):
 					var cell = candidates[i]
 					grid_cursed[cell.x][cell.y] = true
 					_set_ally_flag(grid_cursed_ally, cell.x, cell.y, true)
-					affected_positions.append(get_cell_position(cell.x, cell.y))
+					if grid_poison.size() == GRID_ROWS: grid_poison[cell.x][cell.y] = false
+					if grid_fire.size() == GRID_ROWS: grid_fire[cell.x][cell.y] = 0
+					var cpos = get_cell_position(cell.x, cell.y)
+					affected_positions.append(cpos)
+					_spawn_floating_text(cpos, "🌙 影護マス！", Color(0.65, 0.45, 1.0))
 
-				if has_actor_skill_trait(true, "dark", "dark_mid_a"):
+				if has_actor_skill_trait(true, "dark", "dark_final_a2"):
+					free_swap_turns = max(free_swap_turns, 3)
+					has_dark_teleport_swap = true
+					_spawn_floating_text(Vector2(640, 360), "🌙 空間転移！3ターン自由スワップ！", Color(0.8, 0.4, 1.0))
+				elif has_actor_skill_trait(true, "dark", "dark_mid_a"):
 					free_swap_turns = max(free_swap_turns, 1)
 					has_dark_teleport_swap = true
 					_spawn_floating_text(Vector2(640, 360), "🌙 重力場！1ターン自由スワップ！", Color(0.7, 0.3, 1.0))
+
+				var rm_dark = _get_relic_manager()
+				if rm_dark and rm_dark.has_relic("underworld_contract"):
+					var extra_sw = int(rm_dark.get_param("underworld_contract", "swap_bonus", 1))
+					free_swap_turns += extra_sw
+					has_dark_teleport_swap = true
 
 				# 特異点 (dark_final_a1): 中央3x3の駒を特異点へ消滅
 				if has_actor_skill_trait(true, "dark", "dark_final_a1"):
@@ -11478,7 +12901,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					_spawn_black_hole_effect(get_cell_position(cr, cc), 3)
 
 				# 混沌 (dark_mid_c): 蓄積被ダメージの全放出
-				if dark_accumulated_damage > 0.0:
+				if has_actor_skill_trait(true, "dark", "dark_mid_c") and dark_accumulated_damage > 0.0:
 					var release_dmg = dark_accumulated_damage
 					dark_accumulated_damage = 0.0
 					if has_actor_skill_trait(true, "dark", "dark_final_c1"): # 復讐 (+50%)
@@ -11494,11 +12917,23 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 	# スキル発動時の敵への直接属性ダメージ
 	if sm and sm.ehp > 0 and direct_skill_dmg > 0.0:
+		var rm = _get_relic_manager()
+		if rm:
+			direct_skill_dmg = rm.modify_damage_dealt(direct_skill_dmg, {"element": skill_key, "element_name": skill_key, "is_skill": true})
 		sm.calchp(direct_skill_dmg, 0.0)
 		_emit_combat_event("damage", "ally", "enemy", direct_skill_dmg, "player_skill_" + skill_key)
 
 	if not affected_positions.is_empty():
 		_spawn_floating_text(affected_positions[0], "✦ 自軍スキル【T%d %s】発動！" % [tier, skill_key.to_upper()], Color(0.45, 0.98, 1.0))
+		# 属性魔力弾（スペルビーム／彗星弾頭）演出：スキル発動位置から影響マスへビームを飛ばす
+		if animate:
+			_spawn_player_skill_beams(origin_pos, affected_positions, skill_key)
+
+	var rm_end = _get_relic_manager()
+	if rm_end and rm_end.has_relic("spirit_blessing"):
+		var mp_gain = player_skill_max_energy * float(rm_end.get_param("spirit_blessing", "mp_restore", 0.20))
+		player_skill_energy = minf(player_skill_max_energy, player_skill_energy + mp_gain)
+		emit_signal("relic_triggered", "spirit_blessing")
 
 	_update_player_skill_ui()
 	_update_status_ailments()

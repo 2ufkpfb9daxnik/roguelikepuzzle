@@ -9,7 +9,10 @@ enum Element {
 	THUNDER = 4,
 	LIGHT = 5,
 	DARK = 6,
-	POISON = 7
+	POISON = 7,
+	ICE = 8,
+	WOOD = 9,
+	EARTH = 10
 }
 
 const ELEMENT_COLORS = {
@@ -20,7 +23,10 @@ const ELEMENT_COLORS = {
 	Element.THUNDER: Color(0.9, 0.9, 0.2),
 	Element.LIGHT: Color(1.0, 0.9, 0.6),
 	Element.DARK: Color(0.7, 0.3, 0.9),
-	Element.POISON: Color(0.67, 0.28, 0.74)
+	Element.POISON: Color(0.67, 0.28, 0.74),
+	Element.ICE: Color(0.5, 0.85, 1.0),
+	Element.WOOD: Color(0.3, 0.85, 0.4),
+	Element.EARTH: Color(0.85, 0.65, 0.35)
 }
 
 static func get_element_name(el: Element) -> String:
@@ -32,10 +38,13 @@ static func get_element_name(el: Element) -> String:
 		Element.LIGHT: return "light"
 		Element.DARK: return "dark"
 		Element.POISON: return "poison"
+		Element.ICE: return "ice"
+		Element.WOOD: return "wood"
+		Element.EARTH: return "earth"
 		_: return "none"
 
 static func get_element_from_name(name: String) -> Element:
-	match name:
+	match name.to_lower():
 		"fire": return Element.FIRE
 		"water": return Element.WATER
 		"wind": return Element.WIND
@@ -43,6 +52,9 @@ static func get_element_from_name(name: String) -> Element:
 		"light": return Element.LIGHT
 		"dark": return Element.DARK
 		"poison": return Element.POISON
+		"ice": return Element.ICE
+		"wood": return Element.WOOD
+		"earth": return Element.EARTH
 		_: return Element.NONE
 
 static func get_element_from_enemy_string(jp_str: String) -> Element:

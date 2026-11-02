@@ -194,13 +194,27 @@ func _get_settings_manager() -> Node:
 	if _cached_settings_manager and is_instance_valid(_cached_settings_manager):
 		return _cached_settings_manager
 	
+	if is_inside_tree():
+		var sm_direct = get_node_or_null("/root/SettingsManager")
+		if sm_direct:
+			_cached_settings_manager = sm_direct
+			return _cached_settings_manager
+	
 	var root_node = null
 	if is_inside_tree() and get_tree():
 		root_node = get_tree().root
 	elif Engine.get_main_loop() is SceneTree:
 		root_node = (Engine.get_main_loop() as SceneTree).root
+	elif is_instance_valid(Engine.get_main_loop()) and Engine.get_main_loop().has_method("get_root"):
+		root_node = Engine.get_main_loop().get_root()
+	if root_node == null:
+		var st = Engine.get_main_loop()
+		if st and "root" in st:
+			root_node = st.root
 	if root_node:
 		var sm_autoload = root_node.get_node_or_null("SettingsManager")
+		if sm_autoload == null:
+			sm_autoload = root_node.find_child("SettingsManager", true, false)
 		if sm_autoload:
 			_cached_settings_manager = sm_autoload
 			return _cached_settings_manager
@@ -237,6 +251,15 @@ func _get_difficulty_skill_mult() -> float:
 ## 難易度変更時のイベントハンドラ
 func _on_difficulty_changed(_new_diff: int) -> void:
 	label_control()
+
+var is_tutorial_mode: bool = false
+
+## チュートリアルモードかどうかを判定
+func _is_tutorial_mode() -> bool:
+	if is_tutorial_mode:
+		return true
+	var sm = _get_settings_manager()
+	return (sm != null and "is_tutorial_mode" in sm and sm.is_tutorial_mode)
 
 var facearr: Array[Node2D] = []
 
@@ -1508,8 +1531,7 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 	var parent_node: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
 	
 	for i in range(initial_spawn_count):
-		var sm_sett = get_node_or_null("/root/SettingsManager")
-		var is_tut: bool = (sm_sett and "is_tutorial_mode" in sm_sett and sm_sett.is_tutorial_mode)
+		var is_tut: bool = _is_tutorial_mode()
 		var e_idx: int = 5 if is_boss else (0 if is_tut else (randi() % 5))
 		var ename: String = enemy_info["names"][e_idx]
 		var r_hp: int = enemy_info["hp"][e_idx]
@@ -1570,6 +1592,9 @@ func make_enemy(spawn_as_boss: bool = false) -> void:
 					_: stage1_progression_mult = 1.0
 			var e_hp = r_hp * stage_mult * diff_hp_mult * stage1_progression_mult
 			var e_atk = r_atk * stage_mult * diff_atk_mult * stage1_progression_mult
+			if is_tut:
+				e_hp = 500.0
+				e_atk = 50.0
 			ehp += e_hp
 			ehpmax += e_hp
 			enemyat += e_atk
@@ -2840,6 +2865,9 @@ func _step_process() -> void:
 
 		if not has_transitioned_after_death:
 			has_transitioned_after_death = true
+			if _is_tutorial_mode() and stage >= 2:
+				# チュートリアル終了地点：実戦への継続・ショップ出現を阻止し、タイトル帰還を待つ
+				return
 			# ボス戦突入前・ボス戦中は絶対にショップを開かない
 			if not is_boss_battle():
 				# RELIC_OFFER_BATTLE_INDICES (例: 2戦目) に該当する場合のみレリック選択画面を挟む
@@ -3011,6 +3039,7 @@ func _open_relic_selection(on_finished: Callable) -> void:
 		on_finished.call()
 		return
 	var r_ui = RELIC_SELECTION_UI_SCRIPT.new()
+	r_ui.name = "RelicSelectionUI"
 	r_ui.selection_finished.connect(on_finished, CONNECT_ONE_SHOT)
 	p.add_child(r_ui)
 
@@ -3153,7 +3182,21 @@ func _on_movefront_pressed() -> void:
 		if choose_buff_rect: choose_buff_rect.visible = false
 		_set_buff_buttons_visible(false)
 
-		if stage_enemy >= 4:
+		var is_tut: bool = _is_tutorial_mode()
+
+		if is_tut and stage == 1:
+			stage = 2
+			stage_enemy = 1
+			label_control()
+			var rm = _get_relic_manager()
+			if rm: rm.on_battle_start()
+			make_enemy(false)
+			isdeadf = false
+			clicked = true
+			deadinterval = 0
+			has_transitioned_after_death = false
+			has_transitioned_stage_clear = false
+		elif stage_enemy >= 4:
 			isdanger = true
 			dangerinterval = 0
 			isdeadf = false

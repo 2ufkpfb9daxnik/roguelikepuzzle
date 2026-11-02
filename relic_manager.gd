@@ -50,7 +50,7 @@ func add_relic(id: String) -> void:
 		
 	var max_l = RelicDatabase.get_max_level(id)
 	var r_data = RelicDatabase.get_relic(id)
-	if r_data.has("element_category"):
+	if r_data.has("element_category") and str(r_data["element_category"]) in ["nature", "force", "mystic"] and chosen_element_category == "":
 		set_chosen_element_category(str(r_data["element_category"]))
 
 	if not owned_relics.has(id):
@@ -68,6 +68,15 @@ func add_relic(id: String) -> void:
 		if owned_relics[id] < max_l:
 			owned_relics[id] += 1
 			print("Relic Leveled Up: ", id, " (Lv", owned_relics[id], ")")
+			if id == "cursed_shura_sword":
+				var p = get_parent()
+				var sm = p.get_node_or_null("StageManager") if p else null
+				if sm and "myhpmax" in sm and sm.myhpmax > 0:
+					var new_mult = float(get_param("cursed_shura_sword", "hp_multiplier", 0.50))
+					var old_mult = 0.50 if owned_relics[id] == 2 else 0.40
+					sm.myhpmax = maxf(50.0, sm.myhpmax * (new_mult / old_mult))
+					sm.myhp = minf(sm.myhp, sm.myhpmax)
+					sm.myhppar = sm.myhp / sm.myhpmax
 			emit_signal("relic_leveled_up", id, owned_relics[id])
 		else:
 			print("Relic already at max level: ", id, " (Lv", owned_relics[id], ")")
@@ -144,7 +153,38 @@ func on_turn_start() -> void:
 	temp_state["hazard_destroyed_by_kind"] = {}
 	temp_state["backlash_damage_taken"] = 0.0
 	temp_state["potions_cleared_this_turn"] = 0
-	
+	temp_state["magic_crystal_next_match"] = 0.0
+
+	# 凍土の誓約: ターン開始時にランダムな氷マス生成
+	if has_relic("frozen_earth_oath"):
+		var p = get_parent()
+		var pb = p.get_node_or_null("PuzzleBoard") if p else null
+		if pb and pb.has_method("spawn_ally_ice_for_relic"):
+			var ice_cnt = int(get_param("frozen_earth_oath", "ice_count", 1))
+			for _i in range(ice_cnt):
+				pb.spawn_ally_ice_for_relic()
+			emit_signal("relic_triggered", "frozen_earth_oath")
+
+	# 熔鉄の甲冑: 火マス上の敵に毎ターン継続ダメージ
+	if has_relic("molten_iron_armor"):
+		var p = get_parent()
+		var pb = p.get_node_or_null("PuzzleBoard") if p else null
+		var sm = p.get_node_or_null("StageManager") if p else null
+		if pb and sm and "grid_fire" in pb and pb.grid_fire.size() == pb.GRID_ROWS:
+			var fire_cnt = 0
+			for r in range(pb.GRID_ROWS):
+				for c in range(pb.GRID_COLUMNS):
+					if pb.grid_fire[r][c] > 0 and not pb.is_ally_fire(r, c):
+						fire_cnt += 1
+			if fire_cnt > 0 and "myhpmax" in sm and sm.myhpmax > 0:
+				var dot_pct = float(get_param("molten_iron_armor", "dot_percent", 0.010))
+				var dot_dmg = sm.myhpmax * dot_pct * float(fire_cnt)
+				if dot_dmg > 0 and sm.has_method("calchp"):
+					sm.calchp(dot_dmg, 0.0)
+					if pb.has_method("_emit_combat_event"):
+						pb._emit_combat_event("damage", "ally", "enemy", dot_dmg, "fire")
+					emit_signal("relic_triggered", "molten_iron_armor")
+
 	if has_relic("healing_drop"):
 		var p = get_parent()
 		if p:
@@ -177,7 +217,9 @@ func on_turn_start() -> void:
 		if p:
 			var pb = p.get_node_or_null("PuzzleBoard")
 			if pb and pb.has_method("spawn_random_hazard_for_curse"):
-				pb.spawn_random_hazard_for_curse()
+				var hz_cnt = int(get_param("cursed_gluttony_grail", "hazard_count", 1))
+				for _h_idx in range(hz_cnt):
+					pb.spawn_random_hazard_for_curse()
 				emit_signal("relic_triggered", "cursed_gluttony_grail")
 
 ## --- ステップ3 追加フック ---
@@ -215,6 +257,19 @@ func on_enemy_defeated() -> void:
 				var pb = p.get_node_or_null("PuzzleBoard")
 				if pb and pb.has_method("_emit_combat_event"):
 					pb._emit_combat_event("heal", "ally", "ally", heal_val)
+
+	if has_relic("underworld_scale"):
+		var p = get_parent()
+		var sm = p.get_node_or_null("StageManager") if p else null
+		if sm and "myhpmax" in sm and sm.myhpmax > 0:
+			var heal_ratio = float(get_param("underworld_scale", "heal_ratio", 0.25))
+			var heal_val = sm.myhpmax * heal_ratio
+			if heal_val > 0:
+				sm.calchp(0, -heal_val)
+				var pb = p.get_node_or_null("PuzzleBoard")
+				if pb and pb.has_method("_emit_combat_event"):
+					pb._emit_combat_event("heal", "ally", "ally", heal_val)
+				emit_signal("relic_triggered", "underworld_scale")
 
 func on_fever_started() -> void:
 	if has_relic("fever_overdrive"):
@@ -302,13 +357,15 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 	# 属性カテゴリーレリックによる30%ボーナス
 	var el_str: String = ""
 	if context.has("element_name"):
-		el_str = str(context["element_name"])
+		el_str = str(context["element_name"]).to_lower()
 	elif context.has("element"):
 		var el_val = context["element"]
 		if el_val is String:
-			el_str = el_val
+			el_str = el_val.to_lower()
 		elif el_val is int and el_val != 0:
-			el_str = ElementData.get_element_name(el_val)
+			el_str = ElementData.get_element_name(el_val).to_lower()
+
+	el_str = el_str.replace("player_skill_", "").replace("ally_", "").strip_edges()
 
 	if has_relic("relic_cat_nature") and el_str in ["water", "ice", "wood", "wind"]:
 		bonus_mult += 0.30
@@ -356,11 +413,11 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 			bonus_mult += minf(float(extra_cnt) * per_d, max_b)
 			emit_signal("relic_triggered", "resonant_explosive")
 			
-	if has_relic("bloodstained_sword"):
+	if has_relic("bloodstained_sword") and not context.get("is_skill", false):
 		bonus_mult += float(get_param("bloodstained_sword", "damage_bonus", 0.30))
 		emit_signal("relic_triggered", "bloodstained_sword")
 
-	if has_relic("cursed_shura_sword"):
+	if has_relic("cursed_shura_sword") and not context.get("is_skill", false):
 		var sm_mult = float(get_param("cursed_shura_sword", "sword_multiplier", 2.5))
 		base_dmg *= sm_mult
 		emit_signal("relic_triggered", "cursed_shura_sword")
@@ -506,6 +563,63 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		flat_add += temp_state["four_orb_damage"]
 		temp_state["four_orb_damage"] = 0.0
 
+	if has_relic("tide_ring"):
+		var water_cnt = int(context.get("water_count", get_board_state().get("water_count", 0)))
+		if water_cnt > 0:
+			var per_w = float(get_param("tide_ring", "damage_bonus_per_water", 0.02))
+			var max_b = float(get_param("tide_ring", "max_bonus", 0.40))
+			bonus_mult += minf(float(water_cnt) * per_w, max_b)
+			emit_signal("relic_triggered", "tide_ring")
+
+	if has_relic("corrosion_charm"):
+		var poison_cnt = int(get_board_state().get("poison_count", 0))
+		if poison_cnt > 0 or el_str == "poison":
+			bonus_mult += float(get_param("corrosion_charm", "poison_damage_bonus", 0.20))
+			emit_signal("relic_triggered", "corrosion_charm")
+
+	if has_relic("demolition_book") and (context.get("is_bomb", false) or context.get("is_special", false) or el_str == "fire"):
+		bonus_mult += float(get_param("demolition_book", "bomb_damage", 0.40))
+		emit_signal("relic_triggered", "demolition_book")
+
+	if has_relic("magnet_charm") and el_str == "thunder":
+		bonus_mult += float(get_param("magnet_charm", "thunder_damage_bonus", 0.25))
+		emit_signal("relic_triggered", "magnet_charm")
+
+	if has_relic("superconduct_ring") and el_str == "thunder":
+		bonus_mult += float(get_param("superconduct_ring", "skill_damage", 0.30))
+		emit_signal("relic_triggered", "superconduct_ring")
+
+	if has_relic("shadow_pin") and el_str == "dark":
+		bonus_mult += float(get_param("shadow_pin", "dark_damage_bonus", 0.30))
+		emit_signal("relic_triggered", "shadow_pin")
+
+	if has_relic("holy_lighthouse") and el_str == "light":
+		bonus_mult += float(get_param("holy_lighthouse", "light_damage_bonus", 0.25))
+		emit_signal("relic_triggered", "holy_lighthouse")
+
+	if has_relic("magic_crystal"):
+		if context.get("is_skill", false):
+			bonus_mult += float(get_param("magic_crystal", "skill_damage", 0.25))
+			temp_state["magic_crystal_next_match"] = float(get_param("magic_crystal", "next_match_bonus", 0.15))
+			emit_signal("relic_triggered", "magic_crystal")
+		elif float(temp_state.get("magic_crystal_next_match", 0.0)) > 0.0:
+			bonus_mult += float(temp_state["magic_crystal_next_match"])
+			temp_state["magic_crystal_next_match"] = 0.0
+			emit_signal("relic_triggered", "magic_crystal")
+
+	if has_relic("ancient_dragon_scale"):
+		var chosen_cat = get_chosen_element_category()
+		var cat_elements = []
+		if chosen_cat == "nature":
+			cat_elements = ["water", "ice", "wood", "wind"]
+		elif chosen_cat == "force":
+			cat_elements = ["fire", "thunder", "earth"]
+		elif chosen_cat == "mystic":
+			cat_elements = ["poison", "light", "dark"]
+		if chosen_cat != "" and (el_str in cat_elements or context.get("is_skill", false)):
+			bonus_mult += float(get_param("ancient_dragon_scale", "category_skill_damage", 0.40))
+			emit_signal("relic_triggered", "ancient_dragon_scale")
+
 	# 上限適用 (+200%)
 	bonus_mult = minf(bonus_mult, RELIC_DAMAGE_BONUS_CAP)
 	return (base_dmg + flat_add) * (1.0 + bonus_mult)
@@ -518,6 +632,22 @@ func modify_damage_taken(base_dmg: float, _context: Dictionary) -> float:
 	if has_relic("old_shield"):
 		reduction += float(get_param("old_shield", "damage_reduction", 0.10))
 		emit_signal("relic_triggered", "old_shield")
+
+	if has_relic("rock_fortress"):
+		var b_st = get_board_state()
+		if int(b_st.get("stone_count", 0)) > 0:
+			reduction += float(get_param("rock_fortress", "damage_reduction", 0.25))
+			emit_signal("relic_triggered", "rock_fortress")
+
+	if has_relic("flowing_water_charm"):
+		var b_st = get_board_state()
+		if int(b_st.get("water_count", 0)) > 0:
+			reduction += float(get_param("flowing_water_charm", "damage_reduction", 0.30))
+			emit_signal("relic_triggered", "flowing_water_charm")
+
+	if has_relic("sanctuary_lamp"):
+		reduction += float(get_param("sanctuary_lamp", "ally_damage_reduction", 0.15))
+		emit_signal("relic_triggered", "sanctuary_lamp")
 		
 	# 上限適用 (50%)
 	reduction = minf(reduction, RELIC_DAMAGE_REDUCTION_CAP)

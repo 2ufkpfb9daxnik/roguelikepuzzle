@@ -4,20 +4,44 @@ const GlossaryDatabase = preload("res://glossary_database.gd")
 
 signal selection_finished()
 
-const RELIC_WEIGHT_COMMON: float = 42.0
+const RELIC_WEIGHT_COMMON: float = 40.0
 const RELIC_WEIGHT_UNCOMMON: float = 28.0
 const RELIC_WEIGHT_RARE: float = 16.0
-const RELIC_WEIGHT_EPIC: float = 10.0
-const RELIC_WEIGHT_LEGENDARY: float = 4.0
-const RELIC_WEIGHT_CURSED: float = 8.0
+const RELIC_WEIGHT_EPIC: float = 8.0
+const RELIC_WEIGHT_LEGENDARY: float = 3.0
+const RELIC_WEIGHT_CURSED: float = 5.0
 const RELIC_OWNED_WEIGHT_MULT: float = 1.5
 
 var panel: Panel
 var title_label: Label
 var hbox: HBoxContainer
 var skip_btn: Button
+var current_choices: Array[String] = []
 
 const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
+
+func _init() -> void:
+	name = "RelicSelectionUI"
+
+func _get_settings_manager() -> Node:
+	if is_inside_tree() and get_tree() and get_tree().get_root():
+		var sm = get_tree().get_root().get_node_or_null("SettingsManager")
+		if sm: return sm
+		sm = get_tree().get_root().find_child("SettingsManager", true, false)
+		if sm: return sm
+	var p = get_parent()
+	while p:
+		if p.name == "SettingsManager":
+			return p
+		var f = p.find_child("SettingsManager", true, false)
+		if f:
+			return f
+		p = p.get_parent()
+	return null
+
+func _is_tutorial_mode() -> bool:
+	var sm = _get_settings_manager()
+	return bool(sm and "is_tutorial_mode" in sm and sm.is_tutorial_mode)
 
 func _ready() -> void:
 	layer = 60
@@ -28,6 +52,8 @@ func _ready() -> void:
 	dim.size = Vector2(1920, 1080)
 	add_child(dim)
 	
+	var is_tut := _is_tutorial_mode()
+
 	panel = Panel.new()
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.01, 0.01, 0.02, 0.70)
@@ -36,27 +62,32 @@ func _ready() -> void:
 	style.set_corner_radius_all(16)
 	panel.add_theme_stylebox_override("panel", style)
 	
-	panel.custom_minimum_size = Vector2(1540, 760)
-	panel.size = Vector2(1540, 760)
-	panel.position = Vector2((1920.0 - 1540.0) / 2.0, (1080.0 - 760.0) / 2.0)
+	if is_tut:
+		panel.custom_minimum_size = Vector2(1540, 670)
+		panel.size = Vector2(1540, 670)
+		panel.position = Vector2((1920.0 - 1540.0) / 2.0, 25.0)
+	else:
+		panel.custom_minimum_size = Vector2(1540, 800)
+		panel.size = Vector2(1540, 800)
+		panel.position = Vector2((1920.0 - 1540.0) / 2.0, (1080.0 - 800.0) / 2.0)
 	add_child(panel)
 	
 	title_label = Label.new()
 	title_label.text = "レリックを選択"
 	if CUSTOM_FONT:
 		title_label.add_theme_font_override("font", CUSTOM_FONT)
-	title_label.add_theme_font_size_override("font_size", 42)
+	title_label.add_theme_font_size_override("font_size", 34 if is_tut else 42)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title_label.position = Vector2(0, 25)
-	title_label.size = Vector2(1540, 75)
+	title_label.position = Vector2(0, 12 if is_tut else 18)
+	title_label.size = Vector2(1540, 50 if is_tut else 60)
 	panel.add_child(title_label)
 	
 	hbox = HBoxContainer.new()
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	hbox.add_theme_constant_override("separation", 30)
-	hbox.position = Vector2(0, 110)
-	hbox.size = Vector2(1540, 540)
+	hbox.position = Vector2(0, 68 if is_tut else 85)
+	hbox.size = Vector2(1540, 585 if is_tut else 620)
 	panel.add_child(hbox)
 	
 	skip_btn = Button.new()
@@ -66,7 +97,7 @@ func _ready() -> void:
 	skip_btn.add_theme_font_size_override("font_size", 32)
 	skip_btn.custom_minimum_size = Vector2(280, 65)
 	skip_btn.size = Vector2(280, 65)
-	skip_btn.position = Vector2((1540.0 - 280.0) / 2.0, 670)
+	skip_btn.position = Vector2((1540.0 - 280.0) / 2.0, 715)
 	skip_btn.pressed.connect(_on_skip_pressed)
 	panel.add_child(skip_btn)
 	
@@ -107,69 +138,42 @@ func _populate_choices() -> void:
 		title_label.add_theme_font_size_override("font_size", 34)
 		if skip_btn:
 			skip_btn.visible = false # カテゴリー選択は必須選択
-		choices = ["relic_cat_nature", "relic_cat_force", "relic_cat_mystic"]
+		var is_tut := _is_tutorial_mode()
+		if is_tut:
+			if panel:
+				panel.custom_minimum_size = Vector2(1540, 670)
+				panel.size = Vector2(1540, 670)
+				panel.position = Vector2((1920.0 - 1540.0) / 2.0, 25.0)
+			if title_label:
+				title_label.position = Vector2(0, 12)
+				title_label.size = Vector2(1540, 50)
+			if hbox:
+				hbox.position = Vector2(0, 68)
+				hbox.size = Vector2(1540, 585)
+			# チュートリアル時は真ん中に「自然・生命系（水・清流）」を配置
+			choices = ["relic_cat_force", "relic_cat_nature", "relic_cat_mystic"]
+		else:
+			choices = ["relic_cat_nature", "relic_cat_force", "relic_cat_mystic"]
 	else:
-		# 候補プール: 通常レリックのみ（カテゴリーレリック除外）、最大レベル未満
-		var pool: Array[String] = []
-		for r_id in RelicDatabase.RELICS.keys():
-			if r_id.begins_with("relic_cat_"):
-				continue
-			if not rm.is_max_level(r_id):
-				pool.append(r_id)
-				
-		if pool.is_empty():
-			# 候補が0個なら画面を出さずに終了
+		choices = _roll_candidates(rm)
+		if choices.is_empty():
 			call_deferred("_on_skip_pressed")
 			return
-			
-		var pool_copy = pool.duplicate()
-		var pick_count = mini(3, pool_copy.size())
 		
-		for _i in range(pick_count):
-			# 各候補の重みを計算
-			var weights: Array[float] = []
-			var total_weight: float = 0.0
-			for r_id in pool_copy:
-				var r_data = RelicDatabase.get_relic(r_id)
-				var rarity = r_data.get("rarity", "common")
-				var base_w = RELIC_WEIGHT_COMMON
-				if rarity == "uncommon":
-					base_w = RELIC_WEIGHT_UNCOMMON
-				elif rarity == "rare":
-					base_w = RELIC_WEIGHT_RARE
-				elif rarity == "epic":
-					base_w = RELIC_WEIGHT_EPIC
-				elif rarity == "legendary":
-					base_w = RELIC_WEIGHT_LEGENDARY
-				elif rarity == "cursed":
-					base_w = RELIC_WEIGHT_CURSED
-					
-				var w = base_w
-				if rm.has_relic(r_id):
-					w *= RELIC_OWNED_WEIGHT_MULT
-				weights.append(w)
-				total_weight += w
-				
-			var roll = randf() * total_weight
-			var cumulative: float = 0.0
-			var chosen_idx: int = 0
-			for idx in range(pool_copy.size()):
-				cumulative += weights[idx]
-				if roll <= cumulative:
-					chosen_idx = idx
-					break
-					
-			choices.append(pool_copy[chosen_idx])
-			pool_copy.remove_at(chosen_idx)
-		
-	for c_id in choices:
+	current_choices = choices.duplicate()
+	for card_idx in range(choices.size()):
+		var c_id = choices[card_idx]
 		var c_data = RelicDatabase.get_relic(c_id)
 		var cur_lvl = rm.get_level(c_id)
 		var next_lvl = cur_lvl + 1
 		
+		var is_tut_card := _is_tutorial_mode()
+		var card_h_size: float = 580.0 if is_tut_card else 615.0
+		var card_vbox_h: float = 562.0 if is_tut_card else 595.0
+
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(450, 520)
-		btn.size = Vector2(450, 520)
+		btn.custom_minimum_size = Vector2(450, card_h_size)
+		btn.size = Vector2(450, card_h_size)
 		
 		var b_style = StyleBoxFlat.new()
 		b_style.bg_color = Color(0.02, 0.02, 0.04, 0.65)
@@ -196,10 +200,11 @@ func _populate_choices() -> void:
 		btn.add_theme_stylebox_override("hover", h_style)
 		
 		var vbox = VBoxContainer.new()
-		vbox.position = Vector2(20, 16)
-		vbox.size = Vector2(410, 488)
-		vbox.custom_minimum_size = Vector2(410, 488)
+		vbox.position = Vector2(20, 8 if is_tut_card else 10)
+		vbox.size = Vector2(410, card_vbox_h)
+		vbox.custom_minimum_size = Vector2(410, card_vbox_h)
 		vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
+		vbox.add_theme_constant_override("separation", 3)
 		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(vbox)
 		
@@ -220,15 +225,42 @@ func _populate_choices() -> void:
 			badge_label.text = "[center][b][color=#76FF03]強化: Lv%d → Lv%d[/color][/b][/center]" % [cur_lvl, next_lvl]
 		vbox.add_child(badge_label)
 		
+		# レリックアイコン（背景透過PNG・超大型 250x250 プレート）
+		var icon_plate = Panel.new()
+		icon_plate.custom_minimum_size = Vector2(250, 250)
+		icon_plate.size = Vector2(250, 250)
+		icon_plate.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		icon_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_plate.clip_contents = true
+		var icon_style = StyleBoxFlat.new()
+		icon_style.bg_color = Color(0.01, 0.01, 0.02, 0.70)
+		icon_style.border_color = Color(b_style.border_color.r, b_style.border_color.g, b_style.border_color.b, 0.85)
+		icon_style.set_border_width_all(3)
+		icon_style.set_corner_radius_all(18)
+		icon_plate.add_theme_stylebox_override("panel", icon_style)
+		
+		var icon_rect = TextureRect.new()
+		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.custom_minimum_size = Vector2(238, 238)
+		icon_rect.size = Vector2(238, 238)
+		icon_rect.position = Vector2(6, 6)
+		icon_rect.texture = RelicDatabase.get_icon(c_id)
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_plate.add_child(icon_rect)
+		icon_plate.visible = icon_rect.texture != null
+		vbox.add_child(icon_plate)
+		
 		# レリック名
 		var r_label = Label.new()
-		r_label.text = c_data.get("name", "???")
+		var relic_name := str(c_data.get("name", "???"))
+		r_label.text = relic_name
 		r_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		r_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		r_label.custom_minimum_size = Vector2(410, 56)
+		r_label.custom_minimum_size = Vector2(410, 52)
 		if CUSTOM_FONT:
 			r_label.add_theme_font_override("font", CUSTOM_FONT)
-		r_label.add_theme_font_size_override("font_size", 22)
+		r_label.add_theme_font_size_override("font_size", 22 if relic_name.length() > 24 else 24)
 		if rarity == "legendary":
 			r_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 		elif rarity == "epic":
@@ -266,25 +298,27 @@ func _populate_choices() -> void:
 		rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if CUSTOM_FONT:
 			rarity_label.add_theme_font_override("font", CUSTOM_FONT)
-		rarity_label.add_theme_font_size_override("font_size", 16)
+		rarity_label.add_theme_font_size_override("font_size", 18)
 		vbox.add_child(rarity_label)
 		
 		var spacer = Control.new()
-		spacer.custom_minimum_size = Vector2(0, 8)
+		spacer.custom_minimum_size = Vector2(0, 4)
 		vbox.add_child(spacer)
 		
-		# 説明文（未所持ならLv1説明、所持中なら現在値と強化後値の対比）
+		# 説明文（スクロール可能・切れてもスクロールで全文閲覧可能）
 		var d_label = RichTextLabel.new()
 		d_label.bbcode_enabled = true
 		d_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		d_label.fit_content = true
-		d_label.scroll_active = false
-		d_label.custom_minimum_size = Vector2(410, 240)
+		d_label.fit_content = false
+		d_label.scroll_active = true
+		d_label.custom_minimum_size = Vector2(410, 140 if is_tut_card else 165)
+		d_label.size = Vector2(410, 140 if is_tut_card else 165)
+		d_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		if CUSTOM_FONT:
 			d_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 			d_label.add_theme_font_override("bold_font", CUSTOM_FONT)
-		d_label.add_theme_font_size_override("normal_font_size", 18)
-		d_label.add_theme_font_size_override("bold_font_size", 18)
+		d_label.add_theme_font_size_override("normal_font_size", 22)
+		d_label.add_theme_font_size_override("bold_font_size", 22)
 		d_label.mouse_filter = Control.MOUSE_FILTER_PASS
 		GlossaryDatabase.bind_rich_text_label(d_label)
 		
@@ -299,7 +333,19 @@ func _populate_choices() -> void:
 			]
 		vbox.add_child(d_label)
 		
-		btn.pressed.connect(_on_choice_pressed.bind(c_id))
+		var is_tut_btn := _is_tutorial_mode()
+		if is_tut_btn and choices.size() >= 3:
+			if card_idx == 1:
+				b_style.border_color = Color(1.0, 0.88, 0.2, 1.0)
+				b_style.set_border_width_all(7)
+			else:
+				btn.modulate = Color(0.65, 0.65, 0.65, 0.85)
+
+		btn.pressed.connect(func():
+			if is_tut_btn and choices.size() >= 3 and card_idx != 1:
+				return
+			_on_choice_pressed(c_id)
+		)
 		hbox.add_child(btn)
 
 func _on_choice_pressed(id: String) -> void:
@@ -313,3 +359,57 @@ func _on_choice_pressed(id: String) -> void:
 func _on_skip_pressed() -> void:
 	emit_signal("selection_finished")
 	queue_free()
+
+
+func _roll_candidates(rm: Node) -> Array[String]:
+	var pool: Array[String] = []
+	for r_id in RelicDatabase.RELICS.keys():
+		if r_id.begins_with("relic_cat_"):
+			continue
+		if not rm.is_max_level(r_id):
+			pool.append(r_id)
+			
+	if pool.is_empty():
+		return []
+		
+	var pool_copy = pool.duplicate()
+	var pick_count = mini(3, pool_copy.size())
+	var chosen_cat = rm.get_chosen_element_category() if rm.has_method("get_chosen_element_category") else ""
+	var picks: Array[String] = []
+	
+	for _i in range(pick_count):
+		var weights: Array[float] = []
+		var total_weight: float = 0.0
+		for r_id in pool_copy:
+			var r_data = RelicDatabase.get_relic(r_id)
+			var rarity = r_data.get("rarity", "common")
+			var base_w = float(RelicDatabase.RARITY_WEIGHTS.get(rarity, RELIC_WEIGHT_COMMON))
+				
+			var w = base_w
+			if rm.has_relic(r_id):
+				w *= RELIC_OWNED_WEIGHT_MULT
+			
+			if chosen_cat != "":
+				var r_cat = str(r_data.get("element_category", ""))
+				if r_cat == chosen_cat:
+					w *= 4.0
+				elif r_cat == "all":
+					w *= 1.5
+				elif r_cat != "":
+					w *= 0.15
+			
+			weights.append(w)
+			total_weight += w
+			
+		var roll = randf() * total_weight
+		var cumulative: float = 0.0
+		var chosen_idx: int = 0
+		for idx in range(pool_copy.size()):
+			cumulative += weights[idx]
+			if roll <= cumulative:
+				chosen_idx = idx
+				break
+				
+		picks.append(pool_copy[chosen_idx])
+		pool_copy.remove_at(chosen_idx)
+	return picks

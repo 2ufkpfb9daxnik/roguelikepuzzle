@@ -1,6 +1,9 @@
 # Godot 4+ specific ignores
 .godot/
 *.tmp
+*.log
 test_out.txt
 scratch/
+backups/
+
 
