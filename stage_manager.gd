@@ -185,6 +185,8 @@ var has_transitioned_stage_clear: bool = false
 
 # フィーバー突入時の大文字表示待機フレーム数 (等速1.0xで約1.0秒、速度設定に完全連動)
 const FEVER_INTRO_FRAMES: int = 60
+# フィーバー突入音楽（fevertime SE）を打ち切る位置: 3.8秒
+const FEVER_INTRO_SE_CUTOFF_FRAMES: int = 228
 
 # 速度シミュレーション累積
 var _sim_accumulator: float = 0.0
@@ -368,7 +370,11 @@ func _setup_fever_dancers() -> void:
 	if _fever_dance_frames == null:
 		var sf_path = "res://Texture/fever_dance/fever_dance_frames.tres"
 		if ResourceLoader.exists(sf_path):
-			_fever_dance_frames = load(sf_path) as SpriteFrames
+			var sf_status = ResourceLoader.load_threaded_get_status(sf_path)
+			if sf_status == ResourceLoader.THREAD_LOAD_LOADED:
+				_fever_dance_frames = ResourceLoader.load_threaded_get(sf_path) as SpriteFrames
+			else:
+				_fever_dance_frames = load(sf_path) as SpriteFrames
 		if _fever_dance_frames == null:
 			_fever_dance_frames = SpriteFrames.new()
 			_fever_dance_frames.add_animation("dance")
@@ -815,9 +821,27 @@ func update_enemy_intents(actions: Array) -> void:
 				if style:
 					style.border_color = b_col
 
+## 敵名を用語辞書へ登録し、敵ホバー情報の名前からも解説を引けるようにする。
+func _register_enemy_glossary_terms() -> void:
+	for enemy_key in ENEMY_SPECIES:
+		var sp_data: Dictionary = ENEMY_SPECIES[enemy_key]
+		var enemy_name: String = str(sp_data.get("name", ""))
+		if enemy_name.is_empty():
+			continue
+		var desc: String = "属性: %s" % str(sp_data.get("element", sp_data.get("race", "無属性")))
+		var skills: Array = sp_data.get("skills", [])
+		if not skills.is_empty():
+			var skill_names: Array[String] = []
+			for sk in skills:
+				skill_names.append(str(sk))
+			desc += " / 使用スキル: " + ", ".join(skill_names)
+		GlossaryDatabase.register_term(enemy_name, enemy_name, desc, str(sp_data.get("color", "#FFFFFF")))
+
 func _ready() -> void:
+	_register_enemy_glossary_terms()
 	_setup_enemy_viewport_container()
-	_setup_fever_dancers()
+	# フィーバーダンスの大量フレームは起動時に同期ロードすると数秒固まるため、
+	# 実際にフィーバーへ入った時に遅延構築する（fevertime() 内で呼び出し）。
 	_vfx_container = Node2D.new()
 	_vfx_container.name = "VFXContainer"
 	if _enemy_zoom_root:
@@ -2736,6 +2760,8 @@ func fevertime() -> void:
 				fever_se.finished.connect(_on_fever_se_finished)
 		else:
 			_fever_se_max_frames = 285
+		# 突入音楽は3.8秒で打ち切り、以降のHUD・ダンサー演出へ進む
+		_fever_se_max_frames = mini(_fever_se_max_frames, FEVER_INTRO_SE_CUTOFF_FRAMES)
 		
 		# フィーバー突入時: フィーバータイムの文字（大文字バナー）を大きく画面中央に表示！
 		_show_fever_banner()

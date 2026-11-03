@@ -361,6 +361,35 @@ func _on_skip_pressed() -> void:
 	queue_free()
 
 
+## 属性IDを系統カテゴリーへ変換する（ElementData の enum と同順）
+func _element_category_for_id(el_id: int) -> String:
+	match el_id:
+		1, 4, 10: # FIRE / THUNDER / EARTH
+			return "force"
+		2, 3, 8, 9: # WATER / WIND / ICE / WOOD
+			return "nature"
+		5, 6, 7: # LIGHT / DARK / POISON
+			return "mystic"
+	return ""
+
+## 選択済みカテゴリーに専門特化したレリックだけを候補に残す。
+## 汎用・全属性レリックは常に候補に残す。
+func _relic_matches_category(r_data: Dictionary, chosen_cat: String) -> bool:
+	var r_cat: String = str(r_data.get("element_category", ""))
+	if r_cat == "all":
+		return true
+	if r_cat != "":
+		return r_cat == chosen_cat
+	var inferred_cats: Dictionary = {}
+	for lv in r_data.get("levels", []):
+		if lv is Dictionary and lv.has("element"):
+			var cat: String = _element_category_for_id(int(lv["element"]))
+			if cat != "":
+				inferred_cats[cat] = true
+	if inferred_cats.is_empty():
+		return true
+	return inferred_cats.has(chosen_cat)
+
 func _roll_candidates(rm: Node) -> Array[String]:
 	var pool: Array[String] = []
 	for r_id in RelicDatabase.RELICS.keys():
@@ -372,9 +401,17 @@ func _roll_candidates(rm: Node) -> Array[String]:
 	if pool.is_empty():
 		return []
 		
+	var chosen_cat = rm.get_chosen_element_category() if rm.has_method("get_chosen_element_category") else ""
+	if chosen_cat != "":
+		# 他系統の専門レリックは候補から完全に除外する
+		var filtered: Array[String] = []
+		for r_id in pool:
+			if _relic_matches_category(RelicDatabase.get_relic(r_id), chosen_cat):
+				filtered.append(r_id)
+		pool = filtered
+
 	var pool_copy = pool.duplicate()
 	var pick_count = mini(3, pool_copy.size())
-	var chosen_cat = rm.get_chosen_element_category() if rm.has_method("get_chosen_element_category") else ""
 	var picks: Array[String] = []
 	
 	for _i in range(pick_count):

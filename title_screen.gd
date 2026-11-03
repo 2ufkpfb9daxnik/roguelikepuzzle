@@ -58,7 +58,10 @@ func _ready() -> void:
 		title_bgm.play()
 
 	# 次のステージシーン（current_stage.tscn）をバックグラウンドで非同期先読み開始
-	ResourceLoader.load_threaded_request("res://current_stage.tscn")
+	# main_scene側で既に開始済みの場合は二重リクエストしない
+	var stage_status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
+	if stage_status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+		ResourceLoader.load_threaded_request("res://current_stage.tscn")
 
 	# 設定変更のリアルタイム連動
 	var sm = _get_settings_manager()
@@ -450,8 +453,17 @@ func _process(_delta: float) -> void:
 			var status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
 			if status == ResourceLoader.THREAD_LOAD_LOADED:
 				next_scene = ResourceLoader.load_threaded_get("res://current_stage.tscn") as PackedScene
+			elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+				# 同期ロードへフォールバックすると数秒フリーズするため、完了まで待つ
+				isclicked = true
+				if start_btn:
+					start_btn.text = "⏳ 読み込み中..."
+				return
 			else:
-				next_scene = load("res://current_stage.tscn") as PackedScene
+				# 失敗/未開始時は再リクエストして次フレーム以降に待つ
+				ResourceLoader.load_threaded_request("res://current_stage.tscn")
+				isclicked = true
+				return
 			if next_scene:
 				get_tree().change_scene_to_packed(next_scene)
 		interval += 1

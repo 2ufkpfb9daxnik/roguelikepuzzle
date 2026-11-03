@@ -130,7 +130,7 @@ const GLOSSARY: Dictionary = {
 	},
 	"渦潮": {
 		"title": "渦潮 (Whirlpool)",
-		"desc": "水属性の最終進化効果。ターン終了時の水サージ発動時、自陣の水マスが最も多い縦列の駒を押し流して消去し落下連鎖を起こす。消去駒数に応じて相手に追加ダメージ。",
+		"desc": "水属性の最終進化効果。ターン終了時の水サージ発動時、自陣の水マスが最も多い縦列の駒を押し流して消去し落下連鎖を起こす。その列の水マス数に応じた追加ダメージを与える（水マスは消費しない）。",
 		"color": "#0288D1"
 	},
 	"鉄砲水": {
@@ -150,7 +150,7 @@ const GLOSSARY: Dictionary = {
 	},
 	"水の結界": {
 		"title": "水の結界 (Water Barrier)",
-		"desc": "水属性の最終進化効果。自陣の水マスの上には相手の妨害マス（毒・火・暗雲）が置かれず、広がっても来なくなる。",
+		"desc": "水属性の最終進化効果。自陣の水マス上では相手の毒が広がらず、毒の伝染を防止する。",
 		"color": "#4FC3F7"
 	},
 	"水鏡": {
@@ -360,7 +360,7 @@ const GLOSSARY: Dictionary = {
 	},
 	"水属性": {
 		"title": "水属性 (Water Element)",
-		"desc": "自然・生命系統の属性。弱点（有利）: 火属性に1.5倍ダメージ。耐性（不利）: 雷属性・毒属性に0.5倍ダメージ。盤面に【水マス】を展開し、ターン終了時にHP回復やシールド獲得、水マス数に応じた【水サージ】追撃を放つ。火属性を消火相殺し、木属性の苗木を吸水急成長させ、雷属性の落雷を全体へ【感電拡散】させる。",
+		"desc": "自然・生命系統の属性。弱点（有利）: 火属性に1.5倍ダメージ。耐性（不利）: 雷属性・毒属性に0.5倍ダメージ。盤面に【水マス】を展開し、そのマス上の駒を消去して落下を誘発。進化選択により、ターン終了時のHP回復・シールド獲得・水マス数に応じた【水サージ】追撃へ分化する。火属性を消火相殺し、木属性の苗木を吸水急成長させ、雷属性の落雷を全体へ【感電拡散】させる。",
 		"color": "#29B6F6"
 	},
 	"木属性": {
@@ -551,6 +551,38 @@ const GLOSSARY: Dictionary = {
 }
 
 static var _sorted_keys: Array = []
+static var _dynamic_terms: Dictionary = {}
+
+## レリック名・スキル名など、後から登録される用語を追加する。
+static func register_term(term_key: String, title: String, desc: String, color: String = "#4FC3F7") -> void:
+	var key = term_key.strip_edges()
+	if key.is_empty():
+		return
+	_dynamic_terms[key] = {
+		"title": title if not title.is_empty() else key,
+		"desc": desc,
+		"color": color
+	}
+	_sorted_keys.clear()
+
+## レリック図鑑の全名称をホバー解説へ登録する。
+static func register_relic_terms() -> void:
+	for relic_id in RelicDatabase.RELICS:
+		var relic: Dictionary = RelicDatabase.RELICS[relic_id]
+		var relic_name: String = str(relic.get("name", ""))
+		if relic_name.is_empty():
+			continue
+		var color: String = "#B0BEC5"
+		match str(relic.get("rarity", "common")):
+			"legendary": color = "#FFD700"
+			"epic": color = "#E040FB"
+			"rare": color = "#29B6F6"
+			"uncommon": color = "#4CAF50"
+			"cursed": color = "#FF1744"
+		var desc: String = RelicDatabase.get_description(str(relic_id), 1)
+		if desc.is_empty():
+			desc = str(relic.get("description", ""))
+		register_term(relic_name, relic_name, desc, color)
 
 static func reload_keys() -> void:
 	_sorted_keys.clear()
@@ -558,43 +590,55 @@ static func reload_keys() -> void:
 
 static func _get_sorted_keys() -> Array:
 	if _sorted_keys.is_empty():
-		var keys = GLOSSARY.keys()
+		var key_map: Dictionary = {}
+		for k in GLOSSARY.keys():
+			key_map[k] = true
+		for k in _dynamic_terms.keys():
+			key_map[k] = true
+		var keys = key_map.keys()
 		keys.sort_custom(func(a, b): return a.length() > b.length())
 		_sorted_keys = keys
 	return _sorted_keys
 
 ## 指定された語句の解説データを取得
 static func get_term(term_key: String) -> Dictionary:
-	return GLOSSARY.get(term_key, {})
+	if GLOSSARY.has(term_key):
+		return GLOSSARY[term_key]
+	return _dynamic_terms.get(term_key, {})
 
 ## 説明文内の固有名詞をWikipedia風に自動強調表示（アンダーライン＋リンク色＋ホバー可能メタタグ付与）
+## 既に [url]...[/url] になっている箇所は再処理しない（二重リンク防止）。
 static func format_text(raw_text: String) -> String:
 	if raw_text.is_empty():
 		return ""
 
 	var sorted_keys = _get_sorted_keys()
-	var tag_regex = RegEx.new()
-	tag_regex.compile("\\[[^\\]]+\\]")
+	var url_regex = RegEx.new()
+	url_regex.compile("(?s)\\[url=[^\\]]*\\].*?\\[/url\\]")
 
 	var result = ""
 	var last_pos = 0
-	var matches = tag_regex.search_all(raw_text)
-
-	for m in matches:
-		var tag_start = m.get_start()
-		var tag_end = m.get_end()
-		if tag_start > last_pos:
-			var segment = raw_text.substr(last_pos, tag_start - last_pos)
-			segment = _replace_terms_in_segment(segment, sorted_keys)
-			result += segment
+	for m in url_regex.search_all(raw_text):
+		var segment = raw_text.substr(last_pos, m.get_start() - last_pos)
+		result += _format_segment_with_tags(segment, sorted_keys)
 		result += m.get_string()
-		last_pos = tag_end
+		last_pos = m.get_end()
+	result += _format_segment_with_tags(raw_text.substr(last_pos), sorted_keys)
+	return result
 
-	if last_pos < raw_text.length():
-		var segment = raw_text.substr(last_pos)
-		segment = _replace_terms_in_segment(segment, sorted_keys)
-		result += segment
-
+static func _format_segment_with_tags(text: String, sorted_keys: Array) -> String:
+	var tag_regex = RegEx.new()
+	tag_regex.compile("\\[[^\\]]+\\]")
+	var result = ""
+	var last_pos = 0
+	for m in tag_regex.search_all(text):
+		var tag_start = m.get_start()
+		if tag_start > last_pos:
+			result += _replace_terms_in_segment(text.substr(last_pos, tag_start - last_pos), sorted_keys)
+		result += m.get_string()
+		last_pos = m.get_end()
+	if last_pos < text.length():
+		result += _replace_terms_in_segment(text.substr(last_pos), sorted_keys)
 	return result
 
 static func _replace_terms_in_segment(text: String, sorted_keys: Array) -> String:
@@ -604,13 +648,10 @@ static func _replace_terms_in_segment(text: String, sorted_keys: Array) -> Strin
 	for key in sorted_keys:
 		if key in text:
 			var ph = "__GLOSSARY_PH_%d__" % ph_idx
-			var t_data = GLOSSARY[key]
+			var t_data = get_term(key)
 			var col = t_data.get("color", "#4FC3F7")
-			var hint_text = t_data.get("desc", "").replace("[", "").replace("]", "")
-			# Wikipedia風リンク表示: [url=KEY][hint=HINT][color=COL][u]KEY[/u][/color][/hint][/url]
-			placeholders[ph] = "[url=%s][hint=%s][color=%s][u]%s[/u][/color][/hint][/url]" % [
-				key, hint_text, col, key
-			]
+			# Wikipedia風リンク表示: [url=KEY][color=COL][u]KEY[/u][/color][/url]
+			placeholders[ph] = "[url=%s][color=%s][u]%s[/u][/color][/url]" % [key, col, key]
 			text = text.replace(key, ph)
 			ph_idx += 1
 
@@ -626,29 +667,32 @@ static func bind_rich_text_label(rtl: RichTextLabel) -> void:
 	rtl.mouse_filter = Control.MOUSE_FILTER_PASS
 	if not rtl.meta_hover_started.is_connected(_on_meta_hover_started.bind(rtl)):
 		rtl.meta_hover_started.connect(_on_meta_hover_started.bind(rtl))
-	if not rtl.meta_hover_ended.is_connected(_on_meta_hover_ended):
-		rtl.meta_hover_ended.connect(_on_meta_hover_ended)
+	if not rtl.meta_hover_ended.is_connected(_on_meta_hover_ended.bind(rtl)):
+		rtl.meta_hover_ended.connect(_on_meta_hover_ended.bind(rtl))
 
 static func _on_meta_hover_started(meta: Variant, rtl: RichTextLabel) -> void:
 	var term_key = str(meta)
-	if not GLOSSARY.has(term_key):
+	if get_term(term_key).is_empty():
 		return
 	var rui = _find_relic_ui_manager(rtl)
 	if rui and rui.has_method("show_glossary_tooltip"):
 		var m_pos = rtl.get_global_mouse_position()
 		rui.show_glossary_tooltip(term_key, m_pos)
 
-static func _on_meta_hover_ended(meta: Variant) -> void:
-	var rui = _find_relic_ui_manager(null)
+static func _on_meta_hover_ended(_meta: Variant, rtl: RichTextLabel) -> void:
+	var rui = _find_relic_ui_manager(rtl)
 	if rui and rui.has_method("hide_glossary_tooltip"):
 		rui.hide_glossary_tooltip()
 
 static func _find_relic_ui_manager(node: Node) -> Node:
 	if Engine.has_singleton("RelicUIManager"):
 		return Engine.get_singleton("RelicUIManager")
+	var tree: SceneTree = null
 	if node != null and is_instance_valid(node):
-		var tree = node.get_tree()
-		if tree and tree.get_root():
-			var rui = tree.get_root().find_child("RelicUIManager", true, false)
-			if rui: return rui
+		tree = node.get_tree()
+	if tree == null and Engine.get_main_loop() is SceneTree:
+		tree = Engine.get_main_loop() as SceneTree
+	if tree and tree.get_root():
+		var rui = tree.get_root().find_child("RelicUIManager", true, false)
+		if rui: return rui
 	return null

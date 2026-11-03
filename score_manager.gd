@@ -44,6 +44,7 @@ var next_page_btn: Button = null
 var page_indicator_lbl: Label = null
 
 var shop_root_panel: Panel = null
+var shop_content_bg: Panel = null
 var shop_tab_btn: Button = null
 var skill_tab_btn: Button = null
 var coin_currency_lbl: RichTextLabel = null
@@ -173,22 +174,22 @@ const CATEGORY_TREE_DEFS: Dictionary = {
 const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 	"water": {
 		"mid": [
-			{"id": "water_mid_a", "branch": "A", "name": "生命の清流", "role": "毎ターン水マス比例HP回復", "desc": "ターン終了時、自陣の水マス数に応じて自身のHPを回復する。"},
-			{"id": "water_mid_b", "branch": "B", "name": "水華の防壁", "role": "毎ターン水マス比例シールド", "desc": "ターン終了時、自陣の水マス数に応じて自身のシールドを獲得する。"},
-			{"id": "water_mid_c", "branch": "C", "name": "激流の怒涛", "role": "毎ターン水マス比例水サージ", "desc": "ターン終了時、自陣の水マス数に応じた水サージで相手に追撃ダメージを与える。"}
+			{"id": "water_mid_a", "branch": "A", "name": "生命の清流", "role": "毎ターン水マス比例HP回復", "desc": "ターン終了時、自陣の水マス1個につき（20＋スキルLv×5）のHPを回復する。"},
+			{"id": "water_mid_b", "branch": "B", "name": "水華の防壁", "role": "毎ターン水マス比例シールド", "desc": "ターン終了時、自陣の水マス1個につき（30＋スキルLv×8）のシールドを獲得する。"},
+			{"id": "water_mid_c", "branch": "C", "name": "激流の怒涛", "role": "毎ターン水マス比例水サージ", "desc": "ターン終了時、自陣の水マス1個につき（50＋スキルLv×12）の水サージ追撃ダメージを与える。"}
 		],
 		"final": {
 			"water_mid_a": [
-				{"id": "water_final_a1", "name": "癒しの雨", "role": "自陣水上マッチ即時回復", "desc": "自陣の水マス上で駒がマッチするたび、即座に自身のHPを回復する。"},
+				{"id": "water_final_a1", "name": "癒しの雨", "role": "自陣水上マッチ即時回復", "desc": "自陣の水マス上で駒がマッチするたび、即座に（30＋スキルLv×5）のHPを回復する。"},
 				{"id": "water_final_a2", "name": "溢れる泉", "role": "超過HP回復シールド変換", "desc": "ターン終了時の回復でHPが最大値を超えた分を、自身のシールドに変換する。"}
 			],
 			"water_mid_b": [
-				{"id": "water_final_b1", "name": "水鏡", "role": "自陣水上マッチ追加シールド", "desc": "自陣の水マス上で駒がマッチするたび、追加のシールドを獲得する。"},
-				{"id": "water_final_b2", "name": "水の結界", "role": "自陣水上妨害阻止", "desc": "自陣の水マスの上には相手の妨害マス（毒・火・暗雲）が置かれず、広がっても来ない。"}
+				{"id": "water_final_b1", "name": "水鏡", "role": "自陣水上マッチ追加シールド", "desc": "自陣の水マス上で駒がマッチするたび、（40＋スキルLv×8）の追加シールドを獲得する。"},
+				{"id": "water_final_b2", "name": "水の結界", "role": "自陣水上毒伝染防止", "desc": "自陣の水マス上では相手の毒が広がらない（毒の伝染を防止する）。"}
 			],
 			"water_mid_c": [
-				{"id": "water_final_c1", "name": "水撃", "role": "自陣水マス上マッチ時スプラッシュ追撃", "desc": "自陣の水マス上で駒をマッチ消去した際、水撃スプラッシュ追撃が発生して相手に追加ダメージを与える。"},
-				{"id": "water_final_c2", "name": "渦潮", "role": "水マス最多列流し＆連鎖追撃", "desc": "ターン終了時の水サージ発動時、自陣の水マスが最も多い縦列の駒を押し流して消去し落下連鎖を起こす。消去駒数に応じて相手に追加ダメージ（水マスは消費しない）。"}
+				{"id": "water_final_c1", "name": "水撃", "role": "自陣水マス上マッチ時追撃", "desc": "自陣の水マス上で駒をマッチ消去した際、敵に（40＋スキルLv×10）の水撃追撃ダメージを与える。"},
+				{"id": "water_final_c2", "name": "渦潮", "role": "水マス最多列流し＆連鎖追撃", "desc": "ターン終了時の水サージ発動時、自陣の水マスが最も多い縦列の駒を押し流して消去し落下連鎖を起こす。その列の水マス数×（200＋スキルLv×40）の追加ダメージを与える（水マスは消費しない）。"}
 			]
 		}
 	},
@@ -382,6 +383,139 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 		}
 	}
 }
+
+# スキル／進化アイコンの割り当て（Texture/skill/skill001.jpg ～ skill069.jpg）
+# 表示には背景を除去して軽量化した Texture/skill_icons/*.png を使う。
+# 未生成の進化は同系統の基本スキルアイコン、それも無い属性は元素アイコンへフォールバックする。
+const SKILL_ICON_DIR: String = "res://Texture/skill_icons/"
+const SKILL_ICON_SOURCE_DIR: String = "res://Texture/skill/"
+const SKILL_ICON_INDEX: Dictionary = {
+	# --- 水 ---
+	"water_1": 1,
+	"water_mid_a": 2,
+	"water_mid_b": 3,
+	"water_mid_c": 4,
+	"water_final_a1": 5,
+	"water_final_a2": 6,
+	"water_final_b1": 7,
+	"water_final_b2": 8,
+	"water_final_c1": 9,
+	"water_final_c2": 10,
+	# --- 氷 ---
+	"ice_1": 11,
+	"ice_mid_a": 12,
+	"ice_mid_b": 13,
+	"ice_mid_c": 14,
+	"ice_final_a1": 15,
+	"ice_final_a2": 16,
+	"ice_final_b1": 17,
+	"ice_final_b2": 18,
+	"ice_final_c1": 19,
+	"ice_final_c2": 20,
+	# --- 木 ---
+	"wood_1": 21,
+	"wood_mid_a": 22,
+	"wood_mid_b": 23,
+	"wood_mid_c": 24,
+	"wood_final_a1": 25,
+	"wood_final_a2": 26,
+	"wood_final_b1": 27,
+	"wood_final_b2": 28,
+	"wood_final_c1": 29,
+	"wood_final_c2": 30,
+	# --- 風 ---
+	"wind_1": 31,
+	"wind_mid_a": 32,
+	"wind_mid_b": 33,
+	"wind_mid_c": 34,
+	"wind_final_a1": 35,
+	"wind_final_a2": 36,
+	"wind_final_b1": 37,
+	"wind_final_b2": 38,
+	"wind_final_c1": 39,
+	"wind_final_c2": 40,
+	# --- 火 ---
+	"fire_1": 41,
+	"fire_mid_a": 42,
+	"fire_mid_b": 43,
+	"fire_mid_c": 44,
+	"fire_final_a1": 45,
+	"fire_final_a2": 46,
+	"fire_final_b1": 47,
+	"fire_final_b2": 48,
+	"fire_final_c1": 49,
+	"fire_final_c2": 50,
+	# --- 雷（生成済みの6枚を効果の近い進化へ割り当て） ---
+	"thunder_1": 51,
+	"thunder_mid_a": 52,
+	"thunder_mid_b": 53,
+	"thunder_final_a1": 54,
+	"thunder_final_c1": 55,
+	"thunder_final_b2": 56,
+	# --- 地（生成済みの7枚を効果の近い進化へ割り当て） ---
+	"earth_1": 59,
+	"earth_mid_a": 58,
+	"earth_final_a2": 57,
+	"earth_final_c1": 60,
+	"earth_final_b1": 61,
+	"earth_final_b2": 62,
+	"earth_final_c2": 63,
+	# --- 毒（生成済みの6枚を効果の近い進化へ割り当て） ---
+	"poison_1": 64,
+	"poison_mid_c": 65,
+	"poison_mid_b": 66,
+	"poison_final_b2": 67,
+	"poison_mid_a": 68,
+	"poison_final_c1": 69,
+}
+
+## スキルまたは進化IDに対応するアイコンパスを返す。
+## evo_id が空なら基本スキルのアイコン。未生成アイコンは同系統の基本アイコン→元素アイコンへ退避。
+func get_skill_icon_path(skill_id: String, evo_id: String = "") -> String:
+	var icon_key: String = evo_id if evo_id != "" else skill_id
+	var icon_idx: int = int(SKILL_ICON_INDEX.get(icon_key, 0))
+	if icon_idx <= 0:
+		var element_key: String = skill_id.split("_")[0]
+		icon_idx = int(SKILL_ICON_INDEX.get(element_key + "_1", 0))
+	if icon_idx > 0:
+		# 表示用の軽量PNG（円形マスク済み）を優先し、未インポート時は元JPGへ退避
+		var icon_path: String = "%sskill%03d.png" % [SKILL_ICON_DIR, icon_idx]
+		if ResourceLoader.exists(icon_path):
+			return icon_path
+		var source_path: String = "%sskill%03d.jpg" % [SKILL_ICON_SOURCE_DIR, icon_idx]
+		if ResourceLoader.exists(source_path):
+			return source_path
+
+	var element: String = skill_id.split("_")[0]
+	var fallback_paths: Array[String] = [
+		"res://Texture/element/%s.png" % element,
+		"res://Texture/element/%s_tile_dry.png" % element,
+	]
+	for fallback_path in fallback_paths:
+		if ResourceLoader.exists(fallback_path):
+			return fallback_path
+	return ""
+
+## 現在選択中の進化を反映した表示用アイコン（最終進化 > 中間進化 > 基本）を返す。
+func get_skill_display_icon_path(skill_id: String) -> String:
+	var final_evo: String = get_chosen_evolution(skill_id, 20)
+	if final_evo == "":
+		final_evo = get_chosen_evolution(skill_id, 15)
+	if final_evo != "":
+		return get_skill_icon_path(skill_id, final_evo)
+	var mid_evo: String = get_chosen_evolution(skill_id, 10)
+	if mid_evo == "":
+		mid_evo = get_chosen_evolution(skill_id, 5)
+	if mid_evo != "":
+		return get_skill_icon_path(skill_id, mid_evo)
+	return get_skill_icon_path(skill_id)
+
+## アイコンをTexture2Dとして取得（存在しなければ null）。
+func get_skill_icon_texture(skill_id: String, evo_id: String = "") -> Texture2D:
+	var icon_path: String = get_skill_icon_path(skill_id, evo_id)
+	if icon_path == "":
+		return null
+	return load(icon_path) as Texture2D
 
 # 選択済み進化の保存辞書: skill_id -> {"mid": "evo_id", "final": "evo_id"}
 var skill_evolutions: Dictionary = {}
@@ -711,6 +845,8 @@ func choose_skill_evolution(skill_id: String, milestone_lvl: int, evo_id: String
 	var pb = _get_puzzle_board()
 	if pb and pb.has_method("_update_player_skill_ui"):
 		pb._update_player_skill_ui()
+	# 属性値欄のアイコンも選択中の進化へ即時追従させる
+	update_elem_labels()
 
 ## 選択された進化IDを取得
 func get_chosen_evolution(skill_id: String, milestone_lvl: int) -> String:
@@ -765,9 +901,33 @@ func _init() -> void:
 	for s_item in skill_tree_items:
 		s_item["max_level"] = 20
 		s_item["desc_lv"] = get_skill_descriptions(s_item["id"])
+	_register_skill_glossary_terms()
+
+## スキル名・進化名を用語辞書へ登録し、スキルツリーや説明文からホバー解説できるようにする。
+func _register_skill_glossary_terms() -> void:
+	var elem_colors: Dictionary = {
+		"water": "00B0FF", "ice": "80D8FF", "wood": "76FF03", "wind": "69F0AE",
+		"fire": "FF3D00", "thunder": "FFD600", "earth": "D7CCC8",
+		"poison": "B388FF", "light": "FFF59D", "dark": "EA80FC"
+	}
+	for s_item in skill_tree_items:
+		var desc_arr: Array = s_item.get("desc_lv", [])
+		var desc: String = str(desc_arr[0]) if not desc_arr.is_empty() else ""
+		var col: String = "#" + str(elem_colors.get(str(s_item["id"]).split("_")[0], "FFD54F"))
+		GlossaryDatabase.register_term(str(s_item.get("name", "")), str(s_item.get("name", "")), desc, col)
+
+	for elem in SKILL_EVOLUTION_REGISTRY:
+		var col: String = "#" + str(elem_colors.get(elem, "FFD54F"))
+		for mid_evo in SKILL_EVOLUTION_REGISTRY[elem].get("mid", []):
+			GlossaryDatabase.register_term(str(mid_evo.get("name", "")), str(mid_evo.get("name", "")), str(mid_evo.get("desc", "")), col)
+		var final_map = SKILL_EVOLUTION_REGISTRY[elem].get("final", {})
+		if final_map is Dictionary:
+			for mid_id in final_map:
+				for fin_evo in final_map[mid_id]:
+					GlossaryDatabase.register_term(str(fin_evo.get("name", "")), str(fin_evo.get("name", "")), str(fin_evo.get("desc", "")), col)
 
 ## スキルごとのLv1〜20の詳細効果テキスト生成
-## スキルごとのLv1〜20の詳細効果テキスト生成
+## 実際の戦闘処理（puzzle_board.gd の cast_player_skill）の数値に合わせて生成する。
 static func get_skill_descriptions(skill_id: String) -> Array[String]:
 	var legacy_map: Dictionary = {
 		"bomb": "fire_1", "cross_bomb": "fire_2", "gemini_bomb": "fire_3",
@@ -777,239 +937,55 @@ static func get_skill_descriptions(skill_id: String) -> Array[String]:
 		"poison_mist": "poison_1"
 	}
 	var real_id = legacy_map.get(skill_id, skill_id)
-	match real_id:
-		"water_1":
-			return [
-				"【水マス2個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力95）",
-				"【水マス3個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力110）",
-				"【水マス3個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力125）",
-				"【水マス4個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力140）",
-				"【水マス4個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力155）",
-				"【水マス5個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力170）",
-				"【水マス5個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力185）",
-				"【水マス6個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力200）",
-				"【水マス6個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力215）",
-				"【水マス7個生成＆駒消去】【中間進化開放 (Lv.10)】生命の清流(HP回復) / 水華の防壁(シールド) / 激流の怒涛(水サージ)から1つ選択（直撃威力230）",
-				"【水マス7個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力245）",
-				"【水マス8個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力260）",
-				"【水マス8個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力275）",
-				"【水マス9個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力290）",
-				"【水マス9個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力305）",
-				"【水マス10個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力320）",
-				"【水マス10個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力335）",
-				"【水マス11個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力350）",
-				"【水マス11個生成＆駒消去】水マス上の駒を消去・落下誘発（直撃威力365）",
-				"【水マス12個生成＆駒消去】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（直撃極大威力380）"
-			]
-		"ice_1":
-			return [
-				"【氷マス2個生成＆シールド180】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス3個生成＆シールド210】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス3個生成＆シールド240】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス4個生成＆シールド270】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス4個生成＆シールド300】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス5個生成＆シールド330】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス5個生成＆シールド360】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス6個生成＆シールド390】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス6個生成＆シールド420】【中間進化開放 (Lv.10)】持ち越し(シールド蓄積) / 砕氷(マッチ時駒消去) / 永久凍土(氷耐久減少停止)から1つ選択",
-				"【氷マス7個生成＆シールド450】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス7個生成＆シールド480】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス8個生成＆シールド510】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス8個生成＆シールド540】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス9個生成＆シールド570】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス9個生成＆シールド600】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス10個生成＆シールド630】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス10個生成＆シールド660】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス11個生成＆シールド690】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス11個生成＆シールド720】動かせない障害物(毎ターン耐久値-1・0で消滅)",
-				"【氷マス12個生成＆シールド750】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放【神格解放】"
-			]
-		"wood_1":
-			return [
-				"【苗木植樹・敵体力吸収】敵から体力吸収(回復控えめ)・大木進化で隣接スキル創生",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+120回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+140回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+160回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+180回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+200回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+220回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+240回復＋自然追撃",
-				"【苗木植樹】【中間進化開放 (Lv.10)】共生(成長加速) / 茨(被弾反射) / 実り(ポーション結実)から1つ選択（HP+260回復）",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+280回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+300回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+320回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+340回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+360回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+380回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+400回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+420回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+440回復＋自然追撃",
-				"【苗木植樹】水吸収で3×3大木へ進化・毎ターンHP+460回復＋自然追撃",
-				"【苗木植樹】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（HP+480回復）【神格解放】"
-			]
-		"wind_1":
-			return [
-				"【直線突風・敵効果消滅】縦1列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦1列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦2列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦2列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦2列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦3列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦3列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦3列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦4列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風】【中間進化開放 (Lv.10)】旋風(列駒シフト) / 突風(通過列駒消去＆追撃) / 奪取(敵妨害奪取反転)から1つ選択（縦4列消滅）",
-				"【直線突風・敵効果消滅】縦4列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦5列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦5列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦5列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦6列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦6列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦6列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦7列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風・敵効果消滅】縦7列に竜巻を放ち敵所有効果のみを一掃(駒は無傷)",
-				"【直線突風】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（縦7列消滅）【神格解放】"
-			]
-		"fire_1":
-			return [
-				"【分散着火】離れたマスへ炎2箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎3箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎3箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎4箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎4箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎5箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎5箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎6箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎6箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】【中間進化開放 (Lv.10)】飛び火(燃え尽き時飛び火) / 延焼(炎マス拡散) / 破片(駒破片消去)から1つ選択（炎7箇所着火）",
-				"【分散着火】離れたマスへ炎7箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎8箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎8箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎9箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎9箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎10箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎10箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎11箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】離れたマスへ炎11箇所着火(延焼最大化)・火傷＋氷融解",
-				"【分散着火】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（炎12箇所着火）【神格解放】"
-			]
-		"thunder_1":
-			return [
-				"【落雷帯電】落雷2発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+15%",
-				"【落雷帯電】落雷3発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+30%",
-				"【落雷帯電】落雷3発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+45%",
-				"【落雷帯電】落雷4発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+60%",
-				"【落雷帯電】落雷4発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+75%",
-				"【落雷帯電】落雷5発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+90%",
-				"【落雷帯電】落雷5発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+105%",
-				"【落雷帯電】落雷6発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+120%",
-				"【落雷帯電】落雷6発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+135%",
-				"【落雷帯電】【中間進化開放 (Lv.10)】反射雷(隣接駒破壊) / 帯電(コイン連鎖スパーク) / 感電(感電スタック蓄積)から1つ選択（落雷7発）",
-				"【落雷帯電】落雷7発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+165%",
-				"【落雷帯電】落雷8発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+180%",
-				"【落雷帯電】落雷8発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+195%",
-				"【落雷帯電】落雷9発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+210%",
-				"【落雷帯電】落雷9発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+225%",
-				"【落雷帯電】落雷10発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+240%",
-				"【落雷帯電】落雷10発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+255%",
-				"【落雷帯電】落雷11発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+270%",
-				"【落雷帯電】落雷11発・着弾点帯電・氷/石直撃で3×3破砕＋雷撃+285%",
-				"【落雷帯電】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（落雷12発）【神格解放】"
-			]
-		"earth_1":
-			return [
-				"【輝石生成】移動可能石2個生成・マッチ/雷で3×3破砕・シールド+180",
-				"【輝石生成】移動可能石3個生成・マッチ/雷で3×3破砕・シールド+210",
-				"【輝石生成】移動可能石3個生成・マッチ/雷で3×3破砕・シールド+240",
-				"【輝石生成】移動可能石4個生成・マッチ/雷で3×3破砕・シールド+270",
-				"【輝石生成】移動可能石4個生成・マッチ/雷で3×3破砕・シールド+300",
-				"【輝石生成】移動可能石5個生成・マッチ/雷で3×3破砕・シールド+330",
-				"【輝石生成】移動可能石5個生成・マッチ/雷で3×3破砕・シールド+360",
-				"【輝石生成】移動可能石6個生成・マッチ/雷で3×3破砕・シールド+390",
-				"【輝石生成】移動可能石6個生成・マッチ/雷で3×3破砕・シールド+420",
-				"【輝石生成】【中間進化開放 (Lv.10)】要塞(石周囲妨害阻止) / 鉱山(石隣接マッチコイン) / 砕石(石破壊時全体破片)から1つ選択（石7個）",
-				"【輝石生成】移動可能石7個生成・マッチ/雷で3×3破砕・シールド+480",
-				"【輝石生成】移動可能石8個生成・マッチ/雷で3×3破砕・シールド+510",
-				"【輝石生成】移動可能石8個生成・マッチ/雷で3×3破砕・シールド+540",
-				"【輝石生成】移動可能石9個生成・マッチ/雷で3×3破砕・シールド+570",
-				"【輝石生成】移動可能石9個生成・マッチ/雷で3×3破砕・シールド+600",
-				"【輝石生成】移動可能石10個生成・マッチ/雷で3×3破砕・シールド+630",
-				"【輝石生成】移動可能石10個生成・マッチ/雷で3×3破砕・シールド+660",
-				"【輝石生成】移動可能石11個生成・マッチ/雷で3×3破砕・シールド+690",
-				"【輝石生成】移動可能石11個生成・マッチ/雷で3×3破砕・シールド+720",
-				"【輝石生成】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（石12個）【神格解放】"
-			]
-		"poison_1":
-			return [
-				"【薬毒散布】毒マス2個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス3個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス3個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス4個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス4個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス5個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス5個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス6個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス6個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】【中間進化開放 (Lv.10)】濃縮(毒マス段階強化) / 伝染(毒マス拡散) / 弱体(相手攻撃力低下)から1つ選択（毒マス7個）",
-				"【薬毒散布】毒マス7個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス8個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス8個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス9個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス9個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス10個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス10個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス11個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】毒マス11個生成・毎ターン毒追撃（マッチ消去可能）",
-				"【薬毒散布】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（毒マス12個）【神格解放】"
-			]
-		"light_1":
-			return [
-				"【聖像降臨】盤面に神聖な聖像1体を召喚！マッチで+500G獲得＆敵へ光ダメージ70＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像1体を召喚！マッチで+500G獲得＆敵へ光ダメージ85＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像1体を召喚！マッチで+500G獲得＆敵へ光ダメージ100＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像2体を召喚！マッチで+500G獲得＆敵へ光ダメージ115＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像2体を召喚！マッチで+500G獲得＆敵へ光ダメージ130＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像2体を召喚！マッチで+500G獲得＆敵へ光ダメージ145＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像2体を召喚！マッチで+500G獲得＆敵へ光ダメージ160＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像3体を召喚！マッチで+500G獲得＆敵へ光ダメージ175＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像3体を召喚！マッチで+500G獲得＆敵へ光ダメージ190＋妨害浄化",
-				"【聖像降臨】【中間進化開放 (Lv.10)】光輝の像(毎T自動斉射) / 聖域の像(被ダメ軽減) / 共鳴の像(エナジー充填)から1つ選択（直撃205）",
-				"【聖像降臨】盤面に神聖な聖像3体を召喚！マッチで+500G獲得＆敵へ光ダメージ220＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像4体を召喚！マッチで+500G獲得＆敵へ光ダメージ235＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像4体を召喚！マッチで+500G獲得＆敵へ光ダメージ250＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像4体を召喚！マッチで+500G獲得＆敵へ光ダメージ265＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像4体を召喚！マッチで+500G獲得＆敵へ光ダメージ280＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像5体を召喚！マッチで+500G獲得＆敵へ光ダメージ295＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像5体を召喚！マッチで+500G獲得＆敵へ光ダメージ310＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像5体を召喚！マッチで+500G獲得＆敵へ光ダメージ325＋妨害浄化",
-				"【聖像降臨】盤面に神聖な聖像5体を召喚！マッチで+500G獲得＆敵へ光ダメージ340＋妨害浄化",
-				"【聖像降臨】【最終進化開放 (Lv.20)】黄金郷(特大追撃&+1000G) / 聖像共振(全聖像レーザー連結) / 昇天の像(スターオーブ生成)など大技特性を選択して開放（直撃355）【神格解放】"
-			]
-		"dark_1":
-			return [
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス2個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス3個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス3個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス4個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス4個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス5個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス5個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス6個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス6個生成(マッチでHP吸収)",
-				"【星影の帳】【中間進化開放 (Lv.10)】歪曲(自由スワップ獲得) / 代償(HP消費範囲拡大) / 反動(被ダメ蓄積・スキル使用時リセット)から1つ選択（影護7個）",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス7個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス8個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス8個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス9個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス9個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス10個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス10個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス11個生成(マッチでHP吸収)",
-				"【星影の帳】暗雲生成(毎ターン敵HP削り)＆影護マス11個生成(マッチでHP吸収)",
-				"【星影の帳】【最終進化開放 (Lv.20)】選択した中間進化に応じた大技特性(2択)を選択して開放（影護12個）【神格解放】"
-			]
-		_:
-			return ["効果強化 (Lv1)"]
+	var elem: String = str(real_id).split("_")[0]
+	if not str(real_id).ends_with("_1") or not ["water", "ice", "wood", "wind", "fire", "thunder", "earth", "poison", "light", "dark"].has(elem):
+		return ["効果強化 (Lv1)"]
+
+	var arr: Array[String] = []
+	for lvl in range(1, 21):
+		var text: String = _base_skill_description(elem, lvl)
+		if lvl == 10:
+			text += _evolution_note(elem, 10)
+		elif lvl == 20:
+			text += _evolution_note(elem, 20)
+		arr.append(text)
+	return arr
+
+static func _base_skill_description(elem: String, lvl: int) -> String:
+	match elem:
+		"water":
+			return "【清流展開】中心から円形範囲に水マスを最大%d個生成し、そのマス上の駒を消去。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+		"ice":
+			return "【氷盾付与】氷マスを最大%d個生成（耐久3）。隣接する敵効果マスの進行・拡散を無効化。そのマス上でマッチすると耐久-1。炎で融解、雷で破砕。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+		"wood":
+			return "【命の萌芽】苗木を1本植樹。苗木は毎ターンHPを回復し、水を吸うと成長。直撃威力%d。" % [60 + lvl * 12]
+		"wind":
+			return "【疾風突風】盤面全体の敵効果マスを一掃し、縦%d列に竜巻を放つ。直撃威力%d。3レベルごとに列数が増加し、それ以外のレベルでは威力が上昇する。（突風進化で通過列の駒も消去、レリック/進化で列数拡張）" % [1 + lvl / 3, 80 + lvl * 15]
+		"fire":
+			return "【紅蓮爆破】炎マスを最大%d個生成し、そのマス上の駒を消去。直撃威力%d。" % [2 + lvl / 2, 100 + lvl * 20]
+		"thunder":
+			return "【雷電連鎖】帯電マスを最大%d個生成し、ランダムな1列に落雷。直撃威力%d。（レリックで帯電数増加）" % [2 + lvl / 2, 90 + lvl * 18]
+		"earth":
+			return "【岩盤崩落】味方の輝石マスを最大%d個生成（耐久2）。マッチまたは雷で破砕。発動時シールド+%d。直撃威力%d。" % [2 + lvl / 3, 150 + lvl * 30, 80 + lvl * 15]
+		"poison":
+			return "【瘴気毒霧】毒マスを最大%d個生成。毎ターン毒ダメージを与え、隣接マスへ伝染。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+		"light":
+			return "【聖像降臨】聖像を最大%d体召喚（耐久2）。破壊時に+500G獲得＆敵へ光ダメージ。発動時シールド+%d。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15, 100 + lvl * 20]
+		"dark":
+			return "【星影の帳】2×2の星影の霧を3ターン生成し、影護マスを最大%d個生成。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+	return "効果強化 (Lv1)"
+
+static func _evolution_note(elem: String, lvl: int) -> String:
+	if lvl == 10:
+		var names: Array[String] = []
+		var elem_data: Dictionary = SKILL_EVOLUTION_REGISTRY.get(elem, {})
+		for m in elem_data.get("mid", []):
+			names.append(str(m.get("name", "")))
+		if not names.is_empty():
+			return "\n【中間進化開放 (Lv.10)】" + " / ".join(names) + " から1つ選択。"
+	if lvl == 20:
+		return "\n【最終進化開放 (Lv.20)】選択した中間進化に応じた2つの大技特性から1つ選択。"
+	return ""
 
 func _ready() -> void:
 	# フォントにシステム日本語フォールバックを設定（あらゆる漢字の確実な描画を保証）
@@ -1815,25 +1791,35 @@ func _setup_shop_page_controls() -> void:
 	shop_tab_btn = Button.new()
 	shop_tab_btn.position = Vector2(236, 10)
 	shop_tab_btn.size = Vector2(340, 56)
-	shop_tab_btn.text = "🪙 ショップ (コイン強化)"
+	shop_tab_btn.text = "ショップ (コイン強化)"
+	shop_tab_btn.icon = load("res://Texture/coin/coin_cut.png")
+	shop_tab_btn.expand_icon = true
+	shop_tab_btn.add_theme_constant_override("icon_max_width", 24)
+	shop_tab_btn.add_theme_constant_override("h_separation", 8)
 	shop_tab_btn.add_theme_font_override("font", jp_font)
 	shop_tab_btn.add_theme_font_size_override("font_size", 21)
+	shop_tab_btn.focus_mode = Control.FOCUS_NONE
 	shop_tab_btn.pressed.connect(func(): _switch_shop_view_mode(0))
 	header_bg.add_child(shop_tab_btn)
 
 	skill_tab_btn = Button.new()
 	skill_tab_btn.position = Vector2(588, 10)
 	skill_tab_btn.size = Vector2(360, 56)
-	skill_tab_btn.text = "🌿 スキルツリー (秘薬強化)"
+	skill_tab_btn.text = "スキルツリー (秘薬強化)"
+	skill_tab_btn.icon = load("res://Texture/potion/potion_cut.png")
+	skill_tab_btn.expand_icon = true
+	skill_tab_btn.add_theme_constant_override("icon_max_width", 24)
+	skill_tab_btn.add_theme_constant_override("h_separation", 8)
 	skill_tab_btn.add_theme_font_override("font", jp_font)
 	skill_tab_btn.add_theme_font_size_override("font_size", 21)
+	skill_tab_btn.focus_mode = Control.FOCUS_NONE
 	skill_tab_btn.pressed.connect(func(): _switch_shop_view_mode(1))
 	header_bg.add_child(skill_tab_btn)
 
-	# 所持コイン＆余剰ポーション表示ボックス
+	# 所持コイン＆余剰ポーション表示ボックス（数値が見切れないよう横に拡張）
 	var coin_box = Panel.new()
 	coin_box.position = Vector2(960, 10)
-	coin_box.size = Vector2(250, 56)
+	coin_box.size = Vector2(420, 56)
 	var cbox_style = StyleBoxFlat.new()
 	cbox_style.bg_color = Color(0.02, 0.02, 0.03, 0.65)
 	cbox_style.border_color = Color(0.90, 0.75, 0.20, 0.8)
@@ -1848,7 +1834,7 @@ func _setup_shop_page_controls() -> void:
 	coin_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	coin_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	coin_currency_lbl.position = Vector2(8, 10)
-	coin_currency_lbl.size = Vector2(234, 38)
+	coin_currency_lbl.size = Vector2(404, 38)
 	coin_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	coin_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	coin_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
@@ -1856,8 +1842,8 @@ func _setup_shop_page_controls() -> void:
 	coin_box.add_child(coin_currency_lbl)
 
 	var potion_box = Panel.new()
-	potion_box.position = Vector2(1220, 10)
-	potion_box.size = Vector2(250, 56)
+	potion_box.position = Vector2(1392, 10)
+	potion_box.size = Vector2(420, 56)
 	var pbox_style = StyleBoxFlat.new()
 	pbox_style.bg_color = Color(0.02, 0.02, 0.03, 0.65)
 	pbox_style.border_color = Color(0.90, 0.30, 0.70, 0.8)
@@ -1872,17 +1858,25 @@ func _setup_shop_page_controls() -> void:
 	potion_currency_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	potion_currency_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	potion_currency_lbl.position = Vector2(8, 10)
-	potion_currency_lbl.size = Vector2(234, 38)
+	potion_currency_lbl.size = Vector2(404, 38)
 	potion_currency_lbl.add_theme_font_override("normal_font", jp_font)
 	potion_currency_lbl.add_theme_font_override("bold_font", jp_font)
 	potion_currency_lbl.add_theme_font_size_override("normal_font_size", 18)
 	potion_currency_lbl.add_theme_font_size_override("bold_font_size", 21)
 	potion_box.add_child(potion_currency_lbl)
 
+	# タブとコンテンツを地続きに見せる共通背景（選択中タブと同じ色で塗る）
+	shop_content_bg = Panel.new()
+	shop_content_bg.name = "ShopContentBackground"
+	shop_content_bg.position = Vector2(16, 88)
+	shop_content_bg.size = Vector2(1848, 778)
+	shop_content_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_root_panel.add_child(shop_content_bg)
+
 	# --- 1. ショップビュー（コイン購入：獲得スコア・体力強化） ---
 	shop_view_container = Control.new()
-	shop_view_container.position = Vector2(16, 96)
-	shop_view_container.size = Vector2(1848, 770)
+	shop_view_container.position = Vector2(16, 88)
+	shop_view_container.size = Vector2(1848, 778)
 	shop_root_panel.add_child(shop_view_container)
 
 	var shop_banner = Label.new()
@@ -2026,6 +2020,10 @@ func _setup_shop_page_controls() -> void:
 		var buy_btn = Button.new()
 		buy_btn.position = Vector2(18, 274)
 		buy_btn.size = Vector2(card_w - 36 - 96, 58)
+		buy_btn.icon = load("res://Texture/coin/coin_cut.png")
+		buy_btn.expand_icon = true
+		buy_btn.add_theme_constant_override("icon_max_width", 30)
+		buy_btn.add_theme_constant_override("h_separation", 8)
 		buy_btn.add_theme_font_override("font", jp_font)
 		buy_btn.add_theme_font_size_override("font_size", 22)
 		buy_btn.add_theme_constant_override("outline_size", 5)
@@ -2065,8 +2063,8 @@ func _setup_shop_page_controls() -> void:
 
 	# --- 2. スキルツリービュー（余剰ポーション使用：スキル獲得・強化） ---
 	skill_tree_container = Control.new()
-	skill_tree_container.position = Vector2(16, 96)
-	skill_tree_container.size = Vector2(1848, 770)
+	skill_tree_container.position = Vector2(16, 88)
+	skill_tree_container.size = Vector2(1848, 778)
 	skill_tree_container.visible = false
 	shop_root_panel.add_child(skill_tree_container)
 
@@ -2298,17 +2296,28 @@ func rebuild_skill_tree_ui() -> void:
 		badge.add_theme_stylebox_override("panel", b_style)
 		node_card.add_child(badge)
 
-		var badge_lbl = Label.new()
-		badge_lbl.size = Vector2(56, 56)
-		badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		badge_lbl.text = s_item.get("short_label", "技")
-		badge_lbl.add_theme_font_override("font", jp_font)
-		badge_lbl.add_theme_font_size_override("font_size", 30)
-		badge_lbl.add_theme_color_override("font_color", Color.WHITE)
-		badge_lbl.add_theme_constant_override("outline_size", 5)
-		badge_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-		badge.add_child(badge_lbl)
+		var base_icon_path: String = get_skill_icon_path(s_item["id"])
+		if base_icon_path != "":
+			var badge_icon = TextureRect.new()
+			badge_icon.position = Vector2(4, 4)
+			badge_icon.size = Vector2(48, 48)
+			badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			badge_icon.texture = load(base_icon_path)
+			badge_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			badge.add_child(badge_icon)
+		else:
+			var badge_lbl = Label.new()
+			badge_lbl.size = Vector2(56, 56)
+			badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			badge_lbl.text = s_item.get("short_label", "技")
+			badge_lbl.add_theme_font_override("font", jp_font)
+			badge_lbl.add_theme_font_size_override("font_size", 30)
+			badge_lbl.add_theme_color_override("font_color", Color.WHITE)
+			badge_lbl.add_theme_constant_override("outline_size", 5)
+			badge_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+			badge.add_child(badge_lbl)
 
 		# スキル名
 		var s_title = Label.new()
@@ -2400,14 +2409,25 @@ func rebuild_skill_tree_ui() -> void:
 		mid_evo_panel.size = Vector2(col_w - 28, 156)
 		node_card.add_child(mid_evo_panel)
 
+		var mid_evo_icon = TextureRect.new()
+		mid_evo_icon.position = Vector2(10, 12)
+		mid_evo_icon.size = Vector2(56, 56)
+		mid_evo_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mid_evo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mid_evo_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mid_evo_icon.texture = get_skill_icon_texture(s_item["id"])
+		mid_evo_icon.modulate = Color(1, 1, 1, 0.42)
+		mid_evo_panel.add_child(mid_evo_icon)
+
 		var mid_evo_lbl = RichTextLabel.new()
 		mid_evo_lbl.bbcode_enabled = true
 		mid_evo_lbl.scroll_active = false
 		mid_evo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mid_evo_lbl.position = Vector2(10, 8)
-		mid_evo_lbl.size = Vector2(col_w - 48, 140)
+		mid_evo_lbl.position = Vector2(76, 8)
+		mid_evo_lbl.size = Vector2(col_w - 114, 140)
 		mid_evo_lbl.add_theme_font_override("normal_font", jp_font)
 		mid_evo_lbl.add_theme_font_override("bold_font", jp_font)
+		GlossaryDatabase.bind_rich_text_label(mid_evo_lbl)
 		mid_evo_panel.add_child(mid_evo_lbl)
 
 		# 5. 【最終進化 (Lv.15)】最終進化特性スロット
@@ -2416,20 +2436,35 @@ func rebuild_skill_tree_ui() -> void:
 		final_evo_panel.size = Vector2(col_w - 28, 170)
 		node_card.add_child(final_evo_panel)
 
+		var final_evo_icon = TextureRect.new()
+		final_evo_icon.position = Vector2(10, 12)
+		final_evo_icon.size = Vector2(56, 56)
+		final_evo_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		final_evo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		final_evo_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		final_evo_icon.texture = get_skill_icon_texture(s_item["id"])
+		final_evo_icon.modulate = Color(1, 1, 1, 0.42)
+		final_evo_panel.add_child(final_evo_icon)
+
 		var final_evo_lbl = RichTextLabel.new()
 		final_evo_lbl.bbcode_enabled = true
 		final_evo_lbl.scroll_active = false
 		final_evo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		final_evo_lbl.position = Vector2(10, 8)
-		final_evo_lbl.size = Vector2(col_w - 48, 154)
+		final_evo_lbl.position = Vector2(76, 8)
+		final_evo_lbl.size = Vector2(col_w - 114, 154)
 		final_evo_lbl.add_theme_font_override("normal_font", jp_font)
 		final_evo_lbl.add_theme_font_override("bold_font", jp_font)
+		GlossaryDatabase.bind_rich_text_label(final_evo_lbl)
 		final_evo_panel.add_child(final_evo_lbl)
 
 		# 6. 下部アクション操作部（強化ボタン & デバッグレベルアップ）
 		var s_btn = Button.new()
 		s_btn.position = Vector2(14, 592)
 		s_btn.size = Vector2(col_w - 28 - 96, 62)
+		s_btn.icon = load("res://Texture/potion/potion_cut.png")
+		s_btn.expand_icon = true
+		s_btn.add_theme_constant_override("icon_max_width", 30)
+		s_btn.add_theme_constant_override("h_separation", 8)
 		s_btn.add_theme_font_override("font", jp_font)
 		s_btn.add_theme_font_size_override("font_size", 18)
 		s_btn.add_theme_constant_override("outline_size", 4)
@@ -2507,8 +2542,10 @@ func rebuild_skill_tree_ui() -> void:
 			"progress_bar": progress_bar,
 			"s_desc": s_desc,
 			"mid_evo_panel": mid_evo_panel,
+			"mid_evo_icon": mid_evo_icon,
 			"mid_evo_lbl": mid_evo_lbl,
 			"final_evo_panel": final_evo_panel,
+			"final_evo_icon": final_evo_icon,
 			"final_evo_lbl": final_evo_lbl,
 			"s_btn": s_btn
 		})
@@ -2534,6 +2571,7 @@ func _switch_shop_view_mode(mode: int) -> void:
 	var click_se = get_parent().get_node_or_null("click") if get_parent() else null
 	if click_se and is_shop_open:
 		click_se.play()
+	_update_shop_tab_styles()
 	_update_buff_button_labels()
 
 func _on_prev_page_pressed() -> void:
@@ -2573,6 +2611,65 @@ func set_shop_ui_visible(is_vis: bool) -> void:
 			if is_vis: sm.move_front_btn.visible = true
 	_update_buff_button_labels()
 
+## 選択中タブとコンテンツ背景を同じ色で地続きにし、非選択タブを奥に見せる
+func _update_shop_tab_styles() -> void:
+	if shop_tab_btn == null or skill_tab_btn == null:
+		return
+
+	var active_shop: bool = (current_view_mode == 0)
+	var content_bg: Color = Color(0.075, 0.060, 0.028, 1.0) if active_shop else Color(0.070, 0.030, 0.075, 1.0)
+	var accent: Color = Color(0.95, 0.82, 0.35, 1.0) if active_shop else Color(0.95, 0.45, 0.80, 1.0)
+
+	# コンテンツ側は上辺の境界線を描かず、選択中タブと同じ背景色にする
+	if shop_content_bg != null and is_instance_valid(shop_content_bg):
+		var content_style = StyleBoxFlat.new()
+		content_style.bg_color = content_bg
+		content_style.border_color = accent
+		content_style.border_width_left = 1
+		content_style.border_width_right = 1
+		content_style.border_width_top = 0
+		content_style.border_width_bottom = 1
+		content_style.corner_radius_bottom_left = 14
+		content_style.corner_radius_bottom_right = 14
+		shop_content_bg.add_theme_stylebox_override("panel", content_style)
+
+	var active_btn: Button = shop_tab_btn if active_shop else skill_tab_btn
+	var inactive_btn: Button = skill_tab_btn if active_shop else shop_tab_btn
+
+	# 選択中タブ: 上端まで伸び、下端はコンテンツと同色・境界線なしで接続
+	active_btn.position = Vector2(active_btn.position.x, 0)
+	active_btn.size = Vector2(active_btn.size.x, 76)
+	active_btn.z_index = 3
+	var active_style = StyleBoxFlat.new()
+	# 選択中タブは枠線で四角く囲わず、コンテンツと同色で地続きに見せる
+	active_style.bg_color = content_bg
+	active_style.border_color = accent
+	active_style.set_border_width_all(0)
+	active_style.corner_radius_top_left = 12
+	active_style.corner_radius_top_right = 12
+	active_btn.add_theme_stylebox_override("normal", active_style)
+	active_btn.add_theme_stylebox_override("hover", active_style)
+	active_btn.add_theme_stylebox_override("pressed", active_style)
+	active_btn.add_theme_color_override("font_color", accent.lightened(0.22))
+
+	# 非選択タブ: 高さを下げて暗い背景にし、一段奥にあるように見せる
+	inactive_btn.position = Vector2(inactive_btn.position.x, 14)
+	inactive_btn.size = Vector2(inactive_btn.size.x, 60)
+	inactive_btn.z_index = 1
+	var inactive_style = StyleBoxFlat.new()
+	inactive_style.bg_color = Color(0.035, 0.040, 0.055, 1.0)
+	inactive_style.border_color = Color(0.25, 0.28, 0.35, 0.85)
+	inactive_style.set_border_width_all(1)
+	inactive_style.border_width_bottom = 2
+	inactive_style.corner_radius_top_left = 10
+	inactive_style.corner_radius_top_right = 10
+	inactive_btn.add_theme_stylebox_override("normal", inactive_style)
+	var inactive_hover = inactive_style.duplicate()
+	inactive_hover.bg_color = Color(0.060, 0.070, 0.090, 1.0)
+	inactive_btn.add_theme_stylebox_override("hover", inactive_hover)
+	inactive_btn.add_theme_stylebox_override("pressed", inactive_style)
+	inactive_btn.add_theme_color_override("font_color", Color(0.62, 0.66, 0.74))
+
 ## ショップ＆スキルツリーUIの表示内容を最新状態に更新
 func _update_buff_button_labels() -> void:
 	var parent = get_parent()
@@ -2593,30 +2690,7 @@ func _update_buff_button_labels() -> void:
 	if potion_currency_lbl:
 		potion_currency_lbl.text = "[center][img=30]res://Texture/potion/potion_cut.png[/img] [color=#CCCCCC][font_size=18]余剰ポーション:[/font_size][/color] [b][color=#FF66B3][font_size=24]%s[/font_size][/color][/b][/center]" % _format_comma(potions)
 
-	# タブボタンのスタイル更新（アンティークゴールドとアメジストの職人仕上げ）
-	if shop_tab_btn and skill_tab_btn:
-		var active_shop = (current_view_mode == 0)
-		var st_shop = StyleBoxFlat.new()
-		st_shop.bg_color = Color(0.26, 0.20, 0.08, 1.0) if active_shop else Color(0.09, 0.11, 0.16, 0.85)
-		st_shop.border_color = Color(0.95, 0.82, 0.35, 1.0) if active_shop else Color(0.35, 0.38, 0.48, 0.6)
-		st_shop.set_border_width_all(2 if active_shop else 1)
-		st_shop.set_corner_radius_all(10)
-		shop_tab_btn.add_theme_stylebox_override("normal", st_shop)
-		var st_shop_hov = st_shop.duplicate()
-		st_shop_hov.bg_color = Color(0.32, 0.25, 0.10, 1.0)
-		shop_tab_btn.add_theme_stylebox_override("hover", st_shop_hov)
-		shop_tab_btn.add_theme_color_override("font_color", Color("#FFE082") if active_shop else Color(0.70, 0.75, 0.85))
-
-		var st_skill = StyleBoxFlat.new()
-		st_skill.bg_color = Color(0.24, 0.08, 0.22, 1.0) if not active_shop else Color(0.09, 0.11, 0.16, 0.85)
-		st_skill.border_color = Color(0.95, 0.45, 0.80, 1.0) if not active_shop else Color(0.35, 0.38, 0.48, 0.6)
-		st_skill.set_border_width_all(2 if not active_shop else 1)
-		st_skill.set_corner_radius_all(10)
-		skill_tab_btn.add_theme_stylebox_override("normal", st_skill)
-		var st_skill_hov = st_skill.duplicate()
-		st_skill_hov.bg_color = Color(0.30, 0.12, 0.28, 1.0)
-		skill_tab_btn.add_theme_stylebox_override("hover", st_skill_hov)
-		skill_tab_btn.add_theme_color_override("font_color", Color("#FF99DD") if not active_shop else Color(0.70, 0.75, 0.85))
+	_update_shop_tab_styles()
 
 	# 1. ショップカードの更新
 	var sm = _get_stage_manager()
@@ -2655,7 +2729,7 @@ func _update_buff_button_labels() -> void:
 
 		var btn: Button = ref["buy_btn"]
 		btn.disabled = not can_buy
-		btn.text = "🪙 %s コインで強化" % _format_comma(cost_val)
+		btn.text = "%s コインで強化" % _format_comma(cost_val)
 
 		var btn_style = StyleBoxFlat.new()
 		if can_buy:
@@ -2727,21 +2801,34 @@ func _update_buff_button_labels() -> void:
 			s_ref["s_desc"].text = "[color=#B0BEC5]現在 (Lv.%d):[/color] %s\n[color=#FFD700]次 (Lv.%d):[/color] %s" % [
 				cur_lvl, cur_txt, cur_lvl + 1, next_txt
 			]
+		# 進化バッジは用語リンク化せず、元の表記のまま表示する
+		s_ref["s_desc"].text = GlossaryDatabase.format_text(s_ref["s_desc"].text)
 		var evo_mid = get_chosen_evolution(s_item["id"], 10)
 		if evo_mid == "":
 			evo_mid = get_chosen_evolution(s_item["id"], 5)
 		var evo_final = get_chosen_evolution(s_item["id"], 20)
+		# 進化アイコンの更新（未選択時は基本スキルアイコンを暗く表示）
+		var mid_icon: TextureRect = s_ref.get("mid_evo_icon")
+		if mid_icon:
+			var mid_icon_path: String = get_skill_icon_path(s_item["id"], evo_mid) if evo_mid != "" else get_skill_icon_path(s_item["id"])
+			mid_icon.texture = load(mid_icon_path) if mid_icon_path != "" else null
+			mid_icon.modulate = Color.WHITE if evo_mid != "" else Color(1, 1, 1, 0.35)
+		var final_icon: TextureRect = s_ref.get("final_evo_icon")
+		if final_icon:
+			var final_evo_for_icon: String = evo_final if evo_final != "" else evo_mid
+			var final_icon_path: String = get_skill_icon_path(s_item["id"], final_evo_for_icon) if final_evo_for_icon != "" else get_skill_icon_path(s_item["id"])
+			final_icon.texture = load(final_icon_path) if final_icon_path != "" else null
+			final_icon.modulate = Color.WHITE if evo_final != "" else Color(1, 1, 1, 0.35)
+
 		if evo_mid != "" or evo_final != "":
-			var evo_info_str = "\n[color=#FFE082]"
+			var evo_info_str = "\n"
 			if evo_mid != "":
 				var mid_name = _get_evolution_name(s_item["id"], 10, evo_mid)
-				evo_info_str += "【第1進化: %s】 " % mid_name
+				evo_info_str += "[url=%s][color=#FFE082]【第1進化: %s】[/color][/url] " % [mid_name, mid_name]
 			if evo_final != "":
 				var final_name = _get_evolution_name(s_item["id"], 20, evo_final)
-				evo_info_str += "【最終進化: %s】" % final_name
-			evo_info_str += "[/color]"
+				evo_info_str += "[url=%s][color=#FFE082]【最終進化: %s】[/color][/url]" % [final_name, final_name]
 			s_ref["s_desc"].text += evo_info_str
-		s_ref["s_desc"].text = GlossaryDatabase.format_text(s_ref["s_desc"].text)
 
 		# 第1覚醒 (Lv.10) スロット更新
 		var mid_panel: Panel = s_ref.get("mid_evo_panel")
@@ -2754,13 +2841,13 @@ func _update_buff_button_labels() -> void:
 				var mid_data = get_evolution_data(s_item["id"], 10, evo_mid)
 				mp_st.bg_color = Color(0.04, 0.08, 0.12, 0.70)
 				mp_st.border_color = Color(0.3, 0.85, 1.0, 0.95)
-				mid_lbl.text = "[font_size=17][b][color=#80D8FF]✨【中間進化・特性 %s: %s】[/color][/b] [color=#B0BEC5](%s)[/color][/font_size]\n[font_size=16][color=#E0F7FA]%s[/color][/font_size]" % [
+				mid_lbl.text = GlossaryDatabase.format_text("[font_size=17][b][color=#80D8FF]✨【中間進化・特性 %s: %s】[/color][/b] [color=#B0BEC5](%s)[/color][/font_size]\n[font_size=16][color=#E0F7FA]%s[/color][/font_size]" % [
 					mid_data.get("branch", "A"), mid_data.get("name", evo_mid), mid_data.get("role", "特性"), mid_data.get("desc", "")
-				]
+				])
 			else:
 				mp_st.bg_color = Color(0.02, 0.02, 0.04, 0.55)
 				mp_st.border_color = Color(0.25, 0.28, 0.35, 0.45)
-				mid_lbl.text = "[font_size=17][b][color=#78909C]🔒 【中間進化】スキルLv.10 到達で解放[/color][/b][/font_size]\n[font_size=16][color=#546E7A]Lv.10到達時に3択の進化分岐が出現し、戦術の方向性を決定づける新たな挙動を選びます。[/color][/font_size]"
+				mid_lbl.text = GlossaryDatabase.format_text("[font_size=17][b][color=#78909C]🔒 【中間進化】スキルLv.10 到達で解放[/color][/b][/font_size]\n[font_size=16][color=#546E7A]Lv.10到達時に3択の進化分岐が出現し、戦術の方向性を決定づける新たな挙動を選びます。[/color][/font_size]")
 			mid_panel.add_theme_stylebox_override("panel", mp_st)
 
 		# 最終進化 (Lv.20) スロット更新
@@ -2774,13 +2861,13 @@ func _update_buff_button_labels() -> void:
 				var final_data = get_evolution_data(s_item["id"], 20, evo_final)
 				fp_st.bg_color = Color(0.10, 0.08, 0.02, 0.70)
 				fp_st.border_color = Color(1.0, 0.85, 0.2, 1.0)
-				final_lbl.text = "[font_size=17][b][color=#FFD700]👑【最終進化・特性 %s: %s】[/color][/b] [color=#FFE082](%s)[/color][/font_size]\n[font_size=16][color=#FFF8E1]%s[/color][/font_size]" % [
+				final_lbl.text = GlossaryDatabase.format_text("[font_size=17][b][color=#FFD700]👑【最終進化・特性 %s: %s】[/color][/b] [color=#FFE082](%s)[/color][/font_size]\n[font_size=16][color=#FFF8E1]%s[/color][/font_size]" % [
 					final_data.get("numeral", "Ⅰ"), final_data.get("name", evo_final), final_data.get("role", "最終特性"), final_data.get("desc", "")
-				]
+				])
 			else:
 				fp_st.bg_color = Color(0.02, 0.02, 0.04, 0.55)
 				fp_st.border_color = Color(0.25, 0.28, 0.35, 0.45)
-				final_lbl.text = "[font_size=17][b][color=#78909C]🔒 【最終進化】スキルLv.20 到達で解放[/color][/b][/font_size]\n[font_size=16][color=#546E7A]中間進化に応じた2択の最終進化が出現し、強力な大技や相互作用を開放します。[/color][/font_size]"
+				final_lbl.text = GlossaryDatabase.format_text("[font_size=17][b][color=#78909C]🔒 【最終進化】スキルLv.20 到達で解放[/color][/b][/font_size]\n[font_size=16][color=#546E7A]中間進化に応じた2択の最終進化が出現し、強力な大技や相互作用を開放します。[/color][/font_size]")
 			final_panel.add_theme_stylebox_override("panel", fp_st)
 
 		# 強化ボタン更新
@@ -2794,16 +2881,18 @@ func _update_buff_button_labels() -> void:
 
 		if is_max:
 			s_btn.text = "★ MAX (Lv.%d) 神格達成 ★" % max_lvl
+			s_btn.icon = null
 			sb_style.bg_color = Color(0.28, 0.22, 0.06, 0.95)
 			sb_style.border_color = Color("#FFD700")
 			s_btn.add_theme_color_override("font_color", Color("#FFD700"))
 		else:
+			s_btn.icon = load("res://Texture/potion/potion_cut.png")
 			var act_word = "スキル解放" if cur_lvl == 0 else ("Lv.%dへ強化" % (cur_lvl + 1))
 			if cur_lvl == 9:
 				act_word = "中間進化 (Lv.10)"
 			elif cur_lvl == 19:
 				act_word = "最終進化 (Lv.20)"
-			s_btn.text = "🧪 %s で%s" % [_format_comma(cost_val), act_word]
+			s_btn.text = "%s ポーションで%s" % [_format_comma(cost_val), act_word]
 			if can_upgrade:
 				sb_style.bg_color = Color(0.32, 0.10, 0.28, 0.98)
 				sb_style.border_color = Color(1.0, 0.4, 0.8, 1.0)
@@ -3091,31 +3180,49 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		div.color = Color(0.85, 0.72, 0.38, 0.6)
 		card.add_child(div)
 
-		# Decorative Emblem Frame / Icon
+		# 進化先アイコン（進化ターゲットのスキルアイコンを表示）
 		var emblem_frame = Panel.new()
-		emblem_frame.position = Vector2((card_w - 76) / 2.0, 186)
-		emblem_frame.size = Vector2(76, 76)
+		emblem_frame.name = "EvolutionEmblem"
+		emblem_frame.position = Vector2((card_w - 156) / 2.0, 194)
+		emblem_frame.size = Vector2(156, 156)
+		emblem_frame.clip_contents = true
+		emblem_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var emb_st = StyleBoxFlat.new()
-		emb_st.bg_color = Color(el_color.r * 0.2, el_color.g * 0.2, el_color.b * 0.2, 0.8)
+		emb_st.bg_color = Color(el_color.r * 0.2, el_color.g * 0.2, el_color.b * 0.2, 0.85)
 		emb_st.border_color = el_color
 		emb_st.set_border_width_all(2)
-		emb_st.set_corner_radius_all(38)
+		emb_st.set_corner_radius_all(20)
+		emb_st.shadow_color = Color(el_color.r, el_color.g, el_color.b, 0.35)
+		emb_st.shadow_size = 10
 		emblem_frame.add_theme_stylebox_override("panel", emb_st)
 		card.add_child(emblem_frame)
 
-		var emblem_txt = RichTextLabel.new()
-		emblem_txt.bbcode_enabled = true
-		emblem_txt.position = Vector2(0, 14)
-		emblem_txt.size = Vector2(76, 48)
-		emblem_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		emblem_txt.text = "[center][font_size=28]%s[/font_size][/center]" % s_item.get("short_label", "✦")
-		emblem_frame.add_child(emblem_txt)
+		var evo_icon_path: String = get_skill_icon_path(s_item["id"], str(choice.get("id", "")))
+		var evo_icon = TextureRect.new()
+		evo_icon.name = "EvolutionIcon"
+		evo_icon.position = Vector2(4, 4)
+		evo_icon.size = Vector2(148, 148)
+		evo_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		evo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		evo_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if evo_icon_path != "":
+			evo_icon.texture = load(evo_icon_path)
+		emblem_frame.add_child(evo_icon)
+
+		if evo_icon.texture == null:
+			var emblem_txt = RichTextLabel.new()
+			emblem_txt.bbcode_enabled = true
+			emblem_txt.position = Vector2(0, 50)
+			emblem_txt.size = Vector2(156, 56)
+			emblem_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			emblem_txt.text = "[center][font_size=34]%s[/font_size][/center]" % s_item.get("short_label", "✦")
+			emblem_frame.add_child(emblem_txt)
 
 		# Description
 		var desc_lbl = RichTextLabel.new()
 		desc_lbl.bbcode_enabled = true
-		desc_lbl.position = Vector2(24, 276)
-		desc_lbl.size = Vector2(card_w - 48, 260)
+		desc_lbl.position = Vector2(24, 366)
+		desc_lbl.size = Vector2(card_w - 48, 170)
 		desc_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 		var desc_text = str(choice.get("desc", ""))
 		desc_lbl.text = "[color=#ECEFF1][font_size=23]%s[/font_size][/color]" % GlossaryDatabase.format_text(desc_text)
@@ -3425,7 +3532,11 @@ func _setup_elem_status_panel(force_cat: String = "") -> void:
 		el_icn.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		el_icn.z_index = 2
 		add_child(el_icn)
-		if elem_info["icon"] != "" and ResourceLoader.exists(elem_info["icon"]):
+		var elem_skill_id: String = str(elem_info["key"]) + "_1"
+		var elem_skill_icon: String = get_skill_display_icon_path(elem_skill_id)
+		if elem_skill_icon != "" and ResourceLoader.exists(elem_skill_icon):
+			el_icn.texture = load(elem_skill_icon)
+		elif elem_info["icon"] != "" and ResourceLoader.exists(elem_info["icon"]):
 			el_icn.texture = load(elem_info["icon"])
 		el_icn.position = Vector2(1637.0, el_y + (row_h - 36.0) / 2.0)
 		el_icn.size = Vector2(36.0, 36.0)
@@ -3476,8 +3587,14 @@ func update_elem_labels() -> void:
 		var elem_info = elem_category_elements[k]
 		var count = get_element_count(elem_info["key"])
 		var val_str = _format_comma(count)
-		elem_labels[k].text = "[font_size=32][b][color=#%s]%s %s[/color] :  [color=#FFFFFF]%s[/color][/b][/font_size]" % [
-			elem_info["color"], elem_info["emoji"], elem_info["name"], val_str
+		# 絵文字ではなく、その属性の現在の進化アイコンを左側に表示する
+		var icon_node = get_node_or_null("elem_icon" + str(k + 1)) as TextureRect
+		if icon_node != null:
+			var icon_path: String = get_skill_display_icon_path(str(elem_info["key"]) + "_1")
+			if icon_path != "" and ResourceLoader.exists(icon_path):
+				icon_node.texture = load(icon_path)
+		elem_labels[k].text = "[font_size=32][b][color=#%s]%s[/color] :  [color=#FFFFFF]%s[/color][/b][/font_size]" % [
+			elem_info["color"], elem_info["name"], val_str
 		]
 
 	# 選択した属性値欄のサイズ維持 (横幅290.0px / 内枠286.0px / 高さ400.0px -> 盤面下端 y=944 に一致)
@@ -3651,34 +3768,34 @@ func _show_elem_tooltip(elem_key: String) -> void:
 	match elem_key:
 		"water":
 			title = "[b][color=#00B0FF]💧 水属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した水属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n水マスを生成してその上の駒を一掃消去。炎マスと隣接すると【蒸気消滅シナジー】が発生し、共通隣接マスを一掃消去します。中間進化でHP回復・防御力増加・攻撃力上昇へと特性が分化します。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した水属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n水マスを生成し、そのマス上の駒を消去して落下を誘発。直撃ダメージも与えます。T2では水マス数に応じたHP回復、T3では水マスを剣に変換して大連鎖を発生させます。中間進化ではHP回復・シールド獲得・水サージ追撃に分化します。炎マスと隣接すると【蒸気消滅シナジー】が発生し、共通隣接マスを一掃消去します。[/font_size]"
 		"ice":
 			title = "[b][color=#80D8FF]❄️ 氷属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した氷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n氷盾マスを展開し周囲の状態異常の侵攻を完全停止。雷属性が触れると【破砕シナジー】で周囲3×3を砕いて大ダメージを与えます。炎で融解。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した氷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n氷マスを生成し、隣接する敵効果マスの進行・拡散を無効化。そのマス上でマッチすると耐久-1。炎で融解、雷で破砕。T2は水/毒/炎を凍結変換、T3は全氷マスを共鳴爆砕。中間進化でシールド蓄積・砕氷・永久凍土に分化。[/font_size]"
 		"wood":
 			title = "[b][color=#76FF03]🌱 木属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した木属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n盤面に生命の苗木を育成。水たまりを吸収して大木へと成長し、毎ターンプレイヤーのHPを自動回復します。炎接触で大炎上するため注意。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した木属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n苗木を植樹し、水を吸収して成長。毎ターンHPを回復。T2は全苗木を成長、T3は大木を降臨。中間進化で共生・茨・実りに分化。[/font_size]"
 		"wind":
 			title = "[b][color=#69F0AE]🌪️ 風属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した風属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n竜巻を発生させて列全体を巻き上げ消去。敵の弾幕や障害物を押し流し、連鎖マッチを強制誘発します。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した風属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n盤面の敵効果マスを一掃し、3レベルごとに竜巻の列数が増加。それ以外のレベルでは威力が上昇。T2は効果マスを風下へシフト、T3は敵効果マスを味方へ反転。中間進化で旋風・突風・奪取に分化。[/font_size]"
 		"fire":
 			title = "[b][color=#FF3D00]🔥 火属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した火属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n紅蓮爆弾や炎上マスを生成。水マスと隣接で【蒸気消滅シナジー】、氷マスを融解して水に変換。敵へ継続炎上ダメージを与えます。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した火属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n炎マスを生成し、そのマス上の駒を消去。水と隣接で蒸気消滅、氷を融解。T2は延焼、T3は焦土劫火。中間進化で飛び火・延焼・破片に分化。[/font_size]"
 		"thunder":
 			title = "[b][color=#FFD600]⚡ 雷属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した雷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n直線貫通レーザーや過充電マスを生成。氷や岩石に雷が接触すると【破砕爆縮シナジー】が発生し、周囲3×3マスを一瞬で消し飛ばします。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した雷属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n帯電マスをレベルに応じて増加（上限なし）し、ランダムな1列に落雷。氷/石に当たると破砕。T2は帯電/水マスを雷ラインで感電、T3は帯電/石/氷を一斉爆砕。中間進化で反射雷・帯電・感電に分化。[/font_size]"
 		"earth":
 			title = "[b][color=#D7CCC8]🪨 地属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した地属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n強固な岩盤崩落を引き起こし敵の装甲を粉砕。味方の輝石マスは自由に移動でき、雷接触で広範囲の破片破砕を引き起こします。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した地属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n味方の輝石マスを生成し、発動時シールドを獲得。マッチ/雷で破砕。T2は全石の耐久を削り周囲を一掃、T3は全石を粉砕して超巨大岩石落とし。中間進化で要塞・鉱山・砕石に分化。[/font_size]"
 		"poison":
 			title = "[b][color=#B388FF]🧪 毒属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した毒属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n味方薬毒マスを展開。味方毒1マスごとに敵からの毒ダメージを軽減（免疫バリア）し、2ターンに1度敵マスへ侵攻して持続毒ダメージを与えます。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した毒属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n毒マスを生成し、毎ターン毒ダメージと伝染。T2は即時伝染＋敵設置物を毒化、T3は全毒マスを起爆しHP吸収。中間進化で濃縮・伝染・弱体に分化。[/font_size]"
 		"light":
 			title = "[b][color=#FFF59D]✨ 光属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した光属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n神聖な聖光星や聖像を召喚。盤面の悪性呪いや暗雲を瞬時に浄化消滅させ、敵全体へ聖なる拡散貫通ダメージを与えます。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した光属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n聖像を召喚し、発動時シールド獲得。破壊時に+500G。T2は聖像間の妨害浄化、T3は全聖像を昇天させ極太レーザー。中間進化で光輝の像・聖域の像・共鳴の像に分化。[/font_size]"
 		"dark":
 			title = "[b][color=#EA80FC]🌙 闇属性 (当ターン蓄積: %s)[/color][/b]" % val_str
-			desc = "[font_size=17]当ターン中に獲得した闇属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n超重力ブラックホールを発生させ、周囲の全コマを強制吸引・消滅。味方の影護コマは反動を受けず敵のHPを吸収ドレインします。[/font_size]"
+			desc = "[font_size=17]当ターン中に獲得した闇属性のエネルギーです。\n[color=#FFD54F]【特性とシナジー】[/color]\n星影の霧と影護マスを生成。影護マスは反動を受けず敵HPを吸収。T2は霧領域を影護化、T3は全影護を特異点へ吸引。中間進化で歪曲・代償・反動に分化。[/font_size]"
 	if title != "":
 		r_ui.show_custom_tooltip(title, desc, get_global_mouse_position(), "elem_stat_" + elem_key)
 

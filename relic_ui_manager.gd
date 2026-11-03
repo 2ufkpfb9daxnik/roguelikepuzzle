@@ -10,6 +10,9 @@ var desc_label: RichTextLabel
 var glossary_panel: PanelContainer
 var glossary_title_label: RichTextLabel
 var glossary_desc_label: RichTextLabel
+var cell_tooltip_panel: PanelContainer
+var cell_tooltip_vbox: VBoxContainer
+var _cell_tooltip_rows: Array[PanelContainer] = []
 var _tooltip_close_timer: Tween = null
 var icon_nodes: Dictionary = {}
 var skill_icon_nodes: Dictionary = {}
@@ -36,25 +39,27 @@ func _get_sys_font() -> SystemFont:
 
 func _ready() -> void:
 	layer = 99 # High above board and all game UIs
+	GlossaryDatabase.register_relic_terms()
 
 	var sys_font = _get_sys_font()
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
-	# --- 横並び配置: 左側 = 獲得スキル欄 (x: 244..1070, y: 952..1066), 右側 = 所持レリック欄 (x: 1088..1914, y: 952..1066) ---
-	# スキルの左端を盤面の外枠左端 (x=244.0) に完全一致させ、スキル欄とレリック欄の幅を完全同一 (826 x 114) に統一
-	# AIっぽさを排除した重厚なアンティークゴールド＆オブシディアンガラス調の美しいデザイン
+	# --- 横並び配置: 左側 = 獲得スキル欄 (最大4枠なのでコンパクト), 右側 = 所持レリック欄 (残り幅を拡張) ---
+	# スキルの左端を盤面の外枠左端 (x=244.0) に一致させる
 	var gold_border = Color(0.85, 0.72, 0.38, 1.0)
 	var bg_dark = Color(0.02, 0.02, 0.03, 0.75)
 	var div_color = Color(0.72, 0.60, 0.34, 0.5)
-	var panel_size = Vector2(826.0, 114.0)
-	var panel_inner_size = Vector2(822.0, 110.0)
+	var skill_panel_size = Vector2(460.0, 114.0)
+	var skill_inner_size = Vector2(456.0, 110.0)
+	var relic_panel_size = Vector2(1192.0, 114.0)
+	var relic_inner_size = Vector2(1188.0, 110.0)
 
 	# 1. スキル欄の外枠・内枠・区切り線
 	var skill_rect = ColorRect.new()
 	skill_rect.name = "skill_rect"
 	skill_rect.position = Vector2(244.0, 952.0)
-	skill_rect.size = panel_size
+	skill_rect.size = skill_panel_size
 	skill_rect.color = gold_border
 	skill_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_rect.z_index = -10
@@ -63,7 +68,7 @@ func _ready() -> void:
 	var skill2_rect = ColorRect.new()
 	skill2_rect.name = "skill2_rect"
 	skill2_rect.position = Vector2(246.0, 954.0)
-	skill2_rect.size = panel_inner_size
+	skill2_rect.size = skill_inner_size
 	skill2_rect.color = bg_dark
 	skill2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill2_rect.z_index = -9
@@ -109,17 +114,17 @@ func _ready() -> void:
 	skill_container = HFlowContainer.new()
 	skill_container.name = "skill_container"
 	skill_container.position = Vector2(382.0, 960.0)
-	skill_container.size = Vector2(680.0, 98.0)
+	skill_container.size = Vector2(312.0, 98.0)
 	skill_container.add_theme_constant_override("h_separation", 8)
 	skill_container.add_theme_constant_override("v_separation", 8)
 	skill_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(skill_container)
 
-	# 2. レリック欄の外枠・内枠・区切り線（スキル欄と完全同一サイズ 826 x 114、画面右端まで調和配置）
+	# 2. レリック欄の外枠・内枠・区切り線（スキル欄を縮めた分、右側へ大きく拡張）
 	var relic_rect = ColorRect.new()
 	relic_rect.name = "relic_rect"
-	relic_rect.position = Vector2(1088.0, 952.0)
-	relic_rect.size = panel_size
+	relic_rect.position = Vector2(722.0, 952.0)
+	relic_rect.size = relic_panel_size
 	relic_rect.color = gold_border
 	relic_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	relic_rect.z_index = -10
@@ -127,8 +132,8 @@ func _ready() -> void:
 
 	var relic2_rect = ColorRect.new()
 	relic2_rect.name = "relic2_rect"
-	relic2_rect.position = Vector2(1090.0, 954.0)
-	relic2_rect.size = panel_inner_size
+	relic2_rect.position = Vector2(724.0, 954.0)
+	relic2_rect.size = relic_inner_size
 	relic2_rect.color = bg_dark
 	relic2_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	relic2_rect.z_index = -9
@@ -137,7 +142,7 @@ func _ready() -> void:
 	# 右側: 【レリック】エンブレムプレート
 	var relic_plate = Panel.new()
 	relic_plate.name = "relic_plate"
-	relic_plate.position = Vector2(1094.0, 958.0)
+	relic_plate.position = Vector2(728.0, 958.0)
 	relic_plate.size = Vector2(118.0, 102.0)
 	relic_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var rp_style = StyleBoxFlat.new()
@@ -151,7 +156,7 @@ func _ready() -> void:
 	var relic_tag = Label.new()
 	relic_tag.name = "relic_tag"
 	relic_tag.text = "◆ レリック ◆\nPASSIVE"
-	relic_tag.position = Vector2(1094.0, 974.0)
+	relic_tag.position = Vector2(728.0, 974.0)
 	relic_tag.size = Vector2(118.0, 68.0)
 	relic_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	relic_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -164,7 +169,7 @@ func _ready() -> void:
 
 	var relic_vline = ColorRect.new()
 	relic_vline.name = "relic_vline"
-	relic_vline.position = Vector2(1218.0, 954.0)
+	relic_vline.position = Vector2(852.0, 954.0)
 	relic_vline.size = Vector2(2.0, 110.0)
 	relic_vline.color = div_color
 	relic_vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -173,8 +178,8 @@ func _ready() -> void:
 
 	container = HFlowContainer.new()
 	container.name = "relic_container"
-	container.position = Vector2(1226.0, 960.0)
-	container.size = Vector2(680.0, 98.0)
+	container.position = Vector2(860.0, 960.0)
+	container.size = Vector2(1044.0, 98.0)
 	container.add_theme_constant_override("h_separation", 8)
 	container.add_theme_constant_override("v_separation", 8)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -213,7 +218,8 @@ func _ready() -> void:
 	add_child(info_panel)
 	
 	var vbox = VBoxContainer.new()
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# PASS にしないと子の RichTextLabel が用語ホバーを受け取れない
+	vbox.mouse_filter = Control.MOUSE_FILTER_PASS
 	info_panel.add_child(vbox)
 	
 	name_label = RichTextLabel.new()
@@ -239,6 +245,42 @@ func _ready() -> void:
 	desc_label.add_theme_font_override("normal_font", sys_font)
 	desc_label.add_theme_font_override("bold_font", sys_font)
 	vbox.add_child(desc_label)
+
+	# 盤面セルに重なっている全効果を、1件1パネルで上下に並べて表示するツールチップ
+	cell_tooltip_panel = PanelContainer.new()
+	cell_tooltip_panel.name = "BoardCellEffectsPanel"
+	cell_tooltip_panel.visible = false
+	cell_tooltip_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	cell_tooltip_panel.z_index = 120
+	var cell_style = StyleBoxFlat.new()
+	cell_style.bg_color = Color(0.01, 0.01, 0.02, 0.86)
+	cell_style.border_color = Color(0.85, 0.72, 0.38, 1.0)
+	cell_style.set_border_width_all(2)
+	cell_style.set_corner_radius_all(10)
+	cell_style.shadow_color = Color(0, 0, 0, 0.75)
+	cell_style.shadow_size = 12
+	cell_style.content_margin_left = 8
+	cell_style.content_margin_right = 8
+	cell_style.content_margin_top = 8
+	cell_style.content_margin_bottom = 8
+	cell_tooltip_panel.add_theme_stylebox_override("panel", cell_style)
+	cell_tooltip_panel.mouse_exited.connect(func():
+		if cell_tooltip_panel == null:
+			return
+		var m_pos = cell_tooltip_panel.get_global_mouse_position()
+		if cell_tooltip_panel.get_global_rect().has_point(m_pos):
+			return
+		var over_glossary = glossary_panel != null and glossary_panel.visible and glossary_panel.get_global_rect().has_point(m_pos)
+		cell_tooltip_panel.visible = false
+		if not over_glossary:
+			hide_glossary_tooltip()
+	)
+	add_child(cell_tooltip_panel)
+
+	cell_tooltip_vbox = VBoxContainer.new()
+	cell_tooltip_vbox.mouse_filter = Control.MOUSE_FILTER_PASS
+	cell_tooltip_vbox.add_theme_constant_override("separation", 6)
+	cell_tooltip_panel.add_child(cell_tooltip_vbox)
 
 	# Wikipedia風 固有名詞解説用ホバーカード (Wikipedia-style Glossary Hovercard)
 	glossary_panel = PanelContainer.new()
@@ -330,7 +372,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		info_panel.visible = false
-		hide_glossary_tooltip()
+		hide_cell_effect_tooltips()
 
 func update_skill_display(skill_id: String, new_level: int) -> void:
 	_on_skill_upgraded(skill_id, 0, new_level)
@@ -358,8 +400,18 @@ func _on_skill_upgraded(skill_id: String, _sp_type: int, new_level: int) -> void
 		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rect.add_child(border)
 
+		var skill_icon = TextureRect.new()
+		skill_icon.name = "SkillIcon"
+		skill_icon.position = Vector2(2, 2)
+		skill_icon.size = Vector2(52, 52)
+		skill_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		skill_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		skill_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.add_child(skill_icon)
+
 		var sys_font = _get_sys_font()
 		var lbl = Label.new()
+		lbl.name = "ShortLabel"
 		lbl.text = s_data.get("short_label", s_data.get("name", "?").substr(0, 1))
 		lbl.position = Vector2.ZERO
 		lbl.size = Vector2(56, 50)
@@ -397,6 +449,17 @@ func _on_skill_upgraded(skill_id: String, _sp_type: int, new_level: int) -> void
 		skill_icon_nodes[skill_id] = rect
 
 	var node_rect: ColorRect = skill_icon_nodes[skill_id]
+
+	# スキル／選択中進化のアイコンを反映
+	var icon_path: String = sm.get_skill_display_icon_path(skill_id) if (sm and sm.has_method("get_skill_display_icon_path")) else ""
+	var icon_rect = node_rect.get_node_or_null("SkillIcon") as TextureRect
+	if icon_rect:
+		icon_rect.texture = load(icon_path) if icon_path != "" else null
+		icon_rect.visible = icon_rect.texture != null
+	var short_lbl = node_rect.get_node_or_null("ShortLabel") as Label
+	if short_lbl:
+		short_lbl.visible = (icon_path == "")
+
 	var l_lbl = node_rect.get_node_or_null("LevelLabel") as Label
 	if l_lbl:
 		l_lbl.text = "Lv%d" % new_level
@@ -536,6 +599,7 @@ func show_custom_tooltip(title: String, desc: String, screen_pos: Vector2, meta_
 	if title.is_empty() and desc.is_empty():
 		hide_custom_tooltip(meta_key)
 		return
+	hide_cell_effect_tooltips()
 	if name_label: name_label.text = GlossaryDatabase.format_text(title)
 	if desc_label: desc_label.text = GlossaryDatabase.format_text(desc)
 	info_panel.set_meta("current_id", meta_key)
@@ -558,6 +622,97 @@ func hide_custom_tooltip(meta_key: String = "") -> void:
 	if meta_key.is_empty() or info_panel.get_meta("current_id", "") == meta_key:
 		info_panel.visible = false
 		hide_glossary_tooltip()
+
+## 盤面セルに重なっている全効果を、1件1パネルで縦に積んで表示する。
+## entries: [{"title": String, "desc": String, "color": String}, ...]
+func show_cell_effect_tooltips(entries: Array, screen_pos: Vector2) -> void:
+	if cell_tooltip_panel == null or cell_tooltip_vbox == null:
+		return
+	if entries.is_empty():
+		hide_cell_effect_tooltips()
+		return
+
+	if info_panel:
+		info_panel.visible = false
+	hide_glossary_tooltip()
+
+	for row in _cell_tooltip_rows:
+		if row != null and is_instance_valid(row):
+			cell_tooltip_vbox.remove_child(row)
+			row.queue_free()
+	_cell_tooltip_rows.clear()
+
+	var font = _get_sys_font()
+	for entry in entries:
+		var row = PanelContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
+		var row_style = StyleBoxFlat.new()
+		row_style.bg_color = Color(0.025, 0.035, 0.055, 0.94)
+		row_style.border_color = Color.from_string(str(entry.get("color", "#FFD54F")), Color(1.0, 0.84, 0.3))
+		row_style.set_border_width_all(1)
+		row_style.set_corner_radius_all(8)
+		row_style.content_margin_left = 12
+		row_style.content_margin_right = 12
+		row_style.content_margin_top = 8
+		row_style.content_margin_bottom = 8
+		row.add_theme_stylebox_override("panel", row_style)
+
+		var row_box = VBoxContainer.new()
+		row_box.mouse_filter = Control.MOUSE_FILTER_PASS
+		row_box.add_theme_constant_override("separation", 3)
+		row.add_child(row_box)
+
+		var title_lbl = RichTextLabel.new()
+		title_lbl.bbcode_enabled = true
+		title_lbl.fit_content = true
+		title_lbl.scroll_active = false
+		title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		title_lbl.custom_minimum_size = Vector2(500, 0)
+		title_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		title_lbl.add_theme_font_override("normal_font", font)
+		title_lbl.add_theme_font_override("bold_font", font)
+		title_lbl.add_theme_font_size_override("normal_font_size", 18)
+		title_lbl.add_theme_font_size_override("bold_font_size", 18)
+		title_lbl.text = GlossaryDatabase.format_text(str(entry.get("title", "")))
+		GlossaryDatabase.bind_rich_text_label(title_lbl)
+		row_box.add_child(title_lbl)
+
+		var desc_lbl = RichTextLabel.new()
+		desc_lbl.bbcode_enabled = true
+		desc_lbl.fit_content = true
+		desc_lbl.scroll_active = false
+		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_lbl.custom_minimum_size = Vector2(500, 0)
+		desc_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		desc_lbl.add_theme_font_override("normal_font", font)
+		desc_lbl.add_theme_font_override("bold_font", font)
+		desc_lbl.add_theme_font_size_override("normal_font_size", 15)
+		desc_lbl.add_theme_font_size_override("bold_font_size", 15)
+		desc_lbl.text = GlossaryDatabase.format_text(str(entry.get("desc", "")))
+		GlossaryDatabase.bind_rich_text_label(desc_lbl)
+		row_box.add_child(desc_lbl)
+
+		cell_tooltip_vbox.add_child(row)
+		_cell_tooltip_rows.append(row)
+
+	cell_tooltip_panel.reset_size()
+	var panel_w = maxf(540.0, cell_tooltip_panel.size.x)
+	var panel_h = maxf(120.0, cell_tooltip_panel.size.y)
+	var target_x = clampf(screen_pos.x + 24.0, 20.0, 1920.0 - panel_w - 20.0)
+	var target_y = clampf(screen_pos.y - panel_h - 15.0, 20.0, 1080.0 - panel_h - 20.0)
+	if screen_pos.y - panel_h - 15.0 < 20.0:
+		target_y = clampf(screen_pos.y + 30.0, 20.0, 1080.0 - panel_h - 20.0)
+	cell_tooltip_panel.position = Vector2(target_x, target_y)
+	cell_tooltip_panel.visible = true
+
+func hide_cell_effect_tooltips() -> void:
+	if cell_tooltip_panel:
+		cell_tooltip_panel.visible = false
+	hide_glossary_tooltip()
+
+## 盤面セル用ツールチップの上にマウスがあるか（用語ホバー中に消さないため）
+func is_cell_tooltip_under_mouse(global_pos: Vector2) -> bool:
+	return cell_tooltip_panel != null and cell_tooltip_panel.visible and cell_tooltip_panel.get_global_rect().has_point(global_pos)
 
 func _on_relic_added(id: String) -> void:
 	if icon_nodes.has(id): return

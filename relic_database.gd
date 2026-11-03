@@ -505,7 +505,7 @@ const RELICS: Dictionary = {
 		"rarity": "common",
 		"max_level": 5,
 		"requires_element": true,
-		"description": "水マス上の自駒が受けるダメージ-30%。水+火シナジー威力+25%",
+		"description": "水マス上の自駒が受けるダメージ-10%。水+火シナジー威力+10%（Lvに応じて強化）",
 		"levels": [
 			{"water_reduction": 0.10, "synergy_bonus": 0.10},
 			{"water_reduction": 0.14, "synergy_bonus": 0.15},
@@ -550,7 +550,7 @@ const RELICS: Dictionary = {
 		"rarity": "epic",
 		"max_level": 3,
 		"requires_element": true,
-		"description": "水マス数×2%の全属性与ダメージボーナス（上限+40%）",
+		"description": "水マス数×1.5%の全属性与ダメージボーナス（上限+30%、Lvに応じて強化）",
 		"levels": [
 			{"per_water": 0.015, "max_bonus": 0.30},
 			{"per_water": 0.020, "max_bonus": 0.40},

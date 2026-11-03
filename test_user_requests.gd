@@ -1184,9 +1184,10 @@ func _init() -> void:
 	assert(relic_box != null, "relic_rect must exist in RelicUIManager")
 	assert(relic_box.color == Color(0.85, 0.72, 0.38, 1.0), "relic_rect must have antique gold border")
 	assert(relic_box.position.y >= 950.0, "relic_box must be positioned below board (y >= 950.0)")
-	assert(is_equal_approx(skill_box.size.x, relic_box.size.x), "Skill and Relic panels must have exact same width (got %f vs %f)" % [skill_box.size.x, relic_box.size.x])
+	assert(relic_box.size.x > skill_box.size.x + 500.0, "Relic panel must be much wider than the compact skill panel (got %f vs %f)" % [relic_box.size.x, skill_box.size.x])
 	assert(is_equal_approx(skill_box.size.y, relic_box.size.y), "Skill and Relic panels must have exact same height (got %f vs %f)" % [skill_box.size.y, relic_box.size.y])
-	assert(skill_box.size.x >= 800.0, "Skill panel width must be extended (got %f)" % skill_box.size.x)
+	assert(skill_box.size.x <= 520.0, "Skill panel width must be compact for at most 4 skills (got %f)" % skill_box.size.x)
+	assert(relic_box.position.x >= skill_box.position.x + skill_box.size.x, "Relic panel must not overlap the skill panel")
 	assert(skill_box.position.x >= 190.0, "skill_rect left edge (%f) must not overlap Settings button on bottom-left" % skill_box.position.x)
 	var relic_right_edge = relic_box.position.x + relic_box.size.x
 	assert(relic_right_edge <= 1920.0, "relic_rect right edge (%f) must fit inside viewport width 1920" % relic_right_edge)
@@ -2627,11 +2628,11 @@ func _init() -> void:
 
 	var light_descs = sc.get_skill_descriptions("light_1")
 	assert(light_descs.size() == 20, "Light descriptions must have 20 levels")
-	assert("聖像1体" in light_descs[0], "Lv.1 must describe 1 statue")
-	assert("聖像2体" in light_descs[3], "Lv.4 must describe 2 statues via level enhancement")
-	assert("聖像3体" in light_descs[7], "Lv.8 must describe 3 statues via level enhancement")
-	assert("聖像4体" in light_descs[11], "Lv.12 must describe 4 statues via level enhancement")
-	assert("聖像5体" in light_descs[15], "Lv.16 must describe 5 statues via level enhancement")
+	assert("最大2体" in light_descs[0], "Lv.1 must describe 2 statues (actual skill count)")
+	assert("最大4体" in light_descs[3], "Lv.4 must describe 4 statues (actual skill count)")
+	assert("最大6体" in light_descs[7], "Lv.8 must describe 6 statues (actual skill count)")
+	assert("最大8体" in light_descs[11], "Lv.12 must describe 8 statues (actual skill count)")
+	assert("最大10体" in light_descs[15], "Lv.16 must describe 10 statues (actual skill count)")
 	print("✓ Light skill descriptions contain statue count scaling via level enhancement verified!")
 
 	# 2. Verify Enemy vs Player Light Skill Symmetry
