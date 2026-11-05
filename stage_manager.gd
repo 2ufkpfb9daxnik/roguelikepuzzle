@@ -185,8 +185,9 @@ var has_transitioned_stage_clear: bool = false
 
 # フィーバー突入時の大文字表示待機フレーム数 (等速1.0xで約1.0秒、速度設定に完全連動)
 const FEVER_INTRO_FRAMES: int = 60
-# フィーバー突入音楽（fevertime SE）を打ち切る位置: 3.8秒
-const FEVER_INTRO_SE_CUTOFF_FRAMES: int = 228
+# フィーバー突入音楽（fevertime SE）を打ち切る位置: 6.0秒
+const FEVER_INTRO_SE_CUTOFF_FRAMES: int = 360
+const FEVER_DANCE_FRAME_COUNT: int = 142
 
 # 速度シミュレーション累積
 var _sim_accumulator: float = 0.0
@@ -313,6 +314,8 @@ var _cached_puzzle_board: Node2D = null
 var _vfx_container: Node2D = null
 var _enemy_viewport_clip: Control = null
 var _enemy_zoom_root: Node2D = null
+var you_win_panel: Panel = null
+var you_win_label: Label = null
 var _enemy_zoom_tween: Tween = null
 var target_enemy_index: int = 0
 
@@ -363,28 +366,38 @@ func _get_puzzle_board() -> Node2D:
 		_cached_puzzle_board = get_parent().get_node_or_null("PuzzleBoard") if get_parent() else null
 	return _cached_puzzle_board
 
+## フィーバーダンスのフレームをバックグラウンドで先読みする。
+## 起動時やフィーバー突入時に同期ロードして固まらないようにする。
+func _preload_fever_dance_frames() -> void:
+	for i in range(FEVER_DANCE_FRAME_COUNT):
+		var p = "res://Texture/fever_dance/frames/frame_%04d.png" % i
+		if ResourceLoader.exists(p) and not ResourceLoader.has_cached(p):
+			ResourceLoader.load_threaded_request(p)
+
 func _setup_fever_dancers() -> void:
 	if fever_dancer_bg_left != null and is_instance_valid(fever_dancer_bg_left):
 		return
 
 	if _fever_dance_frames == null:
-		var sf_path = "res://Texture/fever_dance/fever_dance_frames.tres"
-		if ResourceLoader.exists(sf_path):
-			var sf_status = ResourceLoader.load_threaded_get_status(sf_path)
-			if sf_status == ResourceLoader.THREAD_LOAD_LOADED:
-				_fever_dance_frames = ResourceLoader.load_threaded_get(sf_path) as SpriteFrames
+		_fever_dance_frames = SpriteFrames.new()
+		_fever_dance_frames.add_animation("dance")
+		_fever_dance_frames.set_animation_loop("dance", true)
+		_fever_dance_frames.set_animation_speed("dance", 24.0)
+		for i in range(FEVER_DANCE_FRAME_COUNT):
+			var p = "res://Texture/fever_dance/frames/frame_%04d.png" % i
+			var tex: Texture2D = null
+			if ResourceLoader.has_cached(p):
+				tex = load(p) as Texture2D
 			else:
-				_fever_dance_frames = load(sf_path) as SpriteFrames
-		if _fever_dance_frames == null:
-			_fever_dance_frames = SpriteFrames.new()
-			_fever_dance_frames.add_animation("dance")
-			_fever_dance_frames.set_animation_loop("dance", true)
-			_fever_dance_frames.set_animation_speed("dance", 24.0)
-			for i in range(142):
-				var p = "res://Texture/fever_dance/frames/frame_%04d.png" % i
-				if ResourceLoader.exists(p):
-					var tex = load(p) as Texture2D
-					if tex: _fever_dance_frames.add_frame("dance", tex)
+				var frame_status = ResourceLoader.load_threaded_get_status(p)
+				if frame_status == ResourceLoader.THREAD_LOAD_LOADED:
+					tex = ResourceLoader.load_threaded_get(p) as Texture2D
+			if tex != null:
+				_fever_dance_frames.add_frame("dance", tex)
+		if _fever_dance_frames.get_frame_count("dance") == 0 and ResourceLoader.exists("res://Texture/instructor.png"):
+			var fallback_tex = load("res://Texture/instructor.png") as Texture2D
+			if fallback_tex != null:
+				_fever_dance_frames.add_frame("dance", fallback_tex)
 
 	var enemy_parent: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
 
@@ -611,6 +624,39 @@ func _setup_enemy_viewport_container() -> void:
 	_enemy_zoom_root.scale = Vector2.ONE
 	_enemy_viewport_clip.add_child(_enemy_zoom_root)
 
+	# 敵画面に表示する戦闘勝利バナー
+	you_win_panel = Panel.new()
+	you_win_panel.name = "YouWinPanel"
+	you_win_panel.visible = false
+	you_win_panel.position = Vector2(48, 117)
+	you_win_panel.size = Vector2(621, 160)
+	you_win_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# ショップUI（z_index=30）より背面に描画し、勝利バナーが重ならないようにする
+	you_win_panel.z_index = 10
+	var yw_style = StyleBoxFlat.new()
+	yw_style.bg_color = Color(0.02, 0.02, 0.04, 0.78)
+	yw_style.border_color = Color(1.0, 0.84, 0.25, 1.0)
+	yw_style.set_border_width_all(3)
+	yw_style.set_corner_radius_all(18)
+	yw_style.shadow_color = Color(0, 0, 0, 0.8)
+	yw_style.shadow_size = 14
+	you_win_panel.add_theme_stylebox_override("panel", yw_style)
+	_enemy_viewport_clip.add_child(you_win_panel)
+
+	you_win_label = Label.new()
+	you_win_label.name = "YouWinLabel"
+	you_win_label.text = "YOU WIN!"
+	you_win_label.size = you_win_panel.size
+	you_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	you_win_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	you_win_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	you_win_label.add_theme_font_override("font", CUSTOM_FONT)
+	you_win_label.add_theme_font_size_override("font_size", 72)
+	you_win_label.add_theme_color_override("font_color", Color(1.0, 0.90, 0.30))
+	you_win_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	you_win_label.add_theme_constant_override("outline_size", 14)
+	you_win_panel.add_child(you_win_label)
+
 	for bg_name in STAGE_BACKGROUNDS:
 		var bg_node = get_node_or_null(bg_name)
 		if bg_node and bg_node.get_parent() == self:
@@ -822,6 +868,24 @@ func update_enemy_intents(actions: Array) -> void:
 					style.border_color = b_col
 
 ## 敵名を用語辞書へ登録し、敵ホバー情報の名前からも解説を引けるようにする。
+## すべてのBGMをループ再生にする（インポート済み音源は書き換えず、再生終了時に再再生）
+func _enable_bgm_loops() -> void:
+	var settings = _get_settings_manager()
+	for bgm_name in ["fieldbgm", "bossbgm", "maoubgm", "feverbgm", "ending"]:
+		var player = get_node_or_null(bgm_name)
+		if player == null or player.stream == null:
+			continue
+		if settings and settings.has_method("enable_bgm_loop"):
+			settings.enable_bgm_loop(player)
+		else:
+			if player.has_meta("manual_bgm_loop"):
+				continue
+			player.set_meta("manual_bgm_loop", true)
+			player.finished.connect(func():
+				if is_instance_valid(player):
+					player.play()
+			)
+
 func _register_enemy_glossary_terms() -> void:
 	for enemy_key in ENEMY_SPECIES:
 		var sp_data: Dictionary = ENEMY_SPECIES[enemy_key]
@@ -839,9 +903,10 @@ func _register_enemy_glossary_terms() -> void:
 
 func _ready() -> void:
 	_register_enemy_glossary_terms()
+	_enable_bgm_loops()
 	_setup_enemy_viewport_container()
-	# フィーバーダンスの大量フレームは起動時に同期ロードすると数秒固まるため、
-	# 実際にフィーバーへ入った時に遅延構築する（fevertime() 内で呼び出し）。
+	# フィーバーダンスのフレームはバックグラウンドで先読みし、フィーバー突入時の同期ロードを避ける
+	call_deferred("_preload_fever_dance_frames")
 	_vfx_container = Node2D.new()
 	_vfx_container.name = "VFXContainer"
 	if _enemy_zoom_root:
@@ -870,9 +935,8 @@ func _ready() -> void:
 
 	# フォントにシステム日本語フォールバックを設定（漢字の確実な描画を保証）
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		CUSTOM_FONT.set_fallbacks([sys_font])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		CUSTOM_FONT.set_fallbacks([sys_font, load("res://font/NotoEmoji.ttf")])
 
 	myhp = 5000.0 * pow(10, max(0, stage - 1))
 	myhpmax = myhp
@@ -1313,31 +1377,26 @@ func _assign_enemy_evolutions(sp_data: Dictionary, is_boss: bool) -> Dictionary:
 		if el_key == "" or not reg_all.has(el_key):
 			continue
 		var reg = reg_all[el_key]
-		var stage_idx = stage
-		if stage_idx == 1:
-			if is_boss:
-				var mids = reg.get("mid", [])
-				if not mids.is_empty():
-					evos[el_key] = {"mid": mids[randi() % mids.size()]["id"], "final": ""}
-		elif stage_idx in [2, 3]:
+		var stage_idx = clampi(stage, 1, 5)
+		var mid_id = ""
+		var final_id = ""
+
+		# 敵スキルレベルは1〜20で段階的に上昇（ステージ×進行度、ボスは+5）
+		var battle_idx: int = clampi(stage_enemy, 1, 5)
+		var evo_level: int = clampi((stage_idx - 1) * 5 + battle_idx + (5 if is_boss else 0), 1, 20)
+
+		# Lv10で中間進化、Lv20で最終進化。同レベル帯の進化系統はランダム
+		if evo_level >= 10:
 			var mids = reg.get("mid", [])
 			if not mids.is_empty():
-				var m_id = mids[randi() % mids.size()]["id"]
-				var f_id = ""
-				if is_boss:
-					var finals = reg.get("final", {}).get(m_id, [])
+				mid_id = str(mids[randi() % mids.size()]["id"])
+				if evo_level >= 20:
+					var finals = reg.get("final", {}).get(mid_id, [])
 					if not finals.is_empty():
-						f_id = finals[randi() % finals.size()]["id"]
-				evos[el_key] = {"mid": m_id, "final": f_id}
-		elif stage_idx >= 4:
-			var mids = reg.get("mid", [])
-			if not mids.is_empty():
-				var m_id = mids[randi() % mids.size()]["id"]
-				var f_id = ""
-				var finals = reg.get("final", {}).get(m_id, [])
-				if not finals.is_empty():
-					f_id = finals[randi() % finals.size()]["id"]
-				evos[el_key] = {"mid": m_id, "final": f_id}
+						final_id = str(finals[randi() % finals.size()]["id"])
+
+		if mid_id != "" or final_id != "":
+			evos[el_key] = {"mid": mid_id, "final": final_id, "level": evo_level}
 	return evos
 
 ## デバッグ用：ステージ5ボス（冥王デモニアス）との戦闘を即時開始
@@ -1514,6 +1573,7 @@ func get_current_enemy_element() -> String:
 ## 敵キャラクターの生成
 func make_enemy(spawn_as_boss: bool = false) -> void:
 	if enemycount != 0: return
+	_hide_you_win()
 	stop_enemy_animation()
 	_anim_original_texture = null
 	_cleanup_battle_camera()
@@ -2668,6 +2728,22 @@ func displaygage() -> void:
 			_cached_fever_count_lbl.text = "[center][b][color=#FFD700]%d[/color][/b][/center]" % fevercount
 
 ## 敵死亡時の処理
+## 敵画面に「YOU WIN!」を表示する
+func _show_you_win() -> void:
+	if you_win_panel == null or not is_instance_valid(you_win_panel):
+		return
+	you_win_panel.visible = true
+	you_win_panel.modulate = Color(1, 1, 1, 0)
+	you_win_panel.scale = Vector2(0.72, 0.72)
+	you_win_panel.pivot_offset = you_win_panel.size / 2.0
+	var tw = create_tween()
+	tw.tween_property(you_win_panel, "modulate:a", 1.0, 0.18)
+	tw.parallel().tween_property(you_win_panel, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func _hide_you_win() -> void:
+	if you_win_panel != null and is_instance_valid(you_win_panel):
+		you_win_panel.visible = false
+
 func isdead() -> void:
 	hide_enemy_hover_tooltip()
 	stop_enemy_animation()
@@ -2715,6 +2791,7 @@ func isdead() -> void:
 	
 	enemycount = 0
 	isdeadf = true
+	_show_you_win()
 	deadinterval = 0
 	has_transitioned_after_death = false
 	
@@ -2737,8 +2814,6 @@ func fevertime() -> void:
 		appeartime = 0
 		isfevertime = true
 		_fever_dancers_active = false
-		_setup_fever_dancers()
-		_hide_fever_dancers() # 効果音が鳴りきるまでダンサーは非表示
 		
 		var rm = _get_relic_manager()
 		if rm and rm.has_method("on_fever_started"):
@@ -2760,11 +2835,14 @@ func fevertime() -> void:
 				fever_se.finished.connect(_on_fever_se_finished)
 		else:
 			_fever_se_max_frames = 285
-		# 突入音楽は3.8秒で打ち切り、以降のHUD・ダンサー演出へ進む
+		# 突入音楽は6.0秒で打ち切り、以降のHUD・ダンサー演出へ進む
 		_fever_se_max_frames = mini(_fever_se_max_frames, FEVER_INTRO_SE_CUTOFF_FRAMES)
 		
 		# フィーバー突入時: フィーバータイムの文字（大文字バナー）を大きく画面中央に表示！
 		_show_fever_banner()
+		# バナー表示後にダンサーを準備（万一片読みが残っていても文字表示を妨げない）
+		_setup_fever_dancers()
+		_hide_fever_dancers()
 
 		# 効果音が鳴りきるまで、フィーバー各欄（HUD）は非表示待機状態にする
 		var sm_node = _get_score_manager()
@@ -2817,7 +2895,15 @@ func notfevertime() -> void:
 			face.queue_free()
 	facearr.clear()
 
+func _is_pvp_mode() -> bool:
+	var net = get_node_or_null("/root/NetworkManager")
+	return net != null and "pvp_mode" in net and bool(net.pvp_mode)
+
 func _process(_delta: float) -> void:
+	if _is_pvp_mode():
+		displayhp()
+		displaygage()
+		return
 	var _prof = Profiler.begin("stage_manager::_process")
 	var spd: float = maxf(0.1, _get_game_speed())
 	if _damaged_anim_timer > 0.0:
@@ -3156,6 +3242,7 @@ func _set_buff_buttons_visible(is_vis: bool) -> void:
 func _on_stagechangeb_pressed() -> void:
 	if not isstageclear:
 		return
+	_hide_you_win()
 		
 	# ステージ進行時に体力が自動増加しないよう保持（現在HP・最大HPは維持）
 	myhp = clampf(myhp, 0.0, myhpmax)
@@ -3202,6 +3289,7 @@ func _on_movefront_pressed() -> void:
 	if isstageclear:
 		_on_stagechangeb_pressed()
 		return
+	_hide_you_win()
 	if not clicked:
 		# ボタン押下時に即座に「前に進む」ボタンとバフ選択画面を非表示化（ボス戦突入時も確実に消去）
 		if move_front_btn: move_front_btn.visible = false
@@ -3484,3 +3572,115 @@ func _get_relic_manager() -> Node:
 	var r = get_tree().get_root()
 	if r == null: return null
 	return r.find_child("RelicManager", true, false)
+func setup_pvp_enemy(tex: Texture2D, display_name: String, element_jp: String, hp_value: float, max_hp_value: float, anim_key: String = "") -> void:
+	_setup_enemy_viewport_container()
+	set_pvp_background("plane")
+	for e in active_enemies:
+		if e is Dictionary:
+			for key in ["sprite", "bar_bg", "bar_red", "bar_green", "lbl", "hp_lbl", "status_bar", "target_badge", "target_frame", "intent_panel", "intent_badge"]:
+				var n = e.get(key)
+				if is_instance_valid(n):
+					n.queue_free()
+	active_enemies.clear()
+	enemycount = 0
+	isdeadf = false
+	ehp = hp_value
+	ehpmax = max_hp_value
+	var parent_node: Node = _enemy_zoom_root if _enemy_zoom_root != null else self
+	var en = Sprite2D.new()
+	en.name = "PvPRival"
+	en.texture = tex
+	var target_h: float = 250.0
+	var tex_h: float = float(tex.get_height()) if tex != null else 1.0
+	var sc: float = target_h / maxf(1.0, tex_h)
+	en.scale = Vector2(sc, sc)
+	en.position = Vector2(1552, 235)
+	en.set_meta("base_scale", en.scale)
+	parent_node.add_child(en)
+
+	var bar_pos = Vector2(1502, 125)
+	var bar_bg = ColorRect.new()
+	bar_bg.color = Color(0, 0, 0, 0.55)
+	bar_bg.size = Vector2(100, 10)
+	bar_bg.position = bar_pos
+	parent_node.add_child(bar_bg)
+	var bar_red = ColorRect.new()
+	bar_red.color = Color(1.0, 0.2, 0.2, 1.0)
+	bar_red.size = Vector2(100, 10)
+	bar_red.position = bar_pos
+	parent_node.add_child(bar_red)
+	var bar_green = ColorRect.new()
+	bar_green.color = Color(0.2, 1.0, 0.2, 1.0)
+	bar_green.size = Vector2(100, 10)
+	bar_green.position = bar_pos
+	parent_node.add_child(bar_green)
+
+	var name_lbl = RichTextLabel.new()
+	name_lbl.bbcode_enabled = true
+	name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_lbl.fit_content = true
+	name_lbl.scroll_active = false
+	name_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	name_lbl.add_theme_font_override("bold_font", CUSTOM_FONT)
+	name_lbl.add_theme_font_size_override("normal_font_size", 20)
+	name_lbl.add_theme_font_size_override("bold_font_size", 20)
+	name_lbl.add_theme_constant_override("outline_size", 5)
+	name_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	name_lbl.position = Vector2(1362, 65)
+	name_lbl.size = Vector2(380, 50)
+	name_lbl.text = "[center][b][color=#FF8A80]RIVAL[/color] [color=#FFFFFF]%s[/color][/b]\n[color=#B0BEC5]%s[/color][/center]" % [display_name, element_jp]
+	parent_node.add_child(name_lbl)
+
+	var hp_lbl = RichTextLabel.new()
+	hp_lbl.bbcode_enabled = true
+	hp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_lbl.fit_content = true
+	hp_lbl.scroll_active = false
+	hp_lbl.add_theme_font_override("normal_font", CUSTOM_FONT)
+	hp_lbl.add_theme_font_size_override("normal_font_size", 18)
+	hp_lbl.add_theme_constant_override("outline_size", 4)
+	hp_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	hp_lbl.position = Vector2(1432, 137)
+	hp_lbl.size = Vector2(240, 22)
+	hp_lbl.text = "[center][color=#FFFFFF]%d / %d[/color][/center]" % [int(hp_value), int(max_hp_value)]
+	parent_node.add_child(hp_lbl)
+
+	active_enemies.append({
+		"key": anim_key if anim_key != "" else "pvp_rival",
+		"sprite": en,
+		"hp": hp_value,
+		"max_hp": max_hp_value,
+		"atk": 0.0,
+		"shield": 0.0,
+		"bar_bg": bar_bg,
+		"bar_red": bar_red,
+		"bar_green": bar_green,
+		"lbl": name_lbl,
+		"hp_lbl": hp_lbl,
+		"sp_data": {"name": display_name, "element": element_jp, "race": element_jp, "color": "#FF8A80"}
+	})
+	enemy = en
+	enemycount = 1
+	current_enemy_key = anim_key if anim_key != "" else "pvp_rival"
+	target_enemy_index = 0
+	displayhp()
+	play_single_idle_loop(0)
+
+func update_pvp_enemy_hp(hp_value: float, max_hp_value: float) -> void:
+	if active_enemies.is_empty():
+		return
+	var e = active_enemies[0]
+	e["hp"] = hp_value
+	e["max_hp"] = max_hp_value
+	ehp = hp_value
+	ehpmax = max_hp_value
+	displayhp()
+
+func set_pvp_background(bg_name: String) -> void:
+	_setup_enemy_viewport_container()
+	if _enemy_zoom_root == null:
+		return
+	for n in ["plane", "cave", "desert", "snow field", "castle"]:
+		var node = _enemy_zoom_root.get_node_or_null(n)
+		if node:
+			node.visible = (n == bg_name)

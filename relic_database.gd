@@ -667,11 +667,11 @@ const RELICS: Dictionary = {
 		"rarity": "legendary",
 		"max_level": 3,
 		"requires_element": true,
-		"description": "雷スキルのMP消費-30%。雷スキルダメージ+30%",
+		"description": "雷スキルダメージ+15〜35%",
 		"levels": [
-			{"mp_cost_mult": 0.80, "damage_bonus": 0.15},
-			{"mp_cost_mult": 0.70, "damage_bonus": 0.25},
-			{"mp_cost_mult": 0.60, "damage_bonus": 0.35}
+			{"damage_bonus": 0.15},
+			{"damage_bonus": 0.25},
+			{"damage_bonus": 0.35}
 		]
 	},
 	# ===== 専門性レリック（神秘・冥術系統：毒・光・闇） =====
@@ -763,20 +763,20 @@ const RELICS: Dictionary = {
 			{"damage_reduction": 0.50}
 		]
 	},
-	"shadow_pin": {
-		"id": "shadow_pin",
-		"element_category": "mystic",
-		"name": "影縫いの杭",
-		"rarity": "rare",
-		"max_level": 3,
-		"requires_element": true,
-		"description": "闇スキルで消えた敵駒は1ターン復活しない",
-		"levels": [
-			{"dark_damage": 0.10, "no_revive_turns": 1},
-			{"dark_damage": 0.15, "no_revive_turns": 1},
-			{"dark_damage": 0.20, "no_revive_turns": 2}
-		]
-	},
+		"shadow_pin": {
+			"id": "shadow_pin",
+			"element_category": "mystic",
+			"name": "影縫いの杭",
+			"rarity": "rare",
+			"max_level": 3,
+			"requires_element": true,
+			"description": "闇スキルの与ダメージ+10〜20%",
+			"levels": [
+				{"dark_damage": 0.10},
+				{"dark_damage": 0.15},
+				{"dark_damage": 0.20}
+			]
+		},
 	"underworld_scale": {
 		"id": "underworld_scale",
 		"element_category": "mystic",
@@ -799,11 +799,11 @@ const RELICS: Dictionary = {
 		"rarity": "epic",
 		"max_level": 3,
 		"requires_element": false,
-		"description": "選択カテゴリーのスキルMP消費-20%",
+		"description": "選択カテゴリーのスキルダメージ+8〜16%",
 		"levels": [
-			{"mp_cost_mult": 0.85},
-			{"mp_cost_mult": 0.80},
-			{"mp_cost_mult": 0.75}
+			{"skill_damage": 0.08},
+			{"skill_damage": 0.12},
+			{"skill_damage": 0.16}
 		]
 	},
 	"spirit_blessing": {
@@ -813,11 +813,11 @@ const RELICS: Dictionary = {
 		"rarity": "rare",
 		"max_level": 3,
 		"requires_element": false,
-		"description": "スキル発動時、MPの20%を回復",
+		"description": "スキル発動後、最大HPの3〜7%のシールドを獲得",
 		"levels": [
-			{"mp_restore": 0.10},
-			{"mp_restore": 0.15},
-			{"mp_restore": 0.20}
+			{"shield_ratio": 0.03},
+			{"shield_ratio": 0.05},
+			{"shield_ratio": 0.07}
 		]
 	},
 	"magic_crystal": {
@@ -1053,9 +1053,8 @@ static func get_description(id: String, level: int) -> String:
 			var red = int(round(float(p.get("reduction", 0.10)) * 100.0))
 			return "石マス隣接の自駒が受けるダメージ-%d%%" % red
 		"superconduct_ring":
-			var mp = int(round((1.0 - float(p.get("mp_cost_mult", 0.70))) * 100.0))
-			var db = int(round(float(p.get("damage_bonus", 0.20)) * 100.0))
-			return "雷スキルのMP消費-%d%%。雷スキルダメージ+%d%%" % [mp, db]
+			var db = int(round(float(p.get("damage_bonus", 0.15)) * 100.0))
+			return "雷スキルダメージ+%d%%" % db
 		# ===== 専門性レリック（神秘・冥術系統） =====
 		"venom_crown":
 			var sb = int(p.get("stage_bonus", 1))
@@ -1080,18 +1079,17 @@ static func get_description(id: String, level: int) -> String:
 			return "光スキル発動時、全聖像の被ダメージ-%d%%（1ターン）" % dr
 		"shadow_pin":
 			var dd = int(round(float(p.get("dark_damage", 0.10)) * 100.0))
-			var nr = int(p.get("no_revive_turns", 1))
-			return "闇スキルで消えた敵駒は%dターン復活しない。闇ダメージ+%d%%" % [nr, dd]
+			return "闇スキルの与ダメージ+%d%%" % dd
 		"underworld_scale":
 			var hr = int(round(float(p.get("heal_rate", 0.20)) * 100.0))
 			return "敵撃破時、撃破ダメージの%d%%をHP吸収" % hr
 		# ===== 専門性レリック（クロスカテゴリー） =====
 		"elemental_affinity_ring":
-			var mp = int(round((1.0 - float(p.get("mp_cost_mult", 0.85))) * 100.0))
-			return "選択カテゴリーのスキルMP消費-%d%%" % mp
+			var sd = int(round(float(p.get("skill_damage", 0.08)) * 100.0))
+			return "選択カテゴリーのスキルダメージ+%d%%" % sd
 		"spirit_blessing":
-			var mr = int(round(float(p.get("mp_restore", 0.10)) * 100.0))
-			return "スキル発動時、MPの%d%%を回復" % mr
+			var sr = int(round(float(p.get("shield_ratio", 0.03)) * 100.0))
+			return "スキル発動後、最大HPの%d%%のシールドを獲得" % sr
 		"magic_crystal":
 			var sd = int(round(float(p.get("skill_damage", 0.15)) * 100.0))
 			var nb = int(round(float(p.get("next_match_bonus", 0.10)) * 100.0))

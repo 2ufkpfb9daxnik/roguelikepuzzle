@@ -16,6 +16,7 @@ const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 @onready var desc_label2: RichTextLabel = get_node_or_null("description2")
 @onready var start_btn: Button = get_node_or_null("Button")
 var tutorial_btn: Button = null
+var online_btn: Button = null
 var settings_btn: Button = null
 var quit_btn: Button = null
 
@@ -50,18 +51,22 @@ func _ready() -> void:
 	offset_bottom = 0.0
 
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		CUSTOM_FONT.set_fallbacks([sys_font])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		CUSTOM_FONT.set_fallbacks([sys_font, load("res://font/NotoEmoji.ttf")])
 
 	if title_bgm:
+		_enable_stream_loop(title_bgm)
 		title_bgm.play()
+	var title_bgm2 = get_node_or_null("titlebgm2")
+	if title_bgm2:
+		_enable_stream_loop(title_bgm2)
 
 	# 次のステージシーン（current_stage.tscn）をバックグラウンドで非同期先読み開始
-	# main_scene側で既に開始済みの場合は二重リクエストしない
-	var stage_status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
-	if stage_status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		ResourceLoader.load_threaded_request("res://current_stage.tscn")
+	# Webではスレッド読み込みが固まる環境があるため、ローディング画面側で同期読み込みする
+	if not OS.has_feature("web"):
+		var stage_status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
+		if stage_status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			ResourceLoader.load_threaded_request("res://current_stage.tscn")
 
 	# 設定変更のリアルタイム連動
 	var sm = _get_settings_manager()
@@ -75,6 +80,21 @@ func _ready() -> void:
 	# ウィンドウリサイズ・最大化・解像度変更時に即座にレイアウトを再計算
 	if get_viewport():
 		get_viewport().size_changed.connect(_update_layout)
+
+func _enable_stream_loop(player: AudioStreamPlayer2D) -> void:
+	if player == null or player.stream == null:
+		return
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("enable_bgm_loop"):
+		sm.enable_bgm_loop(player)
+		return
+	if player.has_meta("manual_bgm_loop"):
+		return
+	player.set_meta("manual_bgm_loop", true)
+	player.finished.connect(func():
+		if is_instance_valid(player):
+			player.play()
+	)
 
 func _setup_ui_elements() -> void:
 	if anten_rect:
@@ -95,9 +115,8 @@ func _setup_ui_elements() -> void:
 
 	if desc_label != null:
 		desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var jp_font = SystemFont.new()
-		jp_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		jp_font.font_weight = 700
+		var jp_font = load("res://font/NotoSansJP.ttf")
+		jp_font.set_fallbacks([load("res://font/NotoEmoji.ttf")])
 		desc_label.add_theme_font_override("normal_font", jp_font)
 		desc_label.add_theme_font_override("bold_font", jp_font)
 		desc_label.add_theme_constant_override("outline_size", 10)
@@ -140,7 +159,35 @@ func _setup_ui_elements() -> void:
 	if not start_btn.pressed.is_connected(_on_button_pressed):
 		start_btn.pressed.connect(_on_button_pressed)
 
-	# 2. チュートリアルボタン (TUTORIAL)
+	# 2. オンライン対戦ボタン
+	var style_online_normal = StyleBoxFlat.new()
+	style_online_normal.bg_color = Color(0.08, 0.18, 0.30, 0.94)
+	style_online_normal.border_color = Color(0.25, 0.75, 1.0, 1.0)
+	style_online_normal.set_border_width_all(3)
+	style_online_normal.set_corner_radius_all(14)
+
+	var style_online_hover = StyleBoxFlat.new()
+	style_online_hover.bg_color = Color(0.14, 0.28, 0.46, 0.98)
+	style_online_hover.border_color = Color(0.55, 0.90, 1.0, 1.0)
+	style_online_hover.set_border_width_all(3)
+	style_online_hover.set_corner_radius_all(14)
+
+	online_btn = Button.new()
+	online_btn.name = "OnlineButton"
+	online_btn.text = "🌐 オンライン対戦 (ONLINE)"
+	online_btn.add_theme_font_override("font", CUSTOM_FONT)
+	online_btn.add_theme_constant_override("outline_size", 6)
+	online_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	online_btn.add_theme_color_override("font_color", Color(0.75, 0.92, 1.0, 1))
+	online_btn.add_theme_font_size_override("font_size", 28)
+	online_btn.custom_minimum_size = Vector2(520, 66)
+	online_btn.size = Vector2(520, 66)
+	online_btn.add_theme_stylebox_override("normal", style_online_normal)
+	online_btn.add_theme_stylebox_override("hover", style_online_hover)
+	online_btn.pressed.connect(_on_online_pressed)
+	add_child(online_btn)
+
+	# 3. チュートリアルボタン (TUTORIAL)
 	var style_tut_normal = StyleBoxFlat.new()
 	style_tut_normal.bg_color = Color(0.08, 0.22, 0.16, 0.94)
 	style_tut_normal.border_color = Color(0.2, 0.9, 0.6, 1.0)
@@ -194,8 +241,11 @@ func _setup_ui_elements() -> void:
 	settings_btn.add_theme_stylebox_override("normal", style_set_normal)
 	settings_btn.add_theme_stylebox_override("hover", style_set_hover)
 	settings_btn.pressed.connect(func():
-		if click_se: click_se.play()
 		var sm = _get_settings_manager()
+		if sm and sm.has_method("play_ui_se"):
+			sm.play_ui_se("open")
+		elif click_se:
+			click_se.play()
 		if sm:
 			sm.open_settings()
 	)
@@ -216,7 +266,7 @@ func _setup_ui_elements() -> void:
 
 	quit_btn = Button.new()
 	quit_btn.name = "QuitButton"
-	quit_btn.text = "✕ ゲーム終了 (QUIT)"
+	quit_btn.text = "× ゲーム終了 (QUIT)"
 	quit_btn.add_theme_font_override("font", CUSTOM_FONT)
 	quit_btn.add_theme_constant_override("outline_size", 6)
 	quit_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
@@ -231,6 +281,8 @@ func _setup_ui_elements() -> void:
 		get_tree().quit()
 	)
 	add_child(quit_btn)
+	if OS.has_feature("web"):
+		quit_btn.visible = false
 
 	# 4. 難易度選択セクション (DIFFICULTY SELECTOR)
 	diff_title_lbl = RichTextLabel.new()
@@ -401,20 +453,31 @@ func _update_layout() -> void:
 		start_btn.size = Vector2(btn_w, btn_h)
 		start_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
+	if online_btn != null:
+		online_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap))
+		online_btn.size = Vector2(btn_w, btn_h)
+		online_btn.custom_minimum_size = Vector2(btn_w, btn_h)
+
 	if tutorial_btn != null:
-		tutorial_btn.position = Vector2(btn_x, start_y + btn_h + btn_gap)
+		tutorial_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 2.0)
 		tutorial_btn.size = Vector2(btn_w, btn_h)
 		tutorial_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
 	if settings_btn != null:
-		settings_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 2.0)
+		settings_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 3.0)
 		settings_btn.size = Vector2(btn_w, btn_h)
 		settings_btn.custom_minimum_size = Vector2(btn_w, btn_h)
 
 	if quit_btn != null:
-		quit_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 3.0)
+		quit_btn.position = Vector2(btn_x, start_y + (btn_h + btn_gap) * 4.0)
 		quit_btn.size = Vector2(btn_w, btn_h)
 		quit_btn.custom_minimum_size = Vector2(btn_w, btn_h)
+
+## オンライン対戦ボタン押下時
+func _on_online_pressed() -> void:
+	if click_se:
+		click_se.play()
+	get_tree().change_scene_to_file("res://online_menu.tscn")
 
 ## スタートボタン押下時
 func _on_button_pressed() -> void:
@@ -446,24 +509,17 @@ func _process(_delta: float) -> void:
 			if anten_rect:
 				anten_rect.color.a += 0.03
 		elif interval >= 40:
+			# 読み込み中はタイトル画面に留まらず、専用のローディング画面へ遷移する
 			if anten_rect:
-				anten_rect.color.a = 0.0
+				anten_rect.color.a = 1.0
 			isclicked = false
-			var next_scene: PackedScene = null
 			var status = ResourceLoader.load_threaded_get_status("res://current_stage.tscn")
 			if status == ResourceLoader.THREAD_LOAD_LOADED:
-				next_scene = ResourceLoader.load_threaded_get("res://current_stage.tscn") as PackedScene
-			elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-				# 同期ロードへフォールバックすると数秒フリーズするため、完了まで待つ
-				isclicked = true
-				if start_btn:
-					start_btn.text = "⏳ 読み込み中..."
-				return
-			else:
-				# 失敗/未開始時は再リクエストして次フレーム以降に待つ
-				ResourceLoader.load_threaded_request("res://current_stage.tscn")
-				isclicked = true
-				return
-			if next_scene:
-				get_tree().change_scene_to_packed(next_scene)
+				var next_scene = ResourceLoader.load_threaded_get("res://current_stage.tscn") as PackedScene
+				if next_scene:
+					get_tree().change_scene_to_packed(next_scene)
+					return
+			# 読み込み中・未開始・失敗時はローディング画面で完了を待つ
+			get_tree().change_scene_to_file("res://loading_screen.tscn")
+			return
 		interval += 1

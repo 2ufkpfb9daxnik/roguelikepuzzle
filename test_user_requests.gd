@@ -1026,10 +1026,14 @@ func _init() -> void:
 	assert(pb.is_bomb[mist_r][mist_c] == false, "is_bomb must be cleared to false on detonation")
 	assert(pb.grid_poison[mist_r][mist_c] == true, "Center cell must have poison ground deployed")
 	assert(pb.is_ally_poison(mist_r, mist_c) == true, "Center cell poison must be ally poison")
-	assert(pb.grid_poison[mist_r - 1][mist_c] == true, "Surrounding cells must have poison ground deployed")
-	assert(pb.is_ally_poison(mist_r - 1, mist_c) == true, "Surrounding cell poison must be ally poison")
-	# Surrounding normal cells must not be broken
-	assert(pb.ismatched[mist_r - 1][mist_c] == false, "Surrounding normal cells must not be destroyed by poison mist")
+	# 火スキルと同様に、複数マスへランダム散布され、毒化したマス上の駒は消去される
+	var mist_poison_count = 0
+	for r in range(pb.GRID_ROWS):
+		for c in range(pb.GRID_COLUMNS):
+			if pb.grid_poison[r][c] and pb.is_ally_poison(r, c):
+				mist_poison_count += 1
+	assert(mist_poison_count >= 3, "Poison skill piece must spread poison to multiple cells (got: %d)" % mist_poison_count)
+	assert(pb.grid_i[mist_r][mist_c] == -1, "Piece on the poisoned center cell must be cleared")
 	print("✓ Poison skill piece clearance and ally poison deployment verified!")
 
 	# ==============================================================================
@@ -2728,15 +2732,18 @@ func _init() -> void:
 	sc.skill_evolutions.erase("light_1")
 	print("✓ Turn-end HP regeneration with light_final_b2 (加護の像) verified!")
 
-	# 7. Verify 後光の像 (light_final_b1) Blocks Enemy Elemental Skill Placement while statue exists
+	# 7. Verify 後光の像 (light_final_b1) Blocks Enemy Hazards only on the 4 cells around the statue
 	pb._initialize_board(null)
 	pb.grid_gold_statue[1][1] = 2
 	pb._set_ally_flag(pb.grid_gold_ally, 1, 1, true)
 	sc.skill_evolutions["light_1"] = {"final": "light_final_b1"}
-	var blocked_targets = pb._apply_enemy_elemental_skill_effect("毒属性", false)
-	assert(blocked_targets.is_empty(), "後光の像 (light_final_b1) while ally statue exists must block enemy elemental hazard skill")
+	assert(pb._check_and_block_enemy_hazard(1, 2) == true, "後光の像 must block a hazard on an adjacent cell")
+	assert(pb.grid_gold_statue[1][1] == 2, "後光の像 must not be consumed by blocking")
+	assert(pb._check_and_block_enemy_hazard(0, 0) == false, "後光の像 must NOT block hazards outside its 4 surrounding cells")
+	var unblocked_targets = pb._apply_enemy_elemental_skill_effect("毒属性", false)
+	assert(not unblocked_targets.is_empty(), "後光の像 must not nullify the entire enemy skill")
 	sc.skill_evolutions.erase("light_1")
-	print("✓ 後光の像 (light_final_b1) blocking enemy elemental hazard skills verified!")
+	print("✓ 後光の像 (light_final_b1) protecting only its surrounding 4 cells verified!")
 
 	print("✓ SECTION 46: Player Light Skill & Gold Statue (聖像) Symmetry ALL PASSED!\n")
 
@@ -3681,29 +3688,26 @@ func _init() -> void:
 	print("✓ Defense reduction cap (min 25% damage guaranteed / max 75% cut) verified! (took " + str(dmg_taken) + " damage)")
 	rm.reset_run()
 
-	# 3-2. Light Statue Durability Consumption on Skill Block (身代わり消費化)
+	# 3-2. Light Statue protects only its 4 surrounding cells (後光の像 nerf)
 	pb._initialize_board(null)
 	pb.has_light_sanctuary_this_turn = false
 	sc.skill_evolutions.clear()
 	sc.choose_skill_evolution("light_1", 20, "light_final_b1")
 	pb.grid_gold_statue[2][2] = 2
 	pb._set_ally_flag(pb.grid_gold_ally, 2, 2, true)
-	
-	# First block: statue durability 2 -> 1
-	var blk1 = pb._apply_enemy_elemental_skill_effect("毒属性", false)
-	assert(blk1.is_empty(), "First enemy skill must be blocked by statue")
-	assert(pb.grid_gold_statue[2][2] == 1, "Statue durability must decrement from 2 to 1 (got: " + str(pb.grid_gold_statue[2][2]) + ")")
-	
-	# Second block: statue durability 1 -> 0 (statue shattered/removed)
-	var blk2 = pb._apply_enemy_elemental_skill_effect("火属性", false)
-	assert(blk2.is_empty(), "Second enemy skill must be blocked by statue")
-	assert(pb.grid_gold_statue[2][2] == 0, "Statue durability must reach 0 and be removed")
-	assert(pb.is_ally_gold(2, 2) == false, "Statue ally flag must be cleared when durability reaches 0")
-	
-	# Third skill: no statue left, skill goes through (not empty)
+
+	# The 4 orthogonally adjacent cells are protected, but the statue is not consumed
+	assert(pb._check_and_block_enemy_hazard(2, 1) == true, "Statue must block hazard on its left cell")
+	assert(pb._check_and_block_enemy_hazard(2, 3) == true, "Statue must block hazard on its right cell")
+	assert(pb._check_and_block_enemy_hazard(1, 2) == true, "Statue must block hazard on its upper cell")
+	assert(pb._check_and_block_enemy_hazard(3, 2) == true, "Statue must block hazard on its lower cell")
+	assert(pb.grid_gold_statue[2][2] == 2, "Statue durability must not be consumed by hazard blocking")
+	assert(pb._check_and_block_enemy_hazard(1, 1) == false, "Statue must NOT block diagonal cells")
+
+	# Enemy skill is no longer nullified as a whole
 	var blk3 = pb._apply_enemy_elemental_skill_effect("水属性", false)
-	assert(not blk3.is_empty(), "Third enemy skill must NOT be blocked when no statues remain")
-	print("✓ Light statue durability consumption & shattering on block verified!")
+	assert(not blk3.is_empty(), "Enemy elemental skill must not be fully nullified by a statue")
+	print("✓ Light statue now only protects its 4 surrounding cells verified!")
 
 	# 3-4. Cursed Relic Penalty Escalation on Level Up
 	# Cursed Shura Sword

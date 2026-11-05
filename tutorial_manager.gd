@@ -316,8 +316,7 @@ func _setup_ui() -> void:
 	content_lbl.bbcode_enabled = true
 	content_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content_lbl.scroll_active = true
-	var sys_jp = SystemFont.new()
-	sys_jp.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "sans-serif"])
+	var sys_jp = load("res://font/NotoSansJP.ttf")
 	content_lbl.add_theme_font_override("normal_font", sys_jp)
 	content_lbl.add_theme_font_override("bold_font", sys_jp)
 	content_lbl.add_theme_font_size_override("normal_font_size", 24)

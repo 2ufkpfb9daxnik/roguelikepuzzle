@@ -39,12 +39,19 @@ func _get_settings_manager() -> Node:
 		p = p.get_parent()
 	return null
 
+func _play_ui_se(kind: String) -> void:
+	var sm = _get_settings_manager()
+	if sm and sm.has_method("play_ui_se"):
+		sm.play_ui_se(kind)
+
 func _is_tutorial_mode() -> bool:
 	var sm = _get_settings_manager()
 	return bool(sm and "is_tutorial_mode" in sm and sm.is_tutorial_mode)
 
 func _ready() -> void:
 	layer = 60
+	if CUSTOM_FONT is Font:
+		CUSTOM_FONT.set_fallbacks([load("res://font/NotoSansJP.ttf"), load("res://font/NotoEmoji.ttf")])
 	
 	var dim = ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.7)
@@ -98,7 +105,10 @@ func _ready() -> void:
 	skip_btn.custom_minimum_size = Vector2(280, 65)
 	skip_btn.size = Vector2(280, 65)
 	skip_btn.position = Vector2((1540.0 - 280.0) / 2.0, 715)
-	skip_btn.pressed.connect(_on_skip_pressed)
+	skip_btn.pressed.connect(func():
+		_play_ui_se("select")
+		_on_skip_pressed()
+	)
 	panel.add_child(skip_btn)
 	
 	_populate_choices()
@@ -317,6 +327,9 @@ func _populate_choices() -> void:
 		if CUSTOM_FONT:
 			d_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 			d_label.add_theme_font_override("bold_font", CUSTOM_FONT)
+			d_label.add_theme_font_override("italics_font", CUSTOM_FONT)
+			d_label.add_theme_font_override("bold_italics_font", CUSTOM_FONT)
+			d_label.add_theme_font_override("mono_font", CUSTOM_FONT)
 		d_label.add_theme_font_size_override("normal_font_size", 22)
 		d_label.add_theme_font_size_override("bold_font_size", 22)
 		d_label.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -341,9 +354,11 @@ func _populate_choices() -> void:
 			else:
 				btn.modulate = Color(0.65, 0.65, 0.65, 0.85)
 
+		btn.mouse_entered.connect(func(): _play_ui_se("hover"))
 		btn.pressed.connect(func():
 			if is_tut_btn and choices.size() >= 3 and card_idx != 1:
 				return
+			_play_ui_se("select")
 			_on_choice_pressed(c_id)
 		)
 		hbox.add_child(btn)

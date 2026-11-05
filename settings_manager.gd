@@ -4,6 +4,11 @@ extends Node
 ## 音量調整（BGM・SE）、ゲーム速度調整（全体速度＆オーディオ速度連動）、共通設定画面UIを提供
 
 const CUSTOM_FONT: Font = preload("res://font/g_comickoin_freeR.ttf")
+const UI_SE_HOVER: AudioStream = preload("res://Sound/se/kurikku/cursor_14_demo.mp3")
+const UI_SE_SELECT: AudioStream = preload("res://Sound/se/kurikku/kettei-.mp3")
+const UI_SE_OPEN: AudioStream = preload("res://Sound/se/kurikku/select_09_demo.mp3")
+const UI_SE_CANCEL: AudioStream = preload("res://Sound/se/kurikku/cancel_24.mp3")
+var _ui_se_player: AudioStreamPlayer = null
 
 # 設定値
 var bgm_volume: float = 0.2   # 0.0 ~ 1.0
@@ -116,9 +121,8 @@ func _ready() -> void:
 	
 	# 日本語フォントフォールバックの設定
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		CUSTOM_FONT.set_fallbacks([sys_font])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		CUSTOM_FONT.set_fallbacks([sys_font, load("res://font/NotoEmoji.ttf")])
 
 	var t = _get_tree_safe()
 	if t and not t.node_added.is_connected(_on_node_added):
@@ -211,6 +215,35 @@ func set_bgm_volume(val: float) -> void:
 		_sync_audio_nodes(r)
 
 ## SE音量の変更と反映
+## BGMプレイヤーを手動ループさせる（読み取り専用のインポート済み音源を書き換えない）
+func enable_bgm_loop(player: Node) -> void:
+	if player == null:
+		return
+	if not (player is AudioStreamPlayer or player is AudioStreamPlayer2D):
+		return
+	if player.has_meta("manual_bgm_loop"):
+		return
+	player.set_meta("manual_bgm_loop", true)
+	player.finished.connect(func():
+		if is_instance_valid(player):
+			player.play()
+	)
+
+## 共通UI効果音（設定ボタン・レリックホバー／選択など）
+func play_ui_se(kind: String = "select") -> void:
+	if _ui_se_player == null or not is_instance_valid(_ui_se_player):
+		_ui_se_player = AudioStreamPlayer.new()
+		_ui_se_player.name = "UISoundPlayer"
+		add_child(_ui_se_player)
+	var stream: AudioStream = UI_SE_SELECT
+	match kind:
+		"hover": stream = UI_SE_HOVER
+		"open": stream = UI_SE_OPEN
+		"cancel": stream = UI_SE_CANCEL
+	_ui_se_player.stream = stream
+	_ui_se_player.volume_db = linear_to_db(clampf(se_volume, 0.001, 1.0))
+	_ui_se_player.play()
+
 func set_se_volume(val: float) -> void:
 	se_volume = clampf(val, 0.0, 1.0)
 	var r = _get_scene_root()

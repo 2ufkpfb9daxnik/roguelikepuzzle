@@ -55,13 +55,26 @@ var shop_card_refs: Array[Dictionary] = []
 var skill_node_refs: Array[Dictionary] = []
 
 # パフォーマンス最適化用キャッシュ変数
-var _cached_jp_font: SystemFont = null
-func _get_jp_font() -> SystemFont:
+var _cached_jp_font: Font = null
+func _get_jp_font() -> Font:
 	if _cached_jp_font == null:
-		_cached_jp_font = SystemFont.new()
-		_cached_jp_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		_cached_jp_font.font_weight = 700
+		_cached_jp_font = load("res://font/NotoSansJP.ttf")
+		_cached_jp_font.set_fallbacks([load("res://font/NotoEmoji.ttf")])
 	return _cached_jp_font
+
+## Web環境でも日本語が文字化けしないよう、コントロールに日本語フォントを適用
+func _apply_jp_font_to_control(ctrl: Control) -> void:
+	if ctrl == null:
+		return
+	var f: Font = _get_jp_font()
+	if ctrl is RichTextLabel:
+		ctrl.add_theme_font_override("normal_font", f)
+		ctrl.add_theme_font_override("bold_font", f)
+		ctrl.add_theme_font_override("italics_font", f)
+		ctrl.add_theme_font_override("bold_italics_font", f)
+		ctrl.add_theme_font_override("mono_font", f)
+	else:
+		ctrl.add_theme_font_override("font", f)
 
 var _last_total_score: int = -999999
 var _last_divscore: Array = [-1, -1, -1, -1, -1]
@@ -231,7 +244,7 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 			],
 			"wind_mid_c": [
 				{"id": "wind_final_c1", "name": "風の守り", "role": "通過列に2ターン妨害マス設置阻止", "desc": "竜巻が通過した列には、2ターンの間相手の妨害マスが置かれなくなる。"},
-				{"id": "wind_final_c2", "name": "追い風の恵み", "role": "奪取マス数比例でMP回復 (+10/マス)", "desc": "自陣へと奪取・変換したマスの数に応じて、スキルエナジー(MP)が1マスにつき10回復する。"}
+				{"id": "wind_final_c2", "name": "追い風の恵み", "role": "奪取マス数比例でHP回復 (+60/マス)", "desc": "自陣へと奪取・変換したマス1つにつき、HPを60回復する（ステージ倍率適用）。"}
 			]
 		}
 	},
@@ -344,7 +357,7 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 		"mid": [
 			{"id": "light_mid_a", "branch": "A", "name": "光輝の像", "role": "聖像が毎ターン敵へ聖光自動斉射", "desc": "自陣の聖像（黄金像）が神聖な光を宿し、毎ターン終了時に盤面の全聖像から敵へ聖光弾を自動斉射して追撃する（聖像数×80ダメージ）。"},
 			{"id": "light_mid_b", "branch": "B", "name": "聖域の像", "role": "聖像周囲が聖域化(被ダメ25%減&妨害耐性)", "desc": "聖像が神聖な結界を形成し、発動ターンの被ダメージを25%軽減するとともに、聖域内マスへの敵妨害（毒・火・氷・呪い）侵入を防ぐ。"},
-			{"id": "light_mid_c", "branch": "C", "name": "共鳴の像", "role": "聖像マッチ時エナジー即時充填(+20)", "desc": "自陣の聖像（黄金像）をマッチ・消去した時、聖なる光が共鳴してスキルエナジーが即座に大回復（+20）する。"}
+			{"id": "light_mid_c", "branch": "C", "name": "共鳴の像", "role": "聖像マッチ時シールド獲得(+200×ステージ倍率)", "desc": "自陣の聖像（黄金像）をマッチ・消去した時、聖なる光が共鳴してシールドを獲得する（200×ステージ倍率）。"}
 		],
 		"final": {
 			"light_mid_a": [
@@ -352,7 +365,7 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 				{"id": "light_final_a2", "name": "聖像共振", "role": "全聖像がレーザー連結・ライン一掃", "desc": "光スキル発動時、盤面にある全聖像が共鳴レーザーで相互に連結し、ライン上のコマを一掃消滅させて敵へ貫通大ダメージを与える。"}
 			],
 			"light_mid_b": [
-				{"id": "light_final_b1", "name": "後光の像", "role": "聖像存在時敵妨害マス設置を身代わり遮断", "desc": "自陣の聖像が敵スキルの妨害マス設置を身代わりとなって遮断する（遮断ごとに聖像の耐久値-1）。"},
+				{"id": "light_final_b1", "name": "後光の像", "role": "聖像の周囲4マスへの敵妨害設置を無効化", "desc": "自陣の聖像の周囲4マス（上下左右）は、敵スキルの妨害マス設置を無効化する。敵スキル全体は無効化しない。"},
 				{"id": "light_final_b2", "name": "加護の像", "role": "毎Tターン終了時HP回復(聖像数×120HP)", "desc": "自陣の聖像が盤面に存在する限り、ターン終了時に自身のHPを持続回復する（聖像数×120 HP）。"}
 			],
 			"light_mid_c": [
@@ -363,18 +376,18 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 	},
 	"dark": {
 		"mid": [
-			{"id": "dark_mid_a", "branch": "A", "name": "歪曲", "role": "吸引後1手離れた駒同士交換可能", "desc": "ブラックホール（闇スキル）発動後の1手に限り、盤面のどの位置にある離れた駒同士でも自由にスワップ交換できる。"},
+			{"id": "dark_mid_a", "branch": "A", "name": "歪曲", "role": "闇スキル後1ターン自由スワップ", "desc": "闇スキル発動後1ターンの間、盤面のどの位置にある離れた駒同士でも自由にスワップ交換できる。"},
 			{"id": "dark_mid_b", "branch": "B", "name": "代償", "role": "HP消費(8%)で吸引範囲拡大", "desc": "ブラックホール（闇スキル）発動時に自身の現在HPの8%を代償として支払う代わりに、吸引範囲が3×3から5×5へと拡大する。"},
-			{"id": "dark_mid_c", "branch": "C", "name": "反動", "role": "被ダメ蓄積(上限5000・発動時0リセット)", "desc": "相手から受けたダメージを体内に闇のエネルギーとして蓄積する（最大5000まで蓄積、ブラックホール（闇スキル）発動時に蓄積値は0に戻る）。"}
+			{"id": "dark_mid_c", "branch": "C", "name": "反動", "role": "被ダメ50%蓄積(上限5000・発動時0リセット)", "desc": "相手から受けたダメージの50%を体内に闇のエネルギーとして蓄積する（最大5000まで蓄積、ブラックホール（闇スキル）発動時に蓄積値は0に戻る）。"}
 		],
 		"final": {
 			"dark_mid_a": [
-				{"id": "dark_final_a1", "name": "重力崩壊", "role": "中心から斜め✕字衝撃波消去", "desc": "ブラックホール吸引完了時、中心から斜め4方向（✕字ライン）に重力波が走り、ライン上の駒を一掃消去する。"},
-				{"id": "dark_final_a2", "name": "空間転移", "role": "離れた駒の交換が続けて3手可能", "desc": "ブラックホール後の自由スワップ効果が強化され、続けて3手まで離れた駒同士を交換可能になる。"}
+				{"id": "dark_final_a1", "name": "重力崩壊", "role": "盤面中央3×3を特異点消去", "desc": "闇スキル発動時、盤面中央3×3の駒を特異点へ吸引し、まとめて消去する。"},
+				{"id": "dark_final_a2", "name": "空間転移", "role": "闇スキル後3ターン自由スワップ", "desc": "闇スキル発動後3ターンの間、離れた駒同士を自由に交換できる。"}
 			],
 			"dark_mid_b": [
-				{"id": "dark_final_b1", "name": "飽食", "role": "範囲内の石・像・植物を無条件消去", "desc": "吸引範囲内に存在する相手の石・黄金像・植物などの障害物を、耐久値に関係なくすべて呑み込んで完全消滅させる。"},
-				{"id": "dark_final_b2", "name": "事象の地平", "role": "吸い込み駒数比例闇ダメージ", "desc": "ブラックホールが呑み込んだ駒・障害物1個につき、相手へ強力な闇属性追撃ダメージを与える。"}
+				{"id": "dark_final_b1", "name": "飽食", "role": "範囲内の敵の石・像・植物を無条件消去", "desc": "吸引範囲内に存在する相手の石・黄金像・植物などの障害物を、耐久値に関係なくすべて呑み込んで完全消滅させる。"},
+				{"id": "dark_final_b2", "name": "事象の地平", "role": "吸い込み数比例の闇追撃", "desc": "ブラックホールが呑み込んだ駒・障害物1個につき、相手へ闇属性の追撃ダメージを与える。"}
 			],
 			"dark_mid_c": [
 				{"id": "dark_final_c1", "name": "暗黒の解放", "role": "発動時蓄積ダメージの50%を解放", "desc": "ブラックホール（闇スキル）発動時、これまでに蓄積したダメージの50%を一気に相手へ解放し、追加ダメージとして叩き込む。"},
@@ -384,8 +397,8 @@ const SKILL_EVOLUTION_REGISTRY: Dictionary = {
 	}
 }
 
-# スキル／進化アイコンの割り当て（Texture/skill/skill001.jpg ～ skill069.jpg）
-# 表示には背景を除去して軽量化した Texture/skill_icons/*.png を使う。
+# スキル／進化アイコンの割り当て（Texture/skill_icons/skill001.png ～ skill100.png）
+# 各属性ごとに「基本 → 中間A/B/C → 最終A1/A2/B1/B2/C1/C2」の順で生成されたアイコンに対応。
 # 未生成の進化は同系統の基本スキルアイコン、それも無い属性は元素アイコンへフォールバックする。
 const SKILL_ICON_DIR: String = "res://Texture/skill_icons/"
 const SKILL_ICON_SOURCE_DIR: String = "res://Texture/skill/"
@@ -445,28 +458,61 @@ const SKILL_ICON_INDEX: Dictionary = {
 	"fire_final_b2": 48,
 	"fire_final_c1": 49,
 	"fire_final_c2": 50,
-	# --- 雷（生成済みの6枚を効果の近い進化へ割り当て） ---
+	# --- 雷 ---
 	"thunder_1": 51,
 	"thunder_mid_a": 52,
 	"thunder_mid_b": 53,
-	"thunder_final_a1": 54,
-	"thunder_final_c1": 55,
-	"thunder_final_b2": 56,
-	# --- 地（生成済みの7枚を効果の近い進化へ割り当て） ---
-	"earth_1": 59,
-	"earth_mid_a": 58,
-	"earth_final_a2": 57,
-	"earth_final_c1": 60,
-	"earth_final_b1": 61,
-	"earth_final_b2": 62,
-	"earth_final_c2": 63,
-	# --- 毒（生成済みの6枚を効果の近い進化へ割り当て） ---
-	"poison_1": 64,
-	"poison_mid_c": 65,
-	"poison_mid_b": 66,
-	"poison_final_b2": 67,
-	"poison_mid_a": 68,
-	"poison_final_c1": 69,
+	"thunder_mid_c": 54,
+	"thunder_final_a1": 55,
+	"thunder_final_a2": 56,
+	"thunder_final_b1": 57,
+	"thunder_final_b2": 58,
+	"thunder_final_c1": 59,
+	"thunder_final_c2": 60,
+	# --- 地 ---
+	"earth_1": 61,
+	"earth_mid_a": 62,
+	"earth_mid_b": 63,
+	"earth_mid_c": 64,
+	"earth_final_a1": 65,
+	"earth_final_a2": 66,
+	"earth_final_b1": 67,
+	"earth_final_b2": 68,
+	"earth_final_c1": 69,
+	"earth_final_c2": 70,
+	# --- 毒 ---
+	"poison_1": 71,
+	"poison_mid_a": 72,
+	"poison_mid_b": 73,
+	"poison_mid_c": 74,
+	"poison_final_a1": 75,
+	"poison_final_a2": 76,
+	"poison_final_b1": 77,
+	"poison_final_b2": 78,
+	"poison_final_c1": 79,
+	"poison_final_c2": 80,
+	# --- 光 ---
+	"light_1": 81,
+	"light_mid_a": 82,
+	"light_mid_b": 83,
+	"light_mid_c": 84,
+	"light_final_a1": 85,
+	"light_final_a2": 86,
+	"light_final_b1": 87,
+	"light_final_b2": 88,
+	"light_final_c1": 89,
+	"light_final_c2": 90,
+	# --- 闇 ---
+	"dark_1": 91,
+	"dark_mid_a": 92,
+	"dark_mid_b": 93,
+	"dark_mid_c": 94,
+	"dark_final_a1": 95,
+	"dark_final_a2": 96,
+	"dark_final_b1": 97,
+	"dark_final_b2": 98,
+	"dark_final_c1": 99,
+	"dark_final_c2": 100,
 }
 
 ## スキルまたは進化IDに対応するアイコンパスを返す。
@@ -968,11 +1014,11 @@ static func _base_skill_description(elem: String, lvl: int) -> String:
 		"earth":
 			return "【岩盤崩落】味方の輝石マスを最大%d個生成（耐久2）。マッチまたは雷で破砕。発動時シールド+%d。直撃威力%d。" % [2 + lvl / 3, 150 + lvl * 30, 80 + lvl * 15]
 		"poison":
-			return "【瘴気毒霧】毒マスを最大%d個生成。毎ターン毒ダメージを与え、隣接マスへ伝染。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+			return "【瘴気毒霧】毒マスを最大%d個生成し、その上の駒を消去。毎ターン毒ダメージを与え、隣接マスへ伝染。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
 		"light":
 			return "【聖像降臨】聖像を最大%d体召喚（耐久2）。破壊時に+500G獲得＆敵へ光ダメージ。発動時シールド+%d。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15, 100 + lvl * 20]
 		"dark":
-			return "【星影の帳】2×2の星影の霧を3ターン生成し、影護マスを最大%d個生成。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
+			return "【星影の帳】2×2の星影の霧を3ターン生成し、影護マスを最大%d個生成。影護マスをマッチで消すと敵へ闇ダメージ＆自身回復。直撃威力%d。" % [2 + lvl / 2, 80 + lvl * 15]
 	return "効果強化 (Lv1)"
 
 static func _evolution_note(elem: String, lvl: int) -> String:
@@ -990,9 +1036,8 @@ static func _evolution_note(elem: String, lvl: int) -> String:
 func _ready() -> void:
 	# フォントにシステム日本語フォールバックを設定（あらゆる漢字の確実な描画を保証）
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		CUSTOM_FONT.set_fallbacks([sys_font])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		CUSTOM_FONT.set_fallbacks([sys_font, load("res://font/NotoEmoji.ttf")])
 
 	# 0. レリックマネージャーのシグナル接続
 	var rm = _get_relic_manager()
@@ -1101,9 +1146,7 @@ func _ready() -> void:
 		gridscore.append(columnscore)
 	
 	# コンボ表示のフォント＆スタイリング（明瞭でくっきり読めるSystemFontボールド＆前面表示を保証）
-	var combo_font = SystemFont.new()
-	combo_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Arial", "sans-serif"])
-	combo_font.font_weight = 800
+	var combo_font = load("res://font/NotoSansJP.ttf")
 
 	# コンボ欄・敵画面枠の初期化・スタイル統一 (x: 26..216, y: 166..346)
 	var cb_rect1 = get_node_or_null("comborect1") as ColorRect
@@ -2641,10 +2684,12 @@ func _update_shop_tab_styles() -> void:
 	active_btn.size = Vector2(active_btn.size.x, 76)
 	active_btn.z_index = 3
 	var active_style = StyleBoxFlat.new()
-	# 選択中タブは枠線で四角く囲わず、コンテンツと同色で地続きに見せる
+	# 選択中タブも外側との境界が分かるよう、黄色い線で囲む
 	active_style.bg_color = content_bg
-	active_style.border_color = accent
-	active_style.set_border_width_all(0)
+	active_style.border_color = Color(1.0, 0.86, 0.22, 1.0)
+	active_style.set_border_width_all(3)
+	# 下側の線はコンテンツと繋がるため描かない
+	active_style.border_width_bottom = 0
 	active_style.corner_radius_top_left = 12
 	active_style.corner_radius_top_right = 12
 	active_btn.add_theme_stylebox_override("normal", active_style)
@@ -2658,9 +2703,11 @@ func _update_shop_tab_styles() -> void:
 	inactive_btn.z_index = 1
 	var inactive_style = StyleBoxFlat.new()
 	inactive_style.bg_color = Color(0.035, 0.040, 0.055, 1.0)
-	inactive_style.border_color = Color(0.25, 0.28, 0.35, 0.85)
-	inactive_style.set_border_width_all(1)
-	inactive_style.border_width_bottom = 2
+	# 非選択タブも黄色い線で囲み、外側との境界を明確にする（選択中より少し暗い黄色）
+	inactive_style.border_color = Color(0.82, 0.68, 0.20, 0.95)
+	inactive_style.set_border_width_all(2)
+	# 下側の線は描かない
+	inactive_style.border_width_bottom = 0
 	inactive_style.corner_radius_top_left = 10
 	inactive_style.corner_radius_top_right = 10
 	inactive_btn.add_theme_stylebox_override("normal", inactive_style)
@@ -3029,6 +3076,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	if skill_idx < 0 or skill_idx >= skill_tree_items.size():
 		return
 	var s_item = skill_tree_items[skill_idx]
+	var jp_font: Font = _get_jp_font()
 	var choices = get_evolution_choices(s_item["id"], milestone_lvl)
 	if choices.is_empty():
 		_complete_skill_upgrade(skill_idx, milestone_lvl, "")
@@ -3060,7 +3108,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	# Close / Cancel button at top-right
 	var close_btn = Button.new()
 	close_btn.name = "ModalCloseBtn"
-	close_btn.text = "✕ キャンセル"
+	close_btn.text = "× キャンセル"
 	close_btn.position = Vector2(1720, 24)
 	close_btn.size = Vector2(130, 40)
 	var cl_st = StyleBoxFlat.new()
@@ -3070,6 +3118,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	cl_st.set_corner_radius_all(8)
 	close_btn.add_theme_stylebox_override("normal", cl_st)
 	close_btn.add_theme_color_override("font_color", Color(0.9, 0.8, 0.8))
+	_apply_jp_font_to_control(close_btn)
 	close_btn.pressed.connect(func():
 		if is_instance_valid(modal):
 			modal.queue_free()
@@ -3084,6 +3133,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 	title_lbl.position = Vector2(40, 30)
 	title_lbl.size = Vector2(1460, 90)
 	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_apply_jp_font_to_control(title_lbl)
 	var milestone_title = "【第1覚醒・中間進化 (Lv.10)】" if milestone_lvl <= 10 else "【極限覚醒・最終進化 (Lv.20)】"
 	title_lbl.text = "[center][b][color=#FFD54F][font_size=34]✦ スキルの正当進化 ✦[/font_size][/color][/b]\n"
 	title_lbl.text += "[color=#B0BEC5][font_size=22]スキル「[color=#FFE082]%s[/color]」が[color=#FFD700]%s[/color]に到達しました。歩むべき特性の進化を選択してください。[/font_size][/color][/center]" % [
@@ -3149,6 +3199,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		num_lbl.position = Vector2(20, 24)
 		num_lbl.size = Vector2(card_w - 40, 40)
 		num_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_apply_jp_font_to_control(num_lbl)
 		num_lbl.text = "[center][b][color=#D4AF37][font_size=30]── %s ──[/font_size][/color][/b][/center]" % str(choice.get("numeral", "Ⅰ"))
 		card.add_child(num_lbl)
 
@@ -3158,6 +3209,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		name_lbl.position = Vector2(16, 75)
 		name_lbl.size = Vector2(card_w - 32, 55)
 		name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_apply_jp_font_to_control(name_lbl)
 		name_lbl.text = "[center][b][color=%s][font_size=28]%s[/font_size][/color][/b][/center]" % [
 			el_color.to_html(), choice.get("name", "")
 		]
@@ -3169,6 +3221,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		role_lbl.position = Vector2(16, 135)
 		role_lbl.size = Vector2(card_w - 32, 35)
 		role_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		_apply_jp_font_to_control(role_lbl)
 		role_lbl.text = "[center][color=#FFE082][font_size=20]《 %s 》[/font_size][/color][/center]" % GlossaryDatabase.format_text(choice.get("role", ""))
 		GlossaryDatabase.bind_rich_text_label(role_lbl)
 		card.add_child(role_lbl)
@@ -3215,6 +3268,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 			emblem_txt.position = Vector2(0, 50)
 			emblem_txt.size = Vector2(156, 56)
 			emblem_txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_apply_jp_font_to_control(emblem_txt)
 			emblem_txt.text = "[center][font_size=34]%s[/font_size][/center]" % s_item.get("short_label", "✦")
 			emblem_frame.add_child(emblem_txt)
 
@@ -3224,6 +3278,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		desc_lbl.position = Vector2(24, 366)
 		desc_lbl.size = Vector2(card_w - 48, 170)
 		desc_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		_apply_jp_font_to_control(desc_lbl)
 		var desc_text = str(choice.get("desc", ""))
 		desc_lbl.text = "[color=#ECEFF1][font_size=23]%s[/font_size][/color]" % GlossaryDatabase.format_text(desc_text)
 		GlossaryDatabase.bind_rich_text_label(desc_lbl)
@@ -3249,6 +3304,7 @@ func _open_tarot_evolution_modal(skill_idx: int, milestone_lvl: int) -> void:
 		sel_btn.add_theme_stylebox_override("hover", btn_st_hov)
 		sel_btn.add_theme_color_override("font_color", Color("#FFF8E1"))
 		sel_btn.add_theme_font_size_override("font_size", 22)
+		_apply_jp_font_to_control(sel_btn)
 
 		var evo_id_captured = str(choice.get("id", ""))
 		sel_btn.pressed.connect(func():

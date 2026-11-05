@@ -20,19 +20,35 @@ func _ready() -> void:
 	var rui_node = load("res://relic_ui_manager.gd").new()
 	rui_node.name = "RelicUIManager"
 	add_child(rui_node)
+
+	var net = get_node_or_null("/root/NetworkManager")
+	var pvp_mode: bool = net != null and "pvp_mode" in net and bool(net.pvp_mode)
+	if pvp_mode and rui_node.has_method("set_bottom_bars_visible"):
+		rui_node.set_bottom_bars_visible(false)
 	
 	# チュートリアルモードの場合、チュートリアル案内マネージャーを生成
 	var sm_tut = get_node_or_null("/root/SettingsManager")
-	if sm_tut and "is_tutorial_mode" in sm_tut and sm_tut.is_tutorial_mode:
+	if not pvp_mode and sm_tut and "is_tutorial_mode" in sm_tut and sm_tut.is_tutorial_mode:
 		var tut_mgr = load("res://tutorial_manager.gd").new()
 		tut_mgr.name = "TutorialManager"
 		add_child(tut_mgr)
+
+	if pvp_mode:
+		if return_title_btn:
+			return_title_btn.visible = false
+		var stage_label = get_node_or_null("StageManager/StageLabel")
+		if stage_label: stage_label.visible = false
+		var stage_label2 = get_node_or_null("StageManager/StageLabel2")
+		if stage_label2: stage_label2.visible = false
+		var stage_change_btn = get_node_or_null("ScoreManager/stagechangeb")
+		if stage_change_btn: stage_change_btn.visible = false
+		var pvp_controller = load("res://versus_match.gd").new()
+		pvp_controller.name = "PvPController"
+		add_child.call_deferred(pvp_controller)
 	
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		var emoji_f = SystemFont.new()
-		emoji_f.font_names = PackedStringArray(["Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		var emoji_f = load("res://font/NotoEmoji.ttf")
 		sys_font.set_fallbacks([emoji_f])
 		CUSTOM_FONT.set_fallbacks([sys_font])
 
@@ -103,8 +119,11 @@ func _ready() -> void:
 	settings_btn.add_theme_stylebox_override("hover", style_hover)
 
 	settings_btn.pressed.connect(func():
-		if click_se: click_se.play()
 		var sm_autoload = get_node_or_null("/root/SettingsManager")
+		if sm_autoload and sm_autoload.has_method("play_ui_se"):
+			sm_autoload.play_ui_se("open")
+		elif click_se:
+			click_se.play()
 		if sm_autoload:
 			sm_autoload.open_settings()
 	)

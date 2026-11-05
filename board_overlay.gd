@@ -21,9 +21,8 @@ const BOARD_HEIGHT: float = 9100.0
 func _ready() -> void:
 	z_index = 8 # コマ(0~3)より手前、UIより奥
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
-		var sys_font = SystemFont.new()
-		sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		CUSTOM_FONT.set_fallbacks([sys_font])
+		var sys_font = load("res://font/NotoSansJP.ttf")
+		CUSTOM_FONT.set_fallbacks([sys_font, load("res://font/NotoEmoji.ttf")])
 
 # 常時アニメーション（脈動・揺らめき）する障害物の再描画間隔（秒）。描画は時間ベースなのでアニメ速度は不変
 const ANIM_REDRAW_INTERVAL: float = 1.0 / 24.0

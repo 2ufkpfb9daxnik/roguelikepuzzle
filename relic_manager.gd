@@ -586,11 +586,24 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		emit_signal("relic_triggered", "magnet_charm")
 
 	if has_relic("superconduct_ring") and el_str == "thunder":
-		bonus_mult += float(get_param("superconduct_ring", "skill_damage", 0.30))
+		bonus_mult += float(get_param("superconduct_ring", "damage_bonus", 0.15))
 		emit_signal("relic_triggered", "superconduct_ring")
 
+	if has_relic("elemental_affinity_ring") and context.get("is_skill", false):
+		var affinity_cat = get_chosen_element_category()
+		var affinity_elems = []
+		if affinity_cat == "nature":
+			affinity_elems = ["water", "ice", "wood", "wind"]
+		elif affinity_cat == "force":
+			affinity_elems = ["fire", "thunder", "earth"]
+		elif affinity_cat == "mystic":
+			affinity_elems = ["poison", "light", "dark"]
+		if affinity_cat != "" and el_str in affinity_elems:
+			bonus_mult += float(get_param("elemental_affinity_ring", "skill_damage", 0.08))
+			emit_signal("relic_triggered", "elemental_affinity_ring")
+
 	if has_relic("shadow_pin") and el_str == "dark":
-		bonus_mult += float(get_param("shadow_pin", "dark_damage_bonus", 0.30))
+		bonus_mult += float(get_param("shadow_pin", "dark_damage", 0.10))
 		emit_signal("relic_triggered", "shadow_pin")
 
 	if has_relic("holy_lighthouse") and el_str == "light":

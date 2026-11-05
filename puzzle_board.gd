@@ -8,6 +8,9 @@ signal tutorial_items_scored()
 signal tutorial_attack_landed()
 signal tutorial_enemy_acted()
 signal tutorial_special_detonated(sp_type: int)
+signal pvp_turn_resolved(payload: Dictionary)
+signal pvp_turn_completed()
+signal pvp_move_started()
 
 # チュートリアル制限・一時停止用
 var tutorial_allowed_swap: Array[Vector2i] = []
@@ -71,6 +74,16 @@ func setup_tutorial_move2_board() -> void:
 var turn_skill_log: Array = []
 const DEBUG_COMBAT_EVENTS = true
 
+# --- 通信対戦（PvP）用 ---
+var pvp_mode: bool = false
+var pvp_my_turn: bool = false
+var pvp_pending_damage: float = 0.0
+var pvp_divscore_snapshot: Array = []
+var pvp_start_enemy_hp: float = 0.0
+var pvp_is_attack: int = 0
+var pvp_is_block: int = 0
+var pvp_used_skills: Array = []
+
 
 func _emit_combat_event(type: String, source: String, target: Variant, amount: float, element: String = "", is_critical: bool = false, effectiveness: String = "normal", extra: Dictionary = {}) -> void:
 	var t_node = target
@@ -95,6 +108,8 @@ func _emit_combat_event(type: String, source: String, target: Variant, amount: f
 	for k in extra:
 		event[k] = extra[k]
 	emit_signal("combat_event", event)
+	if pvp_mode and type == "damage" and source == "ally":
+		pvp_pending_damage += maxf(0.0, amount)
 	if DEBUG_COMBAT_EVENTS:
 		print("[CombatEvent] ", event)
 
@@ -127,6 +142,7 @@ const GRID_COLUMNS: int = 13
 const GRID_ROWS: int = 13
 const CELL_KINDS: int = 5
 const CELL_PITCH: float = 700.0
+const MAX_COMBO_GUIDES: int = 12
 
 # --- 共通シード・乱数生成器 (チュートリアル固定シード / 通常プレイ時ランダムシード) ---
 const TUTORIAL_SEED: int = 12345678
@@ -517,7 +533,8 @@ func _redraw_board_effects() -> void:
 	_update_board_element_flags()
 	if board_bg: board_bg.queue_redraw()
 	if board_overlay and (has_board_hazards or not active_wind_tornadoes.is_empty()): board_overlay.queue_redraw()
-	if mark_overlay and has_special_items: mark_overlay.queue_redraw()
+	# 特殊アイテムが消滅した時も必ず再描画し、消えたアイコンが盤面に残り続けないようにする
+	if mark_overlay: mark_overlay.queue_redraw()
 
 # 特殊アイテム演出（明滅・マーク脈動）の更新間隔（秒）。時間ベースの演出なので速度は変わらない
 const SPECIAL_FX_UPDATE_INTERVAL: float = 1.0 / 30.0
@@ -936,6 +953,8 @@ func _ensure_player_status_bar() -> void:
 	player_status_bar.autowrap_mode = TextServer.AUTOWRAP_OFF
 	player_status_bar.add_theme_constant_override("outline_size", 4)
 	player_status_bar.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	player_status_bar.add_theme_font_override("normal_font", _get_skill_ui_font())
+	player_status_bar.add_theme_font_override("bold_font", _get_skill_ui_font())
 	player_status_bar.add_theme_font_size_override("normal_font_size", 13)
 	player_status_bar.size = Vector2(725, 24)
 	player_status_bar.position = Vector2(1190, 440)
@@ -1086,6 +1105,15 @@ func _get_mouse_local(event: InputEvent = null) -> Vector2:
 	return Vector2.ZERO
 
 func _unhandled_input(event: InputEvent) -> void:
+	# フィーバータイムの突入文字が表示されている間は盤面操作を完全に遮断する
+	var fever_sm = _get_stage_manager()
+	if fever_sm and fever_sm.isfevertime and (fever_sm.is_waiting_for_fever_se or fever_sm.appeartime < 15):
+		if selected_cell.x != -1:
+			_deselect_piece()
+		is_holding = false
+		_hide_cell_hover_tooltip()
+		return
+
 	if event is InputEventMouseMotion:
 		_current_local_mouse = _get_mouse_local(event)
 		if selected_cell.x != -1 and current_state == BoardState.IDLE:
@@ -1119,18 +1147,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		is_holding = false
 		return
 
-	# フィーバー突入文字の表示待機中：クリックで待機時間を即座にスキップし、BGM再生を保証してプレイ開始
-	if sm and sm.isfevertime and sm.appeartime < sm.FEVER_INTRO_FRAMES:
-		if mouse_event.pressed:
-			sm.appeartime = sm.FEVER_INTRO_FRAMES
-			if sm.has_method("_ensure_fever_bgm"):
-				sm._ensure_fever_bgm()
-			sm._process_fever_effects()
-			# クリック操作を破棄せず、そのまま下の駒選択・ドラッグ操作へ継続
-		else:
-			return
-
-	if sm and (sm.interval < 105 or sm.isstageclear or sm.isdeadf):
+	if sm and (sm.isstageclear or sm.isdeadf or (not pvp_mode and sm.interval < 105)):
 		if selected_cell.x != -1:
 			_deselect_piece()
 		return
@@ -1220,6 +1237,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
 				player_shock_stacks = mini(5, player_shock_stacks + 1)
 				_spawn_floating_text(get_cell_position(row_idx, col_idx), "⚡ 感電スタック付与 (%d/5)！" % player_shock_stacks, Color(1.0, 0.4, 0.4))
+				_spawn_status_damage_banner("⚡ 感電ダメージ -%d" % int(shock_dmg), Color(1.0, 0.85, 0.25))
+				_trigger_screen_shake(10.0)
+				if sm.myhp <= 0:
+					_trigger_gameover(sm)
+					return
 			_spawn_shock_zap_effect(get_cell_position(row_idx, col_idx))
 			_redraw_board_effects()
 
@@ -1372,6 +1394,9 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 			return
 	if _is_tutorial_mode():
 		emit_signal("tutorial_swap_completed", Vector2i(r1, c1), Vector2i(r2, c2))
+
+	if pvp_mode and not _is_plant_cell(r1, c1) and not _is_plant_cell(r2, c2):
+		emit_signal("pvp_move_started")
 
 	if _is_plant_cell(r1, c1) or _is_plant_cell(r2, c2):
 		_deselect_piece()
@@ -1993,6 +2018,8 @@ func _detonate_special_by_click(r: int, c: int) -> void:
 	steady_spark_triggered_this_turn = false
 	poison_spread_done_this_turn = false
 	last_swap_cells.clear()
+	if pvp_mode and pvp_my_turn:
+		emit_signal("pvp_move_started")
 	var sm = _get_stage_manager()
 	if sm and sm.isfevertime:
 		sm.fevercount -= 1
@@ -2571,11 +2598,6 @@ func _trigger_ice_shield(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 
 func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.POISON_MIST, 1))
-	var radius: int = 1 # Lv1: 3x3
-	if lvl >= 14:
-		radius = 3 # 7x7
-	elif lvl >= 6:
-		radius = 2 # 5x5
 
 	# 起爆した毒スキル駒自体は確実にマッチ消去対象とし、特殊アイテム・爆弾属性を解除
 	ismatched[r][c] = true
@@ -2596,44 +2618,60 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 
 	_ensure_ally_grids()
 
-
-	# 毒スキル：発動中心および周囲マスへ毒マスを展開（Lv1は3x3）
-	var poisoned_cells: Array[Vector2i] = []
-	for dr in range(-radius, radius + 1):
-		for dc in range(-radius, radius + 1):
+	# 火スキル（ブレイズブラスト）と同様に、発動中心＋周囲＋盤面全体から
+	# ランダムに対象を選び、毒マスを展開してその上の駒を消去する
+	var candidates: Array[Vector2i] = [Vector2i(r, c)]
+	var adj_cands: Array[Vector2i] = []
+	for dr in [-1, 0, 1]:
+		for dc in [-1, 0, 1]:
+			if dr == 0 and dc == 0: continue
 			var nr = r + dr
 			var nc = c + dc
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				if not _is_plant_cell(nr, nc):
-					grid_poison[nr][nc] = true
-					_set_ally_flag(grid_poison_ally, nr, nc, true)
-					poisoned_cells.append(Vector2i(nr, nc))
-					if not (dr == 0 and dc == 0):
-						_spawn_poison_bubble_burst_effect(get_cell_position(nr, nc))
-				var has_sp = (special_item.size() == GRID_ROWS and special_item[nr][nc] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[nr][nc])
-				if has_sp and not (Vector2i(nr, nc) in exploded_items):
-					queue.append(Vector2i(nr, nc))
+					adj_cands.append(Vector2i(nr, nc))
+	adj_cands.shuffle()
+	candidates.append_array(adj_cands)
 
-	# 毒の王冠レリック等による追加ランダム散布
+	var other_cands: Array[Vector2i] = []
+	for ar in range(GRID_ROWS):
+		for ac in range(GRID_COLUMNS):
+			var cp = Vector2i(ar, ac)
+			if not candidates.has(cp) and not _is_plant_cell(ar, ac):
+				other_cands.append(cp)
+	other_cands.shuffle()
+	candidates.append_array(other_cands)
+
+	var base_count: int = 3 + int((lvl - 1) / 2)
+	var actual_count: int = mini(base_count, candidates.size())
+	var init_stage: int = 2 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 1
 	var rm_p = _get_relic_manager()
 	if rm_p and rm_p.has_relic("venom_crown"):
-		var extra_cnt = int(rm_p.get_param("venom_crown", "initial_stage_bonus", 1))
-		var cands: Array[Vector2i] = []
-		for ar in range(GRID_ROWS):
-			for ac in range(GRID_COLUMNS):
-				if not grid_poison[ar][ac] and not _is_plant_cell(ar, ac):
-					cands.append(Vector2i(ar, ac))
-		cands.shuffle()
-		for i in range(mini(extra_cnt, cands.size())):
-			var ec = cands[i]
-			grid_poison[ec.x][ec.y] = true
-			_set_ally_flag(grid_poison_ally, ec.x, ec.y, true)
-			poisoned_cells.append(ec)
+		init_stage += int(rm_p.get_param("venom_crown", "initial_stage_bonus", 1))
+
+	var poisoned_cells: Array[Vector2i] = []
+	for i in range(actual_count):
+		var cell = candidates[i]
+		grid_poison[cell.x][cell.y] = true
+		_set_ally_flag(grid_poison_ally, cell.x, cell.y, true)
+		if grid_poison_stage.size() == GRID_ROWS:
+			grid_poison_stage[cell.x][cell.y] = init_stage
+		poisoned_cells.append(cell)
+		if cell != Vector2i(r, c):
+			_spawn_poison_bubble_burst_effect(get_cell_position(cell.x, cell.y))
+
+		var has_sp = (special_item.size() == GRID_ROWS and special_item[cell.x][cell.y] != SpecialItemType.NONE) or (is_bomb.size() == GRID_ROWS and is_bomb[cell.x][cell.y])
+		if has_sp and not (cell in exploded_items):
+			queue.append(cell)
+
+	# 毒マス上の駒を消去して落下させる（火スキルと同じ挙動）
+	if poisoned_cells.size() > 0:
+		_clear_pieces_in_cells(poisoned_cells, "ally")
 
 	_play_poison_expansion(poisoned_cells, pos, true)
-	_spawn_floating_text(pos, "🧪 薬毒散布！", Color(0.2, 1.0, 0.6))
-	if board_bg:
-		board_bg.queue_redraw()
+	_spawn_floating_text(pos, "🧪 劇毒散布！", Color(0.2, 1.0, 0.6))
+	_redraw_board_effects()
+
 
 ## 爆発巻き込み駒の破片飛散演出（ブレイズブラスト・爆弾の破片＆榴弾進化）
 func _spawn_shrapnel_fragment_vfx(start_pos: Vector2, target_pos: Vector2, is_howitzer: bool = false, is_ally: bool = true) -> void:
@@ -2787,29 +2825,35 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 	var score_mgr = _get_score_manager()
 	var stage_scale: float = pow(10.0, max(0, (sm.stage - 1) if sm else 0))
 
-	_spawn_explosion_effect(pos)
+	# 起爆した火スキル駒自身は必ず消去対象にする
+	ismatched[r][c] = true
+	if special_item.size() == GRID_ROWS:
+		special_item[r][c] = SpecialItemType.NONE
+	if is_bomb.size() == GRID_ROWS:
+		is_bomb[r][c] = false
+	_spawn_fire_ignition_effect(pos, true)
+	_spawn_floating_text(pos, "🔥 蒼炎！", Color(1.0, 0.45, 0.1))
 
-	# 着火候補マスの選定（発動中心を最優先、周囲8マス、盤面全体の順）
-	var candidates: Array[Vector2i] = [Vector2i(r, c)]
-	var adj_cands: Array[Vector2i] = []
-	for dr in [-1, 0, 1]:
-		for dc in [-1, 0, 1]:
-			if dr == 0 and dc == 0: continue
-			var nr = r + dr; var nc = c + dc
-			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				if not _is_plant_cell(nr, nc):
-					adj_cands.append(Vector2i(nr, nc))
-	adj_cands.shuffle()
-	candidates.append_array(adj_cands)
-
-	var other_cands: Array[Vector2i] = []
+	# 毒スキルと同様に、盤面全体からランダムに炎マスを選ぶ（周囲優先はしない）
+	var candidates: Array[Vector2i] = []
+	var empty_candidates: Array[Vector2i] = []
 	for ar in range(GRID_ROWS):
 		for ac in range(GRID_COLUMNS):
-			var cp = Vector2i(ar, ac)
-			if not candidates.has(cp) and not _is_plant_cell(ar, ac):
-				other_cands.append(cp)
-	other_cands.shuffle()
-	candidates.append_array(other_cands)
+			if _is_plant_cell(ar, ac) or int(grid_fire[ar][ac]) != 0:
+				continue
+			if grid_i.size() == GRID_ROWS and grid_i[ar][ac] != -1:
+				candidates.append(Vector2i(ar, ac))
+			else:
+				empty_candidates.append(Vector2i(ar, ac))
+	candidates.shuffle()
+	empty_candidates.shuffle()
+	candidates.append_array(empty_candidates)
+	if candidates.is_empty():
+		for ar in range(GRID_ROWS):
+			for ac in range(GRID_COLUMNS):
+				if not _is_plant_cell(ar, ac):
+					candidates.append(Vector2i(ar, ac))
+		candidates.shuffle()
 
 	var actual_count: int = mini(count, candidates.size())
 
@@ -3263,7 +3307,7 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
 				# 闇最終: 妨害オブジェクト吸引 (敵石・黄金像・敵植物を完全消滅)
 				if has_d_devour:
-					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[nr][nc] > 0:
+					if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[nr][nc] > 0 and not is_ally_gold(nr, nc):
 						grid_gold_statue[nr][nc] = 0
 						sucked_count += 1
 						_spawn_floating_text(get_cell_position(nr, nc), "🌑 黄金像吸引消滅！", Color(0.7, 0.3, 0.9))
@@ -4277,6 +4321,9 @@ func _spawn_enemy_heal_effect(sm: Node2D, heal_amount: int) -> void:
 		tw_s.chain().tween_callback(spark.queue_free)
 
 var _cached_effects_node: Node = null
+var _combo_guide_texture: Texture2D = null
+var _active_combo_guide_root: Node2D = null
+var _active_combo_guide_tween: Tween = null
 func _get_effects_parent() -> Node:
 	if _cached_effects_node == null or not is_instance_valid(_cached_effects_node):
 		_cached_effects_node = get_node_or_null("Effects")
@@ -4306,18 +4353,21 @@ func _spawn_shockwave_ring(pos: Vector2, color: Color, max_radius: float, durati
 	tw.tween_property(ring, "width", 3.0, duration)
 	tw.chain().tween_callback(ring.queue_free)
 
-## 汎用全画面フラッシュ
+## 汎用全画面フラッシュ（急な点滅を避け、短いフェードイン→長めのフェードアウトで柔らかく表示）
 func _spawn_screen_flash(color: Color, duration: float = 0.08) -> void:
 	var effects_parent = _get_effects_parent()
 	var flash = ColorRect.new()
 	flash.size = Vector2(40000.0, 40000.0)
 	flash.position = Vector2(-20000.0, -20000.0)
-	flash.color = color
+	flash.color = Color(color.r, color.g, color.b, 1.0)
+	flash.modulate.a = 0.0
 	flash.z_index = 40
 	Profiler.add_child_count += 1; effects_parent.add_child(flash)
 
+	var peak: float = minf(color.a, 0.30)
 	var tw = create_tween()
-	tw.tween_property(flash, "modulate:a", 0.0, duration)
+	tw.tween_property(flash, "modulate:a", peak, 0.06)
+	tw.tween_property(flash, "modulate:a", 0.0, maxf(duration, 0.30))
 	tw.tween_callback(flash.queue_free)
 
 ## フラクタル稲妻ライン生成ヘルパー（中腹で揺れが最大化する自然な放電経路）
@@ -5222,6 +5272,32 @@ func _spawn_plant_damage_effect(pos: Vector2, _is_dead: bool) -> void:
 
 ## 植物回復ポップアップ数値演出（緑の「+〇〇〇」）
 
+## 状態異常ダメージを画面中央に大きく表示（毒・呪いなどの被ダメージを明確化）
+func _spawn_status_damage_banner(text: String, color: Color) -> void:
+	var effects_parent = _get_effects_parent()
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 64)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	lbl.add_theme_color_override("font_outline_color", Color(0.08, 0.02, 0.10, 1.0))
+	lbl.add_theme_constant_override("outline_size", 10)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.position = Vector2(360, 300)
+	lbl.size = Vector2(560, 120)
+	lbl.z_index = 60
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	Profiler.add_child_count += 1
+	effects_parent.add_child(lbl)
+	lbl.pivot_offset = lbl.size / 2.0
+	lbl.scale = Vector2(0.5, 0.5)
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(lbl, "scale", Vector2(1.15, 1.15), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 40.0, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.35).set_delay(0.75)
+	tw.chain().tween_callback(lbl.queue_free)
+
 func _spawn_floating_text(pos: Vector2, text: String, color: Color) -> void:
 	var effects_parent = _get_effects_parent()
 
@@ -5360,6 +5436,9 @@ func _start_match_highlight() -> void:
 					tween.tween_property(p, "scale", cellsize * 1.15, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 					tween.tween_property(p, "modulate", Color.WHITE, 0.14)
 
+	if not matched_cells_list.is_empty():
+		_spawn_combo_guide(matched_cells_list)
+
 	if has_highlights:
 			var _t_aw_tween_finished = Time.get_ticks_usec()
 			await tween.finished
@@ -5367,6 +5446,137 @@ func _start_match_highlight() -> void:
 	else:
 		tween.kill()
 	_start_breaking_animation()
+
+## コンボ発生位置の周囲に案内役を円形に並べ、矢印でその駒を指差す演出
+## 連鎖数（コンボ数）に応じて案内役の数が増える
+func _spawn_combo_guide(matched_cells: Array) -> void:
+	if matched_cells.is_empty():
+		return
+	var settings = get_node_or_null("/root/SettingsManager")
+	if settings and "is_tutorial_mode" in settings and settings.is_tutorial_mode:
+		return
+	if _combo_guide_texture == null and ResourceLoader.exists("res://Texture/instructor.png"):
+		_combo_guide_texture = load("res://Texture/instructor.png") as Texture2D
+	if _combo_guide_texture == null:
+		return
+
+	if _active_combo_guide_tween != null and _active_combo_guide_tween.is_valid():
+		_active_combo_guide_tween.kill()
+	if _active_combo_guide_root != null and is_instance_valid(_active_combo_guide_root):
+		_active_combo_guide_root.queue_free()
+	_active_combo_guide_root = null
+
+	# コンボの中心に最も近い駒を指差し対象にする
+	var center = Vector2.ZERO
+	for cell in matched_cells:
+		center += Vector2(cell.x, cell.y)
+	center /= float(matched_cells.size())
+	var target_cell: Vector2i = matched_cells[0]
+	var best_dist: float = INF
+	for cell in matched_cells:
+		var d: float = Vector2(cell.x, cell.y).distance_squared_to(center)
+		if d < best_dist:
+			best_dist = d
+			target_cell = cell
+	var target_pos = get_cell_position(target_cell.x, target_cell.y)
+
+	var tex = _combo_guide_texture
+	var guide_h: float = CELL_PITCH * 1.55
+	var guide_scale: float = guide_h / float(tex.get_height())
+	var guide_w: float = float(tex.get_width()) * guide_scale
+
+	var score_mgr = _get_score_manager()
+	var combo_num: int = int(score_mgr.combocount) if score_mgr and "combocount" in score_mgr else 1
+	# 連鎖数と同じ人数の案内役を出す（描画負荷対策として上限あり）
+	var guide_count: int = clampi(maxi(1, combo_num), 1, MAX_COMBO_GUIDES)
+
+	var root = Node2D.new()
+	root.name = "ComboGuide"
+	root.z_index = 55
+	root.modulate = Color(1, 1, 1, 0)
+	Profiler.add_child_count += 1; _get_effects_parent().add_child(root)
+	_active_combo_guide_root = root
+
+	# 案内役同士が重ならないよう、人数に応じて円の半径を広げる
+	var guide_dist: float = maxf(CELL_PITCH * 0.95, guide_w * float(guide_count) * 1.25 / TAU)
+	# 円が盤面の外へはみ出しにくい開始角度を選ぶ
+	var base_angle: float = 0.0
+	if target_pos.x + guide_dist > BOARD_RIGHT - guide_w * 0.5:
+		base_angle = PI
+
+	var sprites: Array[Sprite2D] = []
+	for i in range(guide_count):
+		var angle: float = base_angle + TAU * float(i) / float(guide_count)
+		var guide_pos: Vector2 = target_pos + Vector2(cos(angle), sin(angle)) * guide_dist
+		guide_pos.x = clampf(guide_pos.x, BOARD_LEFT + guide_w * 0.5, BOARD_RIGHT - guide_w * 0.5)
+		guide_pos.y = clampf(guide_pos.y, BOARD_TOP + guide_h * 0.5, BOARD_BOTTOM - guide_h * 0.5)
+
+		var sprite = Sprite2D.new()
+		sprite.texture = tex
+		sprite.position = guide_pos
+		sprite.scale = Vector2(guide_scale, guide_scale) * 0.75
+		sprite.flip_h = guide_pos.x > target_pos.x
+		sprite.z_index = 1
+		Profiler.add_child_count += 1; root.add_child(sprite)
+		sprites.append(sprite)
+
+		var to_target: Vector2 = target_pos - guide_pos
+		var dist_to_target: float = to_target.length()
+		var dir: Vector2 = to_target / maxf(dist_to_target, 0.001)
+		if dist_to_target < 1.0:
+			dir = Vector2(cos(angle + PI), sin(angle + PI))
+		var start_offset: float = minf(guide_w * 0.42, dist_to_target * 0.30)
+		var end_offset: float = minf(CELL_PITCH * 0.42, dist_to_target * 0.30)
+		var arrow_start: Vector2 = guide_pos + dir * start_offset
+		var arrow_end: Vector2 = target_pos - dir * end_offset
+		var line = Line2D.new()
+		line.points = PackedVector2Array([arrow_start, arrow_end])
+		line.width = 18.0
+		line.default_color = Color(1.0, 0.86, 0.22, 0.95)
+		line.z_index = 2
+		Profiler.add_child_count += 1; root.add_child(line)
+
+		var perp = Vector2(-dir.y, dir.x)
+		var head = Polygon2D.new()
+		head.polygon = PackedVector2Array([
+			arrow_end,
+			arrow_end - dir * 70.0 + perp * 34.0,
+			arrow_end - dir * 70.0 - perp * 34.0
+		])
+		head.color = line.default_color
+		head.z_index = 2
+		Profiler.add_child_count += 1; root.add_child(head)
+
+	var combo_lbl = Label.new()
+	combo_lbl.name = "ComboLabel"
+	combo_lbl.text = "COMBO %d!" % maxi(1, combo_num)
+	combo_lbl.position = Vector2(
+		clampf(target_pos.x - 420.0, BOARD_LEFT + 10.0, BOARD_RIGHT - 850.0),
+		clampf(target_pos.y - CELL_PITCH * 1.15, BOARD_TOP + 20.0, BOARD_BOTTOM - 140.0)
+	)
+	combo_lbl.size = Vector2(840.0, 100.0)
+	combo_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combo_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	combo_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combo_lbl.add_theme_font_override("font", _get_skill_ui_font())
+	combo_lbl.add_theme_font_size_override("font_size", 54)
+	combo_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.30))
+	combo_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	combo_lbl.add_theme_constant_override("outline_size", 10)
+	combo_lbl.z_index = 3
+	Profiler.add_child_count += 1; root.add_child(combo_lbl)
+	combo_lbl.pivot_offset = combo_lbl.size / 2.0
+	combo_lbl.scale = Vector2(0.65, 0.65)
+
+	var tw = create_tween()
+	_active_combo_guide_tween = tw
+	tw.tween_property(root, "modulate:a", 1.0, 0.12)
+	for s in sprites:
+		tw.parallel().tween_property(s, "scale", Vector2(guide_scale, guide_scale), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(combo_lbl, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.65)
+	tw.tween_property(root, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(root.queue_free)
 
 ## 帯電・呪い・聖像・氷・石・霧等のマッチ時波及効果を処理
 func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
@@ -5410,6 +5620,11 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 					if rm_br: rm_br.on_backlash_damage("electrified", shock_dmg)
 					player_shock_stacks = mini(5, player_shock_stacks + 1)
 					_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 感電スタック付与 (%d/5)！" % player_shock_stacks, Color(1.0, 0.4, 0.4))
+					_spawn_status_damage_banner("⚡ 感電ダメージ -%d" % int(shock_dmg), Color(1.0, 0.85, 0.25))
+					_trigger_screen_shake(10.0)
+					if stage_mgr.myhp <= 0:
+						_trigger_gameover(stage_mgr)
+						return
 				_spawn_shock_zap_effect(get_cell_position(cell.x, cell.y))
 
 		if grid_cursed.size() == GRID_ROWS and grid_cursed[cell.x][cell.y]:
@@ -5435,6 +5650,10 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 					stage_mgr.calchp(0.0, curse_dmg)
 					var rm_br = _get_relic_manager()
 					if rm_br: rm_br.on_backlash_damage("cursed", curse_dmg)
+					_spawn_status_damage_banner("🌙 呪詛反動 -%d" % int(curse_dmg), Color(0.9, 0.45, 1.0))
+					if stage_mgr.myhp <= 0:
+						_trigger_gameover(stage_mgr)
+						return
 				_spawn_curse_burst_effect(get_cell_position(cell.x, cell.y))
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "呪詛反動 -%d" % int(curse_dmg), Color(0.95, 0.2, 0.4))
 
@@ -5461,9 +5680,12 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 					if stage_mgr and stage_mgr.has_method("calchp"):
 						stage_mgr.calchp(holy_dmg, 0.0)
 						_emit_combat_event("damage", "ally", "enemy", holy_dmg, "holy_statue_blast")
+						var en_pos_blast = stage_mgr.enemy.position if (stage_mgr and stage_mgr.enemy) else Vector2(1550, 250)
+						_spawn_statue_strike_effect(get_cell_position(cell.x, cell.y), en_pos_blast, holy_dmg)
 					if has_actor_skill_trait(true, "light", "light_mid_c"):
-						player_skill_energy = minf(player_skill_max_energy, player_skill_energy + 20.0)
-						_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 共鳴の像 +20エナジー！", Color(1.0, 0.9, 0.2))
+						var resonance_shield2: float = 200.0 * stage_scale_b
+						_apply_skill_shield(resonance_shield2)
+						_spawn_floating_text(get_cell_position(cell.x, cell.y), "⚡ 共鳴の像・シールド+%d！" % int(resonance_shield2), Color(1.0, 0.9, 0.2))
 					if has_actor_skill_trait(true, "light", "light_final_c1"):
 						_spawn_floating_text(get_cell_position(cell.x, cell.y), "💥 起爆の像・聖光爆発！", Color(1.0, 0.9, 0.4))
 						for dr in range(-1, 2):
@@ -5543,9 +5765,12 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 							if stage_mgr and stage_mgr.has_method("calchp"):
 								stage_mgr.calchp(holy_dmg, 0.0)
 								_emit_combat_event("damage", "ally", "enemy", holy_dmg, "holy_statue_blast")
+								var en_pos_blast2 = stage_mgr.enemy.position if (stage_mgr and stage_mgr.enemy) else Vector2(1550, 250)
+								_spawn_statue_strike_effect(get_cell_position(ar, ac), en_pos_blast2, holy_dmg)
 							if has_actor_skill_trait(true, "light", "light_mid_c"):
-								player_skill_energy = minf(player_skill_max_energy, player_skill_energy + 20.0)
-								_spawn_floating_text(get_cell_position(ar, ac), "⚡ 共鳴の像 +20エナジー！", Color(1.0, 0.9, 0.2))
+								var resonance_shield: float = 200.0 * stage_scale_b
+								_apply_skill_shield(resonance_shield)
+								_spawn_floating_text(get_cell_position(ar, ac), "⚡ 共鳴の像・シールド+%d！" % int(resonance_shield), Color(1.0, 0.9, 0.2))
 							if has_actor_skill_trait(true, "light", "light_final_c1"):
 								_spawn_floating_text(get_cell_position(ar, ac), "💥 起爆の像・聖光爆発！", Color(1.0, 0.9, 0.4))
 								for dr in range(-1, 2):
@@ -7170,8 +7395,148 @@ func _update_all_projectiles() -> void:
 	if not flying_foods.is_empty(): movefoods()
 	if not flying_potions.is_empty(): movepotions()
 
+## PvPモードの開始・自分のターン切り替え
+func set_pvp_mode(enabled: bool) -> void:
+	pvp_mode = enabled
+
+func set_pvp_my_turn(enabled: bool) -> void:
+	pvp_my_turn = enabled
+	if enabled:
+		pvp_pending_damage = 0.0
+		pvp_used_skills.clear()
+		var stage_mgr = _get_stage_manager()
+		pvp_start_enemy_hp = stage_mgr.ehp if stage_mgr and "ehp" in stage_mgr else 0.0
+		pvp_is_attack = 0
+		pvp_is_block = 0
+		var score_mgr = _get_score_manager()
+		if score_mgr and "divscore" in score_mgr:
+			pvp_divscore_snapshot = score_mgr.divscore.duplicate()
+		else:
+			pvp_divscore_snapshot = []
+		# 新しい自分のターン開始時は、前ターンの演出状態が残っていても必ず入力可能状態へ戻す
+		current_state = BoardState.IDLE
+		interval = 0
+		is_enemy_turn_in_progress = false
+		is_holding = false
+		drag_offset = Vector2.ZERO
+	elif current_state == BoardState.IDLE:
+		current_state = BoardState.TURN_SEQUENCE
+		interval = 0
+
+func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shield_gain: float, used_skills: Array) -> Dictionary:
+	var coins: int = 0
+	if score_mgr and "divscore" in score_mgr and score_mgr.divscore.size() > PieceType.COIN:
+		coins = int(score_mgr.divscore[PieceType.COIN])
+	var hp: float = sm.myhp if sm else 0.0
+	var max_hp: float = sm.myhpmax if sm else 5000.0
+	var skill_name: String = ""
+	var skill_element: String = ""
+	if not used_skills.is_empty():
+		var last_skill = used_skills[used_skills.size() - 1]
+		if last_skill is Dictionary:
+			skill_name = str(last_skill.get("name", ""))
+			skill_element = str(last_skill.get("element", ""))
+	return {
+		"damage": int(round(maxf(0.0, damage))),
+		"heal": 0,
+		"shield": int(round(maxf(0.0, shield_gain))),
+		"coins": coins,
+		"hp": int(round(hp)),
+		"maxHp": int(round(max_hp)),
+		"skillName": skill_name,
+		"skillElement": skill_element
+	}
+
+func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	var used_skills: Array = pvp_used_skills.duplicate(true)
+	var shield_gain: float = float(current_total_shields)
+	# ターン終了時の毒・火などの継続効果を反映
+	_reset_turn(sm, score_mgr)
+	var end_hp: float = sm.ehp if sm and "ehp" in sm else 0.0
+	var damage: float = maxf(0.0, pvp_start_enemy_hp - end_hp)
+	var payload: Dictionary = _build_pvp_turn_payload(sm, score_mgr, damage, shield_gain, used_skills)
+	pvp_pending_damage = 0.0
+	current_state = BoardState.TURN_SEQUENCE
+	interval = 0
+	pvp_my_turn = false
+	pvp_turn_resolved.emit(payload)
+	pvp_turn_completed.emit()
+
+func _handle_pvp_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
+	if not pvp_my_turn:
+		return
+
+	if interval == 0:
+		pvp_is_attack = 0
+		pvp_is_block = 0
+		pvp_used_skills = turn_skill_log.duplicate(true)
+		if score_mgr:
+			var s_cnt = min(int((sm.ehp if sm else 0) / swordt), int(score_mgr.divscore[PieceType.SWORD] / (swordt * 100.0)))
+			var food_heal_unit: float = maxf(1.0, foodt * 100.0)
+			var needed_heal: float = maxf(0.0, (sm.myhpmax - sm.myhp) if sm else 0.0)
+			var max_heal: int = int(ceil(needed_heal / food_heal_unit))
+			var f_cnt = min(max_heal, int(score_mgr.divscore[PieceType.FOOD] / food_heal_unit))
+			var max_gage = 0 if (sm and sm.isfevertime) else maxi(0, 70 - int((sm.fevergage if sm else 0) / (100.0 * potiont)))
+			var p_cnt = min(max_gage, int(score_mgr.divscore[PieceType.POTION] / (potiont * 100.0)))
+			if s_cnt > 0 or (f_cnt > 0 and sm and sm.myhp < sm.myhpmax) or (p_cnt > 0 and sm and not sm.isfevertime and sm.fevergage < 7000.0) or turn_skill_log.size() > 0:
+				pvp_is_attack = 1
+			var sh_cnt = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
+			if sh_cnt > 0:
+				pvp_is_block = 1
+
+	if pvp_is_attack == 0 and pvp_is_block == 0:
+		if interval < 12:
+			interval += 1
+			return
+		_finish_pvp_turn(sm, score_mgr)
+		return
+
+	# オフラインと同じアイテム値の上下振動
+	if interval <= 36:
+		var t_in_cycle: float = float(interval % 36)
+		var hop_y: float = (t_in_cycle - 18.0) * (t_in_cycle - 18.0) / 10.0 - 32.4
+		if score_mgr:
+			for i in range(5):
+				var lbl = score_mgr.get_node_or_null("score" + str(i))
+				if lbl:
+					lbl.position.x = SCORE_LABEL_BASE_X
+					lbl.position.y = SCORE_LABEL_BASE_Y + SCORE_LABEL_PITCH * i + hop_y
+					lbl.scale = SCORE_LABEL_BASE_SCALE
+					lbl.modulate = Color.WHITE
+				var icn = score_mgr.get_node_or_null("score_icon" + str(i))
+				if icn:
+					icn.position.x = 1204.0
+					icn.position.y = 546.0 + 79.2 * float(i) + 16.6 + hop_y
+		interval += 1
+		return
+
+	_restore_score_label_positions()
+	var base_time: int = 36
+	if interval == base_time + 1 and pvp_is_attack:
+		_spawn_attack_projectiles(sm, score_mgr)
+		_play_ally_attack_phase_effects(sm)
+	elif interval == base_time + 1 + 144 * pvp_is_attack and pvp_is_block:
+		_spawn_shield_projectiles(score_mgr)
+
+	if interval > base_time:
+		var attack_done: bool = flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty()
+		var shield_done: bool = true
+		for it in active_shields:
+			if not it.get("has_arrived", false):
+				shield_done = false
+				break
+		var max_wait: int = base_time + 144 * pvp_is_attack + 160 * pvp_is_block + 90
+		if (attack_done and shield_done) or interval > max_wait:
+			_finish_pvp_turn(sm, score_mgr)
+			return
+	interval += 1
+
 ## ターン進行の演出シーケンス
 func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
+	if pvp_mode:
+		_handle_pvp_turn_sequence(sm, score_mgr)
+		return
+
 	if isgameover:
 		_handle_gameover_sequence(sm)
 		return
@@ -8437,24 +8802,10 @@ func _get_stage_index() -> int:
 
 ## 盤面への各属性妨害効果の適用
 func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> Array[Vector2]:
-	# ✨ 後光の像 (light_final_b1): 自陣の聖像が敵スキルの妨害マス設置を身代わりとなって遮断（遮断ごとに聖像耐久-1）
-	if has_actor_skill_trait(true, "light", "light_final_b1"):
-		var blocked_by_statue = false
-		for r in range(GRID_ROWS):
-			for c in range(GRID_COLUMNS):
-				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0 and is_ally_gold(r, c):
-					grid_gold_statue[r][c] -= 1
-					if grid_gold_statue[r][c] <= 0:
-						grid_gold_statue[r][c] = 0
-						_set_ally_flag(grid_gold_ally, r, c, false)
-						_spawn_floating_text(get_cell_position(r, c), "✨ 聖像身代わり昇天！", Color(1.0, 0.9, 0.4))
-					else:
-						_spawn_floating_text(get_cell_position(r, c), "✨ 聖像身代わり遮断！(耐久%d)" % grid_gold_statue[r][c], Color(1.0, 1.0, 0.6))
-					blocked_by_statue = true
-					break
-			if blocked_by_statue: break
-		if blocked_by_statue or has_light_sanctuary_this_turn:
-			return []
+	# ✨ 後光の像 (light_final_b1) は _check_and_block_enemy_hazard 内で
+	#    聖像の周囲4マス（上下左右）の妨害マス設置のみを遮断する（敵スキル全体は無効化しない）
+	if has_light_sanctuary_this_turn:
+		return []
 
 	match elem:
 		"水属性":
@@ -8761,6 +9112,21 @@ func _check_and_block_enemy_hazard(r: int, c: int) -> bool:
 		var pos = get_cell_position(r, c)
 		_spawn_floating_text(pos, "🌙 影護！妨害阻止！", Color(0.6, 0.4, 0.95))
 		return true
+
+	# ✨ 光 後光の像: 聖像の周囲4マス（上下左右）は敵スキルの妨害マス設置を無効化
+	#    敵スキル全体は無効化しない（聖像は消費しない）
+	if has_actor_skill_trait(true, "light", "light_final_b1"):
+		if grid_gold_statue.size() == GRID_ROWS:
+			for off in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+				var sr: int = r + off.x
+				var sc: int = c + off.y
+				if sr < 0 or sr >= GRID_ROWS or sc < 0 or sc >= GRID_COLUMNS:
+					continue
+				if grid_gold_statue[sr][sc] > 0 and is_ally_gold(sr, sc):
+					_spawn_shockwave_ring(get_cell_position(sr, sc), Color(1.0, 0.95, 0.5, 0.85), 150.0, 0.28)
+					_spawn_shockwave_ring(get_cell_position(r, c), Color(1.0, 0.9, 0.35, 0.7), 90.0, 0.22)
+					_spawn_floating_text(get_cell_position(r, c), "✨ 聖像の加護！妨害無効化", Color(1.0, 1.0, 0.6))
+					return true
 
 	return false
 
@@ -10074,6 +10440,14 @@ func _spawn_holy_light_projectile(from_pos: Vector2, to_pos: Vector2, delay: flo
 			on_reach.call()
 	)
 
+## ✨ 聖像から敵への攻撃ビームを表示（自動斉射・聖像破壊追撃の共通演出）
+func _spawn_statue_strike_effect(from_pos: Vector2, target_pos: Vector2, damage: float, delay: float = 0.0) -> void:
+	_spawn_holy_light_projectile(from_pos, target_pos, delay, func():
+		_spawn_holy_light_effect(target_pos, [target_pos])
+		_spawn_shockwave_ring(target_pos, Color(1.0, 0.95, 0.45, 0.9), 260.0, 0.3)
+		_spawn_floating_text(target_pos, "✨ 聖像攻撃 -%d" % int(damage), Color(1.0, 0.95, 0.4))
+	)
+
 ## ✨ 光スキル発動の展開アニメーション（ランダム対象マスへ起点から聖光弾が飛翔）
 func _play_light_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector2.ZERO, animate: bool = true) -> void:
 	if cells.is_empty():
@@ -10410,14 +10784,15 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		if player_blight_stacks > 0:
 			total_poison_dmg *= (1.0 + float(player_blight_stacks) * 0.10)
 
-		for pt in enemy_poison_tiles.slice(0, 3):
+		for pt in enemy_poison_tiles.slice(0, 8):
 			_spawn_poison_bubble_burst_effect(get_cell_position(pt.x, pt.y))
 
 		var center_pt = enemy_poison_tiles[enemy_poison_tiles.size() / 2]
 		_spawn_floating_text(get_cell_position(center_pt.x, center_pt.y), "猛毒ダメージ -%d" % int(total_poison_dmg), Color(0.85, 0.35, 0.95))
+		_spawn_status_damage_banner("☠ 猛毒ダメージ -%d" % int(total_poison_dmg), Color(0.95, 0.4, 1.0))
 
 		if sm:
-			_spawn_screen_flash(Color(0.6, 0.1, 0.7, 0.22), 0.15)
+			_trigger_screen_shake(9.0)
 			sm.last_damage_cause = "猛毒マスの侵食ダメージ"
 			sm.calchp(0.0, total_poison_dmg)
 			_emit_combat_event("damage", "enemy", "ally", total_poison_dmg, "poison")
@@ -10425,6 +10800,7 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			if rm_poi: rm_poi.on_backlash_damage("poison", total_poison_dmg)
 			if sm.myhp <= 0:
 				_trigger_gameover(sm)
+				return
 
 	# 🧪 毒A2: 熟毒 (ターン終了時に毒段階が1上昇、最大3)
 	if has_actor_skill_trait(true, "poison", "poison_final_a2"):
@@ -10720,10 +11096,12 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	# ✨ 光A: 光輝の像 (毎ターン終了時、自陣全聖像から敵へ聖光弾自動斉射)
 	if has_actor_skill_trait(true, "light", "light_mid_a"):
 		var a_st_cnt = 0
+		var statue_cells: Array[Vector2i] = []
 		for st_r in range(GRID_ROWS):
 			for st_c in range(GRID_COLUMNS):
 				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[st_r][st_c] > 0 and is_ally_gold(st_r, st_c):
 					a_st_cnt += 1
+					statue_cells.append(Vector2i(st_r, st_c))
 		if a_st_cnt > 0 and sm and sm.has_method("calchp") and not sm.isdeadf and sm.ehp > 0:
 			var sc_mgr_l = _get_score_manager()
 			var sk_lvl_l = maxi(1, sc_mgr_l.get_skill_level("light_1")) if sc_mgr_l else 1
@@ -10732,6 +11110,9 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			sm.calchp(auto_shot_dmg, 0.0)
 			_emit_combat_event("damage", "ally", "enemy", auto_shot_dmg, "holy_statue_auto_shot")
 			var en_pos = sm.enemy.position if (sm and sm.enemy) else Vector2(1550, 250)
+			# 各聖像から敵へ聖光ビームを飛ばし、聖像由来のダメージであることを明示
+			for i in range(statue_cells.size()):
+				_spawn_statue_strike_effect(get_cell_position(statue_cells[i].x, statue_cells[i].y), en_pos, auto_shot_dmg / float(a_st_cnt), float(i) * 0.07)
 			_spawn_floating_text(en_pos, "✨ 光輝の像・自動斉射 -%d!" % int(auto_shot_dmg), Color(1.0, 0.95, 0.4))
 
 	# ✨ 光B2: 加護の像 (自陣の聖像が存在する限り、ターン終了時HP回復: 聖像数 × 120 HP)
@@ -10745,6 +11126,8 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 			var heal_amt = float(ally_st_cnt) * 120.0
 			sm.calchp(0.0, -heal_amt)
 			_emit_combat_event("heal", "ally", "ally", heal_amt, "light_final_b2")
+			_spawn_heal_number_effect(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2), int(heal_amt))
+			_spawn_shockwave_ring(Vector2(140, 430), Color(0.5, 1.0, 0.65, 0.85), 260.0, 0.4)
 			_spawn_floating_text(get_cell_position(GRID_ROWS / 2, GRID_COLUMNS / 2), "✨ 加護の像 +%d HP回復！" % int(heal_amt), Color(0.4, 1.0, 0.7))
 
 	# ターンごとの1回制限フラグリセット
@@ -11292,7 +11675,7 @@ func _collect_cell_effect_entries(r: int, c: int) -> Array[Dictionary]:
 				"[font_size=19]起爆すると自軍氷結マスを展開＆シールド付与！\n氷マスは隣接する効果マスの進行を完全停止させ、炎隣接で融解消滅します。[/font_size]", "#80D8FF")
 		SpecialItemType.POISON_MIST:
 			_add_cell_effect_entry(entries, "[b][color=#00E676]🧪 免疫薬毒・ポイズン (Lv%d/20)[/color][/b]" % sp_lvl,
-				"[font_size=19]起爆すると味方の薬毒マスを展開！\n味方毒1マスにつき敵毒ダメージを20%軽減（最大90%免疫）し、敵に毒ダメージを与えます。[/font_size]", "#00E676")
+				"[font_size=19]起爆すると盤面のランダムな複数マスを薬毒マスに変え、その上の駒を消去！\n味方毒1マスにつき敵毒ダメージを20%軽減（最大90%免疫）し、敵に毒ダメージを与えます。[/font_size]", "#00E676")
 
 	# 2. 盤面ギミックマス
 	var plant = _get_plant_at(r, c)
@@ -11781,11 +12164,8 @@ var _cached_skill_ui_font: Font = null
 
 func _get_skill_ui_font() -> Font:
 	if _cached_skill_ui_font == null:
-		var main_f = SystemFont.new()
-		main_f.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-		main_f.font_weight = 700
-		var emoji_f = SystemFont.new()
-		emoji_f.font_names = PackedStringArray(["Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"])
+		var main_f = load("res://font/NotoSansJP.ttf")
+		var emoji_f = load("res://font/NotoEmoji.ttf")
 		main_f.set_fallbacks([emoji_f])
 		_cached_skill_ui_font = main_f
 	return _cached_skill_ui_font
@@ -11831,12 +12211,13 @@ func _setup_player_skill_ui() -> void:
 
 	var sp_lbl = Label.new()
 	sp_lbl.name = "SkillEnergyLabel"
+	sp_lbl.text = "スキルは自由に発動できます"
 	sp_lbl.position = Vector2(8.0, 25.0)
 	sp_lbl.size = Vector2(180.0, 18.0)
 	sp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sp_lbl.add_theme_font_override("font", ui_font)
-	sp_lbl.add_theme_font_size_override("font_size", 12)
-	sp_lbl.add_theme_color_override("font_color", Color(0.85, 1.0, 0.90))
+	sp_lbl.add_theme_font_size_override("font_size", 11)
+	sp_lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 0.8))
 	panel.add_child(sp_lbl)
 	player_skill_energy_label = sp_lbl
 
@@ -11927,10 +12308,7 @@ func _update_player_skill_ui() -> void:
 			t_btn.add_theme_stylebox_override("normal", t_style)
 			t_btn.modulate = Color(1.2, 1.2, 1.0) if is_act else Color(0.75, 0.8, 0.85)
 
-	var t_cost = 30.0 if current_skill_tier == 1 else (45.0 if current_skill_tier == 2 else 60.0)
-	if player_skill_energy_label != null and is_instance_valid(player_skill_energy_label):
-		player_skill_energy_label.text = "SP: %d/%d (T%d消費%d)" % [int(player_skill_energy), int(player_skill_max_energy), current_skill_tier, int(t_cost)]
-	var can_use: bool = (player_skill_energy >= t_cost) and (current_state == BoardState.IDLE) and not is_enemy_turn_in_progress
+	var can_use: bool = (current_state == BoardState.IDLE) and not is_enemy_turn_in_progress
 
 	var category_elements: Array = []
 	match chosen_cat:
@@ -11989,15 +12367,15 @@ func _update_player_skill_ui() -> void:
 				btn.modulate = Color(0.35, 0.38, 0.42, 0.50)
 
 func _on_player_skill_button_pressed(skill_key: String) -> void:
+	var intro_sm = _get_stage_manager()
+	if intro_sm and intro_sm.isfevertime and (intro_sm.is_waiting_for_fever_se or intro_sm.appeartime < 15):
+		return
 	if current_state != BoardState.IDLE or is_enemy_turn_in_progress:
 		return
 	var score_mgr = _get_score_manager()
 	if score_mgr and score_mgr.has_method("get_skill_level"):
 		if score_mgr.get_skill_level("%s_1" % skill_key) <= 0:
 			return
-	var t_cost = 30.0 if current_skill_tier == 1 else (45.0 if current_skill_tier == 2 else 60.0)
-	if player_skill_energy < t_cost:
-		return
 	cast_player_skill(skill_key, false, current_skill_tier)
 
 
@@ -12029,29 +12407,18 @@ func _evolve_plant_stage(plant: Dictionary, target_stage: int) -> void:
 
 ## プレイヤーによる10属性×3段階 盤面スキル発動
 func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 1, animate: bool = true, origin_pos: Vector2 = Vector2.ZERO) -> Array[Vector2]:
+	if pvp_mode and pvp_my_turn:
+		emit_signal("pvp_move_started")
+		var pvp_skill_name: String = skill_key.to_upper()
+		var pvp_score_mgr = _get_score_manager()
+		if pvp_score_mgr and "skill_tree_items" in pvp_score_mgr:
+			for s_item in pvp_score_mgr.skill_tree_items:
+				if str(s_item.get("id", "")) == skill_key + "_1":
+					pvp_skill_name = str(s_item.get("name", pvp_skill_name))
+					break
+		turn_skill_log.append({"name": pvp_skill_name, "element": skill_key, "tier": tier})
 	_ensure_ally_grids()
 	tier = clampi(tier, 1, 3)
-	var t_cost: float = 30.0 if tier == 1 else (45.0 if tier == 2 else 60.0)
-	var rm_cost = _get_relic_manager()
-	if rm_cost:
-		if rm_cost.has_relic("elemental_affinity_ring"):
-			var chosen_cat = rm_cost.get_chosen_element_category()
-			var cat_elements = []
-			if chosen_cat == "nature":
-				cat_elements = ["water", "ice", "wood", "wind"]
-			elif chosen_cat == "force":
-				cat_elements = ["fire", "thunder", "earth"]
-			elif chosen_cat == "mystic":
-				cat_elements = ["poison", "light", "dark"]
-			if skill_key in cat_elements:
-				var cost_mult = float(rm_cost.get_param("elemental_affinity_ring", "mp_cost_mult", 0.70))
-				t_cost *= cost_mult
-		if rm_cost.has_relic("superconduct_ring") and skill_key == "thunder":
-			t_cost *= 0.70
-	if not ignore_cost:
-		if player_skill_energy < t_cost:
-			return []
-		player_skill_energy = maxf(0.0, player_skill_energy - t_cost)
 
 	var affected_positions: Array[Vector2] = []
 	var sm = _get_stage_manager()
@@ -12419,10 +12786,13 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 								_set_ally_flag(grid_gold_ally, r, sweep_col, true)
 								converted_cnt += 1
 
-				# 追い風の恵み (wind_final_c2): 奪取した味方マスの数に応じてMP回復 (+10/マス)
+				# 追い風の恵み (wind_final_c2): 奪取した味方マスの数に応じてHP回復
 				if has_actor_skill_trait(true, "wind", "wind_final_c2") and converted_cnt > 0:
-					player_skill_energy = minf(player_skill_max_energy, player_skill_energy + float(converted_cnt) * 10.0)
-					_spawn_floating_text(Vector2(640, 360), "🌪️ 追い風の恵み！MP+%d!" % (converted_cnt * 10), Color(0.3, 1.0, 0.7))
+					var heal_amt: float = float(converted_cnt) * 60.0 * stage_scale
+					if sm:
+						sm.myhp = minf(sm.myhpmax, sm.myhp + heal_amt)
+						if sm.has_method("displayhp"): sm.displayhp()
+					_spawn_floating_text(Vector2(640, 360), "🌪️ 追い風の恵み！HP+%d!" % int(heal_amt), Color(0.3, 1.0, 0.7))
 
 				# 2. 全盤面の敵ハザード一掃（自軍有利マスは完全保護）
 				for r in range(GRID_ROWS):
@@ -12783,6 +13153,10 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 				_play_poison_expansion(poisoned_cells, origin_pos, animate)
+				# 火スキルと同様に、毒化したマス上の駒を消去して落下させる
+				if not poisoned_cells.is_empty():
+					_clear_pieces_in_cells(poisoned_cells, "ally")
+					_start_continuous_falling()
 				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
 				if not affected_positions.is_empty():
 					_spawn_floating_text(affected_positions[0], "🧪 劇毒散布 (毒%dマス)！" % count, Color(0.3, 1.0, 0.6))
@@ -13019,8 +13393,10 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 
 	var rm_end = _get_relic_manager()
 	if rm_end and rm_end.has_relic("spirit_blessing"):
-		var mp_gain = player_skill_max_energy * float(rm_end.get_param("spirit_blessing", "mp_restore", 0.20))
-		player_skill_energy = minf(player_skill_max_energy, player_skill_energy + mp_gain)
+		var shield_ratio = float(rm_end.get_param("spirit_blessing", "shield_ratio", 0.03))
+		var shield_gain = (sm.myhpmax if sm else 5000.0) * shield_ratio
+		_apply_skill_shield(shield_gain)
+		_spawn_floating_text(Vector2(640, 360), "🛡️ 精霊の祝福・シールド+%d" % int(shield_gain), Color(0.5, 1.0, 0.9))
 		emit_signal("relic_triggered", "spirit_blessing")
 
 	_update_player_skill_ui()

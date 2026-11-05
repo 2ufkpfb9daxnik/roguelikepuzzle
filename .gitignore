@@ -5,5 +5,16 @@
 test_out.txt
 scratch/
 backups/
+build/
+
+# Secrets / local environment (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.dev.vars
 
 

@@ -28,12 +28,9 @@ func set_ui_visible(vis: bool) -> void:
 
 const CUSTOM_FONT = preload("res://font/g_comickoin_freeR.ttf")
 
-func _get_sys_font() -> SystemFont:
-	var sys_font = SystemFont.new()
-	sys_font.font_names = PackedStringArray(["Meiryo", "Yu Gothic", "Hiragino Sans", "Noto Sans CJK JP", "MS Gothic", "sans-serif"])
-	sys_font.font_weight = 700
-	var emoji_f = SystemFont.new()
-	emoji_f.font_names = PackedStringArray(["Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"])
+func _get_sys_font() -> Font:
+	var sys_font = load("res://font/NotoSansJP.ttf")
+	var emoji_f = load("res://font/NotoEmoji.ttf")
 	sys_font.set_fallbacks([emoji_f])
 	return sys_font
 

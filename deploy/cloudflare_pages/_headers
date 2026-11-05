@@ -1,0 +1,7 @@
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+/index.pck.part*
+  Content-Type: application/octet-stream
+/index.wasm.part*
+  Content-Type: application/octet-stream
