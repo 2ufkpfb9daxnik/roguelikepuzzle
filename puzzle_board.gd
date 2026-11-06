@@ -454,6 +454,8 @@ var has_special_items: bool = false
 var has_board_hazards: bool = false
 # 脈動・揺らめき等の常時アニメーションを持つ障害物があるか（石のみの場合は false → 定期再描画不要）
 var has_animated_board_hazards: bool = false
+# 常時アニメーションする効果マスの概算数（描画間引きの判定用）
+var animated_hazard_count: int = 0
 var has_ice: bool = false
 var has_stones: bool = false
 var has_gold_statue: bool = false
@@ -487,6 +489,7 @@ func _update_board_element_flags() -> void:
 
 	has_board_hazards = false
 	has_animated_board_hazards = false
+	animated_hazard_count = active_wind_tornadoes.size() * 6 + plant_entities.size() * 4 + grid_fog.size() * 9
 	has_ice = false
 	has_stones = false
 	has_gold_statue = false
@@ -525,13 +528,15 @@ func _update_board_element_flags() -> void:
 					has_board_hazards = true
 				if is_el or is_cu or is_ic or is_gd or is_fr or is_w:
 					has_animated_board_hazards = true
+					animated_hazard_count += 1
 
 
 ## 盤面描画の一括更新（盤面状態の変化時に呼ばれる＝イベント駆動の即時再描画）
 ## ※ queue_redraw() は同一フレーム内で何度呼んでも Godot 側で1回に集約される
 func _redraw_board_effects() -> void:
 	_update_board_element_flags()
-	if board_bg: board_bg.queue_redraw()
+	# board_bg は静的な盤面装飾と選択ハイライトのみを描画する。
+	# 効果マスの変化では再描画不要なため、ここでは要求しない（毎回の重い背景再描画を回避）。
 	if board_overlay and (has_board_hazards or not active_wind_tornadoes.is_empty()): board_overlay.queue_redraw()
 	# 特殊アイテムが消滅した時も必ず再描画し、消えたアイコンが盤面に残り続けないようにする
 	if mark_overlay: mark_overlay.queue_redraw()
@@ -727,6 +732,12 @@ func sync_special_levels_from_score_manager() -> void:
 
 func _initialize_board(collid_template: Node) -> void:
 	is_tutorial_paused = false
+	selected_cell = Vector2i(-1, -1)
+	selected_piece_idx = -1
+	is_holding = false
+	drag_offset = Vector2.ZERO
+	press_start_cell = Vector2i(-1, -1)
+	hovered_swap_cell = Vector2i(-1, -1)
 	has_emitted_items_scored = false
 	enemy_shock_stacks = 0
 	player_shock_stacks = 0
@@ -854,6 +865,7 @@ func _initialize_board(collid_template: Node) -> void:
 	if rm: rm.on_turn_start()
 	_spawn_turn_specials()
 	_setup_player_skill_ui()
+	if board_bg: board_bg.queue_redraw()
 	_redraw_board_effects()
 
 func _init_ally_grids() -> void:
@@ -2168,8 +2180,6 @@ func _detonate_specials(start_items: Array) -> void:
 							grid_element[nr][nc] = e_enum
 
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 func _detonate_bombs(start_bombs: Array) -> void:
 	_detonate_specials(start_bombs)
@@ -3211,8 +3221,6 @@ func _trigger_aqua_splash(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 	for plant in plant_entities.duplicate():
 		_process_plant_water_absorption(plant)
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 func _trigger_tree_sprout(r: int, c: int, pos: Vector2, _queue: Array, _exploded_items: Dictionary) -> void:
 	ismatched[r][c] = true
@@ -3232,8 +3240,6 @@ func _trigger_tree_sprout(r: int, c: int, pos: Vector2, _queue: Array, _exploded
 		}
 		plant_entities.append(new_plant)
 		_process_plant_water_absorption(new_plant)
-	if board_bg:
-		board_bg.queue_redraw()
 
 func _trigger_disco_ball(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	_trigger_holy_light(r, c, pos, queue, exploded_items)
@@ -3435,8 +3441,6 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 	# 視覚演出: ブラックホール起爆位置から影護マスへ属性魔力弾演出
 	if not shadow_vfx_targets.is_empty():
 		_spawn_player_skill_beams(pos, shadow_vfx_targets, "dark")
-	if board_bg:
-		board_bg.queue_redraw()
 
 func _trigger_holy_light(r: int, c: int, pos: Vector2, queue: Array, exploded_items: Dictionary) -> void:
 	var lvl: int = max(1, special_levels.get(SpecialItemType.HOLY_LIGHT, 1))
@@ -3680,8 +3684,6 @@ func _trigger_water_conduction(start_cells: Array[Vector2i], queue: Array, explo
 	for p in hit_plants:
 		_damage_plant(p, 1, "lightning_water")
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## 植物が占有するマス一覧を取得（苗・若木は1マス、3x3大木は9マス）
 func _get_plant_occupied_cells(plant: Dictionary) -> Array[Vector2i]:
@@ -3797,8 +3799,7 @@ func _plant_sprout_at(r: int, c: int) -> bool:
 	_clear_pieces_in_cells([Vector2i(r, c)])
 	_process_plant_water_absorption(new_plant)
 	_update_status_ailments()
-	if board_bg:
-		board_bg.queue_redraw()
+	_redraw_board_effects()
 	return true
 
 ## 盤面の空きマスに苗木を1本植樹（ショップ購入時等）
@@ -3830,7 +3831,6 @@ func _damage_plant(plant: Dictionary, dmg: int, _reason: String = "") -> void:
 			plant["stage"] = plant.get("stage", 1) - 1
 			plant["thunder_hp"] = 1
 			_spawn_floating_text(p_pos, "🌱 深い根！段階低下で耐えた(段階%d)！" % plant["stage"], Color(0.4, 1.0, 0.4))
-			if board_bg: board_bg.queue_redraw()
 			_update_status_ailments()
 			return
 
@@ -3858,8 +3858,6 @@ func _damage_plant(plant: Dictionary, dmg: int, _reason: String = "") -> void:
 
 		plant_entities.erase(plant)
 		_update_status_ailments()
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## 火炎が植物に接触した時の大延焼爆発
 func _burn_plant(plant: Dictionary, queue: Array = [], exploded_items: Dictionary = {}) -> void:
@@ -3895,8 +3893,6 @@ func _burn_plant(plant: Dictionary, queue: Array = [], exploded_items: Dictionar
 
 
 	_spawn_mega_explosion_effect(center_pos, 3)
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## 指定矩形範囲に接触している植物を延焼
 func _check_burn_plants_in_rect(min_r: int, max_r: int, min_c: int, max_c: int, queue: Array = [], exploded_items: Dictionary = {}) -> void:
@@ -3957,8 +3953,6 @@ func _process_plant_water_absorption(plant: Dictionary) -> bool:
 			_clear_pieces_in_cells(_get_plant_occupied_cells(plant))
 			_spawn_growth_effect(get_cell_position(plant["origin"].x, plant["origin"].y), 2)
 
-		if board_bg:
-			board_bg.queue_redraw()
 
 	return absorbed_any
 
@@ -6594,8 +6588,6 @@ func spawn_random_hazard_for_curse() -> void:
 			grid_cursed[p.x][p.y] = true
 			_spawn_floating_text(get_cell_position(p.x, p.y), "呪禍", Color(0.8, 0.2, 0.4))
 			_spawn_curse_burst_effect(get_cell_position(p.x, p.y))
-	if board_bg:
-		board_bg.queue_redraw()
 	_redraw_board_effects()
 
 ## スキルコマ生成時のキラキラ輝き演出
@@ -9588,12 +9580,17 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 func clear_board_hazards() -> void:
 	hazard_spread_turn_counter = 0
 	grid_fog.clear()
+	plant_entities.clear()
 	stone_turn_counts.clear()
 	diamond_stones.clear()
 	active_wind_tornadoes.clear()
 	storm_zones.clear()
 	wind_ward_columns.clear()
 	delayed_explosions.clear()
+	last_shrapnel_cleared_cells.clear()
+	poison_mist_detonated_cells.clear()
+	pending_special_spawns.clear()
+	steady_spark_triggered_this_turn = false
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			if grid_cursed.size() == GRID_ROWS: grid_cursed[r][c] = false
@@ -10323,8 +10320,6 @@ func _play_ice_freeze_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Ve
 			var c_pos = get_cell_position(c.x, c.y)
 			_spawn_ice_break_effect(c_pos)
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## 🧪 毒スキルプロジェクタイル演出（起点から対象マスへ毒泡・胞子弾が飛翔）
 func _spawn_poison_bubble_projectile(from_pos: Vector2, to_pos: Vector2, delay: float = 0.0, on_reach: Callable = Callable()) -> void:
@@ -10403,8 +10398,6 @@ func _play_poison_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector
 			var c_pos = get_cell_position(c.x, c.y)
 			_spawn_poison_bubble_burst_effect(c_pos)
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## ✨ 聖光スキルプロジェクタイル演出（起点から対象マスへ聖光弾・光星が飛翔）
 func _spawn_holy_light_projectile(from_pos: Vector2, to_pos: Vector2, delay: float = 0.0, on_reach: Callable = Callable()) -> void:
@@ -10489,8 +10482,6 @@ func _play_light_expansion(cells: Array[Vector2i], origin_pos: Vector2 = Vector2
 			var c_pos = get_cell_position(c.x, c.y)
 			_spawn_gold_shatter_effect(c_pos)
 
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## エフェクト演出（氷割れ・石粉砕・黄金像破壊・感電・呪い）
 func _spawn_ice_break_effect(pos: Vector2) -> void:
@@ -12426,8 +12417,6 @@ func _evolve_plant_stage(plant: Dictionary, target_stage: int) -> void:
 		plant["thunder_hp"] = 3
 		_clear_pieces_in_cells(_get_plant_occupied_cells(plant))
 		_spawn_growth_effect(get_cell_position(plant["origin"].x, plant["origin"].y), 2)
-	if board_bg:
-		board_bg.queue_redraw()
 
 ## プレイヤーによる10属性×3段階 盤面スキル発動
 func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 1, animate: bool = true, origin_pos: Vector2 = Vector2.ZERO) -> Array[Vector2]:
@@ -12715,7 +12704,6 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				enemy_turn_skip_count += delay_t
 				_spawn_floating_text(affected_positions[0] if not affected_positions.is_empty() else Vector2(640, 360), "🌿 藤蔓の拘束！敵行動%dターン遅延！" % delay_t, Color(0.3, 0.95, 0.4))
 
-			if board_bg: board_bg.queue_redraw()
 
 		"wind":
 			if tier == 2:

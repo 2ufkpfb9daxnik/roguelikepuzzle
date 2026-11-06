@@ -2792,8 +2792,8 @@ func isdead() -> void:
 	enemy = null
 		
 	var pb = _get_puzzle_board()
-	if pb and pb.has_method("_clear_board_hazards"):
-		pb._clear_board_hazards()
+	if pb and pb.has_method("clear_board_hazards"):
+		pb.clear_board_hazards()
 		
 	if ehpbar: ehpbar.queue_free(); ehpbar = null
 	if ehpbar1: ehpbar1.queue_free(); ehpbar1 = null

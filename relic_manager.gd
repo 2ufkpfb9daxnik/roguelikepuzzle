@@ -30,9 +30,6 @@ func set_chosen_element_category(cat_key: String) -> void:
 		if sc:
 			if sc.has_method("on_element_category_chosen"):
 				sc.on_element_category_chosen(cat_key)
-			# 最初に選んだ系統の基本スキルを自動解放する
-			if sc.has_method("unlock_starter_skill"):
-				sc.unlock_starter_skill(cat_key)
 			if "divscore" in sc and sc.divscore is Array and sc.divscore.size() > 3:
 				# スキル解放権の獲得に伴い、ショップで最初のスキルを即座に解放できるようポーションを最低1000保証
 				sc.divscore[3] = maxi(int(sc.divscore[3]), 1000)

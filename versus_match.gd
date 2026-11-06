@@ -1160,14 +1160,14 @@ func _build_relic_choices() -> void:
 	# 最初のレリック選択はオフラインと同じ「属性カテゴリー（スキル解放権）」選択
 	if chosen_cat == "":
 		_shop_title_lbl.text = "🧪 スキル解放権（属性カテゴリー）選択"
-		_shop_note_lbl.text = "最初に使用する属性系統を選択してください。選んだ系統の基本スキルが1つ解放されます。"
+		_shop_note_lbl.text = "最初に使用する属性系統を選択してください。選んだ系統のスキルをショップで解放できるようになります。"
 		var cat_order: Array[String] = ["nature", "force", "mystic"]
 		for key in cat_order:
 			var cat: Dictionary = RelicDatabase.ELEMENT_CATEGORIES[key]
 			var relic_id: String = str(cat.get("relic_id", "relic_cat_" + key))
 			var elements_text: String = "・".join(PackedStringArray(cat.get("elements", [])))
 			var btn = _make_button(
-				"%s %s\n%s\n\n基本スキル『%s』を解放" % [
+				"%s %s\n%s\n\n🔓 スキル解放権を獲得（『%s』など）" % [
 					str(cat.get("icon", "")),
 					str(cat.get("name", key)),
 					elements_text,

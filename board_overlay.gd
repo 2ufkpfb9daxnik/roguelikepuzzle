@@ -26,6 +26,9 @@ func _ready() -> void:
 
 # 常時アニメーション（脈動・揺らめき）する障害物の再描画間隔（秒）。描画は時間ベースなのでアニメ速度は不変
 const ANIM_REDRAW_INTERVAL: float = 1.0 / 24.0
+# 効果マスが多い時は描画頻度を落として負荷を抑える（見た目は維持）
+const ANIM_REDRAW_INTERVAL_MED: float = 1.0 / 18.0
+const ANIM_REDRAW_INTERVAL_HIGH: float = 1.0 / 12.0
 var _anim_redraw_elapsed: float = 0.0
 
 func _process(delta: float) -> void:
@@ -67,9 +70,18 @@ func _process(delta: float) -> void:
 			if sm and bool(sm.get("isfevertime")):
 				animated = true
 		if animated:
+			var interval: float = ANIM_REDRAW_INTERVAL
+			# 竜巻は高速移動するため間引かず、効果マスが多い場合のみ描画頻度を下げる
+			var has_tor: bool = ("active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty())
+			if not has_tor:
+				var hazard_count: int = int(board.get("animated_hazard_count")) if "animated_hazard_count" in board else 0
+				if hazard_count > 90:
+					interval = ANIM_REDRAW_INTERVAL_HIGH
+				elif hazard_count > 40:
+					interval = ANIM_REDRAW_INTERVAL_MED
 			_anim_redraw_elapsed += delta
-			if _anim_redraw_elapsed >= ANIM_REDRAW_INTERVAL:
-				_anim_redraw_elapsed = fmod(_anim_redraw_elapsed, ANIM_REDRAW_INTERVAL)
+			if _anim_redraw_elapsed >= interval:
+				_anim_redraw_elapsed = fmod(_anim_redraw_elapsed, interval)
 				needs_redraw = true
 
 	if needs_redraw:
