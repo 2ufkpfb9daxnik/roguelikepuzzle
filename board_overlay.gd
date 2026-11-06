@@ -110,6 +110,8 @@ func _is_ally_cell(prop_name: String, r: int, c: int) -> bool:
 		return false
 	var arr = _ally_cache.get(prop_name, null)
 	if arr == null:
+		arr = board.get(prop_name)
+	if arr == null:
 		return false
 	if typeof(arr) == TYPE_ARRAY and arr.size() == GRID_ROWS and r >= 0 and r < GRID_ROWS:
 		if typeof(arr[r]) == TYPE_ARRAY and c >= 0 and c < arr[r].size():

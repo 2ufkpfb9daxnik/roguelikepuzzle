@@ -278,6 +278,7 @@ var _last_ehp: int = -999999
 var _last_ehpmax: int = -999999
 var _last_myhp: int = -999999
 var _last_myhpmax: int = -999999
+var _last_guard: int = -999999
 var _last_displayed_enemy_key: String = ""
 var _last_is_boss: bool = false
 var _last_fever_pct: int = -999999
@@ -2601,10 +2602,6 @@ func displayhp() -> void:
 	if ehpbar1 != null and is_instance_valid(ehpbar1) and ehpbar1.visible:
 		ehpbar1.visible = false
 
-	# PvPでは右側の専用ステータスパネルを使用するため、オフライン用のプレイヤーHP表示は更新しない
-	if _is_pvp_mode():
-		return
-
 	# プレイヤーHPの更新処理（復元）
 	if _cached_hp_bar == null or not is_instance_valid(_cached_hp_bar):
 		_cached_hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1") as ColorRect if get_parent() else null
@@ -2644,6 +2641,7 @@ func displayhp() -> void:
 		
 		if player_hp_lbl == null or not is_instance_valid(player_hp_lbl):
 			player_hp_lbl = RichTextLabel.new()
+			player_hp_lbl.name = "player_hp_lbl"
 			player_hp_lbl.bbcode_enabled = true
 			player_hp_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			player_hp_lbl.fit_content = false
@@ -2665,9 +2663,11 @@ func displayhp() -> void:
 		
 		var cur_myhp_int: int = int(myhp)
 		var cur_myhpmax_int: int = int(myhpmax)
-		if cur_myhp_int != _last_myhp or cur_myhpmax_int != _last_myhpmax:
+		var cur_guard_int: int = int(guard)
+		if cur_myhp_int != _last_myhp or cur_myhpmax_int != _last_myhpmax or cur_guard_int != _last_guard:
 			_last_myhp = cur_myhp_int
 			_last_myhpmax = cur_myhpmax_int
+			_last_guard = cur_guard_int
 			
 			var s_hp = str(absi(cur_myhp_int))
 			var res_hp = ""
@@ -2681,13 +2681,11 @@ func displayhp() -> void:
 				res_max = s_max[i] + res_max
 				if (s_max.length() - i) % 3 == 0 and i != 0: res_max = "," + res_max
 				
-			player_hp_lbl.text = "[center][b][color=#FFFF00]PLAYER HP[/color] [color=#FFFFFF]%s / %s[/color][/b][/center]" % [res_hp, res_max]
+			var sh_tag = ("  [color=#4DD0E1]🛡️" + str(int(guard)) + "[/color]") if guard > 0.0 else ""
+			player_hp_lbl.text = "[center][b][color=#FFFF00]PLAYER HP[/color] [color=#FFFFFF]%s / %s[/color]%s[/b][/center]" % [res_hp, res_max, sh_tag]
 
 ## ゲージ表示の更新
 func displaygage() -> void:
-	# PvPでは右側の専用ステータスパネルを使用するため、オフライン用のフィーバーゲージは更新しない
-	if _is_pvp_mode():
-		return
 	if _cached_fever_bar == null or not is_instance_valid(_cached_fever_bar):
 		_cached_fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2") as ColorRect if get_parent() else null
 	if _cached_fever_bar:
@@ -3683,12 +3681,13 @@ func setup_pvp_enemy(tex: Texture2D, display_name: String, element_jp: String, h
 	displayhp()
 	play_single_idle_loop(0)
 
-func update_pvp_enemy_hp(hp_value: float, max_hp_value: float) -> void:
+func update_pvp_enemy_hp(hp_value: float, max_hp_value: float, shield_value: float = 0.0) -> void:
 	if active_enemies.is_empty():
 		return
 	var e = active_enemies[0]
 	e["hp"] = hp_value
 	e["max_hp"] = max_hp_value
+	e["shield"] = shield_value
 	ehp = hp_value
 	ehpmax = max_hp_value
 	displayhp()

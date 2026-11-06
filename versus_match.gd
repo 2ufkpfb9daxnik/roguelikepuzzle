@@ -162,13 +162,15 @@ func _on_shop_purchased() -> void:
 	if not _offline_shop_open:
 		return
 	_sync_stats_from_stage()
-	_net.send_stats(_my_stats)
+	if _net and _net.has_method("send_stats"):
+		_net.send_stats(_my_stats)
 
 func _on_shop_skill_upgraded(_skill_id: String, _sp_type: int, _new_level: int) -> void:
 	if not _offline_shop_open:
 		return
 	_sync_stats_from_stage()
-	_net.send_stats(_my_stats)
+	if _net and _net.has_method("send_stats"):
+		_net.send_stats(_my_stats)
 
 func _connect_network_signals() -> void:
 	if _net == null:
@@ -228,7 +230,7 @@ func _build_hud() -> void:
 
 	var font = _make_font()
 	_build_left_panel(font)
-	_build_player_panel(font)
+	# オフライン同様の右側ステータス欄を使用するため、重なるPlayerStatusPanelの追加を廃止
 	_build_turn_frame()
 	_build_bottom_panel(font)
 	_build_shop_panel(font)
@@ -357,6 +359,9 @@ func _build_left_panel(font: Font) -> void:
 	_timer_lbl = _label("10.0", font, 34, Color(1.0, 0.85, 0.3))
 	_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_timer_lbl)
+
+	box.add_child(_label("YOU: %s" % _my_name, font, 14, Color(0.65, 0.92, 1.0)))
+	box.add_child(_label("VS  %s" % _remote_name, font, 14, Color(1.0, 0.65, 0.65)))
 
 	box.add_child(HSeparator.new())
 
@@ -746,20 +751,22 @@ func _update_hint() -> void:
 				_hint_lbl.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5))
 
 func _refresh_stats() -> void:
-	if _my_hp_lbl == null:
-		return
-	var max_hp: float = maxf(1.0, float(_my_stats.get("maxHp", 5000)))
-	var hp: float = float(_my_stats.get("hp", 0))
-	_my_hp_lbl.text = "HP %d / %d" % [int(hp), int(max_hp)]
-	_my_hp_bar.value = clampf(hp / max_hp * 100.0, 0.0, 100.0)
-	_my_status_lbl.text = "SHIELD %d   COIN %d" % [int(_my_stats.get("shield", 0)), int(_my_stats.get("coins", 0))]
+	if _my_hp_lbl != null:
+		var max_hp: float = maxf(1.0, float(_my_stats.get("maxHp", 5000)))
+		var hp: float = float(_my_stats.get("hp", 0))
+		_my_hp_lbl.text = "HP %d / %d" % [int(hp), int(max_hp)]
+		if _my_hp_bar: _my_hp_bar.value = clampf(hp / max_hp * 100.0, 0.0, 100.0)
+		if _my_status_lbl: _my_status_lbl.text = "SHIELD %d   COIN %d" % [int(_my_stats.get("shield", 0)), int(_my_stats.get("coins", 0))]
 
 	if _remote_hp_lbl != null:
 		var rmax: float = maxf(1.0, float(_remote_stats.get("maxHp", 5000)))
 		var rhp: float = float(_remote_stats.get("hp", 0))
 		_remote_hp_lbl.text = "HP %d / %d" % [int(rhp), int(rmax)]
-		_remote_hp_bar.value = clampf(rhp / rmax * 100.0, 0.0, 100.0)
-		_remote_status_lbl.text = "SHIELD %d   COIN %d" % [int(_remote_stats.get("shield", 0)), int(_remote_stats.get("coins", 0))]
+		if _remote_hp_bar: _remote_hp_bar.value = clampf(rhp / rmax * 100.0, 0.0, 100.0)
+		if _remote_status_lbl: _remote_status_lbl.text = "SHIELD %d   COIN %d" % [int(_remote_stats.get("shield", 0)), int(_remote_stats.get("coins", 0))]
+
+	_sync_stage_hp()
+	_sync_pvp_enemy_hp()
 
 func _sync_stage_hp() -> void:
 	if _stage_mgr == null:
@@ -767,6 +774,7 @@ func _sync_stage_hp() -> void:
 	_stage_mgr.myhp = float(_my_stats.get("hp", 5000))
 	_stage_mgr.myhpmax = float(_my_stats.get("maxHp", 5000))
 	_stage_mgr.myhppar = clampf(_stage_mgr.myhp / maxf(1.0, _stage_mgr.myhpmax), 0.0, 1.0)
+	_stage_mgr.guard = float(_my_stats.get("shield", 0))
 	_stage_mgr.isdeadf = false
 	if _stage_mgr.has_method("displayhp"):
 		_stage_mgr.displayhp()
@@ -786,7 +794,7 @@ func _setup_pvp_enemy() -> void:
 
 func _sync_pvp_enemy_hp() -> void:
 	if _stage_mgr and _stage_mgr.has_method("update_pvp_enemy_hp"):
-		_stage_mgr.update_pvp_enemy_hp(float(_remote_stats.get("hp", 5000)), float(_remote_stats.get("maxHp", 5000)))
+		_stage_mgr.update_pvp_enemy_hp(float(_remote_stats.get("hp", 5000)), float(_remote_stats.get("maxHp", 5000)), float(_remote_stats.get("shield", 0)))
 
 func _advance_pvp_background() -> void:
 	if _stage_mgr == null or not _stage_mgr.has_method("set_pvp_background"):
@@ -854,9 +862,14 @@ func _on_pvp_turn_resolved(payload: Dictionary) -> void:
 		"coins": int(payload.get("coins", 0))
 	}
 	_net.send_action(net_payload)
-	_net.send_stats(_my_stats)
+	if _net and _net.has_method("send_stats"):
+		_net.send_stats(_my_stats)
 
-	_remote_stats["hp"] = maxi(0, int(_remote_stats.get("hp", 0)) - damage)
+	var rem_sh: int = int(_remote_stats.get("shield", 0))
+	var rem_abs: int = mini(rem_sh, damage)
+	_remote_stats["shield"] = rem_sh - rem_abs
+	var rem_hp_dmg: int = damage - rem_abs
+	_remote_stats["hp"] = maxi(0, int(_remote_stats.get("hp", 0)) - rem_hp_dmg)
 	_refresh_stats()
 	_log("[color=#81D4FA]あなたの攻撃: %d / 回復 %d / シールド +%d[/color]" % [damage, heal, int(payload.get("shield", 0))])
 	_show_enemy_damage(damage)
@@ -915,11 +928,11 @@ func _play_attack_animation(damage: int) -> void:
 		var tw3 = create_tween()
 		tw3.tween_property(_rival_sprite, "modulate", Color.WHITE, 0.35)
 
-func _play_damage_text(pos: Vector2, damage: int, color: Color) -> void:
+func _play_damage_text(pos: Vector2, damage: int, color: Color, format_str: String = "-%d") -> void:
 	if _hud_root == null:
 		return
 	var lbl = Label.new()
-	lbl.text = "-%d" % damage
+	lbl.text = format_str % damage
 	lbl.position = pos + Vector2(-100, 0)
 	lbl.size = Vector2(200, 70)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1000,10 +1013,21 @@ func _on_action_received(from: int, payload: Dictionary) -> void:
 	_my_stats["hp"] = maxi(0, int(_my_stats.get("hp", 0)) - hp_damage)
 	_refresh_stats()
 	_sync_stage_hp()
-	_net.send_stats(_my_stats)
+	if _net and _net.has_method("send_stats"):
+		_net.send_stats(_my_stats)
 	_log("[color=#FF5252]相手の攻撃: %d ダメージ（シールド軽減 %d）[/color]" % [hp_damage, absorbed])
+
+	if absorbed > 0:
+		if _board and _board.has_method("play_pvp_shield_block"):
+			_board.play_pvp_shield_block(absorbed, hp_damage, _my_stats["shield"])
+		_play_damage_text(Vector2(760, 440), absorbed, Color(0.3, 0.9, 1.0), "🛡️ 防御 -%d")
+
 	if hp_damage > 0:
-		_play_damage_text(Vector2(760, 500), hp_damage, Color(1.0, 0.3, 0.3))
+		_play_damage_text(Vector2(760, 510), hp_damage, Color(1.0, 0.3, 0.3))
+		if _stage_mgr and _stage_mgr.has_method("calchp"):
+			_stage_mgr.last_damage_cause = "相手プレイヤーの攻撃"
+		if _board and _board.has_method("_trigger_screen_shake"):
+			_board._trigger_screen_shake(12.0)
 		if _my_hp_bar:
 			_my_hp_bar.modulate = Color(1.0, 0.3, 0.3)
 			var tw = create_tween()
@@ -1025,12 +1049,18 @@ func _on_turn_started(data: Dictionary) -> void:
 	_deadline = int(data.get("deadline", 0))
 	_round = int(data.get("round", _round))
 	_turn_number = int(data.get("turnNumber", _turn_number))
-	_round_lbl.text = "ROUND %d / TURN %d" % [_round, _turn_number]
+	if _round_lbl:
+		_round_lbl.text = "ROUND %d / TURN %d" % [_round, _turn_number]
 	if _shop_panel:
 		_shop_panel.visible = false
 	_close_offline_shop()
 	_sync_pvp_enemy_hp()
 	var is_my_turn_now: bool = _active_player == _my_index
+	if is_my_turn_now:
+		# 敵のターンが終了したので、前行動時に展開されていたシールドの持続期間が終了
+		_my_stats["shield"] = 0
+		if _board and _board.has_method("clear_pvp_shields"):
+			_board.clear_pvp_shields()
 	if _board:
 		_board.set_pvp_my_turn(is_my_turn_now and not _intro_pending and not _intro_playing)
 	_sync_stage_hp()
@@ -1050,6 +1080,10 @@ func _on_phase_updated(data: Dictionary) -> void:
 
 func _on_shop_started(data: Dictionary) -> void:
 	_phase = "shop"
+	_my_stats["shield"] = 0
+	if _board and _board.has_method("clear_pvp_shields"):
+		_board.clear_pvp_shields()
+	_sync_stage_hp()
 	_close_offline_shop()
 	if _hud_root:
 		_hud_root.visible = true
@@ -1276,7 +1310,8 @@ func _on_shop_buy(slot_idx: int) -> void:
 		_my_stats["coins"] = int(score_mgr.divscore[2])
 	_refresh_stats()
 	_sync_stage_hp()
-	_net.send_stats(_my_stats)
+	if _net and _net.has_method("send_stats"):
+		_net.send_stats(_my_stats)
 	_build_shop_items()
 
 func _on_shop_done_pressed() -> void:

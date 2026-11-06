@@ -42,19 +42,6 @@ func _ready() -> void:
 		if stage_label2: stage_label2.visible = false
 		var stage_change_btn = get_node_or_null("ScoreManager/stagechangeb")
 		if stage_change_btn: stage_change_btn.visible = false
-		# 右側のPvPステータスパネルと重なるオフライン用のHP／フィーバー／スコア表示を隠す
-		for offline_ui_path in [
-			"ScoreManager/hpbar", "ScoreManager/hpbar1",
-			"ScoreManager/feverbar", "ScoreManager/feverbar2",
-			"ScoreManager/player_hp_lbl", "ScoreManager/fever_bar_lbl",
-			"ScoreManager/score_rect", "ScoreManager/score2_rect",
-			"ScoreManager/RichTextLabel",
-			"ScoreManager/score0", "ScoreManager/score1", "ScoreManager/score2",
-			"ScoreManager/score3", "ScoreManager/score4"
-		]:
-			var offline_ui = get_node_or_null(offline_ui_path)
-			if offline_ui and "visible" in offline_ui:
-				offline_ui.visible = false
 		var pvp_controller = load("res://versus_match.gd").new()
 		pvp_controller.name = "PvPController"
 		add_child.call_deferred(pvp_controller)

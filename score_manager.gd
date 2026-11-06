@@ -1357,13 +1357,9 @@ func update_score_label() -> void:
 		
 	# 敵画面真下のスコア欄更新
 	if label != null:
-		if _is_pvp_mode():
-			# PvPでは右側の専用ステータスパネルと重なるため、オフライン用スコア表示は出さない
-			label.visible = false
-		else:
-			label.visible = true
-			var combo_str = "  [color=#00E5FF](%d COMBO)[/color]" % combocount if combocount > 1 else ""
-			label.text = "[font_size=36][b][color=#FFD700]SCORE :[/color]  [color=#FFFFFF]%s[/color][/b]%s[/font_size]" % [_format_comma(totalScore), combo_str]
+		label.visible = true
+		var combo_str = "  [color=#00E5FF](%d COMBO)[/color]" % combocount if combocount > 1 else ""
+		label.text = "[font_size=36][b][color=#FFD700]SCORE :[/color]  [color=#FFFFFF]%s[/color][/b]%s[/font_size]" % [_format_comma(totalScore), combo_str]
 	if label2 != null:
 		label2.text = ""
 		label2.visible = false

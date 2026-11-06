@@ -4649,5 +4649,106 @@ func _init() -> void:
 	print("✓ 60-6 Black Hole detonation triggering Branch A & Branch C evolutions verified!")
 	print("✓ SECTION 60: Dark Element Shadow Veil (影護) & Black Hole Nomenclature ALL PASSED!\n")
 
+	# ==============================================================================
+	# SECTION 61: Online PvP Status UI & Shield Mechanics
+	# ==============================================================================
+	print("\n--- SECTION 61: Online PvP Status UI & Shield Mechanics ---")
+	var pvp_ctrl = load("res://versus_match.gd").new()
+	pvp_ctrl.name = "PvPController"
+	dummy_root.add_child(pvp_ctrl)
+	pvp_ctrl._stage = dummy_root
+	pvp_ctrl._board = pb
+	pvp_ctrl._stage_mgr = sm
+
+	var redundant_player_panel = pvp_ctrl.get_node_or_null("PvPHUDRoot/PlayerStatusPanel")
+	assert(redundant_player_panel == null, "PlayerStatusPanel must NOT be created/added to PvPHUDRoot")
+	print("✓ 61-1 Redundant PlayerStatusPanel removed from PvP HUD!")
+
+	# Offline UI elements must NOT be hidden in PvP
+	var stage_scene = load("res://current_stage.tscn")
+	var test_stage = stage_scene.instantiate()
+	dummy_root.add_child(test_stage)
+	var stage_sc = test_stage.get_node("ScoreManager")
+	var stage_sm = test_stage.get_node("StageManager")
+	var sc_hpbar = stage_sc.get_node_or_null("hpbar")
+	var sc_hpbar1 = stage_sc.get_node_or_null("hpbar1")
+	var sc_feverbar = stage_sc.get_node_or_null("feverbar")
+	var sc_score0 = stage_sc.get_node_or_null("score0")
+	var sc_score1 = stage_sc.get_node_or_null("score1")
+	assert(sc_hpbar != null and sc_hpbar.visible, "hpbar must remain visible in PvP")
+	assert(sc_hpbar1 != null and sc_hpbar1.visible, "hpbar1 must remain visible in PvP")
+	assert(sc_feverbar != null and sc_feverbar.visible, "feverbar must remain visible in PvP")
+	assert(sc_score0 != null and sc_score0.visible, "score0 (shield) must remain visible in PvP")
+	assert(sc_score1 != null and sc_score1.visible, "score1 (sword) must remain visible in PvP")
+	print("✓ 61-2 Original offline status panel and HP/fever bars remain visible in PvP!")
+
+	# displayhp() and displaygage() updating in PvP mode with shield tag
+	stage_sm.myhpmax = 5000.0
+	stage_sm.myhp = 3500.0
+	stage_sm.myhppar = 3500.0 / 5000.0
+	stage_sm.guard = 400.0
+	stage_sm.displayhp()
+	var php_lbl = stage_sc.get_node_or_null("player_hp_lbl")
+	assert(php_lbl != null and php_lbl.text.contains("3,500 / 5,000"), "player_hp_lbl must display player HP in PvP")
+	assert(php_lbl.text.contains("🛡️400"), "player_hp_lbl must display shield tag 🛡️400 when guard > 0")
+	print("✓ 61-3 displayhp() updates player HP bar and shield tag in PvP!")
+	test_stage.queue_free()
+
+	# Rival (Enemy) Shield tag in StageManager
+	sm.setup_pvp_enemy(load("res://Texture/enemy/2CDF0D54-BB4C-40BC-9FDA-BFFC9BE514ED-preview.png"), "RIVAL", "火", 4000.0, 5000.0)
+	sm.update_pvp_enemy_hp(4000.0, 5000.0, 600.0)
+	assert(sm.active_enemies.size() == 1, "Rival must exist in active_enemies")
+	var rival_lbl = sm.active_enemies[0]["hp_lbl"]
+	assert(rival_lbl != null and rival_lbl.text.contains("🛡️600"), "Rival HP label must contain 🛡️600 tag")
+	print("✓ 61-4 Rival HP display correctly reflects shield tag in PvP!")
+
+	# Shield deployment during action in PvP
+	pb.set_pvp_mode(true)
+	pb.set_pvp_my_turn(true)
+	sc.divscore[pb.PieceType.SHIELD] = 300
+	pb._spawn_shield_projectiles(sc)
+	assert(pb.active_shields.size() >= 1, "active_shields must contain deployed shield sprites")
+	assert(pb.current_total_shields == 3, "current_total_shields must be 3")
+	print("✓ 61-5 Shields are deployed during action in PvP!")
+
+	# Shield preservation on turn finish (transition to enemy turn)
+	var resolved_payload: Dictionary = {}
+	var on_turn_resolved = func(payload: Dictionary):
+		resolved_payload.merge(payload)
+	pb.pvp_turn_resolved.connect(on_turn_resolved)
+	pb._finish_pvp_turn(sm, sc)
+	assert(resolved_payload.get("shield", 0) == 300, "payload shield must be 300 (got: %d)" % resolved_payload.get("shield", 0))
+	assert(not pb.active_shields.is_empty(), "active_shields must NOT be destroyed when turn finishes in PvP")
+	assert(pb.current_total_shields == 3, "current_total_shields must be preserved across turn transition")
+	print("✓ 61-6 Shields are preserved when transitioning into the enemy turn!")
+
+	# Enemy attack absorption during enemy turn
+	pvp_ctrl._my_stats["shield"] = 300
+	pvp_ctrl._my_stats["hp"] = 5000
+	pvp_ctrl._on_action_received(1, { "damage": 200 })
+	assert(pvp_ctrl._my_stats["shield"] == 100, "Shield must absorb 200 damage, leaving 100 shield")
+	assert(pvp_ctrl._my_stats["hp"] == 5000, "HP must remain 5000 when fully absorbed by shield")
+	assert(not pb.active_shields.is_empty(), "Shields must remain deployed when remaining shield > 0")
+	print("✓ 61-7 Shields successfully absorb enemy attack during enemy turn!")
+
+	# Excess damage penetration and shield breaking
+	pvp_ctrl._on_action_received(1, { "damage": 250 })
+	assert(pvp_ctrl._my_stats["shield"] == 0, "Shield must be 0 after taking 250 damage")
+	assert(pvp_ctrl._my_stats["hp"] == 4850, "HP must be 4850 after 150 excess damage")
+	assert(pb.active_shields.is_empty(), "Shields must be shattered/cleared when shield is fully depleted")
+	print("✓ 61-8 Excess damage properly penetrates to HP and breaks shield!")
+
+	# Shield expiry when enemy turn ends (my next turn starts)
+	sc.divscore[pb.PieceType.SHIELD] = 500
+	pb._spawn_shield_projectiles(sc)
+	pb._finish_pvp_turn(sm, sc)
+	pvp_ctrl._my_stats["shield"] = 500
+	assert(not pb.active_shields.is_empty(), "Shields deployed for next round")
+	pvp_ctrl._on_turn_started({ "player": 0, "turnNumber": 2, "round": 1, "deadline": 10000 })
+	assert(pvp_ctrl._my_stats["shield"] == 0, "Shield must expire when enemy turn ends / my turn starts")
+	assert(pb.active_shields.is_empty(), "Shield sprites on board must be cleared when enemy turn ends")
+	print("✓ 61-9 Shield persists until enemy turn ends, and clears on start of my new turn!")
+	print("✓ SECTION 61: Online PvP Status UI & Shield Mechanics ALL PASSED!\n")
+
 	print("\nALL USER REQUEST TESTS PASSED SUCCESSFULLY!")
 	quit(0)

@@ -1147,7 +1147,7 @@ func is_steady_state() -> bool:
 		return false
 	if not flying_cells.is_empty():
 		return false
-	if not flying_swords.is_empty() or not flying_foods.is_empty() or not flying_potions.is_empty() or not active_shields.is_empty():
+	if not flying_swords.is_empty() or not flying_foods.is_empty() or not flying_potions.is_empty() or (not pvp_mode and not active_shields.is_empty()):
 		return false
 	if is_enemy_turn_in_progress or isswap or isbreak:
 		return false
@@ -1212,6 +1212,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if sm and (sm.isstageclear or sm.isdeadf or (not pvp_mode and sm.interval < 105)):
 		if selected_cell.x != -1:
 			_deselect_piece()
+		return
+
+	if pvp_mode and not pvp_my_turn:
+		if selected_cell.x != -1:
+			_deselect_piece()
+		is_holding = false
 		return
 
 	if current_state != BoardState.IDLE:
@@ -2729,6 +2735,7 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 	# 毒マス上の駒を消去して落下させる（火スキルと同じ挙動）
 	if poisoned_cells.size() > 0:
 		_clear_pieces_in_cells(poisoned_cells, "ally")
+	ismatched[r][c] = true
 
 	_play_poison_expansion(poisoned_cells, pos, true)
 	_spawn_floating_text(pos, "🧪 劇毒散布！", Color(0.2, 1.0, 0.6))
@@ -7443,6 +7450,41 @@ func _update_all_projectiles() -> void:
 func set_pvp_mode(enabled: bool) -> void:
 	pvp_mode = enabled
 
+## PvP用：敵ターン中に敵の攻撃をシールドが受け止めた際の演出・軽減処理
+func play_pvp_shield_block(absorbed: int, hp_damage: int, remaining_shield: int) -> void:
+	var se = get_node_or_null("shieldmove")
+	if se: se.play()
+
+	# シールド位置で衝撃波＆防御リアクション
+	for item in active_shields:
+		if is_instance_valid(item.get("node")):
+			var s: Sprite2D = item["node"]
+			_spawn_shockwave_ring(s.position, Color(0.3, 0.9, 1.0, 0.85), 100.0, 0.22)
+			var tw = create_tween()
+			var orig_pos = s.position
+			tw.tween_property(s, "position:x", orig_pos.x + randf_range(-120.0, 120.0), 0.05)
+			tw.tween_property(s, "position:x", orig_pos.x, 0.08)
+
+	_spawn_screen_flash(Color(0.3, 0.85, 1.0, 0.22), 0.2)
+
+	# シールド耐久値が尽きた場合は割れるエフェクトとともにシールドを消去
+	if remaining_shield <= 0:
+		for item in active_shields:
+			if is_instance_valid(item.get("node")):
+				var s: Sprite2D = item["node"]
+				_spawn_explosion_effect(s.position)
+				_return_sprite_to_pool(s)
+		active_shields.clear()
+		current_total_shields = 0
+
+## PvP用：敵のターンが終了したタイミングで、前行動時に展開されたシールドを消去・回収
+func clear_pvp_shields() -> void:
+	for item in active_shields:
+		if is_instance_valid(item.get("node")):
+			_return_sprite_to_pool(item["node"])
+	active_shields.clear()
+	current_total_shields = 0
+
 func set_pvp_my_turn(enabled: bool) -> void:
 	pvp_my_turn = enabled
 	if enabled:
@@ -7493,7 +7535,7 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	var used_skills: Array = pvp_used_skills.duplicate(true)
-	var shield_gain: float = float(current_total_shields)
+	var shield_gain: float = float(current_total_shields) * 100.0 * shieldt
 	# ターン終了時の毒・火などの継続効果を反映
 	_reset_turn(sm, score_mgr)
 	var end_hp: float = sm.ehp if sm and "ehp" in sm else 0.0
@@ -8848,9 +8890,6 @@ func _get_stage_index() -> int:
 func _apply_enemy_elemental_skill_effect(elem: String, is_boss: bool) -> Array[Vector2]:
 	# ✨ 後光の像 (light_final_b1) は _check_and_block_enemy_hazard 内で
 	#    聖像の周囲4マス（上下左右）の妨害マス設置のみを遮断する（敵スキル全体は無効化しない）
-	if has_light_sanctuary_this_turn:
-		return []
-
 	match elem:
 		"水属性":
 			return _cast_enemy_water_skill(is_boss, false)
@@ -10687,8 +10726,9 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	if score_mgr:
 		self.score_manager = score_mgr
 	var has_ice_preservation = score_mgr and score_mgr.has_method("has_skill_trait") and score_mgr.has_skill_trait("ice_1", "ice_mid_a")
+	var preserve_shields: bool = has_ice_preservation or (pvp_mode and not active_shields.is_empty())
 	# 残存発射物・シールド・エフェクトを確実に全消去してメモリと処理負荷をリセット
-	_clear_all_combat_projectiles(has_ice_preservation)
+	_clear_all_combat_projectiles(preserve_shields)
 
 	isattack = 0
 	isblock = 0
@@ -10700,8 +10740,8 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	isbreak = false
 	interval = 0
 
-	# 氷中間進化: 氷甲の残留（シールド持ち越し）
-	if not has_ice_preservation:
+	# 氷中間進化: 氷甲の残留（シールド持ち越し）、またはPvPでの敵ターン終了までのシールド維持
+	if not preserve_shields:
 		current_total_shields = 0
 		if sm and "guard" in sm:
 			sm.guard = 0.0
@@ -13208,10 +13248,6 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var pos = get_cell_position(cell.x, cell.y)
 					affected_positions.append(pos)
 				_play_poison_expansion(poisoned_cells, origin_pos, animate)
-				# 火スキルと同様に、毒化したマス上の駒を消去して落下させる
-				if not poisoned_cells.is_empty():
-					_clear_pieces_in_cells(poisoned_cells, "ally")
-					_start_continuous_falling()
 				direct_skill_dmg = (80.0 + sk_lvl * 15.0) * stage_scale
 				if not affected_positions.is_empty():
 					_spawn_floating_text(affected_positions[0], "🧪 劇毒散布 (毒%dマス)！" % count, Color(0.3, 1.0, 0.6))
