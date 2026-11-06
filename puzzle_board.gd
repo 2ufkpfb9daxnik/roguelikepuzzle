@@ -83,6 +83,8 @@ var pvp_start_enemy_hp: float = 0.0
 var pvp_is_attack: int = 0
 var pvp_is_block: int = 0
 var pvp_used_skills: Array = []
+# ターン内に展開したシールドの合計値（複数回展開しても加算される）
+var pvp_turn_shield_deployed: float = 0.0
 
 
 func _emit_combat_event(type: String, source: String, target: Variant, amount: float, element: String = "", is_critical: bool = false, effectiveness: String = "normal", extra: Dictionary = {}) -> void:
@@ -7484,12 +7486,14 @@ func clear_pvp_shields() -> void:
 			_return_sprite_to_pool(item["node"])
 	active_shields.clear()
 	current_total_shields = 0
+	pvp_turn_shield_deployed = 0.0
 
 func set_pvp_my_turn(enabled: bool) -> void:
 	pvp_my_turn = enabled
 	if enabled:
 		pvp_pending_damage = 0.0
 		pvp_used_skills.clear()
+		pvp_turn_shield_deployed = 0.0
 		var stage_mgr = _get_stage_manager()
 		pvp_start_enemy_hp = stage_mgr.ehp if stage_mgr and "ehp" in stage_mgr else 0.0
 		pvp_is_attack = 0
@@ -7535,7 +7539,8 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
 	var used_skills: Array = pvp_used_skills.duplicate(true)
-	var shield_gain: float = float(current_total_shields) * 100.0 * shieldt
+	# 行動中に展開したシールドを合算して、敵のターン中も残る盾として引き渡す
+	var shield_gain: float = pvp_turn_shield_deployed if pvp_mode else float(current_total_shields) * 100.0 * shieldt
 	# ターン終了時の毒・火などの継続効果を反映
 	_reset_turn(sm, score_mgr)
 	var end_hp: float = sm.ehp if sm and "ehp" in sm else 0.0
@@ -7974,6 +7979,9 @@ func _spawn_shield_projectiles(score_mgr: Node2D) -> void:
 	var raw_shield_cnt: int = int(score_mgr.divscore[PieceType.SHIELD] / (shieldt * 100.0))
 	score_mgr.divscore[PieceType.SHIELD] -= int(raw_shield_cnt * shieldt * 100.0)
 	current_total_shields = raw_shield_cnt
+	# PvP: このターンに展開したシールド量を累積する（複数回展開しても合算される）
+	if pvp_mode:
+		pvp_turn_shield_deployed += float(raw_shield_cnt) * shieldt * 100.0
 	var spawn_shield_cnt: int = clampi(raw_shield_cnt, 0, MAX_COMBAT_PROJECTILES)
 
 	for i in range(spawn_shield_cnt):
