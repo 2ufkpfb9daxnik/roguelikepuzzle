@@ -33,6 +33,8 @@ var currenthpcoin: int = 4000
 var currentbombcoin: int = 5000
 var fever_boost_level: int = 0
 var hp_boost_level: int = 0
+const HP_SHOP_FLAT_GAIN: float = 5000.0
+const HP_SHOP_PERCENT_GAIN: float = 0.10
 var bomb_buff_level: int = 0
 
 # ショップ＆スキルツリーUI管理
@@ -57,6 +59,12 @@ var skill_node_refs: Array[Dictionary] = []
 
 # パフォーマンス最適化用キャッシュ変数
 var _cached_jp_font: Font = null
+func _get_difficulty_reward_mult() -> float:
+	var sm = get_node_or_null("/root/SettingsManager")
+	if sm and sm.has_method("get_difficulty_reward_mult"):
+		return float(sm.get_difficulty_reward_mult())
+	return 1.0
+
 func _get_jp_font() -> Font:
 	if _cached_jp_font == null:
 		_cached_jp_font = load("res://font/NotoSansJP.ttf")
@@ -149,7 +157,7 @@ var shop_items: Array[Dictionary] = [
 		"type": "stat_hp",
 		"name": "最大体力強化",
 		"subtitle": "体力上限＆即時回復",
-		"desc": "プレイヤーの最大HPを大幅に増加させ、増加分だけ即座に回復します。",
+		"desc": "プレイヤーの最大HPを最大HPの10%（最低5000×ステージ倍率）増加させ、増加分だけ即座に回復します。",
 		"icon_path": "res://Texture/food/bread_cut.png",
 		"color": Color("#00E676"),
 		"cost": 2000,
@@ -1555,6 +1563,9 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = [], so
 				var gain: int = int(earned_score * fv_rate)
 				if att_type == PieceType.COIN and rm and rm.has_method("modify_coin_gain"):
 					gain = int(rm.modify_coin_gain(float(gain)))
+				# Easyモードではコイン・ポーションの獲得量を増加
+				if att_type == PieceType.COIN or att_type == PieceType.POTION:
+					gain = int(round(float(gain) * _get_difficulty_reward_mult()))
 				if att_type < divscore.size():
 					divscore[att_type] += gain
 
@@ -2743,7 +2754,7 @@ func _update_buff_button_labels() -> void:
 	# 1. ショップカードの更新
 	var sm = _get_stage_manager()
 	var stage_num: int = sm.stage if sm and "stage" in sm else 1
-	var hp_step: int = int(2500.0 * pow(10.0, maxf(0.0, float(stage_num - 1))))
+	var hp_step: int = int(maxf(HP_SHOP_FLAT_GAIN * pow(10.0, maxf(0.0, float(stage_num - 1))), (sm.myhpmax if sm and "myhpmax" in sm else 5000.0) * HP_SHOP_PERCENT_GAIN))
 
 	for i in range(mini(shop_items.size(), shop_card_refs.size())):
 		var item = shop_items[i]
@@ -3024,7 +3035,7 @@ func _purchase_buff(slot_idx: int) -> void:
 				var sm = _get_stage_manager()
 				if sm:
 					var stage_scale: float = pow(10.0, maxf(0.0, float(sm.stage - 1)))
-					var hp_gain: float = 2500.0 * stage_scale
+					var hp_gain: float = maxf(HP_SHOP_FLAT_GAIN * stage_scale, sm.myhpmax * HP_SHOP_PERCENT_GAIN)
 					sm.myhpmax += hp_gain
 					sm.myhp = minf(sm.myhpmax, sm.myhp + hp_gain)
 

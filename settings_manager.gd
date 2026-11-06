@@ -41,7 +41,7 @@ const DIFFICULTY_LABELS: Dictionary = {
 }
 
 const DIFFICULTY_DESCS: Dictionary = {
-	Difficulty.EASY: "敵の体力・攻撃力・スキル強度が約30%低下。初心者やカジュアルに楽しみたい方向け。",
+	Difficulty.EASY: "敵の体力25%減・攻撃力35%減・スキル威力30%減。獲得コインとポーションが50%増加。初心者やカジュアルに楽しみたい方向け。",
 	Difficulty.NORMAL: "標準的な難易度。通常のゲームバランスで楽しめます。",
 	Difficulty.HARD: "敵の体力+40%、攻撃力+35%、スキル強度+35%。戦略と連鎖が試される上級者向け。"
 }
@@ -53,9 +53,15 @@ const DIFFICULTY_HP_MULTS: Dictionary = {
 }
 
 const DIFFICULTY_ATK_MULTS: Dictionary = {
-	Difficulty.EASY: 0.75,
+	Difficulty.EASY: 0.65,
 	Difficulty.NORMAL: 1.0,
 	Difficulty.HARD: 1.35
+}
+
+const DIFFICULTY_REWARD_MULTS: Dictionary = {
+	Difficulty.EASY: 1.5,
+	Difficulty.NORMAL: 1.0,
+	Difficulty.HARD: 1.0
 }
 
 const DIFFICULTY_SKILL_MULTS: Dictionary = {
@@ -69,6 +75,9 @@ func get_difficulty_hp_mult() -> float:
 
 func get_difficulty_atk_mult() -> float:
 	return DIFFICULTY_ATK_MULTS.get(difficulty, 1.0)
+
+func get_difficulty_reward_mult() -> float:
+	return DIFFICULTY_REWARD_MULTS.get(difficulty, 1.0)
 
 func get_difficulty_skill_mult() -> float:
 	return DIFFICULTY_SKILL_MULTS.get(difficulty, 1.0)
