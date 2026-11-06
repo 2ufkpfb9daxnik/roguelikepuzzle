@@ -2158,6 +2158,35 @@ func on_element_category_chosen(cat_key: String) -> void:
 func set_chosen_category(cat_key: String) -> void:
 	on_element_category_chosen(cat_key)
 
+# 最初に選んだ属性カテゴリーで自動解放する基本スキル
+const STARTER_SKILL_BY_CATEGORY: Dictionary = {
+	"nature": "water_1",
+	"force": "fire_1",
+	"mystic": "poison_1"
+}
+
+## 最初のレリック（属性カテゴリー）選択時に、その系統の基本スキルをLv.1で解放する
+func unlock_starter_skill(cat_key: String) -> void:
+	var skill_id: String = str(STARTER_SKILL_BY_CATEGORY.get(cat_key, ""))
+	if skill_id == "":
+		return
+	if get_skill_level(skill_id) > 0:
+		return
+	set_skill_level(skill_id, 1)
+	var s: Dictionary = get_skill_by_id(skill_id)
+	var sp_type: int = int(s.get("sp_type", -1))
+	var pb = _get_puzzle_board()
+	if pb:
+		if sp_type >= 0 and "special_levels" in pb:
+			pb.special_levels[sp_type] = 1
+		if pb.has_method("sync_special_levels_from_score_manager"):
+			pb.sync_special_levels_from_score_manager()
+		if pb.has_method("_update_player_skill_ui"):
+			pb._update_player_skill_ui()
+	emit_signal("skill_upgraded", skill_id, sp_type, 1)
+	rebuild_skill_tree_ui()
+	update_elem_labels()
+
 ## 選択された属性カテゴリーに応じてスキルツリーUIを動的に構築
 func rebuild_skill_tree_ui() -> void:
 	if skill_tree_container == null or not is_instance_valid(skill_tree_container):

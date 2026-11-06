@@ -316,6 +316,30 @@ export class Room {
         }
         return;
 
+      case "debug_jump": {
+        // デバッグ用: 指定ターンへ強制ジャンプ（押したプレイヤーのターンにする）
+        if (this.room.phase === "ended" || this.room.phase === "lobby") return;
+        const target = Math.max(1, Math.min(999, Math.floor(Number(data.turnNumber ?? 5))));
+        this.room.phase = "turn";
+        this.room.turnNumber = target;
+        this.room.round = Math.ceil(target / 2);
+        this.room.activePlayer = player;
+        this.room.deadline = Date.now() + TURN_MS;
+        this.room.lastAction = null;
+        this.room.moveStarted = false;
+        this._broadcast({
+          type: "turn_start",
+          player: this.room.activePlayer,
+          turnNumber: this.room.turnNumber,
+          round: this.room.round,
+          deadline: this.room.deadline,
+          duration: TURN_MS
+        });
+        this._scheduleAlarm(this.room.deadline);
+        await this._save();
+        return;
+      }
+
       case "surrender":
         if (this.room.phase === "ended") return;
         await this._endMatch(1 - player, "surrender");

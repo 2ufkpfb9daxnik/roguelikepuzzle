@@ -2601,6 +2601,10 @@ func displayhp() -> void:
 	if ehpbar1 != null and is_instance_valid(ehpbar1) and ehpbar1.visible:
 		ehpbar1.visible = false
 
+	# PvPでは右側の専用ステータスパネルを使用するため、オフライン用のプレイヤーHP表示は更新しない
+	if _is_pvp_mode():
+		return
+
 	# プレイヤーHPの更新処理（復元）
 	if _cached_hp_bar == null or not is_instance_valid(_cached_hp_bar):
 		_cached_hp_bar = get_parent().get_node_or_null("ScoreManager/hpbar1") as ColorRect if get_parent() else null
@@ -2681,6 +2685,9 @@ func displayhp() -> void:
 
 ## ゲージ表示の更新
 func displaygage() -> void:
+	# PvPでは右側の専用ステータスパネルを使用するため、オフライン用のフィーバーゲージは更新しない
+	if _is_pvp_mode():
+		return
 	if _cached_fever_bar == null or not is_instance_valid(_cached_fever_bar):
 		_cached_fever_bar = get_parent().get_node_or_null("ScoreManager/feverbar2") as ColorRect if get_parent() else null
 	if _cached_fever_bar:

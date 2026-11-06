@@ -200,6 +200,10 @@ func send_shop_done() -> bool:
 func send_surrender() -> bool:
 	return _send({ "type": "surrender" })
 
+## デバッグ用: 指定ターンへ強制ジャンプ（オンライン対戦のみ）
+func debug_jump_turn(turn_number: int = 5) -> bool:
+	return _send({ "type": "debug_jump", "turnNumber": maxi(1, turn_number) })
+
 func send_ping() -> bool:
 	return _send({ "type": "ping" })
 

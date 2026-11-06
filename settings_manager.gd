@@ -671,7 +671,34 @@ func _create_settings_dialog() -> void:
 
 	update_diff_modal_visual.call()
 
-	# --- 6. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
+	# --- 6. デバッグ: 5ターン目へジャンプ ---
+	cur_y += 110.0
+	var dbg_title = Label.new()
+	dbg_title.text = "🛠 デバッグ"
+	dbg_title.add_theme_font_override("font", CUSTOM_FONT)
+	dbg_title.add_theme_font_size_override("font_size", 24)
+	dbg_title.position = Vector2(50, cur_y)
+	modal.add_child(dbg_title)
+
+	var dbg_btn = Button.new()
+	dbg_btn.text = "⏭ 5ターン目へ (オンライン対戦)"
+	dbg_btn.add_theme_font_override("font", CUSTOM_FONT)
+	dbg_btn.add_theme_font_size_override("font_size", 20)
+	dbg_btn.position = Vector2(50, cur_y + 36)
+	dbg_btn.size = Vector2(panel_w - 100, 44)
+	dbg_btn.pressed.connect(func():
+		var net = get_node_or_null("/root/NetworkManager")
+		if net and "pvp_mode" in net and bool(net.pvp_mode) and net.has_method("debug_jump_turn"):
+			if net.debug_jump_turn(5):
+				dbg_btn.text = "✅ 5ターン目へ送信しました"
+			else:
+				dbg_btn.text = "⚠ 送信できませんでした"
+		else:
+			dbg_btn.text = "⚠ オンライン対戦中のみ有効です"
+	)
+	modal.add_child(dbg_btn)
+
+	# --- 7. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
 	var current_scene_name = ""
 	var tree = _get_tree_safe()
 	if tree and tree.current_scene:

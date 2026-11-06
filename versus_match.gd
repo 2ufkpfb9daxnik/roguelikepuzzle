@@ -1111,26 +1111,102 @@ func _close_offline_shop(restore_hud: bool = true) -> void:
 	if restore_hud and _hud_root:
 		_hud_root.visible = true
 
+func _element_category_for_id(el_id: int) -> String:
+	match el_id:
+		1, 4, 10: # FIRE / THUNDER / EARTH
+			return "force"
+		2, 3, 8, 9: # WATER / WIND / ICE / WOOD
+			return "nature"
+		5, 6, 7: # LIGHT / DARK / POISON
+			return "mystic"
+	return ""
+
+func _relic_matches_category(r_data: Dictionary, chosen_cat: String) -> bool:
+	var r_cat: String = str(r_data.get("element_category", ""))
+	if r_cat == "all":
+		return true
+	if r_cat != "":
+		return r_cat == chosen_cat
+	var inferred_cats: Dictionary = {}
+	for lv in r_data.get("levels", []):
+		if lv is Dictionary and lv.has("element"):
+			var cat: String = _element_category_for_id(int(lv["element"]))
+			if cat != "":
+				inferred_cats[cat] = true
+	if inferred_cats.is_empty():
+		return true
+	return inferred_cats.has(chosen_cat)
+
+func _starter_skill_name(cat_key: String) -> String:
+	match cat_key:
+		"nature": return "清流展開"
+		"force": return "紅蓮爆破"
+		"mystic": return "瘴気毒霧"
+	return ""
+
 func _build_relic_choices() -> void:
 	for child in _shop_relic_box.get_children():
 		_shop_relic_box.remove_child(child)
 		child.queue_free()
 	_shop_relic_ids.clear()
 
+	var rm = _stage.get_node_or_null("RelicManager") if _stage else null
+	var chosen_cat: String = ""
+	if rm and rm.has_method("get_chosen_element_category"):
+		chosen_cat = rm.get_chosen_element_category()
+
+	var font = _make_font()
+
+	# 最初のレリック選択はオフラインと同じ「属性カテゴリー（スキル解放権）」選択
+	if chosen_cat == "":
+		_shop_title_lbl.text = "🧪 スキル解放権（属性カテゴリー）選択"
+		_shop_note_lbl.text = "最初に使用する属性系統を選択してください。選んだ系統の基本スキルが1つ解放されます。"
+		var cat_order: Array[String] = ["nature", "force", "mystic"]
+		for key in cat_order:
+			var cat: Dictionary = RelicDatabase.ELEMENT_CATEGORIES[key]
+			var relic_id: String = str(cat.get("relic_id", "relic_cat_" + key))
+			var elements_text: String = "・".join(PackedStringArray(cat.get("elements", [])))
+			var btn = _make_button(
+				"%s %s\n%s\n\n基本スキル『%s』を解放" % [
+					str(cat.get("icon", "")),
+					str(cat.get("name", key)),
+					elements_text,
+					_starter_skill_name(key)
+				],
+				Color(0.07, 0.09, 0.14, 1.0),
+				cat.get("color", Color(0.65, 0.55, 0.95, 1.0)),
+				font
+			)
+			btn.custom_minimum_size = Vector2(0, 96)
+			btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			btn.tooltip_text = str(cat.get("desc", ""))
+			btn.pressed.connect(_on_relic_selected.bind(relic_id, btn))
+			btn.mouse_entered.connect(func(): _play_ui_se("hover"))
+			_shop_relic_box.add_child(btn)
+			_shop_relic_ids.append(relic_id)
+		return
+
+	# 2回目以降は選択済みカテゴリーに合うレリックから3つ提示（オフラインと同じ絞り込み）
 	var rng = RandomNumberGenerator.new()
 	rng.seed = hash(_shop_offer_seed)
 	var keys: Array = []
 	for key in RelicDatabase.RELICS.keys():
 		var d: Dictionary = RelicDatabase.RELICS[key]
-		if d.has("rarity") and d.has("name"):
-			keys.append(key)
+		if str(key).begins_with("relic_cat_"):
+			continue
+		if not d.has("rarity") or not d.has("name"):
+			continue
+		if rm and rm.has_method("is_max_level") and rm.is_max_level(str(key)):
+			continue
+		if not _relic_matches_category(d, chosen_cat):
+			continue
+		keys.append(key)
 	var picked: Array = []
 	while picked.size() < 3 and not keys.is_empty():
 		var idx: int = rng.randi_range(0, keys.size() - 1)
 		picked.append(keys[idx])
 		keys.remove_at(idx)
 
-	var font = _make_font()
 	for key in picked:
 		var relic: Dictionary = RelicDatabase.RELICS[key]
 		_shop_relic_ids.append(str(key))
