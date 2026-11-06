@@ -13,6 +13,7 @@ enum PieceType {
 }
 
 signal skill_upgraded(skill_id: String, sp_type: int, new_level: int)
+signal shop_purchased
 
 # --- 公開プロパティ（他ノードから参照される変数） ---
 var totalScore: int = 0
@@ -3031,6 +3032,7 @@ func _purchase_buff(slot_idx: int) -> void:
 		if sound:
 			sound.play()
 		_update_buff_button_labels()
+		shop_purchased.emit()
 	else:
 		var cancel_sound = parent.get_node_or_null("cancel") if parent else null
 		if cancel_sound:

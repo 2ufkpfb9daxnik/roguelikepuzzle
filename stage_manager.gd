@@ -2903,6 +2903,8 @@ func _process(_delta: float) -> void:
 	if _is_pvp_mode():
 		displayhp()
 		displaygage()
+		# PvPでもフィーバー突入演出を進行させ、appeartime等が止まらないようにする
+		_process_fever_intro()
 		return
 	var _prof = Profiler.begin("stage_manager::_process")
 	var spd: float = maxf(0.1, _get_game_speed())
@@ -2929,28 +2931,33 @@ func _ensure_fever_bgm() -> void:
 	if fever_bgm and not fever_bgm.playing:
 		fever_bgm.play()
 
+## フィーバー突入演出の更新（オフライン/PvP共通）
+func _process_fever_intro() -> void:
+	if not isfevertime:
+		return
+	if is_waiting_for_fever_se:
+		_fever_se_wait_frames += 1
+		var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
+		if fever_se:
+			var is_se_playing: bool = fever_se.playing
+			if not is_se_playing or _fever_se_wait_frames >= _fever_se_max_frames:
+				_on_fever_se_finished()
+		else:
+			if _fever_se_wait_frames >= _fever_se_max_frames:
+				_on_fever_se_finished()
+	else:
+		_ensure_fever_bgm()
+		if appeartime < FEVER_INTRO_FRAMES + 10:
+			appeartime += 1
+			if appeartime >= FEVER_INTRO_FRAMES:
+				_process_fever_effects()
+		else:
+			_process_fever_effects()
+
 func _step_process() -> void:
 	var _prof = Profiler.begin("stage_manager::_step_process")
 	# フィーバータイム突入演出の更新（敵状態・クリア演出に関わらず速度連動で確実に進行）
-	if isfevertime:
-		if is_waiting_for_fever_se:
-			_fever_se_wait_frames += 1
-			var fever_se = get_parent().get_node_or_null("fevertime") if get_parent() else null
-			if fever_se:
-				var is_se_playing: bool = fever_se.playing
-				if not is_se_playing or _fever_se_wait_frames >= _fever_se_max_frames:
-					_on_fever_se_finished()
-			else:
-				if _fever_se_wait_frames >= _fever_se_max_frames:
-					_on_fever_se_finished()
-		else:
-			_ensure_fever_bgm()
-			if appeartime < FEVER_INTRO_FRAMES + 10:
-				appeartime += 1
-				if appeartime >= FEVER_INTRO_FRAMES:
-					_process_fever_effects()
-			else:
-				_process_fever_effects()
+	_process_fever_intro()
 
 	# 1. ボス警告（デンジャー演出）処理
 	if isdanger and not is_current_boss:

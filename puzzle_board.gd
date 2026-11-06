@@ -1107,7 +1107,7 @@ func _get_mouse_local(event: InputEvent = null) -> Vector2:
 func _unhandled_input(event: InputEvent) -> void:
 	# フィーバータイムの突入文字が表示されている間は盤面操作を完全に遮断する
 	var fever_sm = _get_stage_manager()
-	if fever_sm and fever_sm.isfevertime and (fever_sm.is_waiting_for_fever_se or fever_sm.appeartime < 15):
+	if fever_sm and fever_sm.isfevertime and not pvp_mode and (fever_sm.is_waiting_for_fever_se or fever_sm.appeartime < 15):
 		if selected_cell.x != -1:
 			_deselect_piece()
 		is_holding = false
@@ -12368,7 +12368,7 @@ func _update_player_skill_ui() -> void:
 
 func _on_player_skill_button_pressed(skill_key: String) -> void:
 	var intro_sm = _get_stage_manager()
-	if intro_sm and intro_sm.isfevertime and (intro_sm.is_waiting_for_fever_se or intro_sm.appeartime < 15):
+	if intro_sm and intro_sm.isfevertime and not pvp_mode and (intro_sm.is_waiting_for_fever_se or intro_sm.appeartime < 15):
 		return
 	if current_state != BoardState.IDLE or is_enemy_turn_in_progress:
 		return

@@ -58,6 +58,10 @@ var _shop_note_lbl: Label = null
 var _shop_title_lbl: Label = null
 var _shop_items_title_lbl: Label = null
 var _shop_stage: String = "relic"
+var _shop_overlay_root: Control = null
+var _pvp_shop_done_btn: Button = null
+var _pvp_shop_timer_lbl: Label = null
+var _offline_shop_open: bool = false
 var _result_overlay: Control = null
 var _result_lbl: Label = null
 var _announce_root: Control = null
@@ -81,6 +85,7 @@ func _ready() -> void:
 	_pull_cached_data()
 	_build_hud()
 	_connect_network_signals()
+	_connect_shop_signals()
 
 	if _board:
 		_board.set_pvp_mode(true)
@@ -131,6 +136,39 @@ func _pull_cached_data() -> void:
 		_my_stats = _net.last_stats[_my_index].duplicate(true)
 	if _net.last_stats.has(opp):
 		_remote_stats = _net.last_stats[opp].duplicate(true)
+
+func _connect_shop_signals() -> void:
+	var score_mgr = _stage.get_node_or_null("ScoreManager") if _stage else null
+	if score_mgr == null:
+		return
+	if score_mgr.has_signal("shop_purchased"):
+		if not score_mgr.shop_purchased.is_connected(_on_shop_purchased):
+			score_mgr.shop_purchased.connect(_on_shop_purchased)
+	if score_mgr.has_signal("skill_upgraded"):
+		if not score_mgr.skill_upgraded.is_connected(_on_shop_skill_upgraded):
+			score_mgr.skill_upgraded.connect(_on_shop_skill_upgraded)
+
+func _sync_stats_from_stage() -> void:
+	var score_mgr = _stage.get_node_or_null("ScoreManager") if _stage else null
+	if _stage_mgr:
+		_my_stats["maxHp"] = int(_stage_mgr.myhpmax)
+		_my_stats["hp"] = int(_stage_mgr.myhp)
+	if score_mgr and "divscore" in score_mgr and score_mgr.divscore.size() > 2:
+		_my_stats["coins"] = int(score_mgr.divscore[2])
+	_refresh_stats()
+	_sync_stage_hp()
+
+func _on_shop_purchased() -> void:
+	if not _offline_shop_open:
+		return
+	_sync_stats_from_stage()
+	_net.send_stats(_my_stats)
+
+func _on_shop_skill_upgraded(_skill_id: String, _sp_type: int, _new_level: int) -> void:
+	if not _offline_shop_open:
+		return
+	_sync_stats_from_stage()
+	_net.send_stats(_my_stats)
 
 func _connect_network_signals() -> void:
 	if _net == null:
@@ -190,6 +228,7 @@ func _build_hud() -> void:
 	_build_turn_frame()
 	_build_bottom_panel(font)
 	_build_shop_panel(font)
+	_build_shop_overlay(font)
 	_build_announce_overlay(font)
 	_build_result_overlay(font)
 
@@ -567,6 +606,47 @@ func _build_shop_panel(font: Font) -> void:
 	_shop_done_btn.visible = false
 	box.add_child(_shop_done_btn)
 
+func _build_shop_overlay(font: Font) -> void:
+	var layer = CanvasLayer.new()
+	layer.name = "PvPShopOverlayLayer"
+	layer.layer = 120
+	add_child(layer)
+
+	_shop_overlay_root = Control.new()
+	_shop_overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shop_overlay_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shop_overlay_root.visible = false
+	layer.add_child(_shop_overlay_root)
+
+	var panel = PanelContainer.new()
+	panel.position = Vector2(1400, 900)
+	panel.size = Vector2(500, 84)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.9, 0.5, 1.0, 0.9), 0.98))
+	_shop_overlay_root.add_child(panel)
+
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	panel.add_child(margin)
+
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 14)
+	margin.add_child(hbox)
+
+	_pvp_shop_timer_lbl = _label("20.0", font, 24, Color(1.0, 0.85, 0.3))
+	_pvp_shop_timer_lbl.custom_minimum_size = Vector2(90, 0)
+	_pvp_shop_timer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hbox.add_child(_pvp_shop_timer_lbl)
+
+	_pvp_shop_done_btn = _make_button("準備完了", Color(0.18, 0.12, 0.28, 1.0), Color(0.8, 0.5, 1.0, 1.0), font)
+	_pvp_shop_done_btn.custom_minimum_size = Vector2(300, 56)
+	_pvp_shop_done_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pvp_shop_done_btn.pressed.connect(_on_shop_done_pressed)
+	hbox.add_child(_pvp_shop_done_btn)
+
 func _build_result_overlay(font: Font) -> void:
 	_result_overlay = Control.new()
 	_result_overlay.visible = false
@@ -606,6 +686,9 @@ func _process(_delta: float) -> void:
 			if _shop_timer_lbl:
 				_shop_timer_lbl.text = text
 				_shop_timer_lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if rem <= 3000 else Color(1.0, 0.85, 0.3))
+			if _pvp_shop_timer_lbl and _offline_shop_open:
+				_pvp_shop_timer_lbl.text = text
+				_pvp_shop_timer_lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if rem <= 3000 else Color(1.0, 0.85, 0.3))
 		else:
 			_timer_lbl.text = text
 			_timer_lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if rem <= 3000 else Color(1.0, 0.85, 0.3))
@@ -941,6 +1024,7 @@ func _on_turn_started(data: Dictionary) -> void:
 	_round_lbl.text = "ROUND %d / TURN %d" % [_round, _turn_number]
 	if _shop_panel:
 		_shop_panel.visible = false
+	_close_offline_shop()
 	_sync_pvp_enemy_hp()
 	var is_my_turn_now: bool = _active_player == _my_index
 	if _board:
@@ -962,6 +1046,9 @@ func _on_phase_updated(data: Dictionary) -> void:
 
 func _on_shop_started(data: Dictionary) -> void:
 	_phase = "shop"
+	_close_offline_shop()
+	if _hud_root:
+		_hud_root.visible = true
 	_shop_stage = "relic"
 	_deadline = int(data.get("deadline", 0))
 	_shop_offer_seed = str(data.get("offerSeed", ""))
@@ -983,17 +1070,42 @@ func _on_shop_started(data: Dictionary) -> void:
 	_log("[color=#CE93D8]5ラウンド経過：レリック選択（20秒）[/color]")
 
 func _open_shop_stage() -> void:
-	if _shop_stage == "shop":
+	if _shop_stage == "shop" or _shop_done_sent:
+		return
+	if _phase != "shop":
+		return
+	if _net and _net.has_method("remaining_ms") and _net.remaining_ms(_deadline) <= 0:
 		return
 	_shop_stage = "shop"
-	_shop_title_lbl.text = "🛒 ショップ"
-	_shop_relic_box.visible = false
-	_shop_items_title_lbl.visible = true
-	_shop_item_box.visible = true
-	_shop_done_btn.visible = true
-	_shop_note_lbl.text = "ショップで強化を購入できます。準備完了で次のラウンドへ。"
-	_build_shop_items()
-	_log("[color=#FFD54F]ショップが開きました。強化を購入できます。[/color]")
+	_shop_panel.visible = false
+	if _hud_root:
+		_hud_root.visible = false
+	if _shop_overlay_root:
+		_shop_overlay_root.visible = true
+	var score_mgr = _stage.get_node_or_null("ScoreManager") if _stage else null
+	if score_mgr and score_mgr.has_method("set_shop_ui_visible"):
+		score_mgr.set_shop_ui_visible(true)
+	# PvPではオフライン用の「前に進む」ボタンを出さない
+	if _stage_mgr and "move_front_btn" in _stage_mgr and _stage_mgr.move_front_btn:
+		_stage_mgr.move_front_btn.visible = false
+	_offline_shop_open = true
+	_log("[color=#FFD54F]オフラインと同じショップが開きました。購入後「準備完了」で次へ。[/color]")
+
+func _close_offline_shop(restore_hud: bool = true) -> void:
+	var score_mgr = _stage.get_node_or_null("ScoreManager") if _stage else null
+	if _offline_shop_open and score_mgr and score_mgr.has_method("set_shop_ui_visible"):
+		score_mgr.set_shop_ui_visible(false)
+	# オフライン用の下部バー・進行ボタンはPvPでは表示しない
+	var rui = _stage.get_node_or_null("RelicUIManager") if _stage else null
+	if rui and rui.has_method("set_bottom_bars_visible"):
+		rui.set_bottom_bars_visible(false)
+	if _stage_mgr and "move_front_btn" in _stage_mgr and _stage_mgr.move_front_btn:
+		_stage_mgr.move_front_btn.visible = false
+	_offline_shop_open = false
+	if _shop_overlay_root:
+		_shop_overlay_root.visible = false
+	if restore_hud and _hud_root:
+		_hud_root.visible = true
 
 func _build_relic_choices() -> void:
 	for child in _shop_relic_box.get_children():
@@ -1096,6 +1208,7 @@ func _on_shop_done_pressed() -> void:
 	_shop_done_sent = true
 	_shop_done_btn.disabled = true
 	_shop_done_btn.text = "準備完了 ✓"
+	_close_offline_shop()
 	_net.send_shop_done()
 
 func _auto_select_relic_if_needed() -> void:
@@ -1109,6 +1222,7 @@ func _auto_select_relic_if_needed() -> void:
 
 func _on_shop_ended(_data: Dictionary) -> void:
 	_shop_panel.visible = false
+	_close_offline_shop()
 	_phase = "turn"
 	_log("[color=#A5D6A7]ショップ終了。次のラウンドへ[/color]")
 
@@ -1117,6 +1231,7 @@ func _on_turn_timed_out(data: Dictionary) -> void:
 
 func _on_shop_timed_out(_data: Dictionary) -> void:
 	_auto_select_relic_if_needed()
+	_close_offline_shop()
 	_log("[color=#FFB74D]ショップ時間切れ：未選択は自動処理[/color]")
 
 func _on_opponent_disconnected(_data: Dictionary) -> void:
@@ -1129,6 +1244,7 @@ func _on_match_resumed(data: Dictionary) -> void:
 func _on_match_ended(data: Dictionary) -> void:
 	_phase = "ended"
 	_shop_panel.visible = false
+	_close_offline_shop()
 	if _board:
 		_board.set_pvp_my_turn(false)
 	var winner: int = int(data.get("winner", -1))
