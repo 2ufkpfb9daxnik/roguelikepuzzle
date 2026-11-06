@@ -27,6 +27,7 @@ var _deadline: int = 0
 var _round: int = 1
 var _turn_number: int = 0
 var _shop_offer_seed: String = ""
+var _match_seed: int = 0
 var _selected_relic: String = ""
 var _shop_relic_ids: Array = []
 var _shop_done_sent: bool = false
@@ -191,6 +192,9 @@ func _connect_network_signals() -> void:
 	_net.reconnecting.connect(_on_reconnecting)
 
 func _apply_cached_state() -> void:
+	# オンライン対戦開始時のシードを両者で共有し、演出の乱数列を一致させる
+	if _net != null and _net.match_data is Dictionary:
+		_match_seed = int(_net.match_data.get("seed", 0))
 	if not _net.last_turn.is_empty():
 		_on_turn_started(_net.last_turn)
 	if not _net.last_shop.is_empty():
@@ -953,6 +957,64 @@ func _on_pvp_move_started() -> void:
 	if _phase == "turn" and _active_player == _my_index:
 		_net.send_move_started()
 
+## 相手がそのターンに使ったスキルを、敵画面のキャラで順番に発動させる（最大4スキル）
+## 攻撃1回と合わせて、1ターン最大5アクションの演出となる
+func _play_opponent_skill_attacks(skills: Array) -> void:
+	if skills.is_empty():
+		return
+	var idx: int = 0
+	for sk in skills:
+		if idx >= 4:
+			break
+		if not (sk is Dictionary):
+			continue
+		var key: String = str(sk.get("key", ""))
+		var tier: int = int(sk.get("tier", 1))
+		var cells: Array = sk.get("cells", [])
+		var delay: float = float(idx) * 0.55
+		var beam_col: Color = Color(_element_color_hex(key))
+		var tw = create_tween()
+		tw.tween_interval(delay)
+		tw.tween_callback(func():
+			if _stage_mgr and _stage_mgr.has_method("play_single_enemy_animation"):
+				_stage_mgr.play_single_enemy_animation(0, "skill")
+			if _board and _board.has_method("_show_enemy_skill_banner"):
+				_board._show_enemy_skill_banner(_skill_display_name(key), _element_color_hex(key), false, "相手プレイヤーのスキル")
+			_play_enemy_skill_beam(beam_col)
+			if _board and _board.has_method("apply_pvp_mirror_skill"):
+				_board.apply_pvp_mirror_skill(key, tier, cells)
+		)
+		idx += 1
+
+func _skill_display_name(key: String) -> String:
+	if _board and "PLAYER_SKILL_DEFS" in _board:
+		var defs = _board.PLAYER_SKILL_DEFS
+		if defs.has(key):
+			return str(defs[key].get("name", key.to_upper()))
+	return key.to_upper()
+
+## 敵キャラから盤面へスキル属性色のビームを飛ばす（スキル攻撃の視覚表現）
+func _play_enemy_skill_beam(col: Color) -> void:
+	if _hud_root == null:
+		return
+	var start := Vector2(1552, 210)
+	var spr = _stage_mgr.enemy if _stage_mgr and "enemy" in _stage_mgr else null
+	if is_instance_valid(spr):
+		start = spr.global_position
+	var target := Vector2(760, 500)
+	var beam = Line2D.new()
+	beam.points = PackedVector2Array([start, target])
+	beam.width = 16.0
+	beam.default_color = Color(col.r, col.g, col.b, 1.0)
+	beam.z_index = 30
+	beam.modulate.a = 0.0
+	_hud_root.add_child(beam)
+	var tw = create_tween()
+	tw.tween_property(beam, "modulate:a", 1.0, 0.07)
+	tw.tween_interval(0.10)
+	tw.tween_property(beam, "modulate:a", 0.0, 0.18)
+	tw.tween_callback(beam.queue_free)
+
 func _play_enemy_attack_animation(damage: int) -> void:
 	if damage <= 0 or _hud_root == null:
 		return
@@ -1001,6 +1063,8 @@ func _on_action_received(from: int, payload: Dictionary) -> void:
 		if _board and _board.has_method("_show_enemy_skill_banner"):
 			_board._show_enemy_skill_banner(skill_name, _element_color_hex(elem), false, "相手プレイヤーのスキル")
 	var damage: int = int(payload.get("damage", 0))
+	# そのターンに相手が使ったスキル（最大4つ）を、敵画面のキャラで順番に発動させる
+	_play_opponent_skill_attacks(payload.get("skills", []))
 	if damage <= 0:
 		return
 	if _stage_mgr and _stage_mgr.has_method("play_single_enemy_animation"):
@@ -1049,6 +1113,9 @@ func _on_turn_started(data: Dictionary) -> void:
 	_deadline = int(data.get("deadline", 0))
 	_round = int(data.get("round", _round))
 	_turn_number = int(data.get("turnNumber", _turn_number))
+	# 共有シード＋ターン番号から決定論的な乱数列を両者で再現する（通信量削減）
+	if _board and _board.has_method("set_board_seed") and _match_seed != 0:
+		_board.set_board_seed(_match_seed + _turn_number * 7919)
 	if _round_lbl:
 		_round_lbl.text = "ROUND %d / TURN %d" % [_round, _turn_number]
 	if _shop_panel:

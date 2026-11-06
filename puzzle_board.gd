@@ -85,6 +85,8 @@ var pvp_is_block: int = 0
 var pvp_used_skills: Array = []
 # ターン内に展開したシールドの合計値（複数回展開しても加算される）
 var pvp_turn_shield_deployed: float = 0.0
+# このターンでシールド展開演出を実際に流したか（展開前にターン終了判定しない）
+var pvp_shield_spawned: bool = false
 
 
 func _emit_combat_event(type: String, source: String, target: Variant, amount: float, element: String = "", is_critical: bool = false, effectiveness: String = "normal", extra: Dictionary = {}) -> void:
@@ -1107,6 +1109,23 @@ func _update_status_ailments() -> void:
 			if e_bar == null or not is_instance_valid(e_bar): continue
 
 			var e_tags: Array[String] = []
+			# 敵スキルのレベル・進化度合い（ステージに応じて上昇）を明示
+			var evo_d: Dictionary = e.get("evolutions", {})
+			var evo_lv: int = 0
+			var evo_txt: String = "未進化"
+			for evo_k in evo_d.keys():
+				var evo_v = evo_d[evo_k]
+				if evo_v is Dictionary:
+					evo_lv = maxi(evo_lv, int(evo_v.get("level", 0)))
+					if str(evo_v.get("final", "")) != "":
+						evo_txt = "最終進化"
+					elif str(evo_v.get("mid", "")) != "" and evo_txt != "最終進化":
+						evo_txt = "中間進化"
+			if evo_lv <= 0:
+				var s_idx: int = clampi(int(sm.get("stage")) if (sm and "stage" in sm) else 1, 1, 5)
+				var b_idx: int = clampi(int(sm.get("stage_enemy")) if (sm and "stage_enemy" in sm) else 1, 1, 5)
+				evo_lv = clampi((s_idx - 1) * 5 + b_idx, 1, 20)
+			e_tags.append("[color=#FFD54F]⭐ スキルLv%d %s[/color]" % [evo_lv, evo_txt])
 			# 敵の毒 vs 免疫（味方の毒があれば毒、敵自身の毒があれば免疫）
 			if ally_poi_cnt > 0:
 				e_tags.append("[color=#CC44FF]☠️毒(%d)[/color]" % ally_poi_cnt)
@@ -2688,29 +2707,14 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 
 	_ensure_ally_grids()
 
-	# 火スキル（ブレイズブラスト）と同様に、発動中心＋周囲＋盤面全体から
-	# ランダムに対象を選び、毒マスを展開してその上の駒を消去する
-	var candidates: Array[Vector2i] = [Vector2i(r, c)]
-	var adj_cands: Array[Vector2i] = []
-	for dr in [-1, 0, 1]:
-		for dc in [-1, 0, 1]:
-			if dr == 0 and dc == 0: continue
-			var nr = r + dr
-			var nc = c + dc
-			if nr >= 0 and nr < GRID_ROWS and nc >= 0 and nc < GRID_COLUMNS:
-				if not _is_plant_cell(nr, nc):
-					adj_cands.append(Vector2i(nr, nc))
-	adj_cands.shuffle()
-	candidates.append_array(adj_cands)
-
-	var other_cands: Array[Vector2i] = []
+	# 火・氷・光スキルと同様に、盤面全体からランダムに対象を選んで毒マスを展開する
+	# （周囲マスを優先するのではなく、完全ランダム配置）
+	var candidates: Array[Vector2i] = []
 	for ar in range(GRID_ROWS):
 		for ac in range(GRID_COLUMNS):
-			var cp = Vector2i(ar, ac)
-			if not candidates.has(cp) and not _is_plant_cell(ar, ac):
-				other_cands.append(cp)
-	other_cands.shuffle()
-	candidates.append_array(other_cands)
+			if not _is_plant_cell(ar, ac):
+				candidates.append(Vector2i(ar, ac))
+	candidates.shuffle()
 
 	var base_count: int = 3 + int((lvl - 1) / 2)
 	var actual_count: int = mini(base_count, candidates.size())
@@ -7488,12 +7492,79 @@ func clear_pvp_shields() -> void:
 	current_total_shields = 0
 	pvp_turn_shield_deployed = 0.0
 
+## PvP用：相手が使ったスキルの影響マスを、自陣の同じマスにミラー反映する
+## 毒・氷・石・火・水・光・木は同マスへ効果付与／闇はオフラインの敵闇攻撃と同様の挙動
+func apply_pvp_mirror_skill(skill_key: String, tier: int, cells: Array) -> void:
+	_ensure_ally_grids()
+	var placed: int = 0
+	for cell in cells:
+		if not (cell is Array) or cell.size() < 2:
+			continue
+		var r: int = int(cell[0])
+		var c: int = int(cell[1])
+		if r < 0 or r >= GRID_ROWS or c < 0 or c >= GRID_COLUMNS:
+			continue
+		var pos: Vector2 = get_cell_position(r, c)
+		match skill_key:
+			"poison":
+				if grid_poison.size() == GRID_ROWS and not grid_poison[r][c]:
+					grid_poison[r][c] = true
+					_set_ally_flag(grid_poison_ally, r, c, false)
+					if grid_poison_stage.size() == GRID_ROWS:
+						grid_poison_stage[r][c] = 1
+					_spawn_poison_bubble_burst_effect(pos)
+					placed += 1
+			"ice":
+				if grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) <= 0:
+					grid_ice[r][c] = maxi(1, tier)
+					_set_ally_flag(grid_ice_ally, r, c, false)
+					_spawn_ice_break_effect(pos)
+					placed += 1
+			"fire":
+				if grid_fire.size() == GRID_ROWS and grid_fire[r][c] <= 0:
+					grid_fire[r][c] = maxi(1, tier)
+					_set_ally_flag(grid_fire_ally, r, c, false)
+					_spawn_fire_ignition_effect(pos, false)
+					placed += 1
+			"water":
+				if grid_water.size() == GRID_ROWS and not grid_water[r][c]:
+					_apply_water_to_cell(r, c, false)
+					placed += 1
+			"earth", "stone":
+				if grid_stones.size() == GRID_ROWS and grid_stones[r][c] <= 0:
+					grid_stones[r][c] = maxi(1, tier)
+					_set_ally_flag(grid_stones_ally, r, c, false)
+					_spawn_stone_break_effect(pos)
+					placed += 1
+			"light":
+				if grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] <= 0:
+					grid_gold_statue[r][c] = 3
+					_set_ally_flag(grid_gold_ally, r, c, false)
+					_spawn_gold_shatter_effect(pos)
+					placed += 1
+			"wood":
+				if _get_plant_at(r, c).is_empty():
+					if _plant_sprout_at(r, c):
+						# 相手が植えた植物として扱う
+						var planted = _get_plant_at(r, c)
+						if not planted.is_empty():
+							planted["enemy_planted"] = true
+						placed += 1
+	# 闇はオフラインの敵が使う闇攻撃と同じ挙動で作用させる
+	if skill_key == "dark":
+		_cast_enemy_dark_skill(false, false)
+		placed += 1
+	if placed > 0:
+		_redraw_board_effects()
+		_update_status_ailments()
+
 func set_pvp_my_turn(enabled: bool) -> void:
 	pvp_my_turn = enabled
 	if enabled:
 		pvp_pending_damage = 0.0
 		pvp_used_skills.clear()
 		pvp_turn_shield_deployed = 0.0
+		pvp_shield_spawned = false
 		var stage_mgr = _get_stage_manager()
 		pvp_start_enemy_hp = stage_mgr.ehp if stage_mgr and "ehp" in stage_mgr else 0.0
 		pvp_is_attack = 0
@@ -7526,6 +7597,18 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		if last_skill is Dictionary:
 			skill_name = str(last_skill.get("name", ""))
 			skill_element = str(last_skill.get("element", ""))
+	# このターンに使ったスキル（最大4つ）と、各スキルが影響を与えたマスを相手へ送る
+	# 起点シードも送ることで、相手側でも同じ乱数列から演出を再現できる
+	var skill_list: Array = []
+	for sk in used_skills:
+		if skill_list.size() >= 4:
+			break
+		if sk is Dictionary:
+			skill_list.append({
+				"key": str(sk.get("element", "")),
+				"tier": int(sk.get("tier", 1)),
+				"cells": sk.get("cells", [])
+			})
 	return {
 		"damage": int(round(maxf(0.0, damage))),
 		"heal": 0,
@@ -7534,7 +7617,9 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"hp": int(round(hp)),
 		"maxHp": int(round(max_hp)),
 		"skillName": skill_name,
-		"skillElement": skill_element
+		"skillElement": skill_element,
+		"skills": skill_list,
+		"seed": int(board_seed)
 	}
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
@@ -7560,6 +7645,7 @@ func _handle_pvp_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 	if interval == 0:
 		pvp_is_attack = 0
 		pvp_is_block = 0
+		pvp_shield_spawned = false
 		pvp_used_skills = turn_skill_log.duplicate(true)
 		if score_mgr:
 			var s_cnt = min(int((sm.ehp if sm else 0) / swordt), int(score_mgr.divscore[PieceType.SWORD] / (swordt * 100.0)))
@@ -7608,10 +7694,12 @@ func _handle_pvp_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		_play_ally_attack_phase_effects(sm)
 	elif interval == base_time + 1 + 144 * pvp_is_attack and pvp_is_block:
 		_spawn_shield_projectiles(score_mgr)
+		pvp_shield_spawned = true
 
 	if interval > base_time:
 		var attack_done: bool = flying_swords.is_empty() and flying_foods.is_empty() and flying_potions.is_empty()
-		var shield_done: bool = true
+		# 盾は攻撃の後に展開されるため、展開前は「完了」とみなさない（展開されないままターンが終わるのを防ぐ）
+		var shield_done: bool = (not pvp_is_block) or pvp_shield_spawned
 		for it in active_shields:
 			if not it.get("has_arrived", false):
 				shield_done = false
@@ -9005,6 +9093,9 @@ func _spawn_enemy_skill_beam_and_burst(sm: Node2D, enemy_sp: Sprite2D, elem_colo
 
 	_play_spell_beam_se()
 	
+	# 敵位置からの衝撃波で「スキル起点」を視覚的に明示
+	_spawn_shockwave_ring(enemy_sp.global_position, elem_col.lightened(0.25), 150.0, 0.30)
+
 	# To prevent massive lag if a skill affects 25 cells, we can cap the number of visual beams to 8
 	var visual_targets = targets.duplicate()
 	visual_targets.shuffle()
@@ -9068,10 +9159,16 @@ func _spawn_player_skill_beams(origin_pos: Vector2, targets: Array[Vector2], ski
 
 	_play_spell_beam_se()
 
-	# レグレーション: 大量ターゲットでのラグ防止のためビーム最大8本に制限
+	# 発射元の衝撃波で「スキル起点」を視覚的に明示
+	_spawn_shockwave_ring(origin_pos, elem_col.lightened(0.25), 150.0, 0.30)
+
+	# レグレーション: 大量ターゲットでのラグ防止のためビーム最大16本に制限
+	# 起点から近い順に描画して、影響範囲が直感的に分かるようにする
 	var visual_targets = targets.duplicate()
-	visual_targets.shuffle()
-	var max_beams = mini(8, visual_targets.size())
+	visual_targets.sort_custom(func(a: Vector2, b: Vector2) -> bool:
+		return a.distance_squared_to(origin_pos) < b.distance_squared_to(origin_pos)
+	)
+	var max_beams = mini(16, visual_targets.size())
 
 	for i in range(max_beams):
 		var target_global = to_global(visual_targets[i])
@@ -12371,7 +12468,7 @@ func _setup_player_skill_ui() -> void:
 		hover_style.bg_color = base_col.darkened(0.35)
 		btn.add_theme_stylebox_override("hover", hover_style)
 
-		btn.pressed.connect(func(): _on_player_skill_button_pressed(sk_key))
+		btn.pressed.connect(func(): _on_player_skill_button_pressed(sk_key, btn))
 		panel.add_child(btn)
 		player_skill_buttons[sk_key] = btn
 
@@ -12472,7 +12569,7 @@ func _update_player_skill_ui() -> void:
 			else:
 				btn.modulate = Color(0.35, 0.38, 0.42, 0.50)
 
-func _on_player_skill_button_pressed(skill_key: String) -> void:
+func _on_player_skill_button_pressed(skill_key: String, btn: Button = null) -> void:
 	var intro_sm = _get_stage_manager()
 	if intro_sm and intro_sm.isfevertime and not pvp_mode and (intro_sm.is_waiting_for_fever_se or intro_sm.appeartime < 15):
 		return
@@ -12482,7 +12579,11 @@ func _on_player_skill_button_pressed(skill_key: String) -> void:
 	if score_mgr and score_mgr.has_method("get_skill_level"):
 		if score_mgr.get_skill_level("%s_1" % skill_key) <= 0:
 			return
-	cast_player_skill(skill_key, false, current_skill_tier)
+	# ビーム演出の発射元を「スキルボタンの位置」にする（影響マスへ向かう視覚的な導線）
+	var origin: Vector2 = Vector2.ZERO
+	if btn != null and is_instance_valid(btn):
+		origin = to_local(btn.get_global_rect().get_center())
+	cast_player_skill(skill_key, false, current_skill_tier, true, origin)
 
 
 func _apply_skill_shield(amount: float) -> void:
@@ -13489,6 +13590,16 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 		# 属性魔力弾（スペルビーム／彗星弾頭）演出：スキル発動位置から影響マスへビームを飛ばす
 		if animate:
 			_spawn_player_skill_beams(origin_pos, affected_positions, skill_key)
+
+	# PvP: このスキルで実際に影響したマスを記録する（相手盤面へのミラー効果に使用）
+	if pvp_mode and not turn_skill_log.is_empty():
+		var mirror_cells: Array = []
+		for pos in affected_positions:
+			var m_c: int = int(round((pos.x - BOARD_LEFT) / CELL_PITCH - 0.5))
+			var m_r: int = int(round((pos.y - BOARD_TOP) / CELL_PITCH - 0.5))
+			if m_r >= 0 and m_r < GRID_ROWS and m_c >= 0 and m_c < GRID_COLUMNS:
+				mirror_cells.append([m_r, m_c])
+		turn_skill_log[turn_skill_log.size() - 1]["cells"] = mirror_cells
 
 	var rm_end = _get_relic_manager()
 	if rm_end and rm_end.has_relic("spirit_blessing"):
