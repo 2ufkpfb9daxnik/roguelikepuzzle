@@ -457,8 +457,8 @@ func _init() -> void:
 	assert(sm_node.active_enemies.size() == 1, "Stage 1 Boss should have 1 enemy")
 	var easy_hp = sm_node.active_enemies[0]["hp"]
 	var easy_atk = sm_node.active_enemies[0]["atk"]
-	assert(is_equal_approx(easy_hp, normal_hp * 0.75), "EASY enemy HP must be 75% of NORMAL")
-	assert(is_equal_approx(easy_atk, normal_atk * 0.75), "EASY enemy ATK must be 75% of NORMAL")
+	assert(is_equal_approx(easy_hp, normal_hp * 1.0), "EASY enemy HP must be 100% of NORMAL")
+	assert(is_equal_approx(easy_atk, normal_atk * 0.25), "EASY enemy ATK must be 25% of NORMAL")
 
 	# 3. HARD difficulty make_enemy
 	smgr_inst.set_difficulty(smgr_inst.Difficulty.HARD)

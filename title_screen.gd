@@ -388,7 +388,7 @@ func _update_difficulty_ui() -> void:
 
 	if diff_desc_lbl:
 		if cur_diff == 0:
-			diff_desc_lbl.text = "[center][b][color=#00E5FF]◆ EASY: 敵HP/ATK 75% （パズルを気軽に楽しみたい方向け）[/color][/b][/center]"
+			diff_desc_lbl.text = "[center][b][color=#00E5FF]◆ EASY: 敵HP 100% / 敵ATK 25% ・ 味方ステータス1.2倍 （パズルを気軽に楽しみたい方向け）[/color][/b][/center]"
 		elif cur_diff == 1:
 			diff_desc_lbl.text = "[center][b][color=#FFD700]◆ NORMAL: 敵HP/ATK 100% （標準的なゲームバランス）[/color][/b][/center]"
 		else:

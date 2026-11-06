@@ -65,6 +65,12 @@ func _get_difficulty_reward_mult() -> float:
 		return float(sm.get_difficulty_reward_mult())
 	return 1.0
 
+func _get_difficulty_ally_mult() -> float:
+	var sm = get_node_or_null("/root/SettingsManager")
+	if sm and sm.has_method("get_difficulty_ally_mult"):
+		return float(sm.get_difficulty_ally_mult())
+	return 1.0
+
 func _get_jp_font() -> Font:
 	if _cached_jp_font == null:
 		_cached_jp_font = load("res://font/NotoSansJP.ttf")
@@ -1547,6 +1553,8 @@ func calcscore(match_index: Array, grid_att: Array, grid_element: Array = [], so
 				# レベルに応じて+〇 (1レベルにつき +100 * 消去コマ数の固定加算ボーナス)
 				var bonus_add: int = (stat_levels[att_type] * 100 * count) if att_type < stat_levels.size() else 0
 				var mult: float = multipliers[att_type] if att_type < multipliers.size() else 1.0
+				# 味方ステータス倍率（難易度によるプレイヤー側の補正）
+				mult *= _get_difficulty_ally_mult()
 				# コンボ倍率ボーナス (連鎖が続くほど指数的に大逆転ボーナス！中毒性UP)
 				var combo_mult: float = 1.0 + maxf(0.0, float(combocount - 1)) * 0.25
 				var earned_score: int = maxi(100 * count, int((int(base_score * mult) + bonus_add) * combo_mult))

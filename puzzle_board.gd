@@ -5096,8 +5096,8 @@ func _spawn_tornado_effect(pos: Vector2, lvl: int, half_w: int) -> void:
 		sound.pitch_scale = 1.45
 		sound.play()
 
-	# 起爆駒の列を特定
-	var center_col: int = int(round((pos.x - BOARD_LEFT) / CELL_PITCH))
+	# 起爆駒の列を特定（セル中心は (c+0.5)*CELL_PITCH なので小数部を切り捨てて正しい列にする）
+	var center_col: int = int(floor((pos.x - BOARD_LEFT) / CELL_PITCH))
 	# 敵ダウンオールと同じ active_wind_tornadoes 方式で上→下に横断
 	for dc in range(-half_w, half_w + 1):
 		var col: int = center_col + dc
