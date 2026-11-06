@@ -2791,10 +2791,9 @@ func isdead() -> void:
 	active_enemies.clear()
 	enemy = null
 		
-	var pb = _get_puzzle_board()
-	if pb and pb.has_method("clear_board_hazards"):
-		pb.clear_board_hazards()
-		
+	# ※ 効果マス・植物は敵を倒しても盤面に残り続ける仕様。
+	#    ここでは消去しない（消した効果マスの残骸掃除は puzzle_board 側で行う）。
+
 	if ehpbar: ehpbar.queue_free(); ehpbar = null
 	if ehpbar1: ehpbar1.queue_free(); ehpbar1 = null
 	if enemy_hp_lbl != null and is_instance_valid(enemy_hp_lbl): enemy_hp_lbl.visible = false

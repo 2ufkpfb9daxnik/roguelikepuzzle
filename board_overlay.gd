@@ -29,7 +29,11 @@ const ANIM_REDRAW_INTERVAL: float = 1.0 / 24.0
 # 効果マスが多い時は描画頻度を落として負荷を抑える（見た目は維持）
 const ANIM_REDRAW_INTERVAL_MED: float = 1.0 / 18.0
 const ANIM_REDRAW_INTERVAL_HIGH: float = 1.0 / 12.0
+const ANIM_REDRAW_INTERVAL_MAX: float = 1.0 / 8.0
 var _anim_redraw_elapsed: float = 0.0
+
+# 描画用に ally 配列をキャッシュ（毎タイルの board.get() を回避）
+var _ally_cache: Dictionary = {}
 
 func _process(delta: float) -> void:
 	var _prof = Profiler.begin("board_overlay::_process")
@@ -75,9 +79,11 @@ func _process(delta: float) -> void:
 			var has_tor: bool = ("active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty())
 			if not has_tor:
 				var hazard_count: int = int(board.get("animated_hazard_count")) if "animated_hazard_count" in board else 0
-				if hazard_count > 90:
+				if hazard_count > 100:
+					interval = ANIM_REDRAW_INTERVAL_MAX
+				elif hazard_count > 55:
 					interval = ANIM_REDRAW_INTERVAL_HIGH
-				elif hazard_count > 40:
+				elif hazard_count > 25:
 					interval = ANIM_REDRAW_INTERVAL_MED
 			_anim_redraw_elapsed += delta
 			if _anim_redraw_elapsed >= interval:
@@ -102,7 +108,9 @@ func _has_any_int_in_2d(arr: Array) -> bool:
 func _is_ally_cell(prop_name: String, r: int, c: int) -> bool:
 	if board == null or not (prop_name in board):
 		return false
-	var arr = board.get(prop_name)
+	var arr = _ally_cache.get(prop_name, null)
+	if arr == null:
+		return false
 	if typeof(arr) == TYPE_ARRAY and arr.size() == GRID_ROWS and r >= 0 and r < GRID_ROWS:
 		if typeof(arr[r]) == TYPE_ARRAY and c >= 0 and c < arr[r].size():
 			return bool(arr[r][c])
@@ -112,6 +120,12 @@ func _draw() -> void:
 	var _prof = Profiler.begin("board_overlay::_draw")
 	if board == null:
 		return
+
+	# ally 判定配列を描画開始時にキャッシュ（毎タイルの board.get() を回避）
+	_ally_cache.clear()
+	for prop in ["grid_ice_ally", "grid_stones_ally", "grid_gold_ally", "grid_electrified_ally", "grid_cursed_ally", "grid_poison_ally", "grid_fire_ally", "grid_water_ally"]:
+		if prop in board:
+			_ally_cache[prop] = board.get(prop)
 
 	var has_hazards: bool = board.has_board_hazards if "has_board_hazards" in board else true
 	var has_tornadoes: bool = ("active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty())

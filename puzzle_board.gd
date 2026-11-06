@@ -323,6 +323,7 @@ var has_dark_teleport_swap: bool = false
 
 # --- 全10属性・新進化システム状態変数 ---
 var player_status_bar: RichTextLabel = null # 自軍ステータス／バフバー
+var _last_player_status_text: String = "" # ???????????
 var player_shock_stacks: int = 0            # ⚡ 雷B: 自軍感電スタック (最大5)
 var enemy_shock_stacks: int = 0             # ⚡ 雷B: 敵軍感電スタック (最大5)
 var player_blight_stacks: int = 0           # 🧪 毒B2: 自軍蝕みスタック (被毒ダメ+10%/個)
@@ -469,23 +470,29 @@ var _special_icon_cache: Dictionary = {}
 
 func _update_board_element_flags() -> void:
 	var old_has_special = has_special_items
-	var old_coords = special_item_coords.duplicate()
-	special_item_coords.clear()
+	var new_coords: Array[Vector2i] = []
+	var new_coord_set: Dictionary = {}
+	# 残骸掃除用の配列サイズ判定（関数スコープで保持）
+	var st_arr_ok: bool = grid_stones.size() == GRID_ROWS
+	var ps_arr_ok: bool = grid_poison.size() == GRID_ROWS
 	has_special_items = false
 
 	if is_bomb.size() == GRID_ROWS and special_item.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
 				if is_bomb[r][c] or special_item[r][c] != SpecialItemType.NONE:
-					special_item_coords.append(Vector2i(r, c))
+					var coord = Vector2i(r, c)
+					new_coords.append(coord)
+					new_coord_set[coord] = true
 					has_special_items = true
 
 	if old_has_special:
-		for coord in old_coords:
-			if not (coord in special_item_coords):
+		for coord in special_item_coords:
+			if not new_coord_set.has(coord):
 				var p_idx = grid_i[coord.x][coord.y] if grid_i.size() == GRID_ROWS else -1
 				if p_idx >= 0 and p_idx < piece.size() and piece[p_idx] != null and is_instance_valid(piece[p_idx]):
 					piece[p_idx].modulate = Color.WHITE
+	special_item_coords = new_coords
 
 	has_board_hazards = false
 	has_animated_board_hazards = false
@@ -504,16 +511,23 @@ func _update_board_element_flags() -> void:
 		has_animated_board_hazards = true
 
 	if grid_ice.size() == GRID_ROWS:
+		var w_ok: bool = grid_water.size() == GRID_ROWS
+		var ps_ok: bool = grid_poison.size() == GRID_ROWS
+		var el_ok: bool = grid_electrified.size() == GRID_ROWS
+		var cu_ok: bool = grid_cursed.size() == GRID_ROWS
+		var gd_ok: bool = grid_gold_statue.size() == GRID_ROWS
+		var fr_ok: bool = grid_fire.size() == GRID_ROWS
+		var ps_st_ok: bool = grid_poison_stage.size() == GRID_ROWS
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLUMNS):
-				var is_w: bool = grid_water.size() == GRID_ROWS and grid_water[r][c]
-				var is_st: bool = grid_stones.size() == GRID_ROWS and grid_stones[r][c] > 0
-				var is_ps: bool = (grid_poison.size() == GRID_ROWS and grid_poison[r][c])
-				var is_el: bool = (grid_electrified.size() == GRID_ROWS and grid_electrified[r][c])
-				var is_cu: bool = (grid_cursed.size() == GRID_ROWS and grid_cursed[r][c])
+				var is_w: bool = w_ok and grid_water[r][c]
+				var is_st: bool = st_arr_ok and grid_stones[r][c] > 0
+				var is_ps: bool = ps_ok and grid_poison[r][c]
+				var is_el: bool = el_ok and grid_electrified[r][c]
+				var is_cu: bool = cu_ok and grid_cursed[r][c]
 				var is_ic: bool = (grid_ice[r][c] > 0)
-				var is_gd: bool = (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] > 0)
-				var is_fr: bool = (grid_fire.size() == GRID_ROWS and grid_fire[r][c] > 0)
+				var is_gd: bool = gd_ok and grid_gold_statue[r][c] > 0
+				var is_fr: bool = fr_ok and grid_fire[r][c] > 0
 
 				if is_w: has_water = true
 				if is_st: has_stones = true
@@ -530,6 +544,25 @@ func _update_board_element_flags() -> void:
 					has_animated_board_hazards = true
 					animated_hazard_count += 1
 
+				# 消えた効果マスの残骸（毒段階・石カウント）をここで掃除して
+				# バックグラウンドに状態が残り続けないようにする
+				if ps_st_ok and not is_ps and grid_poison_stage[r][c] != 1:
+					grid_poison_stage[r][c] = 1
+
+	# 消えた石のカウント辞書を掃除して辞書が増え続けないようにする
+	if not stone_turn_counts.is_empty() or not diamond_stones.is_empty():
+		for st_pos in stone_turn_counts.keys():
+			if not (st_arr_ok and grid_stones[st_pos.x][st_pos.y] > 0):
+				stone_turn_counts.erase(st_pos)
+		for d_pos in diamond_stones.keys():
+			if not (st_arr_ok and grid_stones[d_pos.x][d_pos.y] > 0):
+				diamond_stones.erase(d_pos)
+	# 消えた毒マスの起爆記録を掃除
+	if not poison_mist_detonated_cells.is_empty():
+		for pm_pos in poison_mist_detonated_cells.keys():
+			if not (ps_arr_ok and grid_poison[pm_pos.x][pm_pos.y]):
+				poison_mist_detonated_cells.erase(pm_pos)
+
 
 ## 盤面描画の一括更新（盤面状態の変化時に呼ばれる＝イベント駆動の即時再描画）
 ## ※ queue_redraw() は同一フレーム内で何度呼んでも Godot 側で1回に集約される
@@ -537,7 +570,8 @@ func _redraw_board_effects() -> void:
 	_update_board_element_flags()
 	# board_bg は静的な盤面装飾と選択ハイライトのみを描画する。
 	# 効果マスの変化では再描画不要なため、ここでは要求しない（毎回の重い背景再描画を回避）。
-	if board_overlay and (has_board_hazards or not active_wind_tornadoes.is_empty()): board_overlay.queue_redraw()
+	# 効果マスが全て消えた場合も必ず再描画し、消えた描画が盤面に残り続けないようにする
+	if board_overlay: board_overlay.queue_redraw()
 	# 特殊アイテムが消滅した時も必ず再描画し、消えたアイコンが盤面に残り続けないようにする
 	if mark_overlay: mark_overlay.queue_redraw()
 
@@ -1057,7 +1091,11 @@ func _update_status_ailments() -> void:
 		p_tags.append("[color=#66CCFF]🛡️シールド(%d)[/color]" % current_total_shields)
 
 	if player_status_bar != null and is_instance_valid(player_status_bar):
-		player_status_bar.text = " ".join(p_tags)
+		var new_p_text: String = " ".join(p_tags)
+		# 文字列が変わっていない場合は RichTextLabel の再レイアウトを避ける
+		if new_p_text != _last_player_status_text:
+			_last_player_status_text = new_p_text
+			player_status_bar.text = new_p_text
 
 	# --- 各敵頭上ステータスバー更新（プレイヤーと真逆） ---
 	if sm and ("active_enemies" in sm):
@@ -1091,7 +1129,12 @@ func _update_status_ailments() -> void:
 			if cur_sh > 0:
 				e_tags.append("[color=#66CCFF]🛡️シールド(%d)[/color]" % cur_sh)
 
-			e_bar.text = " ".join(e_tags)
+			var last_e_text: String = str(e.get("last_status_text", ""))
+			var new_e_text: String = " ".join(e_tags)
+			# 文字列が変わっていない場合は RichTextLabel の再レイアウトを避ける
+			if new_e_text != last_e_text:
+				e["last_status_text"] = new_e_text
+				e_bar.text = new_e_text
 
 func _update_turn_combat_status_tags(_sm: Node2D = null) -> void:
 	_update_status_ailments()
