@@ -23,8 +23,7 @@ func _ready() -> void:
 
 	var net = get_node_or_null("/root/NetworkManager")
 	var pvp_mode: bool = net != null and "pvp_mode" in net and bool(net.pvp_mode)
-	if pvp_mode and rui_node.has_method("set_bottom_bars_visible"):
-		rui_node.set_bottom_bars_visible(false)
+	# オンライン対戦でもオフラインと同じ見た目にするため、レリック欄・スキル欄は表示する
 	
 	# チュートリアルモードの場合、チュートリアル案内マネージャーを生成
 	var sm_tut = get_node_or_null("/root/SettingsManager")
@@ -42,6 +41,7 @@ func _ready() -> void:
 		if stage_label2: stage_label2.visible = false
 		var stage_change_btn = get_node_or_null("ScoreManager/stagechangeb")
 		if stage_change_btn: stage_change_btn.visible = false
+		# オフラインと同じ見た目にするため、レリック欄・スキル欄はそのまま表示する
 		var pvp_controller = load("res://versus_match.gd").new()
 		pvp_controller.name = "PvPController"
 		add_child.call_deferred(pvp_controller)

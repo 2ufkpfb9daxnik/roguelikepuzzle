@@ -2101,6 +2101,7 @@ func _setup_shop_page_controls() -> void:
 
 		# 🛠️ デバッグ即時レベルアップボタン（コイン不要）
 		var dbg_buff_btn = Button.new()
+		dbg_buff_btn.visible = false
 		dbg_buff_btn.name = "DebugBuffLevelUpBtn_%d" % i
 		dbg_buff_btn.text = "🛠️+Lv"
 		dbg_buff_btn.position = Vector2(card_w - 18 - 88, 274)
@@ -2294,21 +2295,21 @@ func rebuild_skill_tree_ui() -> void:
 		btn_res.text = "🛠️ 資源+10万 (F6)"
 		btn_res.add_theme_font_override("font", jp_font)
 		btn_res.add_theme_font_size_override("font_size", 14)
-		btn_res.pressed.connect(func(): debug_add_resources(100000))
+		# [DEBUG-DISABLED] btn_res.pressed.connect(func(): debug_add_resources(100000))
 		dbg_bar.add_child(btn_res)
 
 		var btn_lv5 = Button.new()
 		btn_lv5.text = "⚡ 全スキルLv.5 (F7)"
 		btn_lv5.add_theme_font_override("font", jp_font)
 		btn_lv5.add_theme_font_size_override("font_size", 14)
-		btn_lv5.pressed.connect(func(): debug_set_all_skills_level(5))
+		# [DEBUG-DISABLED] btn_lv5.pressed.connect(func(): debug_set_all_skills_level(5))
 		dbg_bar.add_child(btn_lv5)
 
 		var btn_lv20 = Button.new()
 		btn_lv20.text = "👑 全スキルLv.20 (F8)"
 		btn_lv20.add_theme_font_override("font", jp_font)
 		btn_lv20.add_theme_font_size_override("font_size", 14)
-		btn_lv20.pressed.connect(func(): debug_set_all_skills_level(20))
+		# [DEBUG-DISABLED] btn_lv20.pressed.connect(func(): debug_set_all_skills_level(20))
 		dbg_bar.add_child(btn_lv20)
 	banner.add_theme_font_override("font", jp_font)
 	banner.add_theme_font_size_override("font_size", 21)
@@ -2571,7 +2572,8 @@ func rebuild_skill_tree_ui() -> void:
 		dbg_hov.bg_color = Color(0.16, 0.38, 0.52, 1.0)
 		dbg_btn.add_theme_stylebox_override("hover", dbg_hov)
 		dbg_btn.add_theme_color_override("font_color", Color(0.85, 0.96, 1.0))
-		dbg_btn.pressed.connect(func(): debug_level_up_skill(bind_idx))
+		dbg_btn.visible = false
+		# [DEBUG-DISABLED] dbg_btn.pressed.connect(func(): debug_level_up_skill(bind_idx))
 		node_card.add_child(dbg_btn)
 
 		var card_skill_id = s_item["id"]

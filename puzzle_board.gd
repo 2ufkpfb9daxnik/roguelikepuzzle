@@ -7605,6 +7605,18 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		if last_skill is Dictionary:
 			skill_name = str(last_skill.get("name", ""))
 			skill_element = str(last_skill.get("element", ""))
+	# このターンの「剣の値」と「各属性値」を送る（相手画面のアクション演出の駆動に使用）
+	var sword_val: int = 0
+	if score_mgr and "divscore" in score_mgr and score_mgr.divscore.size() > PieceType.SWORD:
+		sword_val = int(score_mgr.divscore[PieceType.SWORD])
+	var element_values: Dictionary = {}
+	if score_mgr and "turn_element_counts" in score_mgr:
+		var el_map: Dictionary = {1: "fire", 2: "water", 3: "wind", 4: "thunder", 5: "light", 6: "dark", 7: "poison", 8: "ice", 9: "wood", 10: "earth"}
+		for el in score_mgr.turn_element_counts.keys():
+			var el_key: String = str(el_map.get(int(el), ""))
+			var el_val: int = int(score_mgr.turn_element_counts[el])
+			if el_key != "" and el_val > 0:
+				element_values[el_key] = el_val
 	# このターンに使ったスキル（最大4つ）と、各スキルが影響を与えたマスを相手へ送る
 	# 起点シードも送ることで、相手側でも同じ乱数列から演出を再現できる
 	var skill_list: Array = []
@@ -7627,6 +7639,8 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"skillName": skill_name,
 		"skillElement": skill_element,
 		"skills": skill_list,
+		"sword": sword_val,
+		"elements": element_values,
 		"seed": int(board_seed)
 	}
 

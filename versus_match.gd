@@ -959,22 +959,48 @@ func _on_pvp_move_started() -> void:
 
 ## 相手がそのターンに使ったスキルを、敵画面のキャラで順番に発動させる（最大4スキル）
 ## 攻撃1回と合わせて、1ターン最大5アクションの演出となる
-func _play_opponent_skill_attacks(skills: Array) -> void:
-	if skills.is_empty():
-		return
+## 相手ターンの行動を「剣 → 各属性スキル」の順に、敵画面のキャラで再現する
+## 剣の値>0なら攻撃モーション、各属性値>0ならその属性のスキルモーションを行う（最大5アクション）
+func _play_opponent_turn_motions(payload: Dictionary) -> void:
+	var sword: int = int(payload.get("sword", 0))
+	var elements: Dictionary = payload.get("elements", {})
+	var mirror: Array = payload.get("skills", [])
 	var idx: int = 0
-	for sk in skills:
-		if idx >= 4:
+
+	# 1) 剣の値が >0 なら攻撃モーション
+	if sword > 0:
+		var atk_idx: int = idx
+		var tw_atk = create_tween()
+		tw_atk.tween_interval(float(atk_idx) * 0.55)
+		tw_atk.tween_callback(func():
+			if _stage_mgr and _stage_mgr.has_method("play_single_enemy_animation"):
+				_stage_mgr.play_single_enemy_animation(0, "attack")
+			_play_enemy_skill_beam(Color(1.0, 0.35, 0.25))
+		)
+		idx += 1
+
+	# 2) 各属性値が >0 なら、その属性のスキルモーション
+	var order: Array[String] = ["fire", "water", "ice", "wood", "wind", "thunder", "earth", "poison", "light", "dark"]
+	for key in order:
+		if idx >= 5:
 			break
-		if not (sk is Dictionary):
+		if int(elements.get(key, 0)) <= 0:
 			continue
-		var key: String = str(sk.get("key", ""))
-		var tier: int = int(sk.get("tier", 1))
-		var cells: Array = sk.get("cells", [])
-		var delay: float = float(idx) * 0.55
+		# ミラー用の影響マス（使っていれば）
+		var cells: Array = []
+		for sk in mirror:
+			if sk is Dictionary and str(sk.get("key", "")) == key:
+				cells = sk.get("cells", [])
+				break
+		var tier: int = 1
+		for sk in mirror:
+			if sk is Dictionary and str(sk.get("key", "")) == key:
+				tier = int(sk.get("tier", 1))
+				break
 		var beam_col: Color = Color(_element_color_hex(key))
+		var skill_idx: int = idx
 		var tw = create_tween()
-		tw.tween_interval(delay)
+		tw.tween_interval(float(skill_idx) * 0.55)
 		tw.tween_callback(func():
 			if _stage_mgr and _stage_mgr.has_method("play_single_enemy_animation"):
 				_stage_mgr.play_single_enemy_animation(0, "skill")
@@ -1063,8 +1089,8 @@ func _on_action_received(from: int, payload: Dictionary) -> void:
 		if _board and _board.has_method("_show_enemy_skill_banner"):
 			_board._show_enemy_skill_banner(skill_name, _element_color_hex(elem), false, "相手プレイヤーのスキル")
 	var damage: int = int(payload.get("damage", 0))
-	# そのターンに相手が使ったスキル（最大4つ）を、敵画面のキャラで順番に発動させる
-	_play_opponent_skill_attacks(payload.get("skills", []))
+	# 剣の値>0なら攻撃モーション、各属性値>0ならその属性のスキルモーションを敵画面で再現
+	_play_opponent_turn_motions(payload)
 	if damage <= 0:
 		return
 	if _stage_mgr and _stage_mgr.has_method("play_single_enemy_animation"):
@@ -1168,7 +1194,7 @@ func _on_shop_started(data: Dictionary) -> void:
 	_shop_done_btn.disabled = false
 	_shop_done_btn.text = "準備完了"
 	_shop_note_lbl.text = "レリックを1つ選択してください。"
-	_build_relic_choices()
+	_open_offline_relic_selection()
 	_advance_pvp_background()
 	if _board:
 		_board.set_pvp_my_turn(false)
@@ -1200,10 +1226,10 @@ func _close_offline_shop(restore_hud: bool = true) -> void:
 	var score_mgr = _stage.get_node_or_null("ScoreManager") if _stage else null
 	if _offline_shop_open and score_mgr and score_mgr.has_method("set_shop_ui_visible"):
 		score_mgr.set_shop_ui_visible(false)
-	# オフライン用の下部バー・進行ボタンはPvPでは表示しない
+	# オフライン用の下部バーはオンラインでも同じ見た目にするため表示する
 	var rui = _stage.get_node_or_null("RelicUIManager") if _stage else null
 	if rui and rui.has_method("set_bottom_bars_visible"):
-		rui.set_bottom_bars_visible(false)
+		rui.set_bottom_bars_visible(true)
 	if _stage_mgr and "move_front_btn" in _stage_mgr and _stage_mgr.move_front_btn:
 		_stage_mgr.move_front_btn.visible = false
 	_offline_shop_open = false
@@ -1244,6 +1270,35 @@ func _starter_skill_name(cat_key: String) -> String:
 		"force": return "紅蓮爆破"
 		"mystic": return "瘴気毒霧"
 	return ""
+
+## オフラインと全く同じレリック選択UIを開く（見た目・操作・挙動を一致させる）
+func _open_offline_relic_selection() -> void:
+	_shop_panel.visible = false
+	if _hud_root:
+		_hud_root.visible = true
+	var rm = _stage.get_node_or_null("RelicManager") if _stage else null
+	var before_lv: Dictionary = {}
+	if rm and rm.has_method("get_relic_levels"):
+		before_lv = rm.get_relic_levels()
+	var ui = load("res://relic_selection_ui.gd").new()
+	ui.name = "RelicSelectionUI"
+	if _stage:
+		_stage.add_child(ui)
+	await ui.selection_finished
+	if not is_inside_tree():
+		return
+	# 選ばれたレリック（新規取得 or レベルアップ）を相手へ通知
+	var chosen: String = ""
+	if rm and rm.has_method("get_relic_levels"):
+		var after_lv: Dictionary = rm.get_relic_levels()
+		for k in after_lv.keys():
+			if int(after_lv[k]) != int(before_lv.get(k, 0)):
+				chosen = str(k)
+				break
+	if chosen != "" and _net and _net.has_method("send_shop_choice"):
+		_net.send_shop_choice({ "relicId": chosen })
+	_selected_relic = chosen
+	_open_shop_stage()
 
 func _build_relic_choices() -> void:
 	for child in _shop_relic_box.get_children():
