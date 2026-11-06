@@ -204,6 +204,10 @@ func send_surrender() -> bool:
 func debug_jump_turn(turn_number: int = 5) -> bool:
 	return _send({ "type": "debug_jump", "turnNumber": maxi(1, turn_number) })
 
+## デバッグ用: 指定ラウンドのショップ（レリック選択）を直接開く（オンライン対戦のみ）
+func debug_open_shop(round_number: int = 5) -> bool:
+	return _send({ "type": "debug_shop", "round": maxi(1, round_number) })
+
 func send_ping() -> bool:
 	return _send({ "type": "ping" })
 

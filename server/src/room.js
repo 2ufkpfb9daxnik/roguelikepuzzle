@@ -340,6 +340,16 @@ export class Room {
         return;
       }
 
+      case "debug_shop": {
+        // デバッグ用: 指定ラウンドのショップ（レリック選択）を直接開く
+        if (this.room.phase === "ended" || this.room.phase === "lobby") return;
+        const round = Math.max(1, Math.min(99, Math.floor(Number(data.round ?? 5))));
+        this.room.turnNumber = round * 2;
+        this.room.round = round;
+        await this._startShop(round + 1);
+        return;
+      }
+
       case "surrender":
         if (this.room.phase === "ended") return;
         await this._endMatch(1 - player, "surrender");

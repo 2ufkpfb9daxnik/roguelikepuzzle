@@ -680,23 +680,43 @@ func _create_settings_dialog() -> void:
 	dbg_title.position = Vector2(50, cur_y)
 	modal.add_child(dbg_title)
 
-	var dbg_btn = Button.new()
-	dbg_btn.text = "⏭ 5ターン目へ (オンライン対戦)"
-	dbg_btn.add_theme_font_override("font", CUSTOM_FONT)
-	dbg_btn.add_theme_font_size_override("font_size", 20)
-	dbg_btn.position = Vector2(50, cur_y + 36)
-	dbg_btn.size = Vector2(panel_w - 100, 44)
-	dbg_btn.pressed.connect(func():
-		var net = get_node_or_null("/root/NetworkManager")
-		if net and "pvp_mode" in net and bool(net.pvp_mode) and net.has_method("debug_jump_turn"):
+	var dbg_btn_w = (panel_w - 100.0 - 12.0) / 2.0
+	var net = get_node_or_null("/root/NetworkManager")
+	var in_pvp = net != null and "pvp_mode" in net and bool(net.pvp_mode)
+
+	var dbg_turn_btn = Button.new()
+	dbg_turn_btn.text = "⏭ 5ターン目へ"
+	dbg_turn_btn.add_theme_font_override("font", CUSTOM_FONT)
+	dbg_turn_btn.add_theme_font_size_override("font_size", 19)
+	dbg_turn_btn.position = Vector2(50, cur_y + 36)
+	dbg_turn_btn.size = Vector2(dbg_btn_w, 44)
+	dbg_turn_btn.pressed.connect(func():
+		if in_pvp and net.has_method("debug_jump_turn"):
 			if net.debug_jump_turn(5):
-				dbg_btn.text = "✅ 5ターン目へ送信しました"
+				dbg_turn_btn.text = "✅ 送信しました"
 			else:
-				dbg_btn.text = "⚠ 送信できませんでした"
+				dbg_turn_btn.text = "⚠ 送信失敗"
 		else:
-			dbg_btn.text = "⚠ オンライン対戦中のみ有効です"
+			dbg_turn_btn.text = "⚠ オンライン対戦中のみ"
 	)
-	modal.add_child(dbg_btn)
+	modal.add_child(dbg_turn_btn)
+
+	var dbg_shop_btn = Button.new()
+	dbg_shop_btn.text = "🛒 5ラウンド目のショップへ"
+	dbg_shop_btn.add_theme_font_override("font", CUSTOM_FONT)
+	dbg_shop_btn.add_theme_font_size_override("font_size", 19)
+	dbg_shop_btn.position = Vector2(50 + dbg_btn_w + 12.0, cur_y + 36)
+	dbg_shop_btn.size = Vector2(dbg_btn_w, 44)
+	dbg_shop_btn.pressed.connect(func():
+		if in_pvp and net.has_method("debug_open_shop"):
+			if net.debug_open_shop(5):
+				dbg_shop_btn.text = "✅ 送信しました"
+			else:
+				dbg_shop_btn.text = "⚠ 送信失敗"
+		else:
+			dbg_shop_btn.text = "⚠ オンライン対戦中のみ"
+	)
+	modal.add_child(dbg_shop_btn)
 
 	# --- 7. 「タイトルへ戻る」「ゲーム終了」「閉じる」ボタン ---
 	var current_scene_name = ""
