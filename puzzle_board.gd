@@ -2718,7 +2718,7 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 
 	var base_count: int = 3 + int((lvl - 1) / 2)
 	var actual_count: int = mini(base_count, candidates.size())
-	var init_stage: int = 2 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 1
+	var init_stage: int = 3 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 2
 	var rm_p = _get_relic_manager()
 	if rm_p and rm_p.has_relic("venom_crown"):
 		init_stage += int(rm_p.get_param("venom_crown", "initial_stage_bonus", 1))
@@ -5772,19 +5772,27 @@ func _apply_electrified_and_cursed_effects(cells_list: Array) -> void:
 				_spawn_steam_effect(get_cell_position(cell.x, cell.y))
 				_spawn_floating_text(get_cell_position(cell.x, cell.y), "消火", Color(0.4, 0.8, 1.0))
 
-		# 猛毒沼マス上でコマがマッチ消去された場合、解毒・浄化（自分の薬毒なら敵へ毒刃追撃）
-		# ※ただし今回のスキルで薬毒瓶自体が起爆したセルは解毒・毒刃をスキップ（薬毒マスを維持）
+		# 猛毒沼マス上でコマがマッチ消去された場合、毒マスは耐久値（段階）を1つ失う
+		# 即解毒ではなく段階を減らすことで、毒マスが意味を持って盤面に残り続けるようにする
 		if grid_poison.size() == GRID_ROWS and grid_poison[cell.x][cell.y] and not poison_mist_detonated_cells.has(cell):
 			var was_ally_po = is_ally_poison(cell.x, cell.y)
-			grid_poison[cell.x][cell.y] = false
-			_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
-			if was_ally_po and stage_mgr:
-				var pb_dmg = 200.0 * stage_scale_b
-				stage_mgr.calchp(pb_dmg, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
-				_emit_combat_event("damage", "ally", "enemy", pb_dmg, "ally_poison_blade")
-				_spawn_floating_text(get_cell_position(cell.x, cell.y), "🧪 毒刃追撃！", Color(0.35, 1.0, 0.65))
+			var cur_ps: int = 1
+			if grid_poison_stage.size() == GRID_ROWS and cell.x < grid_poison_stage.size() and cell.y < grid_poison_stage[cell.x].size():
+				cur_ps = maxi(1, int(grid_poison_stage[cell.x][cell.y]))
+			if cur_ps > 1:
+				grid_poison_stage[cell.x][cell.y] = cur_ps - 1
+				_spawn_poison_bubble_burst_effect(get_cell_position(cell.x, cell.y))
+				_spawn_floating_text(get_cell_position(cell.x, cell.y), "🧪 毒耐久 -1（残り%d）" % (cur_ps - 1), Color(0.65, 1.0, 0.75))
 			else:
-				_spawn_floating_text(get_cell_position(cell.x, cell.y), "✨ 解毒！", Color(0.65, 1.0, 0.75))
+				grid_poison[cell.x][cell.y] = false
+				_set_ally_flag(grid_poison_ally, cell.x, cell.y, false)
+				if was_ally_po and stage_mgr:
+					var pb_dmg = 200.0 * stage_scale_b
+					stage_mgr.calchp(pb_dmg, 0.0, stage_mgr.get_focused_enemy_index() if stage_mgr.has_method("get_focused_enemy_index") else -1)
+					_emit_combat_event("damage", "ally", "enemy", pb_dmg, "ally_poison_blade")
+					_spawn_floating_text(get_cell_position(cell.x, cell.y), "🧪 毒刃追撃！", Color(0.35, 1.0, 0.65))
+				else:
+					_spawn_floating_text(get_cell_position(cell.x, cell.y), "✨ 解毒！", Color(0.65, 1.0, 0.75))
 
 		for d in adj_dirs:
 			var ar = cell.x + d.x
@@ -11815,6 +11823,43 @@ func _hide_cell_hover_tooltip() -> void:
 func _add_cell_effect_entry(entries: Array, title: String, desc: String, color: String = "#FFD54F") -> void:
 	entries.append({"title": title, "desc": desc, "color": color})
 
+# 【コマ・オブジェクト】と【マスに付与されている効果】を分けるための境界インデックス
+var _cell_object_split: int = -1
+
+## マスの説明を「効果」「コマ・オブジェクト」の2つの枠に分けて組み立てる
+func _build_cell_tooltip_rich_text(entries: Array[Dictionary], split: int) -> String:
+	var splt: int = split if (split >= 0 and split <= entries.size()) else entries.size()
+	var effect_parts: Array[String] = []
+	var object_parts: Array[String] = []
+	for i in range(entries.size()):
+		var e = entries[i]
+		var seg: String = "[b]%s[/b]\n%s" % [str(e.get("title", "")), str(e.get("desc", ""))]
+		if i < splt:
+			object_parts.append(seg)
+		else:
+			effect_parts.append(seg)
+	var out: String = ""
+	# 上段：マスに付与されている効果
+	out += "[table=1]"
+	out += "[cell][bgcolor=#10222E][color=#7FDBFF][b]🎯 マスに付与されている効果[/b][/color][/bgcolor][/cell]"
+	if effect_parts.is_empty():
+		out += "[cell][bgcolor=#0B1620][color=#8FA3B0]（このマスに付与されている効果はありません）[/color][/bgcolor][/cell]"
+	else:
+		for seg in effect_parts:
+			out += "[cell][bgcolor=#0B1620]%s[/bgcolor][/cell]" % seg
+	out += "[/table]"
+	out += "\n"
+	# 下段：コマ・オブジェクトの説明
+	out += "[table=1]"
+	out += "[cell][bgcolor=#2E2410][color=#FFD54F][b]📦 コマ・オブジェクト[/b][/color][/bgcolor][/cell]"
+	if object_parts.is_empty():
+		out += "[cell][bgcolor=#1A1408][color=#B0A080]（このマスにはコマ・オブジェクトがありません）[/color][/bgcolor][/cell]"
+	else:
+		for seg in object_parts:
+			out += "[cell][bgcolor=#1A1408]%s[/bgcolor][/cell]" % seg
+	out += "[/table]"
+	return out
+
 ## そのマスに重なっている効果をすべて収集する（特殊駒・地形・属性・霧など）
 func _collect_cell_effect_entries(r: int, c: int) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
@@ -11879,6 +11924,9 @@ func _collect_cell_effect_entries(r: int, c: int) -> Array[Dictionary]:
 		SpecialItemType.POISON_MIST:
 			_add_cell_effect_entry(entries, "[b][color=#00E676]🧪 免疫薬毒・ポイズン (Lv%d/20)[/color][/b]" % sp_lvl,
 				"[font_size=19]起爆すると盤面のランダムな複数マスを薬毒マスに変え、その上の駒を消去！\n味方毒1マスにつき敵毒ダメージを20%軽減（最大90%免疫）し、敵に毒ダメージを与えます。[/font_size]", "#00E676")
+
+	# 【境界】ここより上が「コマ・オブジェクト」、下が「マスに付与されている効果」
+	_cell_object_split = entries.size()
 
 	# 2. 盤面ギミックマス
 	var plant = _get_plant_at(r, c)
@@ -12037,7 +12085,9 @@ func _update_cell_hover_tooltip(global_mouse_pos: Vector2) -> void:
 	if rm_ui and rm_ui.has_method("show_cell_effect_tooltips"):
 		rm_ui.show_cell_effect_tooltips(entries, global_mouse_pos)
 	elif not entries.is_empty() and rm_ui and rm_ui.has_method("show_custom_tooltip"):
-		rm_ui.show_custom_tooltip(entries[0]["title"], entries[0]["desc"], global_mouse_pos, "board_cell")
+		# 「マスに付与されている効果」と「コマ・オブジェクト」を上下の枠で区切って表示する
+		var rich: String = _build_cell_tooltip_rich_text(entries, _cell_object_split)
+		rm_ui.show_custom_tooltip("[b]🔍 マス情報[/b]", rich, global_mouse_pos, "board_cell")
 	elif entries.is_empty():
 		_hide_cell_hover_tooltip()
 
@@ -12365,6 +12415,38 @@ var current_skill_tier: int = 1
 var tier_selector_buttons: Array[Button] = []
 var _cached_skill_ui_font: Font = null
 
+## スキルの生成マッチ条件を説明文として返す（盤面スキルボタンのツールチップ用）
+func _get_skill_recipe_text(skill_id: String) -> String:
+	var score_mgr = _get_score_manager()
+	if score_mgr and score_mgr.has_method("get_skill_by_id"):
+		var s_item: Dictionary = score_mgr.get_skill_by_id(skill_id)
+		if not s_item.is_empty():
+			var recipe: String = str(s_item.get("match_recipe", ""))
+			if recipe != "":
+				var icon: String = "✨"
+				if recipe.find("ソード") != -1: icon = "⚔️"
+				elif recipe.find("シールド") != -1: icon = "🛡️"
+				elif recipe.find("コイン") != -1: icon = "🪙"
+				elif recipe.find("ポーション") != -1: icon = "🧪"
+				elif recipe.find("パン") != -1: icon = "🍞"
+				return "%s【生成マッチ】%s\nこのコマを4個以上つなげて消すとスキル駒が生成されます。" % [icon, recipe]
+	return ""
+
+## スキルの現在レベルの説明文を返す（盤面スキルボタンのツールチップ用）
+func _get_skill_description_text(skill_id: String) -> String:
+	var score_mgr = _get_score_manager()
+	if score_mgr and score_mgr.has_method("get_skill_by_id"):
+		var s_item: Dictionary = score_mgr.get_skill_by_id(skill_id)
+		if not s_item.is_empty():
+			var lvl: int = score_mgr.get_skill_level(skill_id) if score_mgr.has_method("get_skill_level") else 0
+			var desc_lv: Array = s_item.get("desc_lv", [])
+			if desc_lv.size() > 0:
+				var idx: int = clampi(lvl - 1, 0, desc_lv.size() - 1)
+				if lvl <= 0 and desc_lv.size() > 0:
+					idx = 0
+				return "【効果】%s" % str(desc_lv[idx])
+	return ""
+
 func _get_skill_ui_font() -> Font:
 	if _cached_skill_ui_font == null:
 		var main_f = load("res://font/NotoSansJP.ttf")
@@ -12550,7 +12632,7 @@ func _update_player_skill_ui() -> void:
 				btn.text = "%s\n🔒 未解放" % plain_label
 				btn.disabled = true
 				btn.modulate = Color(0.35, 0.38, 0.42, 0.45)
-				btn.tooltip_text = "【未解放】ショップのスキルツリーで解放すると使用可能になります。"
+				btn.tooltip_text = "【未解放】ショップのスキルツリーで解放すると使用可能になります。\n\n" + _get_skill_recipe_text(skill_id)
 				continue
 
 			if score_mgr and score_mgr.has_method("get_chosen_evolution"):
@@ -12562,6 +12644,7 @@ func _update_player_skill_ui() -> void:
 				elif e_mid != "":
 					evo_tag = "\n✨" + score_mgr._get_evolution_name(skill_id, 10, e_mid)
 			btn.text = "%s\n%s%s" % [plain_label, t_def["name"], evo_tag]
+			btn.tooltip_text = "【T%d %s】\n%s\n\n%s" % [int(t_def.get("tier", 1)), str(t_def.get("name", "")), _get_skill_recipe_text(skill_id), _get_skill_description_text(skill_id)]
 
 			btn.disabled = not (can_use and in_chosen_cat)
 			if in_chosen_cat:
@@ -13342,7 +13425,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 							candidates.append(Vector2i(r, c))
 				candidates.shuffle()
 				var count = mini(2 + sk_lvl / 2, candidates.size())
-				var init_stage = 2 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 1 # 濃縮で初期段階2
+				var init_stage = 3 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 2 # 濃縮で初期段階3／通常2
 				var rm_poison = _get_relic_manager()
 				if rm_poison and rm_poison.has_relic("venom_crown"):
 					init_stage += int(rm_poison.get_param("venom_crown", "initial_stage_bonus", 1))

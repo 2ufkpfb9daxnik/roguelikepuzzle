@@ -2163,6 +2163,20 @@ func set_chosen_category(cat_key: String) -> void:
 	on_element_category_chosen(cat_key)
 
 ## 選択された属性カテゴリーに応じてスキルツリーUIを動的に構築
+## 生成マッチ条件の文字列から、対応するコマの絵文字を返す（表示を分かりやすくする）
+func _match_recipe_icon(recipe: String) -> String:
+	if recipe.find("ソード") != -1:
+		return "⚔️"
+	if recipe.find("シールド") != -1:
+		return "🛡️"
+	if recipe.find("コイン") != -1:
+		return "🪙"
+	if recipe.find("ポーション") != -1:
+		return "🧪"
+	if recipe.find("パン") != -1:
+		return "🍞"
+	return "✨"
+
 func rebuild_skill_tree_ui() -> void:
 	if skill_tree_container == null or not is_instance_valid(skill_tree_container):
 		return
@@ -2393,22 +2407,22 @@ func rebuild_skill_tree_ui() -> void:
 		# 盤面マッチ条件ピル
 		var recipe_pill = Panel.new()
 		recipe_pill.position = Vector2(78, 44)
-		recipe_pill.size = Vector2(col_w - 92, 26)
+		recipe_pill.size = Vector2(col_w - 92, 34)
 		var rp_style = StyleBoxFlat.new()
-		rp_style.bg_color = Color(0.06, 0.08, 0.12, 0.85)
-		rp_style.border_color = Color(0.85, 0.75, 0.35, 0.7)
-		rp_style.set_border_width_all(1)
+		rp_style.bg_color = Color(0.06, 0.08, 0.12, 0.92)
+		rp_style.border_color = Color(1.0, 0.82, 0.25, 0.95)
+		rp_style.set_border_width_all(2)
 		rp_style.set_corner_radius_all(6)
 		recipe_pill.add_theme_stylebox_override("panel", rp_style)
 		node_card.add_child(recipe_pill)
 
 		var recipe_lbl = Label.new()
 		recipe_lbl.position = Vector2(6, 1)
-		recipe_lbl.size = Vector2(col_w - 104, 24)
-		recipe_lbl.text = "⚡ 盤面生成: %s" % str(s_item.get("match_recipe", ""))
+		recipe_lbl.size = Vector2(col_w - 104, 32)
+		recipe_lbl.text = "%s 【生成マッチ】%s" % [_match_recipe_icon(str(s_item.get("match_recipe", ""))), str(s_item.get("match_recipe", ""))]
 		recipe_lbl.add_theme_font_override("font", jp_font)
-		recipe_lbl.add_theme_font_size_override("font_size", 16)
-		recipe_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+		recipe_lbl.add_theme_font_size_override("font_size", 21)
+		recipe_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.45))
 		recipe_pill.add_child(recipe_lbl)
 
 		# 2. レベル状態表示 & レベルプログレスバー
@@ -2565,7 +2579,7 @@ func rebuild_skill_tree_ui() -> void:
 				var cur_d = d_arr[clampi(c_lvl - 1, 0, d_arr.size() - 1)] if c_lvl > 0 and not d_arr.is_empty() else (d_arr[0] if not d_arr.is_empty() else "")
 				var next_d = d_arr[clampi(c_lvl, 0, d_arr.size() - 1)] if c_lvl < m_lvl and not d_arr.is_empty() else ""
 				var recipe_str: String = str(s_item.get("match_recipe", ""))
-				var recipe_info: String = "[font_size=20][b][color=#FFD54F]⚡【盤面生成マッチ条件】: %s[/color][/b][/font_size]\n\n" % recipe_str if recipe_str != "" else ""
+				var recipe_info: String = "[font_size=24][b][color=#FFD54F]%s【このスキルの生成マッチ】%s[/color][/b][/font_size]\n\n" % [_match_recipe_icon(recipe_str), recipe_str] if recipe_str != "" else ""
 				var d_str = ""
 				if c_lvl >= m_lvl:
 					d_str = recipe_info + "[font_size=22][color=#FFD700]【最大レベル】[/color]\n%s[/font_size]" % cur_d
