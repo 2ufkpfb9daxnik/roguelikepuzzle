@@ -1,7 +1,7 @@
 class_name Profiler
 extends RefCounted
 
-const PROFILE := true
+const PROFILE := false
 
 static var records: Dictionary = {}
 static var last_print_time: int = 0

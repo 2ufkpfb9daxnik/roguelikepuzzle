@@ -195,10 +195,14 @@ func _apply_cached_state() -> void:
 		_on_shop_started(_net.last_shop)
 	_refresh_stats()
 
+var _cached_ui_font: Font = null
+
 func _make_font() -> Font:
-	var f = load("res://font/NotoSansJP.ttf")
-	f.set_fallbacks([load("res://font/NotoEmoji.ttf")])
-	return f
+	if _cached_ui_font != null:
+		return _cached_ui_font
+	_cached_ui_font = load("res://font/NotoSansJP.ttf")
+	_cached_ui_font.set_fallbacks([load("res://font/NotoEmoji.ttf")])
+	return _cached_ui_font
 
 func _play_ui_se(kind: String) -> void:
 	var sm = get_node_or_null("/root/SettingsManager")

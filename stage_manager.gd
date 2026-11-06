@@ -2584,9 +2584,13 @@ func displayhp() -> void:
 		if e.has("hp_lbl") and is_instance_valid(e.get("hp_lbl")):
 			var cur_hp_int = int(cur_hp)
 			var cur_sh_int = int(e.get("shield", 0.0))
-			var sh_tag = (" [color=#4DD0E1]🛡️" + str(cur_sh_int) + "[/color]") if cur_sh_int > 0 else ""
-			e["last_hp_int"] = cur_hp_int
-			e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(int(max_hp)) + sh_tag + "[/color][/center]"
+			var max_hp_int = int(max_hp)
+			if e.get("last_hp_int", -1) != cur_hp_int or e.get("last_sh_int", -1) != cur_sh_int or e.get("last_max_hp_int", -1) != max_hp_int:
+				var sh_tag = (" [color=#4DD0E1]🛡️" + str(cur_sh_int) + "[/color]") if cur_sh_int > 0 else ""
+				e["last_hp_int"] = cur_hp_int
+				e["last_sh_int"] = cur_sh_int
+				e["last_max_hp_int"] = max_hp_int
+				e["hp_lbl"].text = "[center][color=#FFFFFF]" + str(cur_hp_int) + " / " + str(max_hp_int) + sh_tag + "[/color][/center]"
 				
 	if enemy_race_lbl != null and is_instance_valid(enemy_race_lbl) and enemy_race_lbl.visible:
 		enemy_race_lbl.visible = false

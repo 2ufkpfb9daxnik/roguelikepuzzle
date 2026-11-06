@@ -111,7 +111,7 @@ func _emit_combat_event(type: String, source: String, target: Variant, amount: f
 	if pvp_mode and type == "damage" and source == "ally":
 		pvp_pending_damage += maxf(0.0, amount)
 	if DEBUG_COMBAT_EVENTS:
-		print("[CombatEvent] ", event)
+		if OS.is_debug_build(): print("[CombatEvent] ", event)
 
 const SkillVFXNode = preload("res://skill_vfx_node.gd")
 
@@ -753,6 +753,13 @@ func _initialize_board(collid_template: Node) -> void:
 	grid_poison.clear()
 	grid_gold_statue.clear()
 	plant_entities.clear()
+	stone_turn_counts.clear()
+	diamond_stones.clear()
+	active_wind_tornadoes.clear()
+	storm_zones.clear()
+	wind_ward_columns.clear()
+	delayed_explosions.clear()
+	last_shrapnel_cleared_cells.clear()
 	_init_ally_grids()
 
 	var area_node = get_node_or_null("Area2D")
@@ -1468,7 +1475,7 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 
 	var _t_aw_tween_finished = Time.get_ticks_usec()
 	await tween.finished
-	print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
+	if OS.is_debug_build(): print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 
 	# スワップ後にマッチが存在するか、または特殊アイテムがスワップされたか判定
 	var has_match = _check_matches_exist()
@@ -1500,7 +1507,7 @@ func _execute_swap(r1: int, c1: int, r2: int, c2: int) -> void:
 		_swap_grid_data(r1, c1, r2, c2)
 		var _t_aw_revert_tween_finished = Time.get_ticks_usec()
 		await revert_tween.finished
-		print("[AWAIT] revert_tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_revert_tween_finished) / 1000.0))
+		if OS.is_debug_build(): print("[AWAIT] revert_tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_revert_tween_finished) / 1000.0))
 		current_state = BoardState.IDLE
 
 ## グリッドデータのスワップ
@@ -2471,6 +2478,8 @@ func _damage_stone_at(r: int, c: int, dmg: int = 1) -> bool:
 	var pos = get_cell_position(r, c)
 	if grid_stones[r][c] <= 0:
 		grid_stones[r][c] = 0
+		stone_turn_counts.erase(Vector2i(r, c))
+		diamond_stones.erase(Vector2i(r, c))
 		var broken_dur = maxi(1, prev_dur)
 		var rm_h = _get_relic_manager()
 		if rm_h:
@@ -5442,7 +5451,7 @@ func _start_match_highlight() -> void:
 	if has_highlights:
 			var _t_aw_tween_finished = Time.get_ticks_usec()
 			await tween.finished
-			print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
+			if OS.is_debug_build(): print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 	else:
 		tween.kill()
 	_start_breaking_animation()
@@ -6046,7 +6055,7 @@ func _start_breaking_animation() -> void:
 	if has_breaking:
 		var _t_aw_tween_finished = Time.get_ticks_usec()
 		await tween.finished
-		print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
+		if OS.is_debug_build(): print("[AWAIT] tween_finished took %.2f ms" % ((Time.get_ticks_usec() - _t_aw_tween_finished) / 1000.0))
 	else:
 		tween.kill()
 
@@ -6728,7 +6737,7 @@ func _process(delta: float) -> void:
 		var st_str = str(current_state)
 		if "BoardState" in self and current_state >= 0 and current_state < BoardState.size():
 			st_str = BoardState.keys()[current_state]
-		print("[SLOW FRAME] delta: %.1fms | State: %s | Add: %d | Free: %d | Falling: %d | Sprites: %d" % [
+		if OS.is_debug_build(): print("[SLOW FRAME] delta: %.1fms | State: %s | Add: %d | Free: %d | Falling: %d | Sprites: %d" % [
 			delta * 1000.0, st_str, Profiler.add_child_count, Profiler.queue_free_count, falling_pieces.size(), sp_cnt
 		])
 	var sm = _get_stage_manager()
@@ -9579,6 +9588,12 @@ func _cast_enemy_dark_skill(is_boss: bool, show_banner: bool = true) -> Array[Ve
 func clear_board_hazards() -> void:
 	hazard_spread_turn_counter = 0
 	grid_fog.clear()
+	stone_turn_counts.clear()
+	diamond_stones.clear()
+	active_wind_tornadoes.clear()
+	storm_zones.clear()
+	wind_ward_columns.clear()
+	delayed_explosions.clear()
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
 			if grid_cursed.size() == GRID_ROWS: grid_cursed[r][c] = false
@@ -11061,6 +11076,13 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 
 	# 🪨 地B1: 黄金化 (ターン終了時、石1個を黄金像に変化) & B2 金剛石 (2ターン生存でダイヤモンド)
 	if grid_stones.size() == GRID_ROWS:
+		# 破壊済みの石のカウントを掃除して辞書が増え続けないようにする
+		for st_pos in stone_turn_counts.keys():
+			if grid_stones[st_pos.x][st_pos.y] <= 0:
+				stone_turn_counts.erase(st_pos)
+		for d_pos in diamond_stones.keys():
+			if grid_stones[d_pos.x][d_pos.y] <= 0:
+				diamond_stones.erase(d_pos)
 		var ally_st_list: Array[Vector2i] = []
 		for str_r in range(GRID_ROWS):
 			for str_c in range(GRID_COLUMNS):
@@ -11075,6 +11097,8 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		if has_actor_skill_trait(true, "earth", "earth_final_b1") and not ally_st_list.is_empty():
 			var chosen_st = ally_st_list[randi() % ally_st_list.size()]
 			grid_stones[chosen_st.x][chosen_st.y] = 0
+			stone_turn_counts.erase(chosen_st)
+			diamond_stones.erase(chosen_st)
 			grid_gold_statue[chosen_st.x][chosen_st.y] = 3
 			_set_ally_flag(grid_gold_ally, chosen_st.x, chosen_st.y, true)
 			_spawn_floating_text(get_cell_position(chosen_st.x, chosen_st.y), "🪨 黄金化！黄金像変異！", Color(1.0, 0.85, 0.2))

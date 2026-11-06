@@ -253,6 +253,10 @@ func set_se_volume(val: float) -> void:
 ## 全設定の一括適用
 func apply_all_settings() -> void:
 	Engine.time_scale = game_speed
+	# 破棄済みノードの参照を掃除して辞書が増え続けないようにする
+	for n in _default_pitches.keys():
+		if not is_instance_valid(n):
+			_default_pitches.erase(n)
 	var r = _get_scene_root()
 	if r:
 		_sync_audio_nodes(r)

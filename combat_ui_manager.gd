@@ -459,6 +459,11 @@ func _get_elem_jp_name(elem: String) -> String:
 func _show_enemy_damage(amount: float, enemy_node: Node, is_crit: bool, element: String, effectiveness: String = "normal") -> void:
 	if amount <= 0 or not is_instance_valid(enemy_node): return
 
+	# 消滅済みの敵IDを掃除して辞書が増え続けないようにする
+	for id in enemy_popup_counts.keys():
+		if not is_instance_id_valid(id):
+			enemy_popup_counts.erase(id)
+
 	var e_id = enemy_node.get_instance_id()
 	if not enemy_popup_counts.has(e_id): enemy_popup_counts[e_id] = 0
 
