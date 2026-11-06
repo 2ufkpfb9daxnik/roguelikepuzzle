@@ -2721,7 +2721,7 @@ func _trigger_poison_mist(r: int, c: int, pos: Vector2, queue: Array, exploded_i
 	var init_stage: int = 3 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 2
 	var rm_p = _get_relic_manager()
 	if rm_p and rm_p.has_relic("venom_crown"):
-		init_stage += int(rm_p.get_param("venom_crown", "initial_stage_bonus", 1))
+		init_stage += int(rm_p.get_param("venom_crown", "stage_bonus", 1))
 
 	var poisoned_cells: Array[Vector2i] = []
 	for i in range(actual_count):
@@ -2891,9 +2891,9 @@ func _trigger_bomb(r: int, c: int, pos: Vector2, queue: Array, exploded_items: D
 	var rm_b = _get_relic_manager()
 	if rm_b:
 		if rm_b.has_relic("demolition_book"):
-			base_count += int(rm_b.get_param("demolition_book", "range_bonus", 1))
+			base_count += int(rm_b.get_param("demolition_book", "blast_range", 1))
 		if rm_b.has_relic("blazing_fire_orb"):
-			base_count += int(rm_b.get_param("blazing_fire_orb", "fire_range_bonus", 2))
+			base_count += int(rm_b.get_param("blazing_fire_orb", "range_bonus", 2))
 	var count: int = mini(base_count, GRID_ROWS * GRID_COLUMNS)
 
 	var sm = _get_stage_manager()
@@ -3362,7 +3362,7 @@ func _trigger_black_hole(r: int, c: int, pos: Vector2, queue: Array, exploded_it
 
 	var rm_bh = _get_relic_manager()
 	if rm_bh and rm_bh.has_relic("void_ring"):
-		radius = maxi(radius, int(rm_bh.get_param("void_ring", "radius", 2)))
+		radius = maxi(radius, int(rm_bh.get_param("void_ring", "pull_radius", 2)))
 
 	_spawn_black_hole_effect(pos, radius)
 	var stone_dmg: int = 1 + int((lvl - 1) / 3)
@@ -13172,7 +13172,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 			var base_count = 2 + (tier - 1) * 2 # T1: 2, T2: 4, T3: 6
 			var rm_fire = _get_relic_manager()
 			if rm_fire and rm_fire.has_relic("blazing_fire_orb"):
-				base_count += int(rm_fire.get_param("blazing_fire_orb", "fire_range_bonus", 2))
+				base_count += int(rm_fire.get_param("blazing_fire_orb", "range_bonus", 2))
 			var count = mini(base_count + sk_lvl / 2, GRID_ROWS * GRID_COLUMNS)
 
 			var candidates: Array[Vector2i] = []
@@ -13428,7 +13428,7 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				var init_stage = 3 if has_actor_skill_trait(true, "poison", "poison_mid_a") else 2 # 濃縮で初期段階3／通常2
 				var rm_poison = _get_relic_manager()
 				if rm_poison and rm_poison.has_relic("venom_crown"):
-					init_stage += int(rm_poison.get_param("venom_crown", "initial_stage_bonus", 1))
+					init_stage += int(rm_poison.get_param("venom_crown", "stage_bonus", 1))
 				var poisoned_cells: Array[Vector2i] = []
 				for i in range(count):
 					var cell = candidates[i]

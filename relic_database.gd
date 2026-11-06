@@ -505,7 +505,7 @@ const RELICS: Dictionary = {
 		"rarity": "common",
 		"max_level": 5,
 		"requires_element": true,
-		"description": "水マス上の自駒が受けるダメージ-10%。水+火シナジー威力+10%（Lvに応じて強化）",
+		"description": "水マスが1つでも存在するとき、プレイヤーが受けるダメージ-10%。水+火シナジー威力+10%（Lvに応じて強化）",
 		"levels": [
 			{"water_reduction": 0.10, "synergy_bonus": 0.10},
 			{"water_reduction": 0.14, "synergy_bonus": 0.15},
@@ -1015,7 +1015,7 @@ static func get_description(id: String, level: int) -> String:
 		"flowing_water_charm":
 			var wr = int(round(float(p.get("water_reduction", 0.10)) * 100.0))
 			var sb = int(round(float(p.get("synergy_bonus", 0.10)) * 100.0))
-			return "水マス上の自駒が受けるダメージ-%d%%。水+火シナジー威力+%d%%" % [wr, sb]
+			return "水マスが1つでも存在するとき、受けるダメージ-%d%%。水+火シナジー威力+%d%%" % [wr, sb]
 		"frozen_earth_oath":
 			var ic = int(p.get("ice_count", 1))
 			return "ターン開始時、盤面のランダム%dマスに氷マス生成" % ic

@@ -262,7 +262,7 @@ func on_enemy_defeated() -> void:
 		var p = get_parent()
 		var sm = p.get_node_or_null("StageManager") if p else null
 		if sm and "myhpmax" in sm and sm.myhpmax > 0:
-			var heal_ratio = float(get_param("underworld_scale", "heal_ratio", 0.25))
+			var heal_ratio = float(get_param("underworld_scale", "heal_rate", 0.25))
 			var heal_val = sm.myhpmax * heal_ratio
 			if heal_val > 0:
 				sm.calchp(0, -heal_val)
@@ -566,7 +566,7 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 	if has_relic("tide_ring"):
 		var water_cnt = int(context.get("water_count", get_board_state().get("water_count", 0)))
 		if water_cnt > 0:
-			var per_w = float(get_param("tide_ring", "damage_bonus_per_water", 0.02))
+			var per_w = float(get_param("tide_ring", "per_water", 0.02))
 			var max_b = float(get_param("tide_ring", "max_bonus", 0.40))
 			bonus_mult += minf(float(water_cnt) * per_w, max_b)
 			emit_signal("relic_triggered", "tide_ring")
@@ -574,7 +574,7 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 	if has_relic("corrosion_charm"):
 		var poison_cnt = int(get_board_state().get("poison_count", 0))
 		if poison_cnt > 0 or el_str == "poison":
-			bonus_mult += float(get_param("corrosion_charm", "poison_damage_bonus", 0.20))
+			bonus_mult += float(get_param("corrosion_charm", "damage_bonus", 0.20))
 			emit_signal("relic_triggered", "corrosion_charm")
 
 	if has_relic("demolition_book") and (context.get("is_bomb", false) or context.get("is_special", false) or el_str == "fire"):
@@ -582,7 +582,7 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		emit_signal("relic_triggered", "demolition_book")
 
 	if has_relic("magnet_charm") and el_str == "thunder":
-		bonus_mult += float(get_param("magnet_charm", "thunder_damage_bonus", 0.25))
+		bonus_mult += float(get_param("magnet_charm", "thunder_bonus", 0.25))
 		emit_signal("relic_triggered", "magnet_charm")
 
 	if has_relic("superconduct_ring") and el_str == "thunder":
@@ -607,7 +607,7 @@ func modify_damage_dealt(base_dmg: float, context: Dictionary) -> float:
 		emit_signal("relic_triggered", "shadow_pin")
 
 	if has_relic("holy_lighthouse") and el_str == "light":
-		bonus_mult += float(get_param("holy_lighthouse", "light_damage_bonus", 0.25))
+		bonus_mult += float(get_param("holy_lighthouse", "statue_damage", 0.25))
 		emit_signal("relic_triggered", "holy_lighthouse")
 
 	if has_relic("magic_crystal"):
@@ -649,17 +649,17 @@ func modify_damage_taken(base_dmg: float, _context: Dictionary) -> float:
 	if has_relic("rock_fortress"):
 		var b_st = get_board_state()
 		if int(b_st.get("stone_count", 0)) > 0:
-			reduction += float(get_param("rock_fortress", "damage_reduction", 0.25))
+			reduction += float(get_param("rock_fortress", "reduction", 0.25))
 			emit_signal("relic_triggered", "rock_fortress")
 
 	if has_relic("flowing_water_charm"):
 		var b_st = get_board_state()
 		if int(b_st.get("water_count", 0)) > 0:
-			reduction += float(get_param("flowing_water_charm", "damage_reduction", 0.30))
+			reduction += float(get_param("flowing_water_charm", "water_reduction", 0.10))
 			emit_signal("relic_triggered", "flowing_water_charm")
 
 	if has_relic("sanctuary_lamp"):
-		reduction += float(get_param("sanctuary_lamp", "ally_damage_reduction", 0.15))
+		reduction += float(get_param("sanctuary_lamp", "damage_reduction", 0.15))
 		emit_signal("relic_triggered", "sanctuary_lamp")
 		
 	# 上限適用 (50%)
