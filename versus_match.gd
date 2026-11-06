@@ -1178,7 +1178,6 @@ func _build_relic_choices() -> void:
 				font
 			)
 			btn.custom_minimum_size = Vector2(0, 96)
-			btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			btn.tooltip_text = str(cat.get("desc", ""))
 			btn.pressed.connect(_on_relic_selected.bind(relic_id, btn))
 			btn.mouse_entered.connect(func(): _play_ui_se("hover"))
