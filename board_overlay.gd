@@ -35,6 +35,8 @@ var _last_redraw_msec: int = -100000
 
 # 描画用に ally 配列をキャッシュ（毎タイルの board.get() を回避）
 var _ally_cache: Dictionary = {}
+# 稲妻ポリライン用の使い回し配列（毎回の確保を避ける）
+var _bolt_line_pts: PackedVector2Array = PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 
 ## 効果マスの量に応じた再描画間隔を返す
 func _current_interval() -> float:
@@ -438,13 +440,17 @@ func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
 		draw_circle(center, 85.0, Color(1.0, 0.75, 0.20, 0.60))
 
 	var t_step = int(now * 0.03)
-	for i in range(8):
-		var rand_angle = (i * 45.0 + (t_step * 41 + i * 29) % 45) * (PI / 180.0)
+	# 描画負荷軽減のため稲妻は4本に減らす（360度を90度間隔で均等配置）
+	for i in range(4):
+		var rand_angle = (i * 90.0 + (t_step * 41 + i * 29) % 45) * (PI / 180.0)
 		var p1 = center + Vector2(cos(rand_angle), sin(rand_angle)) * 60.0
 		var p2 = center + Vector2(cos(rand_angle + 0.3), sin(rand_angle + 0.3)) * 220.0
 		var mid = (p1 + p2) * 0.5 + Vector2(-sin(rand_angle), cos(rand_angle)) * 45.0
 		var bolt_col = (Color(0.4, 1.0, 0.85, 0.98) if is_ally else Color(1.0, 0.85, 0.30, 0.98)) if (i % 2 == 0) else (Color(0.75, 1.0, 0.95, 0.95) if is_ally else Color(1.0, 0.35, 0.25, 0.95))
-		draw_polyline(PackedVector2Array([p1, mid, p2]), bolt_col, 14.0)
+		_bolt_line_pts[0] = p1
+		_bolt_line_pts[1] = mid
+		_bolt_line_pts[2] = p2
+		draw_polyline(_bolt_line_pts, bolt_col, 14.0)
 
 	var bolt_pts = PackedVector2Array([
 		center + Vector2(30, -145),
