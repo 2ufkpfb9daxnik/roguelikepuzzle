@@ -214,9 +214,10 @@ func _get_scene_root() -> Node:
 		return t.root
 	return null
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if Engine.time_scale != game_speed:
 		Engine.time_scale = game_speed
+	_handle_idle_demo(delta)
 
 ## ゲーム速度の変更と反映（全体速度＋BGM・効果音速度に完全連動）
 func set_game_speed(val: float) -> void:
@@ -301,7 +302,8 @@ func _handle_idle_demo(delta: float) -> void:
 		t.change_scene_to_file("res://current_stage.tscn")
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey or event is InputEventMouseButton or event is InputEventScreenTouch or event is InputEventScreenDrag or event is InputEventMouseMotion:
+	# マウスの微小な移動ではアイドル扱いにしない（触れたときだけリセットする）
+	if event is InputEventKey or event is InputEventMouseButton or event is InputEventScreenTouch or event is InputEventScreenDrag or event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		_idle_seconds = 0.0
 		if demo_mode:
 			demo_mode = false
