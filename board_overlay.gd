@@ -37,6 +37,7 @@ var _last_redraw_msec: int = -100000
 var _ally_cache: Dictionary = {}
 # 稲妻ポリライン用の使い回し配列（毎回の確保を避ける）
 var _bolt_line_pts: PackedVector2Array = PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+var _bolt_mark_pts: PackedVector2Array = PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 
 ## 効果マスの量に応じた再描画間隔を返す
 func _current_interval() -> float:
@@ -440,9 +441,9 @@ func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
 		draw_circle(center, 85.0, Color(1.0, 0.75, 0.20, 0.60))
 
 	var t_step = int(now * 0.03)
-	# 描画負荷軽減のため稲妻は4本に減らす（360度を90度間隔で均等配置）
-	for i in range(4):
-		var rand_angle = (i * 90.0 + (t_step * 41 + i * 29) % 45) * (PI / 180.0)
+	# 描画負荷軽減のため稲妻は2本に減らす（360度を180度間隔で均等配置）
+	for i in range(2):
+		var rand_angle = (i * 180.0 + (t_step * 41 + i * 29) % 45) * (PI / 180.0)
 		var p1 = center + Vector2(cos(rand_angle), sin(rand_angle)) * 60.0
 		var p2 = center + Vector2(cos(rand_angle + 0.3), sin(rand_angle + 0.3)) * 220.0
 		var mid = (p1 + p2) * 0.5 + Vector2(-sin(rand_angle), cos(rand_angle)) * 45.0
@@ -452,16 +453,14 @@ func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
 		_bolt_line_pts[2] = p2
 		draw_polyline(_bolt_line_pts, bolt_col, 14.0)
 
-	var bolt_pts = PackedVector2Array([
-		center + Vector2(30, -145),
-		center + Vector2(-85, -10),
-		center + Vector2(-15, -10),
-		center + Vector2(-55, 145),
-		center + Vector2(85, 10),
-		center + Vector2(15, 10)
-	])
-	draw_colored_polygon(bolt_pts, Color(0.30, 1.0, 0.85, 1.0) if is_ally else Color(1.0, 0.86, 0.25, 1.0))
-	draw_polyline(bolt_pts, Color(0.85, 1.0, 0.95, 1.0) if is_ally else Color(1.0, 0.45, 0.25, 1.0), 12.0)
+	# 中央の稲妻マークは簡略化（塗りのみ・輪郭線なし）
+	_bolt_mark_pts[0] = center + Vector2(30, -145)
+	_bolt_mark_pts[1] = center + Vector2(-85, -10)
+	_bolt_mark_pts[2] = center + Vector2(-15, -10)
+	_bolt_mark_pts[3] = center + Vector2(-55, 145)
+	_bolt_mark_pts[4] = center + Vector2(85, 10)
+	_bolt_mark_pts[5] = center + Vector2(15, 10)
+	draw_colored_polygon(_bolt_mark_pts, Color(0.30, 1.0, 0.85, 1.0) if is_ally else Color(1.0, 0.86, 0.25, 1.0))
 
 	var el_lbl = "⚡充電(自)" if is_ally else "⚡帯電(敵)"
 	var el_col = Color(0.40, 1.0, 0.85) if is_ally else Color(1.0, 0.55, 0.35)
