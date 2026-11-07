@@ -586,6 +586,22 @@ var _special_fx_elapsed: float = 0.0
 # 戦闘演出・発射物シミュレーションの速度累積変数
 var _turn_sim_accumulator: float = 0.0
 
+# --- 放置デモ再生用 ---
+var _demo_idle_timer: float = 0.0
+
+## 放置デモ中は自動的に駒を隣接マスと入れ替えて盤面を進める
+func _demo_auto_swap() -> void:
+	if current_state != BoardState.IDLE or is_enemy_turn_in_progress:
+		return
+	var r: int = _board_randi() % GRID_ROWS
+	var c: int = _board_randi() % GRID_COLUMNS
+	var dirs: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0)]
+	var d: Vector2i = dirs[_board_randi() % 2]
+	var r2: int = r + d.x
+	var c2: int = c + d.y
+	if r2 >= 0 and r2 < GRID_ROWS and c2 >= 0 and c2 < GRID_COLUMNS:
+		_execute_swap(r, c, r2, c2)
+
 var _cached_stage_manager: Node2D = null
 
 ## 現在のゲーム設定速度を取得（SettingsManager優先、FallbackはEngine.time_scale）
@@ -6836,6 +6852,17 @@ func _process(delta: float) -> void:
 	var spd: float = maxf(0.1, _get_game_speed())
 	if _sword_hit_sound_timer > 0.0:
 		_sword_hit_sound_timer = maxf(0.0, _sword_hit_sound_timer - delta * spd)
+
+	# 放置デモ再生中は自動で駒を入れ替えて盤面を進める
+	var sm_demo = _get_settings_manager()
+	var is_demo: bool = sm_demo != null and "demo_mode" in sm_demo and bool(sm_demo.demo_mode)
+	if is_demo and current_state == BoardState.IDLE and not is_enemy_turn_in_progress and not isgameover:
+		_demo_idle_timer += delta
+		if _demo_idle_timer >= 1.2:
+			_demo_idle_timer = 0.0
+			_demo_auto_swap()
+	else:
+		_demo_idle_timer = 0.0
 
 	_turn_sim_accumulator += spd * minf(2.5, delta * 60.0)
 	var sim_steps: int = 0

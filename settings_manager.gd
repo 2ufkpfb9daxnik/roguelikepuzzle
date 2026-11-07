@@ -280,6 +280,35 @@ func apply_all_settings() -> void:
 	if r:
 		_sync_audio_nodes(r)
 
+# --- 放置デモ（アトラクトモード） ---
+var demo_mode: bool = false
+var _idle_seconds: float = 0.0
+const DEMO_IDLE_SECONDS: float = 45.0
+
+func _handle_idle_demo(delta: float) -> void:
+	if demo_mode:
+		return
+	_idle_seconds += delta
+	if _idle_seconds < DEMO_IDLE_SECONDS:
+		return
+	var t = _get_tree_safe()
+	if t == null or t.current_scene == null:
+		return
+	# タイトル画面で一定時間放置されたらデモバトルを再生する
+	if t.current_scene.name == "TitleScreen":
+		demo_mode = true
+		_idle_seconds = 0.0
+		t.change_scene_to_file("res://current_stage.tscn")
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey or event is InputEventMouseButton or event is InputEventScreenTouch or event is InputEventScreenDrag or event is InputEventMouseMotion:
+		_idle_seconds = 0.0
+		if demo_mode:
+			demo_mode = false
+			var t = _get_tree_safe()
+			if t and t.current_scene and t.current_scene.name != "TitleScreen":
+				t.change_scene_to_file("res://title_screen.tscn")
+
 ## ノードがBGMかSEかを判定
 func is_bgm_node(node: Node) -> bool:
 	var lower_name = node.name.to_lower()

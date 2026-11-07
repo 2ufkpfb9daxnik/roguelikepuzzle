@@ -135,6 +135,30 @@ def main() -> int:
     loader = loader.replace("__WASM_CHUNK_COUNT__", str(wasm_chunk_count)).replace("__WASM_SIZE__", str(wasm_size))
     html = html.replace("const engine = new Engine(GODOT_CONFIG);", "const engine = new Engine(GODOT_CONFIG);" + loader)
 
+    # ?????: ??????????????????? ????????
+    mobile_patch = """<style>
+html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background:#000; }
+canvas { width:100vw !important; height:100vh !important; display:block; margin:0 !important; padding:0 !important; }
+</style>
+<script>
+async function __lockLandscape() {
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen) { await el.requestFullscreen({ navigationUI: "hide" }); }
+    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+  } catch (e) {}
+  try {
+    if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock("landscape"); }
+  } catch (e) {}
+}
+document.addEventListener("click", __lockLandscape, { once: true });
+document.addEventListener("touchstart", __lockLandscape, { once: true, passive: true });
+document.addEventListener("keydown", __lockLandscape, { once: true });
+window.addEventListener("orientationchange", () => { setTimeout(__lockLandscape, 250); });
+</script>
+"""
+    html = html.replace("</head>", mobile_patch + "</head>")
+
     with open(html_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
 

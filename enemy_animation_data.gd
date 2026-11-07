@@ -24,7 +24,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/grimreaper-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 0.90
 		},
 	},
@@ -76,7 +76,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/poisontoad-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.45
 		},
 	},
@@ -128,7 +128,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/deepsahuagin-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.31
 		},
 	},
@@ -180,7 +180,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/skeltonknight-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.05
 		},
 	},
@@ -206,7 +206,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/killerhornet-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.11
 		},
 	},
@@ -232,7 +232,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/Crimson Warlock-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.03
 		},
 	},
@@ -284,7 +284,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/granddragon-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.14
 		},
 	},
@@ -336,7 +336,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/darkpixie-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.25
 		},
 	},
@@ -362,7 +362,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/gargoyle-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.32
 		},
 	},
@@ -414,7 +414,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/abysslizard-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.32
 		},
 	},
@@ -440,7 +440,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/frostdragon-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.86
 		},
 	},
@@ -492,7 +492,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/octopus-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.33
 		},
 	},
@@ -518,7 +518,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/sasori-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.31
 		},
 	},
@@ -544,7 +544,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/snake-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 0.97
 		},
 	},
@@ -570,7 +570,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/snake-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 0.97
 		},
 	},
@@ -596,7 +596,7 @@ const SHEETS: Dictionary = {
 		"damaged": {
 			"path": "res://Texture/enemy/treeman-iso_custom_damaged_down.png",
 			"hframes": 5, "vframes": 5, "total_frames": 25, "fps": 24.0,
-			"flip_h": true,
+			"flip_h": false,
 			"scale_mult": 1.29
 		},
 	},
