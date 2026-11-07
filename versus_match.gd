@@ -65,6 +65,7 @@ var _pvp_shop_timer_lbl: Label = null
 var _offline_shop_open: bool = false
 var _result_overlay: Control = null
 var _result_lbl: Label = null
+var _rating_change_lbl: Label = null
 var _announce_root: Control = null
 var _announce_bg: ColorRect = null
 var _announce_lbl: Label = null
@@ -686,6 +687,11 @@ func _build_result_overlay(font: Font) -> void:
 	_result_lbl = _label("MATCH END", font, 38, Color(1.0, 0.9, 0.4))
 	_result_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_result_lbl)
+
+	_rating_change_lbl = _label("", font, 22, Color(0.4, 0.9, 1.0))
+	_rating_change_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rating_change_lbl.visible = false
+	box.add_child(_rating_change_lbl)
 
 	var back = _make_button("タイトルへ戻る", Color(0.14, 0.14, 0.18, 1.0), Color(0.6, 0.64, 0.72, 1.0), font)
 	back.pressed.connect(_on_back_pressed)
@@ -1514,6 +1520,45 @@ func _show_pvp_result(winner: int, reason: String = "") -> void:
 	if _result_overlay:
 		_result_overlay.visible = true
 	_update_hint()
+	# レーティング結果を報告
+	_report_match_result(winner)
+
+## 試合結果をレーティングAPIに報告してレート変動を表示する
+func _report_match_result(winner: int) -> void:
+	var net = _net
+	if net == null:
+		return
+	var my_id: String = str(net.my_player_id)
+	var opp_id: String = str(net.opponent_player_id)
+	if my_id.is_empty() or opp_id.is_empty():
+		return
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray):
+		if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+			http.queue_free()
+			return
+		var json = JSON.parse_string(body.get_string_from_utf8())
+		if json == null or typeof(json) != TYPE_DICTIONARY:
+			http.queue_free()
+			return
+		var i_won: bool = (winner == _my_index)
+		var my_data = json.get("winner" if i_won else "loser", {})
+		var my_delta: int = int(json.get("winnerDelta" if i_won else "loserDelta", 0))
+		var my_rating: int = int(my_data.get("rating", 0))
+		var color_hex: String = str(my_data.get("color", "#00C8C8"))
+		if _rating_change_lbl:
+			var sign: String = "+" if my_delta >= 0 else ""
+			_rating_change_lbl.text = "レート: %d (%s%d)" % [my_rating, sign, my_delta]
+			_rating_change_lbl.add_theme_color_override("font_color", Color.from_string(color_hex, Color(0.4, 0.9, 1.0)))
+			_rating_change_lbl.visible = true
+		http.queue_free()
+	, CONNECT_ONE_SHOT)
+	var winner_id: String = my_id if winner == _my_index else opp_id
+	var loser_id: String = opp_id if winner == _my_index else my_id
+	var body := JSON.stringify({"winnerId": winner_id, "loserId": loser_id, "draw": winner < 0})
+	var headers := PackedStringArray(["Content-Type: application/json"])
+	http.request("https://roguelike-puzzle-online.roguelikepuzzle1120.workers.dev/matchmake/result", headers, HTTPClient.METHOD_POST, body)
 
 func _on_connection_closed(code: int, reason: String) -> void:
 	_log("[color=#FF5252]接続が切れました (%d %s)[/color]" % [code, reason])

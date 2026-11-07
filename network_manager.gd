@@ -34,6 +34,8 @@ var player_name: String = ""
 var player_index: int = -1
 var reconnect_token: String = ""
 var pvp_mode: bool = false
+var my_player_id: String = ""      # レーティング用プレイヤーID
+var opponent_player_id: String = "" # レーティング用対戦相手ID
 
 var room: Dictionary = {}
 var rules: Dictionary = {}

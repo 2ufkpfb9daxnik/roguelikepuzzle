@@ -305,8 +305,21 @@ var special_charge: Array = [] # [row][col] -> int (チャージ段階 1..3)
 var grid_water: Array = []     # [row][col] -> bool (水浸しマス・スワップ禁止・雷感電)
 var grid_ice: Array = []       # [row][col] -> int (氷漬けマス・耐久値・スワップ禁止・落雷除去不可)
 const DEFAULT_FIRE_LIFETIME: int = 3 # 火の基本寿命（ターン数）
+const MAX_ELECTRIFIED_TILES: int = 24 # 帯電マスの同時上限（描画負荷と戦闘の圧迫を防ぐ）
 var grid_fire: Array = []      # [row][col] -> int (0:なし, 1..N:火の残り寿命ターン数, 2:木燃焼中)
 var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/マッチで反動ダメージ)
+
+## 現在の帯電マス数を返す（上限チェック用）
+func _count_electrified_tiles() -> int:
+	var count: int = 0
+	if grid_electrified.size() != GRID_ROWS:
+		return 0
+	for r in range(GRID_ROWS):
+		var row: Array = grid_electrified[r]
+		for c in range(GRID_COLUMNS):
+			if row[c]:
+				count += 1
+	return count
 var grid_stones: Array = []    # [row][col] -> int (石・耐久値 1)
 var grid_fog: Array[Dictionary] = [] # [{"rect": Rect2i, "turns": int, "enemy_owned": bool}] (黒い霧)
 var grid_cursed: Array = []    # [row][col] -> bool (呪いコマ・消すと反動ダメージ)
@@ -9766,9 +9779,21 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 				_spawn_screen_flash(Color(1.0, 0.9, 0.2, 0.35), 0.2)
 				_trigger_screen_shake(15.0)
 
+	# 帯電マスはマス単位のフラグなので同じマスに重なることはないが、
+	# 既に帯電したマスを再度狙うと数が増え続けるため、未帯電マスを優先して狙う
+	var elec_candidates: Array[Vector2i] = []
+	for tr in range(GRID_ROWS):
+		for tc in range(GRID_COLUMNS):
+			if not grid_electrified[tr][tc]:
+				elec_candidates.append(Vector2i(tr, tc))
+	elec_candidates.shuffle()
 	for i in range(count):
-		var r = randi() % GRID_ROWS
-		var c = randi() % GRID_COLUMNS
+		var r: int = randi() % GRID_ROWS
+		var c: int = randi() % GRID_COLUMNS
+		if not elec_candidates.is_empty():
+			var picked_cell: Vector2i = elec_candidates.pop_back()
+			r = picked_cell.x
+			c = picked_cell.y
 		var pos = get_cell_position(r, c)
 		var delay = i * 0.06
 		_spawn_vertical_lightning_bolt(pos, delay)
@@ -9805,9 +9830,11 @@ func _cast_enemy_lightning_skill(is_boss: bool, show_banner: bool = true) -> Arr
 				if (grid_stones.size() == GRID_ROWS and grid_stones[r][c] == 0) and \
 				   (grid_gold_statue.size() == GRID_ROWS and grid_gold_statue[r][c] == 0):
 					if not _check_and_block_enemy_hazard(r, c):
-						grid_electrified[r][c] = true
-						_set_ally_flag(grid_electrified_ally, r, c, false)
-						_spawn_floating_text(get_cell_position(r, c), "帯電", Color(0.9, 1.0, 0.2))
+						# 帯電マスの総数に上限を設け、盤面が帯電だらけになって描画負荷が増え続けないようにする
+						if _count_electrified_tiles() < MAX_ELECTRIFIED_TILES:
+							grid_electrified[r][c] = true
+							_set_ally_flag(grid_electrified_ally, r, c, false)
+							_spawn_floating_text(get_cell_position(r, c), "帯電", Color(0.9, 1.0, 0.2))
 
 			_redraw_board_effects()
 		)
@@ -11340,9 +11367,10 @@ func _reset_turn(sm: Node2D, score_mgr: Node2D) -> void:
 		var count_th = mini(2, cands_th.size())
 		for ti in range(count_th):
 			var tc = cands_th[ti]
-			grid_electrified[tc.x][tc.y] = true
-			_set_ally_flag(grid_electrified_ally, tc.x, tc.y, true)
-			_spawn_floating_text(get_cell_position(tc.x, tc.y), "⚡ 雷雨落雷！", Color(1.0, 0.9, 0.2))
+			if _count_electrified_tiles() < MAX_ELECTRIFIED_TILES:
+				grid_electrified[tc.x][tc.y] = true
+				_set_ally_flag(grid_electrified_ally, tc.x, tc.y, true)
+				_spawn_floating_text(get_cell_position(tc.x, tc.y), "⚡ 雷雨落雷！", Color(1.0, 0.9, 0.2))
 
 	# 🔥 火A2: 二段爆発処理
 	if not delayed_explosions.is_empty():
@@ -13351,9 +13379,10 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 				for wr in range(GRID_ROWS):
 					for wc in range(GRID_COLUMNS):
 						if grid_water.size() == GRID_ROWS and grid_water[wr][wc]:
-							grid_electrified[wr][wc] = true
-							_set_ally_flag(grid_electrified_ally, wr, wc, true)
-							_spawn_shock_zap_effect(get_cell_position(wr, wc))
+							if _count_electrified_tiles() < MAX_ELECTRIFIED_TILES:
+								grid_electrified[wr][wc] = true
+								_set_ally_flag(grid_electrified_ally, wr, wc, true)
+								_spawn_shock_zap_effect(get_cell_position(wr, wc))
 			if tier == 2:
 				# ⚡ 雷T2【プラズマ・コンダクト】：帯電マスと水マスを雷ラインで結び一斉感電消去
 				var nodes: Array[Vector2i] = []
@@ -13396,10 +13425,11 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					var cell = elec_candidates[i]
 					var r = cell.x
 					var c = cell.y
-					grid_electrified[r][c] = true
-					_set_ally_flag(grid_electrified_ally, r, c, true)
 					var pos = get_cell_position(r, c)
-					affected_positions.append(pos)
+					if _count_electrified_tiles() < MAX_ELECTRIFIED_TILES:
+						grid_electrified[r][c] = true
+						_set_ally_flag(grid_electrified_ally, r, c, true)
+						affected_positions.append(pos)
 					_spawn_shock_zap_effect(pos)
 					if (grid_ice.size() == GRID_ROWS and int(grid_ice[r][c]) > 0) or (grid_stones.size() == GRID_ROWS and int(grid_stones[r][c]) > 0):
 						_trigger_thunder_shatter_synergy(r, c, is_in_match_phase)
@@ -13428,8 +13458,9 @@ func cast_player_skill(skill_key: String, ignore_cost: bool = true, tier: int = 
 					for r in range(GRID_ROWS):
 						for c in range(GRID_COLUMNS):
 							if grid_n.size() == GRID_ROWS and grid_n[r][c] == PieceType.COIN and not grid_electrified[r][c]:
-								grid_electrified[r][c] = true
-								_set_ally_flag(grid_electrified_ally, r, c, true)
+								if _count_electrified_tiles() < MAX_ELECTRIFIED_TILES:
+									grid_electrified[r][c] = true
+									_set_ally_flag(grid_electrified_ally, r, c, true)
 					enemy_shock_stacks = mini(5, enemy_shock_stacks + 1)
 					_spawn_floating_text(Vector2(640, 360), "⚡ 雷撃感電スタック付与 (%d/5)！" % enemy_shock_stacks, Color(1.0, 0.9, 0.2))
 					if enemy_shock_stacks >= 5 and has_actor_skill_trait(true, "thunder", "thunder_final_c1"):

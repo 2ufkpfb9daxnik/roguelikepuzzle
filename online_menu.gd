@@ -25,12 +25,29 @@ var _bgm: AudioStreamPlayer = null
 var _selected_character: String = CharacterData.DEFAULT_ID
 var _char_buttons: Dictionary = {}
 
+# ── レーティング & マッチング ──
+const API_BASE: String = "https://roguelike-puzzle-online.roguelikepuzzle1120.workers.dev"
+var _player_id: String = ""
+var _rating_lbl: Label = null
+var _matchmake_btn: Button = null
+var _cancel_matchmake_btn: Button = null
+var _matchmake_status_lbl: Label = null
+var _leaderboard_lbl: Label = null
+var _leaderboard_toggle: Button = null
+var _matchmake_timer: Timer = null
+var _is_searching: bool = false
+var _http: HTTPRequest = null
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_net = get_node_or_null("/root/NetworkManager")
+	_player_id = _get_or_create_player_id()
+	_http = HTTPRequest.new()
+	add_child(_http)
 	_build_ui()
 	_connect_network_signals()
 	_start_bgm()
+	_fetch_rating()
 
 func _start_bgm() -> void:
 	var stream = load("res://Sound/bgm/bgmnokouho/ending.wav")
@@ -120,6 +137,15 @@ func _build_ui() -> void:
 	subtitle.add_theme_color_override("font_color", Color(0.72, 0.80, 0.90))
 	box.add_child(subtitle)
 
+	# ── レート表示 ──
+	_rating_lbl = Label.new()
+	_rating_lbl.text = "レート: ---"
+	_rating_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rating_lbl.add_theme_font_override("font", font)
+	_rating_lbl.add_theme_font_size_override("font_size", 22)
+	_rating_lbl.add_theme_color_override("font_color", Color(0.0, 0.78, 0.78))
+	box.add_child(_rating_lbl)
+
 	box.add_child(_make_spacer(8))
 	box.add_child(_make_label("プレイヤー名", font, 18, Color(0.75, 0.82, 0.92)))
 	_name_input = LineEdit.new()
@@ -180,6 +206,31 @@ func _build_ui() -> void:
 	_join_btn.pressed.connect(_on_join_pressed)
 	buttons.add_child(_join_btn)
 
+	# ── クイックマッチ ──
+	var match_box = HBoxContainer.new()
+	match_box.add_theme_constant_override("separation", 14)
+	box.add_child(match_box)
+
+	_matchmake_btn = _make_button("⚡ クイックマッチ", Color(0.28, 0.12, 0.04, 1.0), Color(1.0, 0.6, 0.2, 1.0), font)
+	_matchmake_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_matchmake_btn.pressed.connect(_on_matchmake_pressed)
+	match_box.add_child(_matchmake_btn)
+
+	_cancel_matchmake_btn = _make_button("キャンセル", Color(0.20, 0.08, 0.08, 1.0), Color(1.0, 0.4, 0.4, 1.0), font)
+	_cancel_matchmake_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cancel_matchmake_btn.visible = false
+	_cancel_matchmake_btn.pressed.connect(_on_matchmake_cancel)
+	match_box.add_child(_cancel_matchmake_btn)
+
+	_matchmake_status_lbl = Label.new()
+	_matchmake_status_lbl.text = ""
+	_matchmake_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_matchmake_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_matchmake_status_lbl.add_theme_font_override("font", font)
+	_matchmake_status_lbl.add_theme_font_size_override("font_size", 16)
+	_matchmake_status_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	box.add_child(_matchmake_status_lbl)
+
 	_status_lbl = Label.new()
 	_status_lbl.text = "部屋を作るか、ルームコードで参加してください"
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -214,6 +265,21 @@ func _build_ui() -> void:
 	_lobby_box.add_child(_ready_btn)
 
 	box.add_child(_make_spacer(4))
+
+	# ── リーダーボード ──
+	_leaderboard_toggle = _make_button("🏆 リーダーボード", Color(0.10, 0.10, 0.22, 1.0), Color(0.5, 0.5, 1.0, 1.0), font)
+	_leaderboard_toggle.pressed.connect(_on_leaderboard_toggle)
+	box.add_child(_leaderboard_toggle)
+
+	_leaderboard_lbl = Label.new()
+	_leaderboard_lbl.text = ""
+	_leaderboard_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_leaderboard_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_leaderboard_lbl.add_theme_font_override("font", font)
+	_leaderboard_lbl.add_theme_font_size_override("font_size", 15)
+	_leaderboard_lbl.add_theme_color_override("font_color", Color(0.8, 0.85, 0.95))
+	_leaderboard_lbl.visible = false
+	box.add_child(_leaderboard_lbl)
 
 	_back_btn = _make_button("タイトルへ戻る", Color(0.14, 0.14, 0.18, 1.0), Color(0.6, 0.64, 0.72, 1.0), font)
 	_back_btn.pressed.connect(_on_back_pressed)
@@ -373,5 +439,163 @@ func _on_network_error(message: String) -> void:
 	_join_btn.disabled = false
 
 func _on_back_pressed() -> void:
+	if _is_searching:
+		_on_matchmake_cancel()
 	_net.close()
 	get_tree().change_scene_to_file(TITLE_SCENE)
+
+# ──────────────────────────────────────────────────────────
+# レーティング & マッチング
+# ──────────────────────────────────────────────────────────
+
+func _get_or_create_player_id() -> String:
+	var path := "user://player_id.cfg"
+	var cfg := ConfigFile.new()
+	if cfg.load(path) == OK:
+		var id = cfg.get_value("identity", "player_id", "")
+		if str(id).length() > 0:
+			return str(id)
+	var new_id := ""
+	for i in range(16):
+		new_id += "0123456789abcdef"[randi() % 16]
+	cfg.set_value("identity", "player_id", new_id)
+	cfg.save(path)
+	return new_id
+
+func _fetch_rating() -> void:
+	if _http == null:
+		return
+	_http.request_completed.connect(_on_rating_received, CONNECT_ONE_SHOT)
+	var err = _http.request("%s/rating/%s" % [API_BASE, _player_id])
+	if err != OK:
+		_rating_lbl.text = "レート: ---"
+
+func _on_rating_received(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		_rating_lbl.text = "レート: ---"
+		return
+	var json = JSON.parse_string(body.get_string_from_utf8())
+	if json == null or typeof(json) != TYPE_DICTIONARY:
+		_rating_lbl.text = "レート: ---"
+		return
+	var rating: int = int(json.get("rating", 1500))
+	var color_hex: String = str(json.get("color", "#00C8C8"))
+	var color_name: String = str(json.get("colorLabel", ""))
+	var wins: int = int(json.get("wins", 0))
+	var losses: int = int(json.get("losses", 0))
+	_rating_lbl.text = "レート: %d (%s)  勝%d 敗%d" % [rating, color_name, wins, losses]
+	_rating_lbl.add_theme_color_override("font_color", Color.from_string(color_hex, Color(0.0, 0.78, 0.78)))
+
+func _on_matchmake_pressed() -> void:
+	if _is_searching:
+		return
+	_is_searching = true
+	_matchmake_btn.disabled = true
+	_create_btn.disabled = true
+	_join_btn.disabled = true
+	_cancel_matchmake_btn.visible = true
+	_matchmake_status_lbl.text = "対戦相手を探しています..."
+	_send_matchmake_request()
+
+func _send_matchmake_request() -> void:
+	if _http == null:
+		return
+	_http.request_completed.connect(_on_matchmake_response, CONNECT_ONE_SHOT)
+	var body := JSON.stringify({"playerId": _player_id, "playerName": _name_input.text.strip_edges()})
+	var headers := PackedStringArray(["Content-Type: application/json"])
+	var err = _http.request("%s/matchmake" % API_BASE, headers, HTTPClient.METHOD_POST, body)
+	if err != OK:
+		_matchmake_status_lbl.text = "マッチングリクエストエラー"
+
+func _on_matchmake_response(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		_matchmake_status_lbl.text = "サーバーエラー (%d)" % code
+		_stop_matchmaking()
+		return
+	var json = JSON.parse_string(body.get_string_from_utf8())
+	if json == null or typeof(json) != TYPE_DICTIONARY:
+		_matchmake_status_lbl.text = "応答の解析エラー"
+		_stop_matchmaking()
+		return
+	var status := str(json.get("status", ""))
+	if status == "matched":
+		var room_code := str(json.get("roomCode", ""))
+		var opponent = json.get("opponent", {})
+		var opp_name := str(opponent.get("name", opponent.get("playerName", "???")))
+		var opp_rating := int(opponent.get("rating", 0))
+		var opp_id := str(opponent.get("playerId", opp_name))
+		_matchmake_status_lbl.text = "対戦相手が見つかりました！ %s (レート%d)" % [opp_name, opp_rating]
+		_stop_matchmaking()
+		_generated_code = room_code
+		_room_code_lbl.text = "ルームコード: %s" % room_code
+		# レーティング用IDをNetworkManagerに保存
+		if _net:
+			_net.my_player_id = _player_id
+			_net.opponent_player_id = opp_id
+		# ルームに参加
+		_net.join_room(room_code, _name_input.text.strip_edges())
+	elif status == "searching":
+		var pos := int(json.get("queuePosition", 0))
+		var size := int(json.get("queueSize", 0))
+		_matchmake_status_lbl.text = "対戦相手を探しています... (キュー %d/%d)" % [pos, size]
+		# 3秒後に再ポーリング
+		if _matchmake_timer == null:
+			_matchmake_timer = Timer.new()
+			_matchmake_timer.wait_time = 3.0
+			_matchmake_timer.one_shot = true
+			_matchmake_timer.timeout.connect(_send_matchmake_request)
+			add_child(_matchmake_timer)
+		_matchmake_timer.start()
+	else:
+		_matchmake_status_lbl.text = "不明な応答: %s" % status
+		_stop_matchmaking()
+
+func _on_matchmake_cancel() -> void:
+	# サーバーのキューから脱退
+	if _http != null:
+		_http.request_completed.connect(func(_r, _c, _h, _b): pass, CONNECT_ONE_SHOT)
+		var body := JSON.stringify({"playerId": _player_id})
+		_http.request("%s/matchmake/cancel" % API_BASE, PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, body)
+	_stop_matchmaking()
+
+func _stop_matchmaking() -> void:
+	_is_searching = false
+	_matchmake_btn.disabled = false
+	_create_btn.disabled = false
+	_join_btn.disabled = false
+	_cancel_matchmake_btn.visible = false
+	if _matchmake_timer != null:
+		_matchmake_timer.stop()
+
+func _on_leaderboard_toggle() -> void:
+	if _leaderboard_lbl.visible:
+		_leaderboard_lbl.visible = false
+		return
+	_leaderboard_lbl.visible = true
+	_leaderboard_lbl.text = "読み込み中..."
+	if _http != null:
+		_http.request_completed.connect(_on_leaderboard_received, CONNECT_ONE_SHOT)
+		_http.request("%s/leaderboard" % API_BASE)
+
+func _on_leaderboard_received(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		_leaderboard_lbl.text = "リーダーボードの取得に失敗しました"
+		return
+	var json = JSON.parse_string(body.get_string_from_utf8())
+	if json == null or typeof(json) != TYPE_DICTIONARY:
+		_leaderboard_lbl.text = "解析エラー"
+		return
+	var players: Array = json.get("leaderboard", [])
+	if players.is_empty():
+		_leaderboard_lbl.text = "まだ記録がありません"
+		return
+	var lines: Array[String] = []
+	for i in range(mini(players.size(), 10)):
+		var p = players[i]
+		var color_hex := str(p.get("color", "#808080"))
+		var name := str(p.get("playerId", "???"))
+		var rating := int(p.get("rating", 0))
+		var wins := int(p.get("wins", 0))
+		var losses := int(p.get("losses", 0))
+		lines.append("%2d. %s  レート%d (勝%d 敗%d)" % [i + 1, name, rating, wins, losses])
+	_leaderboard_lbl.text = "\n".join(PackedStringArray(lines))
