@@ -136,11 +136,64 @@ def main() -> int:
     html = html.replace("const engine = new Engine(GODOT_CONFIG);", "const engine = new Engine(GODOT_CONFIG);" + loader)
 
     # ?????: ??????????????????? ????????
-    mobile_patch = """<style>
-html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background:#000; }
-canvas { width:100vw !important; height:100vh !important; display:block; margin:0 !important; padding:0 !important; }
+    mobile_patch = """<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Roguelike Puzzle">
+<meta name="theme-color" content="#000000">
+<style>
+html, body {
+  width:100%; height:100%; margin:0; padding:0;
+  background:#000; overflow:hidden;
+  -webkit-text-size-adjust:100%;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+  touch-action:manipulation;
+}
+#canvas, canvas {
+  width:100vw !important; height:100vh !important;
+  width:100dvw !important; height:100dvh !important;
+  display:block; margin:0 !important; padding:0 !important;
+  position:fixed; left:0; top:0; z-index:1;
+}
+/* iPhone ??????????????? */
+html { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); box-sizing:border-box; }
+/* ???????iPhone ? orientation.lock ???????????90?????????????? */
+@media (orientation: portrait) {
+  #canvas, canvas {
+    width:100vh !important; height:100vw !important;
+    width:100dvh !important; height:100dvw !important;
+    top:50% !important; left:50% !important;
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+  }
+}
 </style>
 <script>
+function __applyViewport() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const portrait = h > w;
+  const cw = portrait ? h : w;
+  const ch = portrait ? w : h;
+  for (const c of document.querySelectorAll("canvas")) {
+    c.style.width = cw + "px";
+    c.style.height = ch + "px";
+    if (portrait) {
+      c.style.position = "fixed";
+      c.style.left = "50%"; c.style.top = "50%";
+      c.style.transform = "translate(-50%, -50%) rotate(90deg)";
+    } else {
+      c.style.position = "fixed";
+      c.style.left = "0px"; c.style.top = "0px";
+      c.style.transform = "none";
+    }
+  }
+}
+window.addEventListener("resize", __applyViewport);
+window.addEventListener("orientationchange", () => setTimeout(__applyViewport, 250));
+document.addEventListener("DOMContentLoaded", __applyViewport);
+__applyViewport();
 async function __lockLandscape() {
   try {
     const el = document.documentElement;
@@ -150,13 +203,17 @@ async function __lockLandscape() {
   try {
     if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock("landscape"); }
   } catch (e) {}
+  setTimeout(__applyViewport, 250);
 }
 document.addEventListener("click", __lockLandscape, { once: true });
 document.addEventListener("touchstart", __lockLandscape, { once: true, passive: true });
 document.addEventListener("keydown", __lockLandscape, { once: true });
-window.addEventListener("orientationchange", () => { setTimeout(__lockLandscape, 250); });
 </script>
 """
+    html = html.replace(
+        '<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">',
+    )
     html = html.replace("</head>", mobile_patch + "</head>")
 
     with open(html_path, "w", encoding="utf-8", newline="\n") as f:
