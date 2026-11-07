@@ -64,6 +64,8 @@ func _request_redraw() -> void:
 		return
 	_last_redraw_msec = now_msec
 	if _bake_vp != null and is_instance_valid(_bake_vp):
+		if _bake_painter != null and is_instance_valid(_bake_painter):
+			_bake_painter.queue_redraw()
 		# テクスチャ化している場合は SubViewport の再描画だけを要求する
 		_bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	else:
@@ -769,9 +771,11 @@ func _draw_water_tile(target: CanvasItem, r: int, c: int, pulse: float) -> void:
 var _baked_tex: Texture2D = null
 var _bake_rect: Rect2 = Rect2()
 var _bake_vp: SubViewport = null
+var _bake_painter: Node2D = null
 
 func _draw() -> void:
-	if _baked_tex != null:
+	# テクスチャが焼き込めている場合のみ使用し、未焼き込み時は従来描画へフォールバック
+	if _baked_tex != null and _bake_painter != null and is_instance_valid(_bake_painter) and _bake_painter.draw_count > 0:
 		draw_texture_rect(_baked_tex, _bake_rect, false)
 		return
 	_draw_content(self)
@@ -796,6 +800,8 @@ func _setup_bake() -> void:
 	var painter := _OverlayPainter.new()
 	painter.host = self
 	holder.add_child(painter)
+	_bake_painter = painter
+	painter.queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if _bake_vp != null and is_instance_valid(_bake_vp):
@@ -808,6 +814,8 @@ func _setup_bake() -> void:
 ## ????????????????
 class _OverlayPainter extends Node2D:
 	var host: Node2D = null
+	var draw_count: int = 0
 	func _draw() -> void:
+		draw_count += 1
 		if host != null and host.has_method("_draw_content"):
 			host._draw_content(self)

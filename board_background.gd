@@ -20,10 +20,11 @@ const BOARD_BOTTOM: float = BOARD_TOP + BOARD_HEIGHT
 const FRAME_MARGIN: float = 120.0
 
 func _draw() -> void:
-	if _baked_tex != null:
+	# テクスチャが焼き込めている場合のみ使用し、未焼き込み時は従来描画へフォールバック
+	if _baked_tex != null and _bake_painter != null and is_instance_valid(_bake_painter) and _bake_painter.draw_count > 0:
 		draw_texture_rect(_baked_tex, _bake_rect, false)
-	else:
-		_draw_static_content(self)
+		return
+	_draw_static_content(self)
 	_draw_selection(self)
 
 ## ??????????????????????????????
@@ -254,6 +255,7 @@ func _draw_casino_suit_watermark(target: CanvasItem, center: Vector2, suit_type:
 var _baked_tex: Texture2D = null
 var _bake_rect: Rect2 = Rect2()
 var _bake_vp: SubViewport = null
+var _bake_painter: Node2D = null
 
 func _ready() -> void:
 	_bake_static()
@@ -279,6 +281,8 @@ func _bake_static() -> void:
 	var painter := _StaticPainter.new()
 	painter.host = self
 	holder.add_child(painter)
+	_bake_painter = painter
+	painter.queue_redraw()
 	# 2??????????????????????
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -292,6 +296,8 @@ func _bake_static() -> void:
 ## ????????????????
 class _StaticPainter extends Node2D:
 	var host: Node2D = null
+	var draw_count: int = 0
 	func _draw() -> void:
+		draw_count += 1
 		if host != null and host.has_method("_draw_static_content"):
 			host._draw_static_content(self)
