@@ -20,16 +20,16 @@ export class Ratings {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (request.method === "POST" && path === "/enqueue") {
+    if (request.method === "POST" && path === "/matchmake") {
       return this._handleEnqueue(request);
     }
-    if (request.method === "POST" && path === "/dequeue") {
+    if (request.method === "POST" && path === "/matchmake/cancel") {
       return this._handleDequeue(request);
     }
-    if (request.method === "GET" && path.startsWith("/player/")) {
+    if (request.method === "GET" && path.startsWith("/rating/")) {
       return this._handleGetPlayer(path.slice(8));
     }
-    if (request.method === "POST" && path === "/result") {
+    if (request.method === "POST" && path === "/matchmake/result") {
       return this._handleResult(request);
     }
     if (request.method === "GET" && path === "/leaderboard") {

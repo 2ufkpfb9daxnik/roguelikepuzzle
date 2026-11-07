@@ -43,6 +43,8 @@ func _ready() -> void:
 	_net = get_node_or_null("/root/NetworkManager")
 	_player_id = _get_or_create_player_id()
 	_http = HTTPRequest.new()
+	_http.use_threads = false
+	_http.timeout = 15.0
 	add_child(_http)
 	_build_ui()
 	_connect_network_signals()
@@ -508,7 +510,11 @@ func _send_matchmake_request() -> void:
 		_matchmake_status_lbl.text = "マッチングリクエストエラー"
 
 func _on_matchmake_response(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
-	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+	if result != HTTPRequest.RESULT_SUCCESS:
+		_matchmake_status_lbl.text = "通信エラー (code=%d)" % result
+		_stop_matchmaking()
+		return
+	if code != 200:
 		_matchmake_status_lbl.text = "サーバーエラー (%d)" % code
 		_stop_matchmaking()
 		return
