@@ -2753,6 +2753,55 @@ func _hide_you_win() -> void:
 	if you_win_panel != null and is_instance_valid(you_win_panel):
 		you_win_panel.visible = false
 
+## 放置デモ再生中：撃破後にレリック選択・スキル（バフ）選択を自動で行い、次の戦闘へ進む
+var _demo_prog_tick: float = 0.0
+
+func _demo_auto_tick(delta: float) -> void:
+	var sm_set = get_node_or_null("/root/SettingsManager")
+	if sm_set == null or not ("demo_mode" in sm_set) or not bool(sm_set.demo_mode):
+		return
+	_demo_prog_tick += delta
+	if _demo_prog_tick < 1.0:
+		return
+	_demo_prog_tick = 0.0
+	_demo_auto_progress()
+
+func _demo_auto_progress() -> void:
+	var p = get_parent()
+	# 1) レリック選択UIが開いていれば、カードを自動で1つ選ぶ
+	if p != null:
+		var rui = p.get_node_or_null("RelicSelectionUI")
+		if rui != null:
+			var picked = _demo_press_first_button(rui)
+			if picked:
+				return
+	# 2) スキル（バフ）選択が出ていれば、先頭のものを選ぶ
+	if choose_buff_rect != null and choose_buff_rect.visible:
+		var bb = get_node_or_null("buffselectbutton0")
+		if bb != null and bb.visible:
+			bb.pressed.emit()
+			choose_buff_rect.visible = false
+			_set_buff_buttons_visible(false)
+			return
+	# 3) 「前に進む／次のステージへ」が出ていれば押して次の戦闘へ
+	if move_front_btn != null and move_front_btn.visible:
+		_on_movefront_pressed()
+
+## UI内の最初の有効なボタンを押す（レリック選択UIの自動選択用）
+func _demo_press_first_button(root_node: Node) -> bool:
+	var stack: Array = [root_node]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Button and n.visible and not n.disabled:
+			var b: Button = n
+			var txt: String = str(b.text)
+			if txt.find("スキップ") == -1 and txt.find("Skip") == -1:
+				b.pressed.emit()
+				return true
+		for ch in n.get_children():
+			stack.append(ch)
+	return false
+
 func isdead() -> void:
 	hide_enemy_hover_tooltip()
 	stop_enemy_animation()
@@ -2914,6 +2963,8 @@ func _process(_delta: float) -> void:
 		# PvPでもフィーバー突入演出を進行させ、appeartime等が止まらないようにする
 		_process_fever_intro()
 		return
+	# 放置デモ再生中は、レリック・スキル選択を自動で進め次の戦闘へ遷移する
+	_demo_auto_tick(_delta)
 	var _prof = Profiler.begin("stage_manager::_process")
 	var spd: float = maxf(0.1, _get_game_speed())
 	if _damaged_anim_timer > 0.0:

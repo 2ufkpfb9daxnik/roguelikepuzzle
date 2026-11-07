@@ -589,10 +589,65 @@ var _turn_sim_accumulator: float = 0.0
 # --- 放置デモ再生用 ---
 var _demo_idle_timer: float = 0.0
 
-## 放置デモ中は自動的に駒を隣接マスと入れ替えて盤面を進める
+## あるマスと、その上下左右をつないだ3つ以上の同種コマができるか判定
+func _demo_would_match(r: int, c: int) -> bool:
+	var t = grid_n[r][c]
+	if t == -1:
+		return false
+	var cnt: int = 1
+	var cc: int = c - 1
+	while cc >= 0 and grid_n[r][cc] == t:
+		cnt += 1; cc -= 1
+	cc = c + 1
+	while cc < GRID_COLUMNS and grid_n[r][cc] == t:
+		cnt += 1; cc += 1
+	if cnt >= 3:
+		return true
+	cnt = 1
+	var rr: int = r - 1
+	while rr >= 0 and grid_n[rr][c] == t:
+		cnt += 1; rr -= 1
+	rr = r + 1
+	while rr < GRID_ROWS and grid_n[rr][c] == t:
+		cnt += 1; rr += 1
+	return cnt >= 3
+
+## 盤面から「マッチが発生する入れ替え」を1つ探す（デモ再生用）
+func _find_valid_demo_swap() -> Array[Vector2i]:
+	if grid_n.size() != GRID_ROWS:
+		return []
+	var dirs: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0)]
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			if grid_n[r][c] == -1:
+				continue
+			for d in dirs:
+				var r2: int = r + d.x
+				var c2: int = c + d.y
+				if r2 < 0 or r2 >= GRID_ROWS or c2 < 0 or c2 >= GRID_COLUMNS:
+					continue
+				if grid_n[r2][c2] == -1 or grid_n[r2][c2] == grid_n[r][c]:
+					continue
+				var t1 = grid_n[r][c]
+				var t2 = grid_n[r2][c2]
+				grid_n[r][c] = t2
+				grid_n[r2][c2] = t1
+				var ok: bool = _demo_would_match(r, c) or _demo_would_match(r2, c2)
+				grid_n[r][c] = t1
+				grid_n[r2][c2] = t2
+				if ok:
+					return [Vector2i(r, c), Vector2i(r2, c2)]
+	return []
+
+## 放置デモ中は「マッチが発生する手」を選んで駒を入れ替える
 func _demo_auto_swap() -> void:
 	if current_state != BoardState.IDLE or is_enemy_turn_in_progress:
 		return
+	var move: Array[Vector2i] = _find_valid_demo_swap()
+	if move.size() == 2:
+		_execute_swap(move[0].x, move[0].y, move[1].x, move[1].y)
+		return
+	# 有効手が無い場合はランダムに入れ替えて盤面を動かす
 	var r: int = _board_randi() % GRID_ROWS
 	var c: int = _board_randi() % GRID_COLUMNS
 	var dirs: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0)]
