@@ -153,8 +153,10 @@ html, body {
   touch-action:manipulation;
 }
 /* Godot ????????????????????????? */
+html, body { width:100%; height:100%; overflow:hidden; }
 #canvas, canvas {
   margin:0 !important; padding:0 !important; display:block;
+  width:100% !important; height:100% !important;
 }
 @supports (height: 100dvh) {
   html, body { height:100dvh; }
