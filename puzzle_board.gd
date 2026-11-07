@@ -305,7 +305,7 @@ var special_charge: Array = [] # [row][col] -> int (チャージ段階 1..3)
 var grid_water: Array = []     # [row][col] -> bool (水浸しマス・スワップ禁止・雷感電)
 var grid_ice: Array = []       # [row][col] -> int (氷漬けマス・耐久値・スワップ禁止・落雷除去不可)
 const DEFAULT_FIRE_LIFETIME: int = 3 # 火の基本寿命（ターン数）
-const MAX_ELECTRIFIED_TILES: int = 24 # 帯電マスの同時上限（描画負荷と戦闘の圧迫を防ぐ）
+const MAX_ELECTRIFIED_TILES: int = 169 # 帯電マスの同時上限（13×13=169、全マス帯電可能）
 var grid_fire: Array = []      # [row][col] -> int (0:なし, 1..N:火の残り寿命ターン数, 2:木燃焼中)
 var grid_electrified: Array = [] # [row][col] -> bool (帯電コマ・触れる/マッチで反動ダメージ)
 
