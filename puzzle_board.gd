@@ -546,7 +546,8 @@ func _update_board_element_flags() -> void:
 					has_board_hazards = true
 				if is_el or is_cu or is_ic or is_gd or is_fr or is_w:
 					has_animated_board_hazards = true
-					animated_hazard_count += 1
+					# 帯電・氷・黄金像は描画コストが高いため重み付けして間引きを早める
+					animated_hazard_count += 2 if (is_el or is_ic or is_gd) else 1
 
 				# 消えた効果マスの残骸（毒段階・石カウント）をここで掃除して
 				# バックグラウンドに状態が残り続けないようにする
@@ -575,7 +576,10 @@ func _redraw_board_effects() -> void:
 	# board_bg は静的な盤面装飾と選択ハイライトのみを描画する。
 	# 効果マスの変化では再描画不要なため、ここでは要求しない（毎回の重い背景再描画を回避）。
 	# 効果マスが全て消えた場合も必ず再描画し、消えた描画が盤面に残り続けないようにする
-	if board_overlay: board_overlay.queue_redraw()
+	if board_overlay and board_overlay.has_method("queue_redraw_throttled"):
+		board_overlay.queue_redraw_throttled()
+	elif board_overlay:
+		board_overlay.queue_redraw()
 	# 特殊アイテムが消滅した時も必ず再描画し、消えたアイコンが盤面に残り続けないようにする
 	if mark_overlay: mark_overlay.queue_redraw()
 

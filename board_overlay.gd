@@ -31,9 +31,38 @@ const ANIM_REDRAW_INTERVAL_MED: float = 1.0 / 18.0
 const ANIM_REDRAW_INTERVAL_HIGH: float = 1.0 / 12.0
 const ANIM_REDRAW_INTERVAL_MAX: float = 1.0 / 8.0
 var _anim_redraw_elapsed: float = 0.0
+var _last_redraw_msec: int = -100000
 
 # 描画用に ally 配列をキャッシュ（毎タイルの board.get() を回避）
 var _ally_cache: Dictionary = {}
+
+## 効果マスの量に応じた再描画間隔を返す
+func _current_interval() -> float:
+	if board == null:
+		return ANIM_REDRAW_INTERVAL
+	# 竜巻は高速移動するため間引かない
+	if "active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty():
+		return ANIM_REDRAW_INTERVAL
+	var hazard_count: int = int(board.get("animated_hazard_count")) if "animated_hazard_count" in board else 0
+	if hazard_count > 100:
+		return ANIM_REDRAW_INTERVAL_MAX
+	if hazard_count > 55:
+		return ANIM_REDRAW_INTERVAL_HIGH
+	if hazard_count > 25:
+		return ANIM_REDRAW_INTERVAL_MED
+	return ANIM_REDRAW_INTERVAL
+
+## 再描画を間引きながら要求する（イベント駆動の再描画が毎フレーム走るのを防ぐ）
+func _request_redraw() -> void:
+	var now_msec: int = Time.get_ticks_msec()
+	var min_gap: int = int(1000.0 * _current_interval())
+	if now_msec - _last_redraw_msec >= min_gap:
+		_last_redraw_msec = now_msec
+		queue_redraw()
+
+## 盤面状態の変化など、外部からの再描画要求
+func queue_redraw_throttled() -> void:
+	_request_redraw()
 
 func _process(delta: float) -> void:
 	var _prof = Profiler.begin("board_overlay::_process")
@@ -74,24 +103,14 @@ func _process(delta: float) -> void:
 			if sm and bool(sm.get("isfevertime")):
 				animated = true
 		if animated:
-			var interval: float = ANIM_REDRAW_INTERVAL
-			# 竜巻は高速移動するため間引かず、効果マスが多い場合のみ描画頻度を下げる
-			var has_tor: bool = ("active_wind_tornadoes" in board and not board.active_wind_tornadoes.is_empty())
-			if not has_tor:
-				var hazard_count: int = int(board.get("animated_hazard_count")) if "animated_hazard_count" in board else 0
-				if hazard_count > 100:
-					interval = ANIM_REDRAW_INTERVAL_MAX
-				elif hazard_count > 55:
-					interval = ANIM_REDRAW_INTERVAL_HIGH
-				elif hazard_count > 25:
-					interval = ANIM_REDRAW_INTERVAL_MED
+			var interval: float = _current_interval()
 			_anim_redraw_elapsed += delta
 			if _anim_redraw_elapsed >= interval:
 				_anim_redraw_elapsed = fmod(_anim_redraw_elapsed, interval)
 				needs_redraw = true
 
 	if needs_redraw:
-		queue_redraw()
+		_request_redraw()
 
 func _has_any_in_2d(arr: Array) -> bool:
 	for r in range(arr.size()):
