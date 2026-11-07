@@ -878,6 +878,10 @@ func _on_pvp_turn_resolved(payload: Dictionary) -> void:
 	_log("[color=#81D4FA]あなたの攻撃: %d / 回復 %d / シールド +%d[/color]" % [damage, heal, int(payload.get("shield", 0))])
 	_show_enemy_damage(damage)
 
+	# 相手のHPが0になったら即座に勝利演出を表示する（match_end が遅れても勝敗が分かるように）
+	if int(_remote_stats.get("hp", 1)) <= 0:
+		_show_pvp_result(_my_index, "ko")
+
 func _on_pvp_turn_completed() -> void:
 	if _end_turn_pending:
 		return
@@ -1122,6 +1126,10 @@ func _on_action_received(from: int, payload: Dictionary) -> void:
 			_my_hp_bar.modulate = Color(1.0, 0.3, 0.3)
 			var tw = create_tween()
 			tw.tween_property(_my_hp_bar, "modulate", Color.WHITE, 0.35)
+
+	# HPが0になったら即座に敗北演出を表示する（match_end が遅れても勝敗が分かるように）
+	if int(_my_stats.get("hp", 1)) <= 0:
+		_show_pvp_result(1 - _my_index, "ko")
 
 func _on_stats_received(from: int, stats: Dictionary) -> void:
 	if from == _my_index:
@@ -1478,13 +1486,19 @@ func _on_match_resumed(data: Dictionary) -> void:
 	_log("[color=#81C784]再接続しました。対戦を再開します[/color]")
 
 func _on_match_ended(data: Dictionary) -> void:
+	var winner: int = int(data.get("winner", -1))
+	var reason: String = str(data.get("reason", ""))
+	_show_pvp_result(winner, reason)
+
+## PvPの勝敗演出を表示する（match_end 受信時・KO確定時の共通処理）
+func _show_pvp_result(winner: int, reason: String = "") -> void:
+	if _phase == "ended" and _result_overlay != null and _result_overlay.visible:
+		return
 	_phase = "ended"
 	_shop_panel.visible = false
 	_close_offline_shop()
 	if _board:
 		_board.set_pvp_my_turn(false)
-	var winner: int = int(data.get("winner", -1))
-	var reason: String = str(data.get("reason", ""))
 	if winner == _my_index:
 		_result_lbl.text = "🏆 YOU WIN!"
 	elif winner >= 0:
@@ -1492,7 +1506,13 @@ func _on_match_ended(data: Dictionary) -> void:
 	else:
 		_result_lbl.text = "MATCH END"
 	_log("[color=#FFD54F]対戦終了: %s (%s)[/color]" % [_result_lbl.text, reason])
-	_result_overlay.visible = true
+	# オフライン用のゲームオーバー表示を隠して、PvPの勝敗表示を確実に見せる
+	if _stage_mgr:
+		var go_node = _stage_mgr.get_node_or_null("gameover")
+		if go_node:
+			go_node.visible = false
+	if _result_overlay:
+		_result_overlay.visible = true
 	_update_hint()
 
 func _on_connection_closed(code: int, reason: String) -> void:

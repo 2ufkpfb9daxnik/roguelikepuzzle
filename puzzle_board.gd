@@ -6875,7 +6875,9 @@ func _process(delta: float) -> void:
 		_trigger_gameover(sm)
 
 	if isgameover:
-		_handle_gameover_sequence(sm)
+		# PvPではオフラインのゲームオーバー演出を行わず、PvPの勝敗表示に任せる
+		if not pvp_mode:
+			_handle_gameover_sequence(sm)
 		return
 
 	# 落下アニメーション中の物理更新
@@ -7821,7 +7823,9 @@ func _handle_turn_sequence(sm: Node2D, score_mgr: Node2D) -> void:
 		return
 
 	if isgameover:
-		_handle_gameover_sequence(sm)
+		# PvPではオフラインのゲームオーバー演出を行わず、PvPの勝敗表示に任せる
+		if not pvp_mode:
+			_handle_gameover_sequence(sm)
 		return
 
 	if is_tutorial_paused:
@@ -11505,6 +11509,9 @@ func _trigger_gameover(sm: Node2D) -> void:
 	if _enemy_turn_tween and _enemy_turn_tween.is_valid():
 		_enemy_turn_tween.kill()
 		_enemy_turn_tween = null
+	# PvPではオフラインのゲームオーバー画面を出さない（match_end と勝敗演出で表示する）
+	if pvp_mode:
+		return
 	if sm:
 		var go_node = sm.get_node_or_null("gameover")
 		if go_node:
