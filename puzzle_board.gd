@@ -11512,6 +11512,14 @@ func _trigger_gameover(sm: Node2D) -> void:
 	# PvPではオフラインのゲームオーバー画面を出さない（match_end と勝敗演出で表示する）
 	if pvp_mode:
 		return
+	# 放置デモ再生中は、ゲームオーバーでタイトルへ戻す
+	var sm_set = _get_settings_manager()
+	if sm_set != null and "demo_mode" in sm_set and bool(sm_set.demo_mode):
+		sm_set.demo_mode = false
+		var tree = get_tree()
+		if tree:
+			tree.change_scene_to_file("res://title_screen.tscn")
+		return
 	if sm:
 		var go_node = sm.get_node_or_null("gameover")
 		if go_node:
