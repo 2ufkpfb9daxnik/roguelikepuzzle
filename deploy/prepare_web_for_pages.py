@@ -152,48 +152,23 @@ html, body {
   overscroll-behavior:none;
   touch-action:manipulation;
 }
+/* Godot ????????????????????????? */
 #canvas, canvas {
-  width:100vw !important; height:100vh !important;
-  width:100dvw !important; height:100dvh !important;
-  display:block; margin:0 !important; padding:0 !important;
-  position:fixed; left:0; top:0; z-index:1;
+  margin:0 !important; padding:0 !important; display:block;
 }
-/* iPhone ??????????????? */
-html { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); box-sizing:border-box; }
-/* ???????iPhone ? orientation.lock ???????????90?????????????? */
+@supports (height: 100dvh) {
+  html, body { height:100dvh; }
+}
+/* ????????????90????????????????iPhone ? orientation.lock ???? */
 @media (orientation: portrait) {
   #canvas, canvas {
     width:100vh !important; height:100vw !important;
-    width:100dvh !important; height:100dvw !important;
-    top:50% !important; left:50% !important;
-    transform: translate(-50%, -50%) rotate(90deg) !important;
+    position:fixed; left:50%; top:50%;
+    transform:translate(-50%, -50%) rotate(90deg);
   }
 }
 </style>
 <script>
-function __applyViewport() {
-  const w = window.innerWidth, h = window.innerHeight;
-  const portrait = h > w;
-  const cw = portrait ? h : w;
-  const ch = portrait ? w : h;
-  for (const c of document.querySelectorAll("canvas")) {
-    c.style.width = cw + "px";
-    c.style.height = ch + "px";
-    if (portrait) {
-      c.style.position = "fixed";
-      c.style.left = "50%"; c.style.top = "50%";
-      c.style.transform = "translate(-50%, -50%) rotate(90deg)";
-    } else {
-      c.style.position = "fixed";
-      c.style.left = "0px"; c.style.top = "0px";
-      c.style.transform = "none";
-    }
-  }
-}
-window.addEventListener("resize", __applyViewport);
-window.addEventListener("orientationchange", () => setTimeout(__applyViewport, 250));
-document.addEventListener("DOMContentLoaded", __applyViewport);
-__applyViewport();
 async function __lockLandscape() {
   try {
     const el = document.documentElement;
@@ -203,7 +178,6 @@ async function __lockLandscape() {
   try {
     if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock("landscape"); }
   } catch (e) {}
-  setTimeout(__applyViewport, 250);
 }
 document.addEventListener("click", __lockLandscape, { once: true });
 document.addEventListener("touchstart", __lockLandscape, { once: true, passive: true });
