@@ -19,6 +19,7 @@ const BOARD_WIDTH: float = 9100.0
 const BOARD_HEIGHT: float = 9100.0
 
 func _ready() -> void:
+	_setup_bake()
 	z_index = 8 # コマ(0~3)より手前、UIより奥
 	if CUSTOM_FONT is Font and CUSTOM_FONT.get_fallbacks().is_empty():
 		var sys_font = load("res://font/NotoSansJP.ttf")
@@ -59,8 +60,13 @@ func _current_interval() -> float:
 func _request_redraw() -> void:
 	var now_msec: int = Time.get_ticks_msec()
 	var min_gap: int = int(1000.0 * _current_interval())
-	if now_msec - _last_redraw_msec >= min_gap:
-		_last_redraw_msec = now_msec
+	if now_msec - _last_redraw_msec < min_gap:
+		return
+	_last_redraw_msec = now_msec
+	if _bake_vp != null and is_instance_valid(_bake_vp):
+		# テクスチャ化している場合は SubViewport の再描画だけを要求する
+		_bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	else:
 		queue_redraw()
 
 ## 盤面状態の変化など、外部からの再描画要求
@@ -140,7 +146,7 @@ func _is_ally_cell(prop_name: String, r: int, c: int) -> bool:
 			return bool(arr[r][c])
 	return false
 
-func _draw() -> void:
+func _draw_content(target: CanvasItem) -> void:
 	var _prof = Profiler.begin("board_overlay::_draw")
 	if board == null:
 		return
@@ -169,7 +175,7 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				var hp = int(board.grid_ice[r][c])
 				if hp > 0:
-					_draw_ice_tile(r, c, hp, pulse)
+					_draw_ice_tile(target, r, c, hp, pulse)
 
 	# 2. 地属性の石 (grid_stones: 耐久1・落下遮蔽)
 	if bool(board.get("has_stones")) and "grid_stones" in board and board.grid_stones.size() == GRID_ROWS:
@@ -177,7 +183,7 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				var hp = board.grid_stones[r][c]
 				if hp > 0:
-					_draw_stone_tile(r, c, hp)
+					_draw_stone_tile(target, r, c, hp)
 
 	# 3. 光属性の黄金石像 (grid_gold_statue: 耐久3・スカコマ)
 	if bool(board.get("has_gold_statue")) and "grid_gold_statue" in board and board.grid_gold_statue.size() == GRID_ROWS:
@@ -185,26 +191,26 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				var hp = board.grid_gold_statue[r][c]
 				if hp > 0:
-					_draw_gold_statue_tile(r, c, hp, pulse)
+					_draw_gold_statue_tile(target, r, c, hp, pulse)
 
 	# 4. 雷属性の純粋な雷オブジェクトコマ (grid_electrified: 触れる/動かす/マッチで反動)
 	if bool(board.get("has_electrified")) and "grid_electrified" in board and board.grid_electrified.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_electrified[r][c]:
-					_draw_electrified_tile(r, c, pulse, now)
+					_draw_electrified_tile(target, r, c, pulse, now)
 
 	# 5. 闇属性の呪いコマ (grid_cursed: 消すと反動ダメージ)
 	if bool(board.get("has_cursed")) and "grid_cursed" in board and board.grid_cursed.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_cursed[r][c]:
-					_draw_cursed_tile(r, c, pulse)
+					_draw_cursed_tile(target, r, c, pulse)
 
 	# 6. 植物エンティティ（苗木・若木・3x3大木: 盤面手前 z_index=8）
 	if has_plants:
 		for plant in board.plant_entities:
-			_draw_plant_entity(plant, pulse, now)
+			_draw_plant_entity(target, plant, pulse, now)
 
 	# 7. 闇属性の黒い霧 (grid_fog: 3x3または4x4を覆い隠す)
 	# [復元] 水マス (grid_water: 美麗水面・波紋)
@@ -213,22 +219,22 @@ func _draw() -> void:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_water[r][c]:
-					_draw_water_tile(r, c, water_pulse)
+					_draw_water_tile(target, r, c, water_pulse)
 
 	# 猛毒マス（水マスの手前に重ねて描画・GPU完全バッチ描画で負荷ゼロ）
 	if bool(board.get("has_poison")) and "grid_poison" in board and board.grid_poison.size() == GRID_ROWS:
 		for r in range(GRID_ROWS):
 			for c in range(GRID_COLS):
 				if board.grid_poison[r][c]:
-					_draw_poison_tile(r, c)
+					_draw_poison_tile(target, r, c)
 	if has_fog:
 		for fog in board.grid_fog:
-			_draw_black_fog(fog, pulse, now)
+			_draw_black_fog(target, fog, pulse, now)
 
 	# 8. 風属性の竜巻 (active_wind_tornadoes: 列を縦断)
 	if has_tornadoes:
 		for tor in board.active_wind_tornadoes:
-			_draw_wind_tornado(tor, rot_fast)
+			_draw_wind_tornado(target, tor, rot_fast)
 
 	# 9. 炎マス (grid_fire: 毎ターン隣接延焼・木大延焼・水/氷で消火)
 	if bool(board.get("has_fire")) and "grid_fire" in board and board.grid_fire.size() == GRID_ROWS:
@@ -236,10 +242,10 @@ func _draw() -> void:
 			for c in range(GRID_COLS):
 				var f_type = int(board.grid_fire[r][c])
 				if f_type > 0:
-					_draw_fire_tile(r, c, f_type, pulse, now)
+					_draw_fire_tile(target, r, c, f_type, pulse, now)
 
 ## 氷漬けタイルの描画（凍結クリスタル・フロストフレーム・耐久値表示・自他色分け対応）
-func _draw_ice_tile(r: int, c: int, hp: int, pulse: float) -> void:
+func _draw_ice_tile(target: CanvasItem, r: int, c: int, hp: int, pulse: float) -> void:
 	var is_ally = _is_ally_cell("grid_ice_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 12.0, BOARD_TOP + r * CELL_PITCH + 12.0, CELL_PITCH - 24.0, CELL_PITCH - 24.0)
 	var center = rect.get_center()
@@ -257,40 +263,40 @@ func _draw_ice_tile(r: int, c: int, hp: int, pulse: float) -> void:
 		frame_outer = Color(0.75, 0.65, 1.0, 0.98)
 		frame_inner = Color(0.45, 0.55, 1.0, 0.75)
 
-	draw_rect(rect, ice_bg_col, true)
-	draw_rect(rect, frame_outer, false, 24.0)
-	draw_rect(rect.grow(-20.0), frame_inner, false, 12.0)
+	target.draw_rect(rect, ice_bg_col, true)
+	target.draw_rect(rect, frame_outer, false, 24.0)
+	target.draw_rect(rect.grow(-20.0), frame_inner, false, 12.0)
 
 	# 四隅の氷柱（つらら）
 	var m = 110.0
 	var corner_col = Color(0.65, 1.0, 0.92, 0.95) if is_ally else Color(0.90, 0.85, 1.0, 0.95)
-	draw_line(rect.position, rect.position + Vector2(m, m * 0.4), corner_col, 14.0)
-	draw_line(rect.position, rect.position + Vector2(m * 0.4, m), corner_col, 14.0)
-	draw_line(rect.end, rect.end - Vector2(m, m * 0.4), corner_col, 14.0)
-	draw_line(rect.end, rect.end - Vector2(m * 0.4, m), corner_col, 14.0)
+	target.draw_line(rect.position, rect.position + Vector2(m, m * 0.4), corner_col, 14.0)
+	target.draw_line(rect.position, rect.position + Vector2(m * 0.4, m), corner_col, 14.0)
+	target.draw_line(rect.end, rect.end - Vector2(m, m * 0.4), corner_col, 14.0)
+	target.draw_line(rect.end, rect.end - Vector2(m * 0.4, m), corner_col, 14.0)
 
 	# 中央の雪晶・氷星
 	var star_len = 120.0
 	for a_deg in [0, 45, 90, 135]:
 		var rad = deg_to_rad(a_deg)
 		var dir = Vector2(cos(rad), sin(rad)) * star_len
-		draw_line(center - dir, center + dir, corner_col, 16.0)
+		target.draw_line(center - dir, center + dir, corner_col, 16.0)
 		var b_dir = Vector2(-sin(rad), cos(rad)) * 30.0
-		draw_line(center + dir * 0.65 - b_dir, center + dir * 0.65 + b_dir, frame_outer, 10.0)
-		draw_line(center - dir * 0.65 - b_dir, center - dir * 0.65 + b_dir, frame_outer, 10.0)
-	draw_circle(center, 30.0, corner_col)
+		target.draw_line(center + dir * 0.65 - b_dir, center + dir * 0.65 + b_dir, frame_outer, 10.0)
+		target.draw_line(center - dir * 0.65 - b_dir, center - dir * 0.65 + b_dir, frame_outer, 10.0)
+	target.draw_circle(center, 30.0, corner_col)
 
 	var badge_y = center.y - 120.0
-	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.04, 0.15, 0.28, 0.92))
-	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, frame_outer, 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, Color(0.95, 1.0, 1.0))
+	target.draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.04, 0.15, 0.28, 0.92))
+	target.draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, frame_outer, 10.0)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, Color(0.95, 1.0, 1.0))
 
 	var ice_label = ("❄ 氷盾(自)" if is_ally else "❄ 凍結(敵)")
 	var lbl_col = Color(0.45, 1.0, 0.85, 0.98) if is_ally else Color(0.88, 0.80, 1.0, 0.98)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), ice_label, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, lbl_col)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), ice_label, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, lbl_col)
 
 ## 地属性の石タイル描画（自＝エメラルド輝鉱石、敵＝黒赤褐色の障害岩石）
-func _draw_stone_tile(r: int, c: int, hp: int) -> void:
+func _draw_stone_tile(target: CanvasItem, r: int, c: int, hp: int) -> void:
 	var is_ally = _is_ally_cell("grid_stones_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
@@ -306,30 +312,30 @@ func _draw_stone_tile(r: int, c: int, hp: int) -> void:
 		rect.position + Vector2(0, 80)
 	])
 	if is_ally:
-		draw_colored_polygon(pts, Color(0.10, 0.42, 0.32, 0.82))
+		target.draw_colored_polygon(pts, Color(0.10, 0.42, 0.32, 0.82))
 		var hl_pts = PackedVector2Array([pts[0], pts[1], pts[2], center])
-		draw_colored_polygon(hl_pts, Color(0.25, 0.78, 0.58, 0.85))
-		draw_polyline(pts, Color(0.40, 1.0, 0.75, 0.98), 20.0)
+		target.draw_colored_polygon(hl_pts, Color(0.25, 0.78, 0.58, 0.85))
+		target.draw_polyline(pts, Color(0.40, 1.0, 0.75, 0.98), 20.0)
 	else:
-		draw_colored_polygon(pts, Color(0.28, 0.20, 0.18, 0.96))
+		target.draw_colored_polygon(pts, Color(0.28, 0.20, 0.18, 0.96))
 		var hl_pts = PackedVector2Array([pts[0], pts[1], pts[2], center])
-		draw_colored_polygon(hl_pts, Color(0.46, 0.34, 0.30, 0.92))
-		draw_polyline(pts, Color(0.88, 0.45, 0.35, 0.98), 20.0)
+		target.draw_colored_polygon(hl_pts, Color(0.46, 0.34, 0.30, 0.92))
+		target.draw_polyline(pts, Color(0.88, 0.45, 0.35, 0.98), 20.0)
 
-	draw_line(center, center + Vector2(90, -80), Color(0.15, 0.12, 0.08, 0.95), 14.0)
-	draw_line(center, center + Vector2(-70, 100), Color(0.15, 0.12, 0.08, 0.95), 14.0)
+	target.draw_line(center, center + Vector2(90, -80), Color(0.15, 0.12, 0.08, 0.95), 14.0)
+	target.draw_line(center, center + Vector2(-70, 100), Color(0.15, 0.12, 0.08, 0.95), 14.0)
 	if hp <= 1:
-		draw_line(center, center + Vector2(-110, -60), Color(0.9, 0.3, 0.1, 0.95), 16.0)
-		draw_line(center, center + Vector2(100, 80), Color(0.9, 0.3, 0.1, 0.95), 16.0)
+		target.draw_line(center, center + Vector2(-110, -60), Color(0.9, 0.3, 0.1, 0.95), 16.0)
+		target.draw_line(center, center + Vector2(100, 80), Color(0.9, 0.3, 0.1, 0.95), 16.0)
 
-	draw_circle(center + Vector2(0, -90), 65.0, Color(0.1, 0.1, 0.1, 0.88))
+	target.draw_circle(center + Vector2(0, -90), 65.0, Color(0.1, 0.1, 0.1, 0.88))
 	var badge_col = Color(0.3, 1.0, 0.75) if is_ally else (Color(1.0, 0.8, 0.2) if hp > 1 else Color(1.0, 0.4, 0.2))
-	draw_arc(center + Vector2(0, -90), 65.0, 0.0, TAU, 24, badge_col, 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 50, center.y - 50), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 100, badge_col)
+	target.draw_arc(center + Vector2(0, -90), 65.0, 0.0, TAU, 24, badge_col, 10.0)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 50, center.y - 50), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 100, badge_col)
 
 	var st_lbl = "💎 輝石(自)" if is_ally else "🪨 石(敵)"
 	var st_col = Color(0.45, 1.0, 0.80) if is_ally else Color(1.0, 0.75, 0.55)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 190), st_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, st_col)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 190), st_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 105, st_col)
 
 var _fever_dance_frames: SpriteFrames = null
 
@@ -342,7 +348,7 @@ func _get_fever_dance_frames() -> SpriteFrames:
 
 ## 光属性の黄金石像タイル描画（自＝神聖プラチナ聖像、敵＝呪われた赤銅黄金像）
 ## フィーバータイム中は見た目が華麗なフィーバーダンスに切り替わる
-func _draw_gold_statue_tile(r: int, c: int, hp: int, pulse: float) -> void:
+func _draw_gold_statue_tile(target: CanvasItem, r: int, c: int, hp: int, pulse: float) -> void:
 	var is_ally = _is_ally_cell("grid_gold_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
@@ -354,46 +360,46 @@ func _draw_gold_statue_tile(r: int, c: int, hp: int, pulse: float) -> void:
 			is_fever = bool(sm.isfevertime)
 
 	if is_fever:
-		_draw_fever_dance_gold_statue(rect, center, hp, is_ally, pulse)
+		_draw_fever_dance_gold_statue(target, rect, center, hp, is_ally, pulse)
 		return
 
 	if is_ally:
-		draw_rect(rect, Color(0.08, 0.35, 0.40, 0.78), true)
-		draw_rect(rect, Color(0.45, 1.0, 0.92, 0.98), false, 26.0)
-		draw_rect(rect.grow(-18.0), Color(0.85, 1.0, 0.98, 0.65 * pulse), false, 10.0)
-		draw_circle(center + Vector2(0, -10), 85.0, Color(0.55, 1.0, 0.95, 0.98))
-		draw_circle(center + Vector2(0, -10), 65.0, Color(0.90, 1.0, 1.0))
-		draw_line(center + Vector2(0, 60), center + Vector2(0, 130), Color(0.45, 0.95, 0.88), 70.0)
+		target.draw_rect(rect, Color(0.08, 0.35, 0.40, 0.78), true)
+		target.draw_rect(rect, Color(0.45, 1.0, 0.92, 0.98), false, 26.0)
+		target.draw_rect(rect.grow(-18.0), Color(0.85, 1.0, 0.98, 0.65 * pulse), false, 10.0)
+		target.draw_circle(center + Vector2(0, -10), 85.0, Color(0.55, 1.0, 0.95, 0.98))
+		target.draw_circle(center + Vector2(0, -10), 65.0, Color(0.90, 1.0, 1.0))
+		target.draw_line(center + Vector2(0, 60), center + Vector2(0, 130), Color(0.45, 0.95, 0.88), 70.0)
 	else:
 		# 独立お邪魔ブロック：完全に不透明な黄金岩塊ベース
-		draw_rect(rect, Color(0.22, 0.14, 0.04, 1.0), true)
-		draw_rect(rect.grow(-8.0), Color(0.36, 0.22, 0.06, 1.0), true)
-		draw_rect(rect, Color(1.0, 0.70, 0.18, 1.0), false, 24.0)
-		draw_rect(rect.grow(-18.0), Color(1.0, 0.88, 0.45, 0.75 * pulse), false, 8.0)
-		draw_line(rect.position + Vector2(45, 20), rect.position + Vector2(45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
-		draw_line(rect.position + Vector2(CELL_PITCH - 45, 20), rect.position + Vector2(CELL_PITCH - 45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
-		draw_circle(center + Vector2(0, -10), 85.0, Color(0.98, 0.74, 0.22, 1.0))
-		draw_circle(center + Vector2(0, -10), 65.0, Color(1.0, 0.90, 0.48))
-		draw_line(center + Vector2(0, 50), center + Vector2(0, 125), Color(0.90, 0.66, 0.18), 70.0)
+		target.draw_rect(rect, Color(0.22, 0.14, 0.04, 1.0), true)
+		target.draw_rect(rect.grow(-8.0), Color(0.36, 0.22, 0.06, 1.0), true)
+		target.draw_rect(rect, Color(1.0, 0.70, 0.18, 1.0), false, 24.0)
+		target.draw_rect(rect.grow(-18.0), Color(1.0, 0.88, 0.45, 0.75 * pulse), false, 8.0)
+		target.draw_line(rect.position + Vector2(45, 20), rect.position + Vector2(45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
+		target.draw_line(rect.position + Vector2(CELL_PITCH - 45, 20), rect.position + Vector2(CELL_PITCH - 45, CELL_PITCH - 40), Color(0.85, 0.58, 0.16), 14.0)
+		target.draw_circle(center + Vector2(0, -10), 85.0, Color(0.98, 0.74, 0.22, 1.0))
+		target.draw_circle(center + Vector2(0, -10), 65.0, Color(1.0, 0.90, 0.48))
+		target.draw_line(center + Vector2(0, 50), center + Vector2(0, 125), Color(0.90, 0.66, 0.18), 70.0)
 
 	var badge_y = center.y - 120.0
 	var b_col = Color(0.4, 1.0, 0.9) if is_ally else Color(1.0, 0.75, 0.2)
-	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
-	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
+	target.draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
+	target.draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
 
 	var gd_lbl = "✨ 聖像(自)" if is_ally else "🏆 黄金像ブロック"
-	draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, b_col)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, b_col)
 
-func _draw_fever_dance_gold_statue(rect: Rect2, center: Vector2, hp: int, is_ally: bool, pulse: float) -> void:
+func _draw_fever_dance_gold_statue(target: CanvasItem, rect: Rect2, center: Vector2, hp: int, is_ally: bool, pulse: float) -> void:
 	# 黄金＆レインボーのフィーバーフロア背景
 	var bg_col = Color(0.20, 0.14, 0.03, 0.96) if not is_ally else Color(0.06, 0.28, 0.32, 0.95)
 	var border_col = Color(1.0, 0.85, 0.25, 1.0) if not is_ally else Color(0.40, 1.0, 0.95, 1.0)
-	draw_rect(rect, bg_col, true)
-	draw_rect(rect.grow(-4.0), Color(0.35, 0.26, 0.05, 0.9) if not is_ally else Color(0.12, 0.45, 0.50, 0.85), true)
-	draw_rect(rect, border_col, false, 24.0)
-	draw_rect(rect.grow(-18.0), Color(1.0, 0.95, 0.50, 0.70 * pulse), false, 8.0)
-	draw_circle(center, 90.0 * pulse, Color(1.0, 0.88, 0.3, 0.35))
+	target.draw_rect(rect, bg_col, true)
+	target.draw_rect(rect.grow(-4.0), Color(0.35, 0.26, 0.05, 0.9) if not is_ally else Color(0.12, 0.45, 0.50, 0.85), true)
+	target.draw_rect(rect, border_col, false, 24.0)
+	target.draw_rect(rect.grow(-18.0), Color(1.0, 0.95, 0.50, 0.70 * pulse), false, 8.0)
+	target.draw_circle(center, 90.0 * pulse, Color(1.0, 0.88, 0.3, 0.35))
 
 	# フィーバーダンスのアニメーションフレーム描画
 	var sf = _get_fever_dance_frames()
@@ -407,38 +413,38 @@ func _draw_fever_dance_gold_statue(rect: Rect2, center: Vector2, hp: int, is_all
 			var draw_h = (CELL_PITCH - 20.0) * 1.08
 			var draw_w = draw_h * aspect
 			var draw_r = Rect2(center.x - draw_w * 0.5, center.y - draw_h * 0.5 - 6.0, draw_w, draw_h)
-			draw_texture_rect(tex, draw_r, false)
+			target.draw_texture_rect(tex, draw_r, false)
 
 	# 耐久値HPバッジ
 	var badge_y = center.y - 120.0
 	var b_col = Color(0.4, 1.0, 0.9) if is_ally else Color(1.0, 0.85, 0.2)
-	draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
-	draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
+	target.draw_circle(Vector2(center.x, badge_y), 65.0, Color(0.12, 0.09, 0.02, 0.95))
+	target.draw_arc(Vector2(center.x, badge_y), 65.0, 0.0, TAU, 24, b_col, 10.0)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 50, badge_y + 35), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 100, 95, b_col)
 
 	var gd_lbl = "✨ フィーバー聖像" if is_ally else "💃 フィーバーダンス！"
-	draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, Color(1.0, 0.92, 0.35))
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 220, center.y + 195), gd_lbl, HORIZONTAL_ALIGNMENT_CENTER, 440, 95, Color(1.0, 0.92, 0.35))
 
 ## 雷属性の雷オブジェクト描画（自＝エメラルドシアンの過充電、敵＝赤黄の感電スパーク）
-func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
+func _draw_electrified_tile(target: CanvasItem, r: int, c: int, pulse: float, now: int) -> void:
 	var is_ally = _is_ally_cell("grid_electrified_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 8.0, BOARD_TOP + r * CELL_PITCH + 8.0, CELL_PITCH - 16.0, CELL_PITCH - 16.0)
 	var center = rect.get_center()
 
 	if is_ally:
-		draw_rect(rect, Color(0.02, 0.25, 0.28, 0.55), true)
-		draw_rect(rect, Color(0.15, 0.95, 0.85, 0.30 * pulse), true)
-		draw_rect(rect, Color(0.25, 1.0, 0.80, 0.98), false, 24.0)
-		draw_rect(rect.grow(-16.0), Color(0.50, 1.0, 0.95, 0.80 * pulse), false, 12.0)
-		draw_circle(center, 130.0 * pulse, Color(0.20, 1.0, 0.85, 0.30))
-		draw_circle(center, 85.0, Color(0.30, 1.0, 0.90, 0.55))
+		target.draw_rect(rect, Color(0.02, 0.25, 0.28, 0.55), true)
+		target.draw_rect(rect, Color(0.15, 0.95, 0.85, 0.30 * pulse), true)
+		target.draw_rect(rect, Color(0.25, 1.0, 0.80, 0.98), false, 24.0)
+		target.draw_rect(rect.grow(-16.0), Color(0.50, 1.0, 0.95, 0.80 * pulse), false, 12.0)
+		target.draw_circle(center, 130.0 * pulse, Color(0.20, 1.0, 0.85, 0.30))
+		target.draw_circle(center, 85.0, Color(0.30, 1.0, 0.90, 0.55))
 	else:
-		draw_rect(rect, Color(0.16, 0.04, 0.06, 0.88), true)
-		draw_rect(rect, Color(1.0, 0.35, 0.15, 0.35 * pulse), true)
-		draw_rect(rect, Color(1.0, 0.30, 0.20, 0.98), false, 24.0)
-		draw_rect(rect.grow(-16.0), Color(1.0, 0.80, 0.20, 0.80 * pulse), false, 12.0)
-		draw_circle(center, 130.0 * pulse, Color(1.0, 0.45, 0.15, 0.30))
-		draw_circle(center, 85.0, Color(1.0, 0.75, 0.20, 0.60))
+		target.draw_rect(rect, Color(0.16, 0.04, 0.06, 0.88), true)
+		target.draw_rect(rect, Color(1.0, 0.35, 0.15, 0.35 * pulse), true)
+		target.draw_rect(rect, Color(1.0, 0.30, 0.20, 0.98), false, 24.0)
+		target.draw_rect(rect.grow(-16.0), Color(1.0, 0.80, 0.20, 0.80 * pulse), false, 12.0)
+		target.draw_circle(center, 130.0 * pulse, Color(1.0, 0.45, 0.15, 0.30))
+		target.draw_circle(center, 85.0, Color(1.0, 0.75, 0.20, 0.60))
 
 	var t_step = int(now * 0.03)
 	# 描画負荷軽減のため稲妻は2本に減らす（360度を180度間隔で均等配置）
@@ -451,7 +457,7 @@ func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
 		_bolt_line_pts[0] = p1
 		_bolt_line_pts[1] = mid
 		_bolt_line_pts[2] = p2
-		draw_polyline(_bolt_line_pts, bolt_col, 14.0)
+		target.draw_polyline(_bolt_line_pts, bolt_col, 14.0)
 
 	# 中央の稲妻マークは簡略化（塗りのみ・輪郭線なし）
 	_bolt_mark_pts[0] = center + Vector2(30, -145)
@@ -460,35 +466,35 @@ func _draw_electrified_tile(r: int, c: int, pulse: float, now: int) -> void:
 	_bolt_mark_pts[3] = center + Vector2(-55, 145)
 	_bolt_mark_pts[4] = center + Vector2(85, 10)
 	_bolt_mark_pts[5] = center + Vector2(15, 10)
-	draw_colored_polygon(_bolt_mark_pts, Color(0.30, 1.0, 0.85, 1.0) if is_ally else Color(1.0, 0.86, 0.25, 1.0))
+	target.draw_colored_polygon(_bolt_mark_pts, Color(0.30, 1.0, 0.85, 1.0) if is_ally else Color(1.0, 0.86, 0.25, 1.0))
 
 	var el_lbl = "⚡充電(自)" if is_ally else "⚡帯電(敵)"
 	var el_col = Color(0.40, 1.0, 0.85) if is_ally else Color(1.0, 0.55, 0.35)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 205), el_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 100, el_col)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 205), el_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 100, el_col)
 
 ## 闇属性の呪いコマ描画（自＝蒼星の影護、敵＝紫黒ドクロの呪い）
-func _draw_cursed_tile(r: int, c: int, pulse: float) -> void:
+func _draw_cursed_tile(target: CanvasItem, r: int, c: int, pulse: float) -> void:
 	var is_ally = _is_ally_cell("grid_cursed_ally", r, c)
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 10.0, BOARD_TOP + r * CELL_PITCH + 10.0, CELL_PITCH - 20.0, CELL_PITCH - 20.0)
 	var center = rect.get_center()
 
 	if is_ally:
-		draw_rect(rect, Color(0.06, 0.35, 0.55, 0.32 * pulse), true)
-		draw_rect(rect, Color(0.25, 0.95, 1.0, 0.94), false, 20.0)
-		draw_circle(center, 100.0, Color(0.04, 0.18, 0.28, 0.92))
-		draw_arc(center, 100.0, 0.0, TAU, 28, Color(0.35, 0.95, 1.0), 12.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 75, center.y + 55), "★", HORIZONTAL_ALIGNMENT_CENTER, 150, 150, Color(0.45, 1.0, 0.95))
-		draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), "🌙 影護(自)", HORIZONTAL_ALIGNMENT_CENTER, 420, 100, Color(0.45, 1.0, 0.95))
+		target.draw_rect(rect, Color(0.06, 0.35, 0.55, 0.32 * pulse), true)
+		target.draw_rect(rect, Color(0.25, 0.95, 1.0, 0.94), false, 20.0)
+		target.draw_circle(center, 100.0, Color(0.04, 0.18, 0.28, 0.92))
+		target.draw_arc(center, 100.0, 0.0, TAU, 28, Color(0.35, 0.95, 1.0), 12.0)
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 75, center.y + 55), "★", HORIZONTAL_ALIGNMENT_CENTER, 150, 150, Color(0.45, 1.0, 0.95))
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), "🌙 影護(自)", HORIZONTAL_ALIGNMENT_CENTER, 420, 100, Color(0.45, 1.0, 0.95))
 	else:
-		draw_rect(rect, Color(0.38, 0.06, 0.55, 0.30 * pulse), true)
-		draw_rect(rect, Color(0.85, 0.20, 1.0, 0.92), false, 20.0)
-		draw_circle(center, 100.0, Color(0.14, 0.02, 0.20, 0.92))
-		draw_arc(center, 100.0, 0.0, TAU, 28, Color(0.90, 0.30, 1.0), 12.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 75, center.y + 55), "☠", HORIZONTAL_ALIGNMENT_CENTER, 150, 150, Color(0.98, 0.40, 1.0))
-		draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), "☠ 呪い(敵)", HORIZONTAL_ALIGNMENT_CENTER, 420, 100, Color(0.92, 0.50, 1.0))
+		target.draw_rect(rect, Color(0.38, 0.06, 0.55, 0.30 * pulse), true)
+		target.draw_rect(rect, Color(0.85, 0.20, 1.0, 0.92), false, 20.0)
+		target.draw_circle(center, 100.0, Color(0.14, 0.02, 0.20, 0.92))
+		target.draw_arc(center, 100.0, 0.0, TAU, 28, Color(0.90, 0.30, 1.0), 12.0)
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 75, center.y + 55), "☠", HORIZONTAL_ALIGNMENT_CENTER, 150, 150, Color(0.98, 0.40, 1.0))
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 195), "☠ 呪い(敵)", HORIZONTAL_ALIGNMENT_CENTER, 420, 100, Color(0.92, 0.50, 1.0))
 
 ## 植物エンティティ描画（盤面の手前レイヤー z_index=8 にて青々と描画）
-func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
+func _draw_plant_entity(target: CanvasItem, plant: Dictionary, pulse: float, _now: int) -> void:
 	var st: int = plant.get("stage", 0)
 	var org: Vector2i = plant.get("origin", Vector2i(-1, -1))
 	if org.x < 0 or org.y < 0 or org.x >= GRID_ROWS or org.y >= GRID_COLS:
@@ -505,37 +511,37 @@ func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
 		# 苗木（1マス）: 立体的な盛り土 ＋ みずみずしい緑の双葉（敵植樹時は茨トゲ付き）
 		# 土台
 		var earth_col = Color(0.28, 0.14, 0.08, 0.96) if is_enemy else Color(0.38, 0.22, 0.12, 0.96)
-		draw_circle(center + Vector2(0.0, 70.0), 110.0, earth_col)
-		draw_arc(center + Vector2(0.0, 70.0), 110.0, 0.0, TAU, 24, Color(0.48, 0.28, 0.15), 10.0)
+		target.draw_circle(center + Vector2(0.0, 70.0), 110.0, earth_col)
+		target.draw_arc(center + Vector2(0.0, 70.0), 110.0, 0.0, TAU, 24, Color(0.48, 0.28, 0.15), 10.0)
 
 		# 双葉の茎
 		var stem_col = Color(0.35, 0.15, 0.28) if is_enemy else Color(0.22, 0.65, 0.25)
-		draw_line(center + Vector2(0.0, 80.0), center + Vector2(0.0, -20.0), stem_col, 28.0)
+		target.draw_line(center + Vector2(0.0, 80.0), center + Vector2(0.0, -20.0), stem_col, 28.0)
 
 		# 左右の豊かな葉
 		var leaf_col1 = Color(0.45, 0.85, 0.25, 0.98) if not is_enemy else Color(0.70, 0.15, 0.40, 0.98)
 		var leaf_col2 = Color(0.30, 0.98, 0.35, 0.98) if not is_enemy else Color(0.85, 0.20, 0.50, 0.98)
 
-		draw_line(center + Vector2(0.0, 0.0), center + Vector2(-80.0, -60.0), stem_col, 20.0)
-		draw_line(center + Vector2(0.0, 0.0), center + Vector2(80.0, -60.0), stem_col, 20.0)
-		draw_circle(center + Vector2(-85.0, -65.0), 65.0, leaf_col1)
-		draw_circle(center + Vector2(85.0, -65.0), 65.0, leaf_col2)
+		target.draw_line(center + Vector2(0.0, 0.0), center + Vector2(-80.0, -60.0), stem_col, 20.0)
+		target.draw_line(center + Vector2(0.0, 0.0), center + Vector2(80.0, -60.0), stem_col, 20.0)
+		target.draw_circle(center + Vector2(-85.0, -65.0), 65.0, leaf_col1)
+		target.draw_circle(center + Vector2(85.0, -65.0), 65.0, leaf_col2)
 
 		# 耐久値＆ドレインバッジ（上部）
-		draw_circle(center + Vector2(0.0, -135.0), 55.0, Color(0.08, 0.12, 0.08, 0.94))
-		draw_arc(center + Vector2(0.0, -135.0), 55.0, 0.0, TAU, 24, Color(0.4, 1.0, 0.5), 8.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 40, center.y - 105), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 80, 80, Color.WHITE)
+		target.draw_circle(center + Vector2(0.0, -135.0), 55.0, Color(0.08, 0.12, 0.08, 0.94))
+		target.draw_arc(center + Vector2(0.0, -135.0), 55.0, 0.0, TAU, 24, Color(0.4, 1.0, 0.5), 8.0)
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 40, center.y - 105), str(hp), HORIZONTAL_ALIGNMENT_CENTER, 80, 80, Color.WHITE)
 
 		# 敵植樹時の「🌱 ドレイン」表示
 		if is_enemy:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌱 苗木(吸血)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.4, 0.6))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌱 苗木(吸血)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.4, 0.6))
 		else:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌱 苗木", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.4, 1.0, 0.6))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌱 苗木", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.4, 1.0, 0.6))
 
 	elif st == 1:
 		# 若木（1マス）: 太い樹幹 ＋ 茂み（敵植樹時は妖魔の紫茂み）
 		var trunk_col = Color(0.25, 0.10, 0.22, 0.98) if is_enemy else Color(0.38, 0.22, 0.12, 0.98)
-		draw_line(center + Vector2(0.0, 150.0), center + Vector2(0.0, -40.0), trunk_col, 55.0)
+		target.draw_line(center + Vector2(0.0, 150.0), center + Vector2(0.0, -40.0), trunk_col, 55.0)
 
 		# 茂み
 		var f_col1 = Color(0.42, 0.08, 0.50, 0.95) if is_enemy else Color(0.12, 0.58, 0.22, 0.95)
@@ -543,30 +549,30 @@ func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
 		var f_col3 = Color(0.72, 0.18, 0.80, 0.98) if is_enemy else Color(0.20, 0.78, 0.32, 0.98)
 		var f_col4 = Color(0.88, 0.35, 0.95, 0.75 * pulse) if is_enemy else Color(0.35, 0.90, 0.45, 0.75 * pulse)
 
-		draw_circle(center + Vector2(-80.0, -60.0), 110.0, f_col1)
-		draw_circle(center + Vector2(80.0, -60.0), 110.0, f_col2)
-		draw_circle(center + Vector2(0.0, -120.0), 130.0, f_col3)
-		draw_circle(center + Vector2(0.0, -130.0), 95.0, f_col4)
+		target.draw_circle(center + Vector2(-80.0, -60.0), 110.0, f_col1)
+		target.draw_circle(center + Vector2(80.0, -60.0), 110.0, f_col2)
+		target.draw_circle(center + Vector2(0.0, -120.0), 130.0, f_col3)
+		target.draw_circle(center + Vector2(0.0, -130.0), 95.0, f_col4)
 
 		# 耐久値インジケーター（2ドット）
 		var b_y = center.y - 210.0
 		var badge_bg = Color(0.16, 0.04, 0.18, 0.94) if is_enemy else Color(0.06, 0.16, 0.08, 0.94)
 		var badge_border = Color(0.9, 0.3, 1.0) if is_enemy else Color(0.4, 1.0, 0.6)
-		draw_circle(Vector2(center.x, b_y), 60.0, badge_bg)
-		draw_arc(Vector2(center.x, b_y), 60.0, 0.0, TAU, 24, badge_border, 8.0)
+		target.draw_circle(Vector2(center.x, b_y), 60.0, badge_bg)
+		target.draw_arc(Vector2(center.x, b_y), 60.0, 0.0, TAU, 24, badge_border, 8.0)
 		for k in range(hp):
 			var dot_x = center.x + (k - (hp - 1) * 0.5) * 32.0
-			draw_circle(Vector2(dot_x, b_y), 10.0, Color.WHITE)
+			target.draw_circle(Vector2(dot_x, b_y), 10.0, Color.WHITE)
 
 		if is_enemy:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 呪木(吸血)", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(1.0, 0.45, 0.85))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 呪木(吸血)", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(1.0, 0.45, 0.85))
 		else:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 若木", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.5, 1.0, 0.6))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🌿 若木", HORIZONTAL_ALIGNMENT_CENTER, 400, 100, Color(0.5, 1.0, 0.6))
 
 	elif st == 2:
 		# 3x3大木: 9マスを覆う荘厳な大樹冠（敵植樹時は妖魔大樹）
 		var trunk_col = Color(0.22, 0.08, 0.18, 0.98) if is_enemy else Color(0.32, 0.18, 0.08, 0.98)
-		draw_line(center + Vector2(0.0, 500.0), center + Vector2(0.0, -80.0), trunk_col, 120.0)
+		target.draw_line(center + Vector2(0.0, 500.0), center + Vector2(0.0, -80.0), trunk_col, 120.0)
 
 		var foliage_offsets = [
 			Vector2(-420.0, -100.0), Vector2(420.0, -100.0),
@@ -579,33 +585,33 @@ func _draw_plant_entity(plant: Dictionary, pulse: float, _now: int) -> void:
 		var big_col3 = Color(0.78, 0.20, 0.88, 0.80 * pulse) if is_enemy else Color(0.30, 0.88, 0.40, 0.80 * pulse)
 
 		for fo in foliage_offsets:
-			draw_circle(center + fo, 260.0, big_col1)
+			target.draw_circle(center + fo, 260.0, big_col1)
 		for fo in foliage_offsets:
-			draw_circle(center + fo * 0.85, 210.0, big_col2)
+			target.draw_circle(center + fo * 0.85, 210.0, big_col2)
 		for fo in foliage_offsets:
-			draw_circle(center + fo * 0.70, 150.0, big_col3)
+			target.draw_circle(center + fo * 0.70, 150.0, big_col3)
 
 		# オーラリング
 		var aura_col = Color(0.90, 0.25, 1.0, 0.70 * pulse) if is_enemy else Color(0.45, 1.0, 0.65, 0.65 * pulse)
-		draw_arc(center + Vector2(0.0, -120.0), 650.0, 0.0, TAU, 36, aura_col, 16.0)
+		target.draw_arc(center + Vector2(0.0, -120.0), 650.0, 0.0, TAU, 36, aura_col, 16.0)
 
 		# 耐久値インジケーター（3ドット）
 		var b_y3 = center.y - 520.0
 		var badge_bg3 = Color(0.16, 0.04, 0.18, 0.95) if is_enemy else Color(0.06, 0.16, 0.08, 0.95)
 		var badge_border3 = Color(0.9, 0.3, 1.0) if is_enemy else Color(0.4, 1.0, 0.6)
-		draw_circle(Vector2(center.x, b_y3), 80.0, badge_bg3)
-		draw_arc(Vector2(center.x, b_y3), 80.0, 0.0, TAU, 28, badge_border3, 10.0)
+		target.draw_circle(Vector2(center.x, b_y3), 80.0, badge_bg3)
+		target.draw_arc(Vector2(center.x, b_y3), 80.0, 0.0, TAU, 28, badge_border3, 10.0)
 		for k in range(hp):
 			var dot_x = center.x + (k - (hp - 1) * 0.5) * 36.0
-			draw_circle(Vector2(dot_x, b_y3), 12.0, Color.WHITE)
+			target.draw_circle(Vector2(dot_x, b_y3), 12.0, Color.WHITE)
 
 		if is_enemy:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 妖魔大樹 3x3(大吸血)", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(1.0, 0.45, 0.90))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 妖魔大樹 3x3(大吸血)", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(1.0, 0.45, 0.90))
 		else:
-			draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 神聖大木 3x3", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(0.6, 1.0, 0.7))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 300, center.y + 400), "🌳 神聖大木 3x3", HORIZONTAL_ALIGNMENT_CENTER, 600, 130, Color(0.6, 1.0, 0.7))
 
 ## 闇属性の黒い霧描画（自＝星影の蒼霧、敵＝妖気の暗黒霧）
-func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:
+func _draw_black_fog(target: CanvasItem, fog: Dictionary, pulse: float, now: int) -> void:
 	var f_rect: Rect2i = fog.get("rect", Rect2i(5, 5, 3, 3))
 	var turns: int = fog.get("turns", 2)
 	var is_enemy: bool = fog.get("enemy_owned", true)
@@ -622,26 +628,26 @@ func _draw_black_fog(fog: Dictionary, pulse: float, now: int) -> void:
 	var cloud_col = Color(0.22, 0.06, 0.35, 0.16) if is_enemy else Color(0.08, 0.32, 0.48, 0.14)
 	var cell_b_col = Color(0.60, 0.15, 0.85, 0.20 * pulse) if is_enemy else Color(0.20, 0.85, 0.95, 0.20 * pulse)
 
-	draw_rect(world_rect, bg_col, true)
-	draw_rect(world_rect, border_col, false, 18.0)
+	target.draw_rect(world_rect, bg_col, true)
+	target.draw_rect(world_rect, border_col, false, 18.0)
 
 	for br in range(f_rect.position.x, f_rect.position.x + f_rect.size.x):
 		for bc in range(f_rect.position.y, f_rect.position.y + f_rect.size.y):
 			var c_pos = Vector2(BOARD_LEFT + bc * CELL_PITCH + CELL_PITCH * 0.5, BOARD_TOP + br * CELL_PITCH + CELL_PITCH * 0.5)
 			var cloud_r = 180.0 + 25.0 * sin(now * 0.003 + (br * 3 + bc))
-			draw_circle(c_pos, cloud_r, cloud_col)
+			target.draw_circle(c_pos, cloud_r, cloud_col)
 			var c_rect = Rect2(c_pos.x - CELL_PITCH * 0.46, c_pos.y - CELL_PITCH * 0.46, CELL_PITCH * 0.92, CELL_PITCH * 0.92)
-			draw_rect(c_rect, cell_b_col, false, 4.0)
+			target.draw_rect(c_rect, cell_b_col, false, 4.0)
 
 	var badge_pos = world_rect.position + Vector2(world_rect.size.x - 350, 20)
-	draw_rect(Rect2(badge_pos, Vector2(340, 90)), Color(0.12, 0.02, 0.18, 0.92) if is_enemy else Color(0.02, 0.14, 0.22, 0.92), true)
-	draw_rect(Rect2(badge_pos, Vector2(340, 90)), border_col, false, 8.0)
+	target.draw_rect(Rect2(badge_pos, Vector2(340, 90)), Color(0.12, 0.02, 0.18, 0.92) if is_enemy else Color(0.02, 0.14, 0.22, 0.92), true)
+	target.draw_rect(Rect2(badge_pos, Vector2(340, 90)), border_col, false, 8.0)
 	var fog_lbl = ("瘴気の暗雲(敵) %dT" % turns) if is_enemy else ("星影の霧(自) %dT" % turns)
 	var fog_txt_col = Color(0.95, 0.70, 1.0) if is_enemy else Color(0.55, 1.0, 0.95)
-	draw_string(CUSTOM_FONT, badge_pos + Vector2(10, 65), fog_lbl, HORIZONTAL_ALIGNMENT_CENTER, 320, 56, fog_txt_col)
+	target.draw_string(CUSTOM_FONT, badge_pos + Vector2(10, 65), fog_lbl, HORIZONTAL_ALIGNMENT_CENTER, 320, 56, fog_txt_col)
 
 ## 風属性の竜巻描画（自＝エメラルドグリーンの追い風、敵＝赤紫の暴風）
-func _draw_wind_tornado(tor: Dictionary, rot: float) -> void:
+func _draw_wind_tornado(target: CanvasItem, tor: Dictionary, rot: float) -> void:
 	var col = tor.get("col", 7)
 	var cur_y = tor.get("y", BOARD_TOP)
 	var is_ally: bool = tor.get("ally", false)
@@ -660,19 +666,19 @@ func _draw_wind_tornado(tor: Dictionary, rot: float) -> void:
 	var cone_col = Color(0.15, 1.0, 0.65, 0.45) if is_ally else Color(0.85, 0.20, 0.65, 0.45)
 	var ring_col = Color(0.55, 1.0, 0.85, 0.90) if is_ally else Color(1.0, 0.55, 0.85, 0.90)
 	var shock_col = Color(0.3, 1.0, 0.75, 0.95) if is_ally else Color(0.95, 0.35, 0.75, 0.95)
-	draw_colored_polygon(pts, cone_col)
+	target.draw_colored_polygon(pts, cone_col)
 
 	for ring_i in range(8):
 		var frac = float(ring_i) / 8.0
 		var r_y = cur_y - tor_h * frac
 		var r_w = lerpf(bot_w, top_w, frac)
 		var r_angle = rot * (3.0 + frac * 2.0)
-		draw_arc(Vector2(center_x, r_y), r_w, r_angle, r_angle + PI * 1.4, 24, ring_col, 22.0)
+		target.draw_arc(Vector2(center_x, r_y), r_w, r_angle, r_angle + PI * 1.4, 24, ring_col, 22.0)
 
-	draw_arc(Vector2(center_x, cur_y), bot_w * 1.8, 0.0, TAU, 22, shock_col, 18.0)
+	target.draw_arc(Vector2(center_x, cur_y), bot_w * 1.8, 0.0, TAU, 22, shock_col, 18.0)
 
 ## 炎タイルの描画（自＝聖なる蒼炎・シアンブルー、敵＝紅蓮の赤黒業火）
-func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> void:
+func _draw_fire_tile(target: CanvasItem, r: int, c: int, fire_type: int, pulse: float, now: int) -> void:
 	var is_ally = _is_ally_cell("grid_fire_ally", r, c)
 	var x = BOARD_LEFT + c * CELL_PITCH
 	var y = BOARD_TOP + r * CELL_PITCH
@@ -684,29 +690,29 @@ func _draw_fire_tile(r: int, c: int, fire_type: int, pulse: float, now: int) -> 
 	if is_ally:
 		var glow_col = Color(0.05, 0.75, 1.0, 0.32 * pulse)
 		var border_col = Color(0.25, 0.95, 1.0, 0.90 * pulse)
-		draw_rect(Rect2(x + 10, y + 10, CELL_PITCH - 20, CELL_PITCH - 20), glow_col, true)
-		draw_rect(Rect2(x + 15, y + 15, CELL_PITCH - 30, CELL_PITCH - 30), border_col, false, 12.0)
-		draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(0.10, 0.65, 1.0, 0.65))
-		draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(0.35, 0.95, 1.0, 0.82))
-		draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(0.85, 1.0, 1.0, 0.92))
+		target.draw_rect(Rect2(x + 10, y + 10, CELL_PITCH - 20, CELL_PITCH - 20), glow_col, true)
+		target.draw_rect(Rect2(x + 15, y + 15, CELL_PITCH - 30, CELL_PITCH - 30), border_col, false, 12.0)
+		target.draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(0.10, 0.65, 1.0, 0.65))
+		target.draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(0.35, 0.95, 1.0, 0.82))
+		target.draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(0.85, 1.0, 1.0, 0.92))
 		var lbl = "🔥 蒼炎(残%dT)" % fire_type if fire_type > 0 else "🔥 蒼炎(自)"
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 0.98, 1.0))
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 0.98, 1.0))
 	else:
 		var glow_col = Color(1.0, 0.25, 0.0, 0.38 * pulse) if fire_type == 1 else Color(1.0, 0.1, 0.1, 0.55 * pulse)
 		var border_col = Color(1.0, 0.5, 0.1, 0.88 * pulse) if fire_type == 1 else Color(1.0, 0.2, 0.0, 0.95 * pulse)
-		draw_rect(Rect2(x + 10, y + 10, CELL_PITCH - 20, CELL_PITCH - 20), glow_col, true)
-		draw_rect(Rect2(x + 15, y + 15, CELL_PITCH - 30, CELL_PITCH - 30), border_col, false, 12.0)
-		draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(1.0, 0.35, 0.0, 0.65))
-		draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(1.0, 0.75, 0.1, 0.80))
-		draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(1.0, 1.0, 0.6, 0.90))
+		target.draw_rect(Rect2(x + 10, y + 10, CELL_PITCH - 20, CELL_PITCH - 20), glow_col, true)
+		target.draw_rect(Rect2(x + 15, y + 15, CELL_PITCH - 30, CELL_PITCH - 30), border_col, false, 12.0)
+		target.draw_circle(center + Vector2(flicker1 * 0.3, flicker2 * 0.3 - 30.0), 90.0 * pulse, Color(1.0, 0.35, 0.0, 0.65))
+		target.draw_circle(center + Vector2(flicker2 * 0.3, flicker1 * 0.3 - 50.0), 60.0 * pulse, Color(1.0, 0.75, 0.1, 0.80))
+		target.draw_circle(center + Vector2(0, -60.0), 30.0 * pulse, Color(1.0, 1.0, 0.6, 0.90))
 		if fire_type == 2 and board.has_method("_is_plant_cell") and board._is_plant_cell(r, c):
-			draw_string(CUSTOM_FONT, center + Vector2(-120, 140), "⚠大延焼⚠", HORIZONTAL_ALIGNMENT_CENTER, 240, 40, Color(1.0, 0.9, 0.2, 0.95))
+			target.draw_string(CUSTOM_FONT, center + Vector2(-120, 140), "⚠大延焼⚠", HORIZONTAL_ALIGNMENT_CENTER, 240, 40, Color(1.0, 0.9, 0.2, 0.95))
 		else:
 			var lbl = "🔥 炎上(残%dT)" % fire_type if fire_type > 0 else "🔥 炎上(敵)"
-			draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.55, 0.35))
+			target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), lbl, HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(1.0, 0.55, 0.35))
 
 ## 毒属性の猛毒沼マス描画（自＝エメラルド薬毒・免疫リング、敵＝紫黒の猛毒沼・危険警告）
-func _draw_poison_tile(r: int, c: int) -> void:
+func _draw_poison_tile(target: CanvasItem, r: int, c: int) -> void:
 	var is_ally = _is_ally_cell("grid_poison_ally", r, c)
 	var is_wet: bool = ("grid_water" in board and board.grid_water.size() == GRID_ROWS and board.grid_water[r][c])
 	var tex = POISON_TILE_WET_TEX if is_wet else POISON_TILE_DRY_TEX
@@ -718,43 +724,90 @@ func _draw_poison_tile(r: int, c: int) -> void:
 		p_stage = maxi(1, int(board.grid_poison_stage[r][c]))
 
 	var stage_badge_y = center.y - 110.0
-	draw_circle(Vector2(center.x, stage_badge_y), 55.0, Color(0.12, 0.04, 0.20, 0.90))
+	target.draw_circle(Vector2(center.x, stage_badge_y), 55.0, Color(0.12, 0.04, 0.20, 0.90))
 	var st_border = Color(0.35, 1.0, 0.80) if is_ally else Color(0.95, 0.35, 1.0)
-	draw_arc(Vector2(center.x, stage_badge_y), 55.0, 0.0, TAU, 24, st_border, 8.0)
-	draw_string(CUSTOM_FONT, Vector2(center.x - 45, stage_badge_y + 30), str(p_stage), HORIZONTAL_ALIGNMENT_CENTER, 90, 85, Color(1.0, 1.0, 1.0))
+	target.draw_arc(Vector2(center.x, stage_badge_y), 55.0, 0.0, TAU, 24, st_border, 8.0)
+	target.draw_string(CUSTOM_FONT, Vector2(center.x - 45, stage_badge_y + 30), str(p_stage), HORIZONTAL_ALIGNMENT_CENTER, 90, 85, Color(1.0, 1.0, 1.0))
 
 	if is_ally:
 		var mod_col = Color(0.20, 1.0, 0.65, 0.95)
-		draw_texture_rect(tex, rect, false, mod_col)
+		target.draw_texture_rect(tex, rect, false, mod_col)
 		var border_col = Color(0.25, 1.0, 0.70, 0.95)
-		draw_rect(rect.grow(-4.0), border_col, false, 10.0)
+		target.draw_rect(rect.grow(-4.0), border_col, false, 10.0)
 		# 免疫オーラサークル
-		draw_arc(center, 80.0, 0.0, TAU, 24, Color(0.35, 1.0, 0.80, 0.75), 6.0)
-		draw_circle(center, 18.0, Color(0.40, 1.0, 0.85, 0.60))
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🧪 免疫薬毒(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.35, 1.0, 0.75))
+		target.draw_arc(center, 80.0, 0.0, TAU, 24, Color(0.35, 1.0, 0.80, 0.75), 6.0)
+		target.draw_circle(center, 18.0, Color(0.40, 1.0, 0.85, 0.60))
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "🧪 免疫薬毒(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.35, 1.0, 0.75))
 	else:
 		var mod_col = Color(0.95, 0.30, 1.0, 0.95)
-		draw_texture_rect(tex, rect, false, mod_col)
+		target.draw_texture_rect(tex, rect, false, mod_col)
 		var border_col = Color(0.85, 0.20, 0.95, 0.92)
-		draw_rect(rect.grow(-4.0), border_col, false, 10.0)
+		target.draw_rect(rect.grow(-4.0), border_col, false, 10.0)
 		# 危険コア
-		draw_circle(center, 22.0, Color(0.60, 0.10, 0.70, 0.70))
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "☠ 猛毒(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.95, 0.40, 1.0))
+		target.draw_circle(center, 22.0, Color(0.60, 0.10, 0.70, 0.70))
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "☠ 猛毒(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.95, 0.40, 1.0))
 
 ## 水タイルの描画（自＝エメラルドアクアの清流、敵＝深海パープルブルーの水没）
-func _draw_water_tile(r: int, c: int, pulse: float) -> void:
+func _draw_water_tile(target: CanvasItem, r: int, c: int, pulse: float) -> void:
 	var is_ally = _is_ally_cell("grid_water_ally", r, c)
 	var cell_rect = Rect2(BOARD_LEFT + c * CELL_PITCH, BOARD_TOP + r * CELL_PITCH, CELL_PITCH, CELL_PITCH)
 	var center = cell_rect.get_center()
 	if is_ally:
-		draw_rect(cell_rect, Color(0.05, 0.78, 0.72, 0.34 * pulse), true)
-		draw_rect(cell_rect.grow(-6.0), Color(0.25, 1.0, 0.88, 0.88), false, 14.0)
-		draw_circle(center + Vector2(-40.0, -40.0), 35.0, Color(0.80, 1.0, 0.95, 0.45))
-		draw_arc(center, 90.0 * pulse, 0.0, TAU, 20, Color(0.35, 1.0, 0.90, 0.75), 6.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "💧 清流(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 1.0, 0.90))
+		target.draw_rect(cell_rect, Color(0.05, 0.78, 0.72, 0.34 * pulse), true)
+		target.draw_rect(cell_rect.grow(-6.0), Color(0.25, 1.0, 0.88, 0.88), false, 14.0)
+		target.draw_circle(center + Vector2(-40.0, -40.0), 35.0, Color(0.80, 1.0, 0.95, 0.45))
+		target.draw_arc(center, 90.0 * pulse, 0.0, TAU, 20, Color(0.35, 1.0, 0.90, 0.75), 6.0)
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "💧 清流(自)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.45, 1.0, 0.90))
 	else:
-		draw_rect(cell_rect, Color(0.16, 0.28, 0.85, 0.44 * pulse), true)
-		draw_rect(cell_rect.grow(-6.0), Color(0.55, 0.45, 1.0, 0.85), false, 14.0)
-		draw_circle(center + Vector2(-40.0, -40.0), 35.0, Color(0.85, 0.85, 1.0, 0.35))
-		draw_arc(center, 90.0 * pulse, 0.0, TAU, 20, Color(0.50, 0.65, 1.0, 0.65), 6.0)
-		draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "💧 水没(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.75, 0.82, 1.0))
+		target.draw_rect(cell_rect, Color(0.16, 0.28, 0.85, 0.44 * pulse), true)
+		target.draw_rect(cell_rect.grow(-6.0), Color(0.55, 0.45, 1.0, 0.85), false, 14.0)
+		target.draw_circle(center + Vector2(-40.0, -40.0), 35.0, Color(0.85, 0.85, 1.0, 0.35))
+		target.draw_arc(center, 90.0 * pulse, 0.0, TAU, 20, Color(0.50, 0.65, 1.0, 0.65), 6.0)
+		target.draw_string(CUSTOM_FONT, Vector2(center.x - 200, center.y + 195), "💧 水没(敵)", HORIZONTAL_ALIGNMENT_CENTER, 400, 95, Color(0.75, 0.82, 1.0))
+
+# --- ?????????????????????????????????????? ---
+var _baked_tex: Texture2D = null
+var _bake_rect: Rect2 = Rect2()
+var _bake_vp: SubViewport = null
+
+func _draw() -> void:
+	if _baked_tex != null:
+		draw_texture_rect(_baked_tex, _bake_rect, false)
+		return
+	_draw_content(self)
+
+func _setup_bake() -> void:
+	var pad: float = 1700.0
+	var origin := Vector2(BOARD_LEFT - pad, BOARD_TOP - pad)
+	var span := Vector2(BOARD_WIDTH + pad * 2.0, BOARD_HEIGHT + pad * 2.0)
+	_bake_rect = Rect2(origin, span)
+	var tex_size: int = 2048
+	var sc: float = float(tex_size) / maxf(span.x, span.y)
+	_bake_vp = SubViewport.new()
+	_bake_vp.size = Vector2i(tex_size, tex_size)
+	_bake_vp.transparent_bg = true
+	_bake_vp.disable_3d = true
+	_bake_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(_bake_vp)
+	var holder := Node2D.new()
+	holder.scale = Vector2(sc, sc)
+	holder.position = -origin * sc
+	_bake_vp.add_child(holder)
+	var painter := _OverlayPainter.new()
+	painter.host = self
+	holder.add_child(painter)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _bake_vp != null and is_instance_valid(_bake_vp):
+		var tex: Texture2D = _bake_vp.get_texture()
+		if tex != null:
+			_baked_tex = tex
+		_bake_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	queue_redraw()
+
+## ????????????????
+class _OverlayPainter extends Node2D:
+	var host: Node2D = null
+	func _draw() -> void:
+		if host != null and host.has_method("_draw_content"):
+			host._draw_content(self)
