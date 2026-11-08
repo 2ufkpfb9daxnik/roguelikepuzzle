@@ -196,8 +196,7 @@ document.addEventListener("keydown", __lockLandscape, { once: true });
         f.write(html)
 
     headers = """/*
-  Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
 /index.pck.part*
   Content-Type: application/octet-stream
 /index.wasm.part*

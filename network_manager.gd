@@ -50,6 +50,8 @@ var _is_open: bool = false
 var _connecting: bool = false
 var _last_url: String = ""
 var _intentional_close: bool = false
+var _ping_timer: float = 0.0
+const PING_INTERVAL_SEC: float = 25.0
 var _reconnect_attempts: int = 0
 var _reconnect_timer: float = 0.0
 var _reconnect_enabled: bool = false
@@ -75,7 +77,13 @@ func _process(delta: float) -> void:
 			_connecting = false
 			_reconnect_attempts = 0
 			_reconnect_timer = 0.0
+			_ping_timer = 0.0
 			connection_opened.emit()
+		# iOS Safari等での切断防止キープアライブ
+		_ping_timer += delta
+		if _ping_timer >= PING_INTERVAL_SEC:
+			_ping_timer = 0.0
+			send_ping()
 		while _socket.get_available_packet_count() > 0:
 			var packet: PackedByteArray = _socket.get_packet()
 			_handle_message(packet.get_string_from_utf8())
@@ -211,7 +219,9 @@ func debug_open_shop(round_number: int = 5) -> bool:
 	return _send({ "type": "debug_shop", "round": maxi(1, round_number) })
 
 func send_ping() -> bool:
-	return _send({ "type": "ping" })
+	if _socket == null or _socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
+		return false
+	return _socket.send_text(JSON.stringify({"type": "ping"})) == OK
 
 func _send(data: Dictionary) -> bool:
 	if _socket == null or _socket.get_ready_state() != WebSocketPeer.STATE_OPEN:

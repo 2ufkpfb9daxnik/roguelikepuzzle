@@ -37,6 +37,7 @@ var _leaderboard_toggle: Button = null
 var _matchmake_timer: Timer = null
 var _is_searching: bool = false
 var _http: HTTPRequest = null
+var _http_matchmake: HTTPRequest = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -46,6 +47,10 @@ func _ready() -> void:
 	_http.use_threads = false
 	_http.timeout = 15.0
 	add_child(_http)
+	_http_matchmake = HTTPRequest.new()
+	_http_matchmake.use_threads = false
+	_http_matchmake.timeout = 15.0
+	add_child(_http_matchmake)
 	_build_ui()
 	_connect_network_signals()
 	_start_bgm()
@@ -500,12 +505,12 @@ func _on_matchmake_pressed() -> void:
 	_send_matchmake_request()
 
 func _send_matchmake_request() -> void:
-	if _http == null:
+	if _http_matchmake == null:
 		return
-	_http.request_completed.connect(_on_matchmake_response, CONNECT_ONE_SHOT)
+	_http_matchmake.request_completed.connect(_on_matchmake_response, CONNECT_ONE_SHOT)
 	var body := JSON.stringify({"playerId": _player_id, "playerName": _name_input.text.strip_edges()})
 	var headers := PackedStringArray(["Content-Type: application/json"])
-	var err = _http.request("%s/matchmake" % API_BASE, headers, HTTPClient.METHOD_POST, body)
+	var err = _http_matchmake.request("%s/matchmake" % API_BASE, headers, HTTPClient.METHOD_POST, body)
 	if err != OK:
 		_matchmake_status_lbl.text = "マッチングリクエストエラー"
 
@@ -558,10 +563,10 @@ func _on_matchmake_response(result: int, code: int, _headers: PackedStringArray,
 
 func _on_matchmake_cancel() -> void:
 	# サーバーのキューから脱退
-	if _http != null:
-		_http.request_completed.connect(func(_r, _c, _h, _b): pass, CONNECT_ONE_SHOT)
+	if _http_matchmake != null:
+		_http_matchmake.request_completed.connect(func(_r, _c, _h, _b): pass, CONNECT_ONE_SHOT)
 		var body := JSON.stringify({"playerId": _player_id})
-		_http.request("%s/matchmake/cancel" % API_BASE, PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, body)
+		_http_matchmake.request("%s/matchmake/cancel" % API_BASE, PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, body)
 	_stop_matchmaking()
 
 func _stop_matchmaking() -> void:
