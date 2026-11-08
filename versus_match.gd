@@ -984,8 +984,8 @@ func _play_opponent_turn_motions(payload: Dictionary) -> void:
 	var mirror: Array = payload.get("skills", [])
 	var idx: int = 0
 
-	# 1) 剣の値が >0 なら攻撃モーション
-	if sword > 0:
+	# 1) 剣の値 >0 またはスキル駒使用時 → 攻撃モーション
+	if sword > 0 or not mirror.is_empty():
 		var atk_idx: int = idx
 		var tw_atk = create_tween()
 		tw_atk.tween_interval(float(atk_idx) * 0.55)
@@ -1024,7 +1024,8 @@ func _play_opponent_turn_motions(payload: Dictionary) -> void:
 			if _board and _board.has_method("_show_enemy_skill_banner"):
 				_board._show_enemy_skill_banner(_skill_display_name(key), _element_color_hex(key), false, "相手プレイヤーのスキル")
 			_play_enemy_skill_beam(beam_col)
-			if _board and _board.has_method("apply_pvp_mirror_skill"):
+			# 共有盤面モード（board フィールドあり）では盤面同期で反映済みなのでミラー適用しない
+			if payload.get("board", null) == null and _board and _board.has_method("apply_pvp_mirror_skill"):
 				_board.apply_pvp_mirror_skill(key, tier, cells)
 		)
 		idx += 1

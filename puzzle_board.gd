@@ -2242,6 +2242,11 @@ func _detonate_specials(start_items: Array) -> void:
 		var b = queue.pop_front()
 		if b in exploded_items:
 			continue
+		# 共有盤面モード: 相手のスキル駒は連鎖誘爆でも起動しない
+		if pvp_mode and pvp_my_player_index >= 0 and grid_skill_owner.size() == GRID_ROWS:
+			var owner: int = grid_skill_owner[b.x][b.y]
+			if owner >= 0 and owner != pvp_my_player_index:
+				continue
 		exploded_items[b] = true
 		cells_cleared_by_special[b] = true
 
@@ -7800,13 +7805,18 @@ func _apply_board_delta(delta: Dictionary) -> void:
 func _sync_piece_sprites() -> void:
 	for r in range(GRID_ROWS):
 		for c in range(GRID_COLUMNS):
-			var idx: int = grid_i[r][c] if grid_i.size() == GRID_ROWS else -1
-			if idx < 0 or idx >= piece.size() or piece[idx] == null:
+			# 固定マッピング: piece[r * GRID_COLUMNS + c] がセル(r,c)の位置にある
+			var idx: int = r * GRID_COLUMNS + c
+			if idx >= piece.size() or piece[idx] == null:
 				continue
+			# grid_i もデフォルトにリセット
+			if grid_i.size() == GRID_ROWS:
+				grid_i[r][c] = idx
 			var kind: int = grid_n[r][c]
 			if kind >= 0 and kind < PIECE_TEXTURES.size() and PIECE_TEXTURES[kind] != null:
 				if piece[idx].texture != PIECE_TEXTURES[kind]:
 					piece[idx].texture = PIECE_TEXTURES[kind]
+				piece[idx].position = get_cell_position(r, c)
 				piece[idx].visible = true
 			else:
 				piece[idx].visible = false
