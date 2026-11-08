@@ -101,6 +101,12 @@ export class Ratings {
     queue.push({ playerId, playerName, rating: playerData.rating, enqueuedAt: now });
     await this.storage.put("matchmaking_queue", queue);
 
+    // プレイヤー名を保存（リーダーボード表示用）
+    if (playerName && playerName !== playerId) {
+      playerData.playerName = playerName;
+      await this.storage.put(`player:${playerId}`, playerData);
+    }
+
     // ④ 即マッチ試行
     const match = this._findMatch(queue, playerId, playerData.rating, RATING_RANGE_INITIAL);
     if (match) {
@@ -215,7 +221,8 @@ export class Ratings {
     const players = [];
     for (const [key, data] of allPlayers) {
       const playerId = key.replace("player:", "");
-      players.push({ playerId, ...getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses) });
+      const displayName = data.playerName || playerId;
+      players.push({ playerId, displayName, ...getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses) });
     }
     players.sort((a, b) => b.rating - a.rating);
     return Response.json({ leaderboard: players.slice(0, 50) });

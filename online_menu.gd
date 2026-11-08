@@ -598,8 +598,7 @@ func _on_leaderboard_received(result: int, code: int, _headers: PackedStringArra
 	var lines: Array[String] = []
 	for i in range(mini(players.size(), 10)):
 		var p = players[i]
-		var color_hex := str(p.get("color", "#808080"))
-		var name := str(p.get("playerId", "???"))
+		var name := str(p.get("displayName", p.get("playerId", "???")))
 		var rating := int(p.get("rating", 0))
 		var wins := int(p.get("wins", 0))
 		var losses := int(p.get("losses", 0))
