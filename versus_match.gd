@@ -1099,11 +1099,11 @@ func _play_enemy_attack_animation(damage: int) -> void:
 func _on_action_received(from: int, payload: Dictionary) -> void:
 	if from == _my_index:
 		return
-	# 共有盤面モード: 相手の手による盤面状態を適用
-	var board_state = payload.get("board", null)
-	if board_state != null and typeof(board_state) == TYPE_DICTIONARY and _board != null:
-		if _board.has_method("_apply_board_state"):
-			_board._apply_board_state(board_state)
+	# 共有盤面モード: 相手の手による盤面変更をデルタ適用
+	var board_delta = payload.get("board", null)
+	if board_delta != null and typeof(board_delta) == TYPE_DICTIONARY and _board != null:
+		if _board.has_method("_apply_board_delta"):
+			_board._apply_board_delta(board_delta)
 	var skill_name: String = str(payload.get("skillName", ""))
 	if not skill_name.is_empty():
 		var elem: String = str(payload.get("skillElement", ""))

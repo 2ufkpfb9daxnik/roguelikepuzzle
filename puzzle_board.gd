@@ -7579,6 +7579,7 @@ func _update_all_projectiles() -> void:
 ## PvPモードの開始・自分のターン切り替え
 func set_pvp_mode(enabled: bool) -> void:
 	pvp_mode = enabled
+	_reset_sync_state()
 
 ## PvP用：敵ターン中に敵の攻撃をシールドが受け止めた際の演出・軽減処理
 func play_pvp_shield_block(absorbed: int, hp_damage: int, remaining_shield: int) -> void:
@@ -7733,6 +7734,68 @@ func _serialize_board_state() -> Dictionary:
 	state["ab"] = _flatten_grid_bool(grid_afterburn)
 	return state
 
+## 前回同期時からの差分のみをシリアライズする（通信量削減用）
+var _last_synced_state: Dictionary = {}
+
+func _serialize_board_delta() -> Dictionary:
+	var current := _serialize_board_state()
+	var delta := {}
+	for key in current.keys():
+		var cur: Array = current[key]
+		var prev: Array = _last_synced_state.get(key, [])
+		var changes: Array = []
+		for idx in range(cur.size()):
+			var prev_val = prev[idx] if idx < prev.size() else null
+			if prev_val == null or cur[idx] != prev_val:
+				changes.append([idx, cur[idx]])
+		if not changes.is_empty():
+			delta[key] = changes
+	# 現在の状態を保存（次回の差分計算用）
+	_last_synced_state = current
+	return delta
+
+## デルタを盤面に適用する（共有盤面モード用）
+func _apply_board_delta(delta: Dictionary) -> void:
+	if delta.is_empty():
+		return
+	var grids := {
+		"n": grid_n, "si": special_item, "sc": special_charge,
+		"so": grid_skill_owner, "ib": is_bomb,
+		"ga": grid_att, "ge": grid_element,
+		"we": grid_water, "ic": grid_ice, "fi": grid_fire,
+		"el": grid_electrified, "st": grid_stones,
+		"cu": grid_cursed, "po": grid_poison,
+		"ps": grid_poison_stage, "gs": grid_gold_statue, "ab": grid_afterburn
+	}
+	var bool_keys := {"ib": true, "we": true, "el": true, "cu": true, "po": true, "ab": true}
+	for key in delta.keys():
+		if not grids.has(key):
+			continue
+		var grid: Array = grids[key]
+		if grid.size() != GRID_ROWS:
+			continue
+		var changes: Array = delta[key]
+		for change in changes:
+			var idx: int = int(change[0])
+			var r: int = idx / GRID_COLUMNS
+			var c: int = idx % GRID_COLUMNS
+			var val = change[1]
+			if bool_keys.has(key):
+				grid[r][c] = val != 0
+			else:
+				grid[r][c] = val
+	_update_board_element_flags()
+	_redraw_board_effects()
+	queue_redraw()
+
+## 同期状態をリセットする（マッチ開始時）
+func _reset_sync_state() -> void:
+	_last_synced_state = {}
+
+## 盤面全体の状態をシリアライズする（互換用・フル状態が必要な場合）
+func _serialize_board_state_full() -> Dictionary:
+	return _serialize_board_state()
+
 ## シリアライズされた盤面状態を適用する（共有盤面モード用）
 func _apply_board_state(state: Dictionary) -> void:
 	if state.is_empty():
@@ -7842,7 +7905,7 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"sword": sword_val,
 		"elements": element_values,
 		"seed": int(board_seed),
-		"board": _serialize_board_state()
+		"board": _serialize_board_delta()
 	}
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
