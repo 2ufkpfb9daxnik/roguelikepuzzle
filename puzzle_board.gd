@@ -77,6 +77,7 @@ const DEBUG_COMBAT_EVENTS = true
 # --- 通信対戦（PvP）用 ---
 var pvp_mode: bool = false
 var pvp_my_turn: bool = false
+var pvp_my_player_index: int = -1 # 共有盤面モード: 自分のプレイヤーindex（スキル駒所有権チェック用）
 var pvp_pending_damage: float = 0.0
 var pvp_divscore_snapshot: Array = []
 var pvp_start_enemy_hp: float = 0.0
@@ -302,6 +303,7 @@ var bomb_level: int = 0:
 var is_bomb: Array = [] # [row][col] -> bool (後方互換用)
 var special_item: Array = []   # [row][col] -> SpecialItemType (int)
 var special_charge: Array = [] # [row][col] -> int (チャージ段階 1..3)
+var grid_skill_owner: Array = [] # [row][col] -> int (スキル駒の所有プレイヤーindex, -1=なし/共有)
 var grid_water: Array = []     # [row][col] -> bool (水浸しマス・スワップ禁止・雷感電)
 var grid_ice: Array = []       # [row][col] -> int (氷漬けマス・耐久値・スワップ禁止・落雷除去不可)
 const DEFAULT_FIRE_LIFETIME: int = 3 # 火の基本寿命（ターン数）
@@ -917,6 +919,7 @@ func _initialize_board(collid_template: Node) -> void:
 		var row_cursed: Array[bool] = []
 		var row_poison: Array[bool] = []
 		var row_gold_statue: Array[int] = []
+		var row_skill_owner: Array[int] = []
 		var row_element: Array[int] = []
 
 		row_poison.resize(GRID_COLUMNS)
@@ -955,6 +958,7 @@ func _initialize_board(collid_template: Node) -> void:
 			row_stones.append(0)
 			row_cursed.append(false)
 			row_gold_statue.append(0)
+			row_skill_owner.append(-1)
 
 			var pos = get_cell_position(i, j)
 
@@ -985,6 +989,7 @@ func _initialize_board(collid_template: Node) -> void:
 		grid_cursed.append(row_cursed)
 		grid_poison.append(row_poison)
 		grid_gold_statue.append(row_gold_statue)
+		grid_skill_owner.append(row_skill_owner)
 
 	current_state = BoardState.IDLE
 	var rm = _get_relic_manager()
@@ -2192,6 +2197,12 @@ func _spawn_turn_bombs() -> void:
 
 ## クリックによる即時起爆（1手消費）
 func _detonate_special_by_click(r: int, c: int) -> void:
+	# 共有盤面モード: 相手が作ったスキル駒は起動できない
+	if pvp_mode and pvp_my_player_index >= 0 and grid_skill_owner.size() == GRID_ROWS:
+		var owner: int = grid_skill_owner[r][c]
+		if owner >= 0 and owner != pvp_my_player_index:
+			_spawn_floating_text(get_cell_position(r, c), "相手のスキル駒！", Color(1.0, 0.4, 0.4))
+			return
 	steady_spark_triggered_this_turn = false
 	poison_spread_done_this_turn = false
 	last_swap_cells.clear()
@@ -4132,6 +4143,8 @@ func _spawn_yggdrasil_skills(plant: Dictionary) -> void:
 		var c_pos = adjacent_cands[i]
 		var sp_type = skill_pool[randi() % skill_pool.size()]
 		special_item[c_pos.x][c_pos.y] = sp_type
+		if grid_skill_owner.size() == GRID_ROWS:
+			grid_skill_owner[c_pos.x][c_pos.y] = pvp_my_player_index if pvp_mode else -1
 		if is_bomb.size() == GRID_ROWS:
 			is_bomb[c_pos.x][c_pos.y] = true
 		var idx = grid_i[c_pos.x][c_pos.y]
@@ -6159,6 +6172,8 @@ func _start_breaking_animation() -> void:
 				# ピボットセル: 破壊消滅させず、特殊アイテムへの変身・残留アニメーション
 				var sp_type = pending_special_spawns[cell]
 				special_item[cell.x][cell.y] = sp_type
+				if grid_skill_owner.size() == GRID_ROWS:
+					grid_skill_owner[cell.x][cell.y] = pvp_my_player_index if pvp_mode else -1
 				grid_n[cell.x][cell.y] = -1
 				grid_att[cell.x][cell.y] = -1
 				if grid_element.size() == GRID_ROWS:
@@ -7693,6 +7708,90 @@ func set_pvp_my_turn(enabled: bool) -> void:
 		current_state = BoardState.TURN_SEQUENCE
 		interval = 0
 
+## 盤面全体の状態をシリアライズする（共有盤面モード用）
+func _serialize_board_state() -> Dictionary:
+	var state := {}
+	# 駒の種類・スキル駒・チャージ・所有者
+	state["n"] = _flatten_grid(grid_n)
+	state["si"] = _flatten_grid(special_item)
+	state["sc"] = _flatten_grid(special_charge)
+	state["so"] = _flatten_grid(grid_skill_owner)
+	state["ib"] = _flatten_grid_bool(is_bomb)
+	# 属性・エレメント
+	state["ga"] = _flatten_grid(grid_att)
+	state["ge"] = _flatten_grid(grid_element)
+	# 効果マス
+	state["we"] = _flatten_grid_bool(grid_water)
+	state["ic"] = _flatten_grid(grid_ice)
+	state["fi"] = _flatten_grid(grid_fire)
+	state["el"] = _flatten_grid_bool(grid_electrified)
+	state["st"] = _flatten_grid(grid_stones)
+	state["cu"] = _flatten_grid_bool(grid_cursed)
+	state["po"] = _flatten_grid_bool(grid_poison)
+	state["ps"] = _flatten_grid(grid_poison_stage)
+	state["gs"] = _flatten_grid(grid_gold_statue)
+	state["ab"] = _flatten_grid_bool(grid_afterburn)
+	return state
+
+## シリアライズされた盤面状態を適用する（共有盤面モード用）
+func _apply_board_state(state: Dictionary) -> void:
+	if state.is_empty():
+		return
+	_unflatten_grid(grid_n, state.get("n", []))
+	_unflatten_grid(special_item, state.get("si", []))
+	_unflatten_grid(special_charge, state.get("sc", []))
+	_unflatten_grid(grid_skill_owner, state.get("so", []))
+	_unflatten_grid_bool(is_bomb, state.get("ib", []))
+	_unflatten_grid(grid_att, state.get("ga", []))
+	_unflatten_grid(grid_element, state.get("ge", []))
+	_unflatten_grid_bool(grid_water, state.get("we", []))
+	_unflatten_grid(grid_ice, state.get("ic", []))
+	_unflatten_grid(grid_fire, state.get("fi", []))
+	_unflatten_grid_bool(grid_electrified, state.get("el", []))
+	_unflatten_grid(grid_stones, state.get("st", []))
+	_unflatten_grid_bool(grid_cursed, state.get("cu", []))
+	_unflatten_grid_bool(grid_poison, state.get("po", []))
+	_unflatten_grid(grid_poison_stage, state.get("ps", []))
+	_unflatten_grid(grid_gold_statue, state.get("gs", []))
+	_unflatten_grid_bool(grid_afterburn, state.get("ab", []))
+	_update_board_element_flags()
+	_redraw_board_effects()
+	queue_redraw()
+
+## 2次元グリッドを1次元配列に平坦化
+func _flatten_grid(grid: Array) -> Array:
+	var flat: Array = []
+	if grid.size() != GRID_ROWS:
+		return flat
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			flat.append(grid[r][c])
+	return flat
+
+func _flatten_grid_bool(grid: Array) -> Array:
+	var flat: Array = []
+	if grid.size() != GRID_ROWS:
+		return flat
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			flat.append(1 if grid[r][c] else 0)
+	return flat
+
+## 1次元配列を2次元グリッドに復元
+func _unflatten_grid(grid: Array, flat: Array) -> void:
+	if grid.size() != GRID_ROWS or flat.size() < GRID_ROWS * GRID_COLUMNS:
+		return
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			grid[r][c] = flat[r * GRID_COLUMNS + c]
+
+func _unflatten_grid_bool(grid: Array, flat: Array) -> void:
+	if grid.size() != GRID_ROWS or flat.size() < GRID_ROWS * GRID_COLUMNS:
+		return
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			grid[r][c] = flat[r * GRID_COLUMNS + c] != 0
+
 func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shield_gain: float, used_skills: Array) -> Dictionary:
 	var coins: int = 0
 	if score_mgr and "divscore" in score_mgr and score_mgr.divscore.size() > PieceType.COIN:
@@ -7742,7 +7841,8 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"skills": skill_list,
 		"sword": sword_val,
 		"elements": element_values,
-		"seed": int(board_seed)
+		"seed": int(board_seed),
+		"board": _serialize_board_state()
 	}
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:

@@ -92,6 +92,7 @@ func _ready() -> void:
 	if _board:
 		_board.set_pvp_mode(true)
 		_board.set_pvp_my_turn(false)
+		_board.pvp_my_player_index = _my_index
 		_board.pvp_turn_resolved.connect(_on_pvp_turn_resolved)
 		_board.pvp_turn_completed.connect(_on_pvp_turn_completed)
 		_board.pvp_move_started.connect(_on_pvp_move_started)
@@ -869,7 +870,13 @@ func _on_pvp_turn_resolved(payload: Dictionary) -> void:
 		"damage": damage,
 		"heal": heal,
 		"shield": int(payload.get("shield", 0)),
-		"coins": int(payload.get("coins", 0))
+		"coins": int(payload.get("coins", 0)),
+		"skillName": str(payload.get("skillName", "")),
+		"skillElement": str(payload.get("skillElement", "")),
+		"skills": payload.get("skills", []),
+		"sword": int(payload.get("sword", 0)),
+		"elements": payload.get("elements", {}),
+		"board": payload.get("board", {})
 	}
 	_net.send_action(net_payload)
 	if _net and _net.has_method("send_stats"):
@@ -1092,6 +1099,11 @@ func _play_enemy_attack_animation(damage: int) -> void:
 func _on_action_received(from: int, payload: Dictionary) -> void:
 	if from == _my_index:
 		return
+	# 共有盤面モード: 相手の手による盤面状態を適用
+	var board_state = payload.get("board", null)
+	if board_state != null and typeof(board_state) == TYPE_DICTIONARY and _board != null:
+		if _board.has_method("_apply_board_state"):
+			_board._apply_board_state(board_state)
 	var skill_name: String = str(payload.get("skillName", ""))
 	if not skill_name.is_empty():
 		var elem: String = str(payload.get("skillElement", ""))
