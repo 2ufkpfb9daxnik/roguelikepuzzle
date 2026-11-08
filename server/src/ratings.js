@@ -5,9 +5,9 @@ import {
   INITIAL_RATING,
 } from "./rating.js";
 
-const MATCHMAKING_TIMEOUT_MS = 60_000; // キューに居続ける最大時間
-const RATING_RANGE_INITIAL = 200;      // 初期のレート探索幅
-const RATING_RANGE_EXPAND_MS = 10_000; // 探索幅を広げる間隔
+const MATCHMAKING_TIMEOUT_MS = 60_000;
+const RATING_RANGE_INITIAL = 200;
+const RATING_RANGE_EXPAND_MS = 10_000;
 
 export class Ratings {
   constructor(ctx, env) {
@@ -42,72 +42,51 @@ export class Ratings {
   async _handleGetPlayer(playerId) {
     if (!playerId) return new Response("Missing playerId", { status: 400 });
     const data = (await this.storage.get(`player:${playerId}`)) || {
-      rating: INITIAL_RATING,
-      gamesPlayed: 0,
-      wins: 0,
-      losses: 0,
+      rating: INITIAL_RATING, gamesPlayed: 0, wins: 0, losses: 0,
     };
-    const info = getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses);
-    return Response.json(info);
+    return Response.json(getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses));
   }
 
-  // ── マッチングキューに参加 ──
+  // ── マッチング（エンキュー & ポーリング両用）──
   async _handleEnqueue(request) {
     const body = await request.json();
     const playerId = body.playerId;
     const playerName = body.playerName || playerId;
     if (!playerId) return new Response("Missing playerId", { status: 400 });
 
-    // 現在のレート取得
+    // ① 保留中のマッチがあれば先に返す（相手からのマッチ成立通知）
+    const pending = await this.storage.get(`pending_match:${playerId}`);
+    if (pending) {
+      await this.storage.delete(`pending_match:${playerId}`);
+      // キューからも念のため除去
+      const queue = (await this.storage.get("matchmaking_queue")) || [];
+      const qi = queue.findIndex((e) => e.playerId === playerId);
+      if (qi >= 0) queue.splice(qi, 1);
+      await this.storage.put("matchmaking_queue", queue);
+      return Response.json(pending);
+    }
+
     const playerData = (await this.storage.get(`player:${playerId}`)) || {
-      rating: INITIAL_RATING,
-      gamesPlayed: 0,
-      wins: 0,
-      losses: 0,
+      rating: INITIAL_RATING, gamesPlayed: 0, wins: 0, losses: 0,
     };
 
-    // キュー取得
     const queue = (await this.storage.get("matchmaking_queue")) || [];
     const now = Date.now();
 
-    // 既にキューにいる場合は現在の状態を返す
+    // ② キュー内の既存エントリを確認（タイムアウト除去含む）
     const existing = queue.find((e) => e.playerId === playerId);
     if (existing) {
-      // タイムアウトチェック
       if (now - existing.enqueuedAt > MATCHMAKING_TIMEOUT_MS) {
-        // タイムアウトしたので除外して再登録
         const idx = queue.indexOf(existing);
         queue.splice(idx, 1);
       } else {
-        // 探索幅を時間経過で広げ、対戦相手を探す
+        // 時間経過で探索幅を広げて相手を探す
         const elapsed = now - existing.enqueuedAt;
         const range = RATING_RANGE_INITIAL + Math.floor(elapsed / RATING_RANGE_EXPAND_MS) * 100;
         const match = this._findMatch(queue, playerId, playerData.rating, range);
         if (match) {
-          // マッチ成立 → ルームコードを発行して両者に返す
-          const roomCode = this._generateRoomCode();
-          // キューから両者を削除
-          const matchIdx = queue.findIndex((e) => e.playerId === match.playerId);
-          const selfIdx = queue.findIndex((e) => e.playerId === playerId);
-          if (matchIdx >= 0) queue.splice(matchIdx, 1);
-          if (selfIdx >= 0) {
-            const si = queue.findIndex((e) => e.playerId === playerId);
-            if (si >= 0) queue.splice(si, 1);
-          }
-          await this.storage.put("matchmaking_queue", queue);
-          return Response.json({
-            status: "matched",
-            roomCode,
-            opponent: {
-              playerId: match.playerId,
-              playerName: match.playerName,
-              rating: match.rating,
-              color: getPlayerInfo(match.rating, 0, 0, 0).color,
-            },
-            yourRating: playerData.rating,
-          });
+          return this._createMatch(queue, playerId, playerName, playerData, match);
         }
-        // マッチしなければ現在の状態を返す
         await this.storage.put("matchmaking_queue", queue);
         return Response.json({
           status: "searching",
@@ -118,38 +97,14 @@ export class Ratings {
       }
     }
 
-    // 新規登録
-    queue.push({
-      playerId,
-      playerName,
-      rating: playerData.rating,
-      enqueuedAt: now,
-    });
+    // ③ 新規登録
+    queue.push({ playerId, playerName, rating: playerData.rating, enqueuedAt: now });
     await this.storage.put("matchmaking_queue", queue);
 
-    // 既にキューに相手がいればマッチを試みる
+    // ④ 即マッチ試行
     const match = this._findMatch(queue, playerId, playerData.rating, RATING_RANGE_INITIAL);
     if (match) {
-      const roomCode = this._generateRoomCode();
-      const matchIdx = queue.findIndex((e) => e.playerId === match.playerId);
-      const selfIdx = queue.findIndex((e) => e.playerId === playerId);
-      if (matchIdx >= 0) queue.splice(matchIdx, 1);
-      if (selfIdx >= 0) {
-        const si = queue.findIndex((e) => e.playerId === playerId);
-        if (si >= 0) queue.splice(si, 1);
-      }
-      await this.storage.put("matchmaking_queue", queue);
-      return Response.json({
-        status: "matched",
-        roomCode,
-        opponent: {
-          playerId: match.playerId,
-          playerName: match.playerName,
-          rating: match.rating,
-          color: getPlayerInfo(match.rating, 0, 0, 0).color,
-        },
-        yourRating: playerData.rating,
-      });
+      return this._createMatch(queue, playerId, playerName, playerData, match);
     }
 
     return Response.json({
@@ -158,6 +113,49 @@ export class Ratings {
       queueSize: queue.length,
       ratingRange: RATING_RANGE_INITIAL,
     });
+  }
+
+  // ── マッチ成立処理（両者に通知を保存）──
+  async _createMatch(queue, playerId, playerName, playerData, opponentEntry) {
+    const roomCode = this._generateRoomCode();
+    const opponentData = (await this.storage.get(`player:${opponentEntry.playerId}`)) || {
+      rating: INITIAL_RATING, gamesPlayed: 0, wins: 0, losses: 0,
+    };
+
+    const myMatchInfo = {
+      status: "matched",
+      roomCode,
+      opponent: {
+        playerId: opponentEntry.playerId,
+        playerName: opponentEntry.playerName,
+        rating: opponentData.rating,
+        color: getPlayerInfo(opponentData.rating, 0, 0, 0).color,
+      },
+      yourRating: playerData.rating,
+    };
+    const oppMatchInfo = {
+      status: "matched",
+      roomCode,
+      opponent: {
+        playerId,
+        playerName,
+        rating: playerData.rating,
+        color: getPlayerInfo(playerData.rating, 0, 0, 0).color,
+      },
+      yourRating: opponentData.rating,
+    };
+
+    // キューから両者を削除
+    const filtered = queue.filter((e) => e.playerId !== playerId && e.playerId !== opponentEntry.playerId);
+    await this.storage.put("matchmaking_queue", filtered);
+
+    // 両者の保留マッチを保存（ポーリング時に取得される）
+    await this.storage.put(`pending_match:${playerId}`, myMatchInfo);
+    await this.storage.put(`pending_match:${opponentEntry.playerId}`, oppMatchInfo);
+
+    // 今リクエストした側には即返す
+    await this.storage.delete(`pending_match:${playerId}`);
+    return Response.json(myMatchInfo);
   }
 
   // ── マッチングキューから脱退 ──
@@ -169,10 +167,11 @@ export class Ratings {
     const idx = queue.findIndex((e) => e.playerId === playerId);
     if (idx >= 0) queue.splice(idx, 1);
     await this.storage.put("matchmaking_queue", queue);
+    await this.storage.delete(`pending_match:${playerId}`);
     return Response.json({ status: "removed" });
   }
 
-  // ── 試合結果を報告してレート更新 ──
+  // ── 試合結果報告 ──
   async _handleResult(request) {
     const body = await request.json();
     const { winnerId, loserId, draw } = body;
@@ -187,20 +186,13 @@ export class Ratings {
 
     const isDraw = draw === true;
     const winnerResult = calculateNewRating(
-      winnerData.rating, loserData.rating,
-      isDraw ? false : true,
-      winnerData.gamesPlayed
+      winnerData.rating, loserData.rating, !isDraw, winnerData.gamesPlayed
     );
     const loserResult = calculateNewRating(
-      loserData.rating, winnerData.rating,
-      isDraw ? true : false,
-      loserData.gamesPlayed
+      loserData.rating, winnerData.rating, isDraw, loserData.gamesPlayed
     );
 
-    if (!isDraw) {
-      winnerData.wins++;
-      loserData.losses++;
-    }
+    if (!isDraw) { winnerData.wins++; loserData.losses++; }
     winnerData.gamesPlayed++;
     loserData.gamesPlayed++;
     winnerData.rating = winnerResult.newRating;
@@ -217,17 +209,13 @@ export class Ratings {
     });
   }
 
-  // ── リーダーボード上位取得 ──
+  // ── リーダーボード ──
   async _handleLeaderboard() {
-    // Durable Object の list() を使って player: プレフィックスの全データを取得
     const allPlayers = await this.storage.list({ prefix: "player:" });
     const players = [];
     for (const [key, data] of allPlayers) {
       const playerId = key.replace("player:", "");
-      players.push({
-        playerId,
-        ...getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses),
-      });
+      players.push({ playerId, ...getPlayerInfo(data.rating, data.gamesPlayed, data.wins, data.losses) });
     }
     players.sort((a, b) => b.rating - a.rating);
     return Response.json({ leaderboard: players.slice(0, 50) });
@@ -248,7 +236,6 @@ export class Ratings {
     return best;
   }
 
-  // ── ルームコード生成 ──
   _generateRoomCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
