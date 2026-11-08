@@ -28,9 +28,9 @@ func _ready() -> void:
 # 常時アニメーション（脈動・揺らめき）する障害物の再描画間隔（秒）。描画は時間ベースなのでアニメ速度は不変
 const ANIM_REDRAW_INTERVAL: float = 1.0 / 24.0
 # 効果マスが多い時は描画頻度を落として負荷を抑える（見た目は維持）
-const ANIM_REDRAW_INTERVAL_MED: float = 1.0 / 18.0
-const ANIM_REDRAW_INTERVAL_HIGH: float = 1.0 / 12.0
-const ANIM_REDRAW_INTERVAL_MAX: float = 1.0 / 8.0
+const ANIM_REDRAW_INTERVAL_MED: float = 1.0 / 12.0
+const ANIM_REDRAW_INTERVAL_HIGH: float = 1.0 / 6.0
+const ANIM_REDRAW_INTERVAL_MAX: float = 1.0 / 3.0
 var _anim_redraw_elapsed: float = 0.0
 var _last_redraw_msec: int = -100000
 
@@ -433,35 +433,17 @@ func _draw_electrified_tile(target: CanvasItem, r: int, c: int, pulse: float, no
 	var rect = Rect2(BOARD_LEFT + c * CELL_PITCH + 8.0, BOARD_TOP + r * CELL_PITCH + 8.0, CELL_PITCH - 16.0, CELL_PITCH - 16.0)
 	var center = rect.get_center()
 
+	# ??????????: ??2??1???2??1????2??0??????
 	if is_ally:
 		target.draw_rect(rect, Color(0.02, 0.25, 0.28, 0.55), true)
-		target.draw_rect(rect, Color(0.15, 0.95, 0.85, 0.30 * pulse), true)
 		target.draw_rect(rect, Color(0.25, 1.0, 0.80, 0.98), false, 24.0)
-		target.draw_rect(rect.grow(-16.0), Color(0.50, 1.0, 0.95, 0.80 * pulse), false, 12.0)
-		target.draw_circle(center, 130.0 * pulse, Color(0.20, 1.0, 0.85, 0.30))
 		target.draw_circle(center, 85.0, Color(0.30, 1.0, 0.90, 0.55))
 	else:
 		target.draw_rect(rect, Color(0.16, 0.04, 0.06, 0.88), true)
-		target.draw_rect(rect, Color(1.0, 0.35, 0.15, 0.35 * pulse), true)
 		target.draw_rect(rect, Color(1.0, 0.30, 0.20, 0.98), false, 24.0)
-		target.draw_rect(rect.grow(-16.0), Color(1.0, 0.80, 0.20, 0.80 * pulse), false, 12.0)
-		target.draw_circle(center, 130.0 * pulse, Color(1.0, 0.45, 0.15, 0.30))
 		target.draw_circle(center, 85.0, Color(1.0, 0.75, 0.20, 0.60))
 
-	var t_step = int(now * 0.03)
-	# 描画負荷軽減のため稲妻は2本に減らす（360度を180度間隔で均等配置）
-	for i in range(2):
-		var rand_angle = (i * 180.0 + (t_step * 41 + i * 29) % 45) * (PI / 180.0)
-		var p1 = center + Vector2(cos(rand_angle), sin(rand_angle)) * 60.0
-		var p2 = center + Vector2(cos(rand_angle + 0.3), sin(rand_angle + 0.3)) * 220.0
-		var mid = (p1 + p2) * 0.5 + Vector2(-sin(rand_angle), cos(rand_angle)) * 45.0
-		var bolt_col = (Color(0.4, 1.0, 0.85, 0.98) if is_ally else Color(1.0, 0.85, 0.30, 0.98)) if (i % 2 == 0) else (Color(0.75, 1.0, 0.95, 0.95) if is_ally else Color(1.0, 0.35, 0.25, 0.95))
-		_bolt_line_pts[0] = p1
-		_bolt_line_pts[1] = mid
-		_bolt_line_pts[2] = p2
-		target.draw_polyline(_bolt_line_pts, bolt_col, 14.0)
-
-	# 中央の稲妻マークは簡略化（塗りのみ・輪郭線なし）
+	# ??????????????
 	_bolt_mark_pts[0] = center + Vector2(30, -145)
 	_bolt_mark_pts[1] = center + Vector2(-85, -10)
 	_bolt_mark_pts[2] = center + Vector2(-15, -10)
@@ -469,10 +451,6 @@ func _draw_electrified_tile(target: CanvasItem, r: int, c: int, pulse: float, no
 	_bolt_mark_pts[4] = center + Vector2(85, 10)
 	_bolt_mark_pts[5] = center + Vector2(15, 10)
 	target.draw_colored_polygon(_bolt_mark_pts, Color(0.30, 1.0, 0.85, 1.0) if is_ally else Color(1.0, 0.86, 0.25, 1.0))
-
-	var el_lbl = "⚡充電(自)" if is_ally else "⚡帯電(敵)"
-	var el_col = Color(0.40, 1.0, 0.85) if is_ally else Color(1.0, 0.55, 0.35)
-	target.draw_string(CUSTOM_FONT, Vector2(center.x - 210, center.y + 205), el_lbl, HORIZONTAL_ALIGNMENT_CENTER, 420, 100, el_col)
 
 ## 闇属性の呪いコマ描画（自＝蒼星の影護、敵＝紫黒ドクロの呪い）
 func _draw_cursed_tile(target: CanvasItem, r: int, c: int, pulse: float) -> void:

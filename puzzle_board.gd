@@ -7768,6 +7768,8 @@ func _apply_board_delta(delta: Dictionary) -> void:
 		"ps": grid_poison_stage, "gs": grid_gold_statue, "ab": grid_afterburn
 	}
 	var bool_keys := {"ib": true, "we": true, "el": true, "cu": true, "po": true, "ab": true}
+	var int_keys := {"n": true, "si": true, "sc": true, "so": true, "ga": true, "ge": true,
+		"ic": true, "fi": true, "st": true, "ps": true, "gs": true}
 	for key in delta.keys():
 		if not grids.has(key):
 			continue
@@ -7781,12 +7783,33 @@ func _apply_board_delta(delta: Dictionary) -> void:
 			var c: int = idx % GRID_COLUMNS
 			var val = change[1]
 			if bool_keys.has(key):
-				grid[r][c] = val != 0
+				grid[r][c] = int(val) != 0
+			elif int_keys.has(key):
+				grid[r][c] = int(val)
 			else:
 				grid[r][c] = val
+	# スプライトテクスチャを盤面データに同期（grid_n 変更時）
+	_sync_piece_sprites()
 	_update_board_element_flags()
 	_redraw_board_effects()
 	queue_redraw()
+	# 受信側も同期状態を更新（自分の変更を再送しないため）
+	_last_synced_state = _serialize_board_state()
+
+## grid_n に合わせてスプライトのテクスチャを更新する
+func _sync_piece_sprites() -> void:
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			var idx: int = grid_i[r][c] if grid_i.size() == GRID_ROWS else -1
+			if idx < 0 or idx >= piece.size() or piece[idx] == null:
+				continue
+			var kind: int = grid_n[r][c]
+			if kind >= 0 and kind < PIECE_TEXTURES.size() and PIECE_TEXTURES[kind] != null:
+				if piece[idx].texture != PIECE_TEXTURES[kind]:
+					piece[idx].texture = PIECE_TEXTURES[kind]
+				piece[idx].visible = true
+			else:
+				piece[idx].visible = false
 
 ## 同期状態をリセットする（マッチ開始時）
 func _reset_sync_state() -> void:
