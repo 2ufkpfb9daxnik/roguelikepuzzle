@@ -7825,6 +7825,38 @@ func _sync_piece_sprites() -> void:
 func _reset_sync_state() -> void:
 	_last_synced_state = {}
 
+## 相手のスワップを適用してカスケード解決する（シード同期方式）
+func _apply_pvp_swap(swap: Array) -> void:
+	if swap.size() < 2:
+		return
+	var a = swap[0]
+	var b = swap[1]
+	var r1: int = int(a[0]); var c1: int = int(a[1])
+	var r2: int = int(b[0]); var c2: int = int(b[1])
+	if r1 < 0 or r1 >= GRID_ROWS or c1 < 0 or c1 >= GRID_COLUMNS:
+		return
+	if r2 < 0 or r2 >= GRID_ROWS or c2 < 0 or c2 >= GRID_COLUMNS:
+		return
+	# 全グリッドの該当セルをスワップ
+	var all_grids := [grid_n, grid_att, grid_element, is_bomb,
+		special_item, special_charge, grid_skill_owner,
+		grid_water, grid_ice, grid_fire, grid_electrified,
+		grid_stones, grid_cursed, grid_poison, grid_poison_stage,
+		grid_gold_statue, grid_afterburn]
+	for grid in all_grids:
+		if grid.size() == GRID_ROWS:
+			var tmp = grid[r1][c1]
+			grid[r1][c1] = grid[r2][c2]
+			grid[r2][c2] = tmp
+	# スプライトを同期
+	_sync_piece_sprites()
+	_update_board_element_flags()
+	_redraw_board_effects()
+	queue_redraw()
+	# カスケード解決を開始（マッチ検出→消去→落下→連鎖）
+	last_swap_cells = [Vector2i(r1, c1), Vector2i(r2, c2)]
+	_start_match_highlight()
+
 ## 盤面全体の状態をシリアライズする（互換用・フル状態が必要な場合）
 func _serialize_board_state_full() -> Dictionary:
 	return _serialize_board_state()
@@ -7938,7 +7970,7 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"sword": sword_val,
 		"elements": element_values,
 		"seed": int(board_seed),
-		"board": _serialize_board_delta()
+		"swap": last_swap_cells.map(func(v): return [v.x, v.y])
 	}
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
