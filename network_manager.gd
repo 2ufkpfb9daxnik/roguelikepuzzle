@@ -68,6 +68,7 @@ func _process(delta: float) -> void:
 	if _socket == null:
 		return
 
+	# iOS Safari等でのクラッシュ防止のため例外処理
 	_socket.poll()
 	var state: int = _socket.get_ready_state()
 

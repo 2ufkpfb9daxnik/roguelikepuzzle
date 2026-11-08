@@ -197,6 +197,9 @@ func _apply_cached_state() -> void:
 	# オンライン対戦開始時のシードを両者で共有し、演出の乱数列を一致させる
 	if _net != null and _net.match_data is Dictionary:
 		_match_seed = int(_net.match_data.get("seed", 0))
+	# 初期盤面をシードから再生成（両者で同じ盤面にする）
+	if _board and _match_seed != 0 and _board.has_method("_reset_board_with_seed"):
+		_board._reset_board_with_seed(_match_seed + 7919)
 	if not _net.last_turn.is_empty():
 		_on_turn_started(_net.last_turn)
 	if not _net.last_shop.is_empty():
@@ -876,7 +879,8 @@ func _on_pvp_turn_resolved(payload: Dictionary) -> void:
 		"skills": payload.get("skills", []),
 		"sword": int(payload.get("sword", 0)),
 		"elements": payload.get("elements", {}),
-		"swap": payload.get("swap", [])
+		"swap": payload.get("swap", []),
+		"board": payload.get("board", {})
 	}
 	_net.send_action(net_payload)
 	if _net and _net.has_method("send_stats"):
@@ -1100,11 +1104,11 @@ func _play_enemy_attack_animation(damage: int) -> void:
 func _on_action_received(from: int, payload: Dictionary) -> void:
 	if from == _my_index:
 		return
-	# 共有盤面モード: 相手のスワップを適用してカスケード解決（シード同期方式）
-	var swap_data = payload.get("swap", null)
-	if swap_data != null and typeof(swap_data) == TYPE_ARRAY and _board != null:
-		if _board.has_method("_apply_pvp_swap"):
-			_board._apply_pvp_swap(swap_data)
+	# 共有盤面モード: 相手の盤面変更をデルタで適用（カスケード・ターン終了なし）
+	var board_delta = payload.get("board", null)
+	if board_delta != null and typeof(board_delta) == TYPE_DICTIONARY and _board != null:
+		if _board.has_method("_apply_board_delta"):
+			_board._apply_board_delta(board_delta)
 	var skill_name: String = str(payload.get("skillName", ""))
 	if not skill_name.is_empty():
 		var elem: String = str(payload.get("skillElement", ""))

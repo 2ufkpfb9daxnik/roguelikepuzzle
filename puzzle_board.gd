@@ -7763,6 +7763,7 @@ func _serialize_board_delta() -> Dictionary:
 func _apply_board_delta(delta: Dictionary) -> void:
 	if delta.is_empty():
 		return
+	_is_applying_remote = true
 	var grids := {
 		"n": grid_n, "si": special_item, "sc": special_charge,
 		"so": grid_skill_owner, "ib": is_bomb,
@@ -7800,6 +7801,7 @@ func _apply_board_delta(delta: Dictionary) -> void:
 	queue_redraw()
 	# 受信側も同期状態を更新（自分の変更を再送しないため）
 	_last_synced_state = _serialize_board_state()
+	_is_applying_remote = false
 
 ## grid_n に合わせてスプライトのテクスチャを更新する
 func _sync_piece_sprites() -> void:
@@ -7824,6 +7826,54 @@ func _sync_piece_sprites() -> void:
 ## 同期状態をリセットする（マッチ開始時）
 func _reset_sync_state() -> void:
 	_last_synced_state = {}
+
+## 指定シードで盤面の駒を再生成する（PvP初期盤面の一致用）
+func _reset_board_with_seed(new_seed: int) -> void:
+	set_board_seed(new_seed)
+	# 既存のスプライトはそのまま使い、駒の種類だけシードから再生成
+	for i in range(GRID_ROWS):
+		for j in range(GRID_COLUMNS):
+			var can_set: Array[bool] = []
+			can_set.resize(CELL_KINDS)
+			can_set.fill(true)
+			if i >= 2 and grid_n[i - 1][j] == grid_n[i - 2][j]:
+				can_set[grid_n[i - 1][j]] = false
+			if j >= 2 and grid_n[i][j - 1] == grid_n[i][j - 2]:
+				can_set[grid_n[i][j - 1]] = false
+			var available_kinds: Array[int] = []
+			for k in range(CELL_KINDS):
+				if can_set[k]:
+					available_kinds.append(k)
+			if available_kinds.is_empty():
+				available_kinds = [0, 1, 2, 3, 4]
+			var chosen: int = available_kinds[_board_randi() % available_kinds.size()]
+			grid_n[i][j] = chosen
+			grid_att[i][j] = chosen % 5
+			grid_element[i][j] = ElementDataScript.Element.NONE
+	# スプライトと効果マスをリセット
+	for r in range(GRID_ROWS):
+		for c in range(GRID_COLUMNS):
+			grid_water[r][c] = false
+			grid_ice[r][c] = 0
+			grid_fire[r][c] = 0
+			grid_electrified[r][c] = false
+			grid_stones[r][c] = 0
+			grid_cursed[r][c] = false
+			grid_poison[r][c] = false
+			grid_gold_statue[r][c] = 0
+			grid_afterburn[r][c] = false
+			special_item[r][c] = SpecialItemType.NONE
+			special_charge[r][c] = 0
+			is_bomb[r][c] = false
+			grid_skill_owner[r][c] = -1
+	_sync_piece_sprites()
+	_update_board_element_flags()
+	_redraw_board_effects()
+	_reset_sync_state()
+	queue_redraw()
+
+## 相手の盤面変更を適用中フラグ（カスケード・ターン終了を防止）
+var _is_applying_remote: bool = false
 
 ## 相手のスワップを適用してカスケード解決する（シード同期方式）
 func _apply_pvp_swap(swap: Array) -> void:
@@ -7970,10 +8020,14 @@ func _build_pvp_turn_payload(sm: Node2D, score_mgr: Node2D, damage: float, shiel
 		"sword": sword_val,
 		"elements": element_values,
 		"seed": int(board_seed),
-		"swap": last_swap_cells.map(func(v): return [v.x, v.y])
+		"swap": last_swap_cells.map(func(v): return [v.x, v.y]),
+		"board": _serialize_board_delta()
 	}
 
 func _finish_pvp_turn(sm: Node2D, score_mgr: Node2D) -> void:
+	# リモート盤面適用中はターン終了しない
+	if _is_applying_remote:
+		return
 	var used_skills: Array = pvp_used_skills.duplicate(true)
 	# 行動中に展開したシールドを合算して、敵のターン中も残る盾として引き渡す
 	var shield_gain: float = pvp_turn_shield_deployed if pvp_mode else float(current_total_shields) * 100.0 * shieldt

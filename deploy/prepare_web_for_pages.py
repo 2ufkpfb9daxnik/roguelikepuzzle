@@ -58,8 +58,10 @@ async function startChunkedGame(engine, statusProgress, setStatusMode, displayFa
 \t\t\tstatusProgress.max = WASM_SIZE;
 \t\t}
 \t\tglobalThis.__GODOT_WASM_URL = URL.createObjectURL(new Blob([wasm.buffer], { type: 'application/wasm' }));
+\t\twasm = null;
 \t\tawait engine.init('index');
 \t\tawait engine.preloadFile(pck.buffer, 'index.pck');
+\t\tpck = null;
 \t\tengine.config.args = ['--main-pack', 'index.pck'].concat(engine.config.args || []);
 \t\tawait engine.start();
 \t\tsetStatusMode('hidden');
